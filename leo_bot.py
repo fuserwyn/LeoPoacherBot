@@ -77,6 +77,10 @@ async def handle_message(msg: types.Message):
         help_text = """
 🤖 **LeoPoacherBot - Команды:**
 
+📝 **Команды администратора:**
+• `/start_timer` - Запустить таймеры для всех пользователей в БД (Толстый Леопард)
+• `/help` - Показать это сообщение
+
 💪 **Отчеты о тренировке:**
 • `#training_done` - Отправить отчет о тренировке
 
@@ -90,6 +94,93 @@ async def handle_message(msg: types.Message):
 • Бот должен быть администратором чата для полного функционала
 """
         await msg.reply(help_text, parse_mode="Markdown")
+        return
+
+    # Обработка команды /start_timer
+    if msg.text and msg.text.startswith("/start_timer"):
+        chat_id = msg.chat.id
+        
+        # Проверяем, является ли отправитель администратором
+        try:
+            chat_member = await bot.get_chat_member(chat_id, msg.from_user.id)
+            if chat_member.status not in [ChatMemberStatus.ADMINISTRATOR, ChatMemberStatus.CREATOR]:
+                await msg.reply("❌ Только администраторы могут использовать эту команду!")
+                return
+        except Exception as e:
+            logging.warning(f"Ошибка при проверке прав администратора: {e}")
+            return
+
+        try:
+            await msg.reply("🐆 **Fat Leopard активирован!**\n\n⏳ Запускаю таймеры для всех участников...", parse_mode="Markdown")
+            
+            # Получаем всех пользователей из базы данных
+            async with aiosqlite.connect(DB_NAME) as db:
+                async with db.execute('''
+                    SELECT DISTINCT user_id FROM message_log 
+                    WHERE chat_id = ?
+                    ORDER BY last_message DESC
+                ''', (chat_id,)) as cursor:
+                    db_users = await cursor.fetchall()
+            
+            # if not db_users:
+            #     await msg.reply("⚠️ В базе данных нет пользователей для этого чата")
+            #     return
+            
+            current_time = datetime.utcnow().isoformat()
+            started_timers = 0
+            failed_users = []
+            
+            for (user_id,) in db_users:
+                try:
+                    # Проверяем, что пользователь все еще в чате
+                    chat_member = await bot.get_chat_member(chat_id, user_id)
+                    if chat_member.status in [ChatMemberStatus.MEMBER, ChatMemberStatus.ADMINISTRATOR, ChatMemberStatus.CREATOR]:
+                        username = chat_member.user.username or chat_member.user.first_name
+                        
+                        # Обновляем время в базе данных
+                        async with aiosqlite.connect(DB_NAME) as db:
+                            await db.execute('''
+                                UPDATE message_log 
+                                SET last_message = ?, has_training_done = FALSE
+                                WHERE user_id = ? AND chat_id = ?
+                            ''', (current_time, user_id, chat_id))
+                            await db.commit()
+                        
+                        # Отменяем существующие таймеры
+                        if user_id in scheduled_removals:
+                            cancel_user_removal(user_id)
+                        
+                        # Запускаем новые таймеры
+                        warning_task = asyncio.create_task(schedule_user_warning(user_id, chat_id, username, 6 * 24 * 60 * 60))
+                        removal_task = asyncio.create_task(schedule_user_removal(user_id, chat_id, 7 * 24 * 60 * 60))
+                        scheduled_removals[user_id] = {"warning": warning_task, "removal": removal_task}
+                        
+                        started_timers += 1
+                        logging.info(f"⏰ Запущен таймер для: {user_id} (@{username})")
+                        
+                    else:
+                        failed_users.append(f"Пользователь {user_id} (не в чате)")
+                        logging.warning(f"Пользователь {user_id} не в чате")
+                        
+                except Exception as e:
+                    failed_users.append(f"Пользователь {user_id} (ошибка: {e})")
+                    logging.error(f"Ошибка при обработке пользователя {user_id}: {e}")
+            
+            # Отправляем итоговый отчет
+            result_message = f"🐆 **Fat Leopard активирован!**\n"
+            if failed_users:
+                result_message += f"❌ **Ошибки:** {len(failed_users)}\n"
+            result_message += f"\n⏱️ **Время:** 7 дней\n"
+            result_message += f"💪 **Действие:** Отправьте `#training_done`\n\n"
+            result_message += f"🦁 **Вы ведь не хотите стать как Fat Leopard?**\n"
+            result_message += f"Тогда тренируйтесь и отправляйте отчеты!"
+            
+            await msg.reply(result_message, parse_mode="Markdown")
+            logging.info(f"Fat Leopard запустил таймеры: {started_timers} успешно, {len(failed_users)} ошибок")
+            
+        except Exception as e:
+            logging.error(f"Ошибка при запуске таймеров: {e}")
+            await msg.reply("❌ Ошибка при запуске таймеров")
         return
 
     # Обработка обычных сообщений
@@ -121,14 +212,6 @@ async def handle_message(msg: types.Message):
         removal_task = asyncio.create_task(schedule_user_removal(user_id, chat_id, 7 * 24 * 60 * 60))  # 7 дней
         scheduled_removals[user_id] = {"warning": warning_task, "removal": removal_task}
         logging.info(f"⏰ Таймер запущен для нового пользователя {user_id} (@{username})")
-        
-        # Отправляем приветствие новому пользователю
-        try:
-            welcome_message = f"👋 **Привет, @{username}!**\n\n🤖 **Я Fat Leopard - ваш тренер!**\n\n⏰ **Таймер запущен!**\n• У вас есть **7 дней** чтобы отправить `#training_done`\n• Через **6 дней** вы получите предупреждение\n• Через **7 дней** без отчета - удаление из чата\n\n💪 **Отправьте `#training_done` прямо сейчас!**"
-            await bot.send_message(chat_id, welcome_message, parse_mode="Markdown")
-            logging.info(f"Отправлено приветствие новому пользователю {user_id} (@{username})")
-        except Exception as e:
-            logging.error(f"Ошибка при отправке приветствия пользователю {user_id}: {e}")
 
     if has_training_done:
         # Если это отчет о тренировке, сохраняем в training_log
@@ -140,7 +223,7 @@ async def handle_message(msg: types.Message):
             await db.commit()
         logging.info(f"Отчет о тренировке сохранен для пользователя {user_id}")
         try:
-            await msg.reply("✅ **Отчёт принят!** 💪\n\n⏰ Таймер перезапущен на 7 дней\n\n🎯 Продолжай тренироваться и не забывай отправлять `#training_done`!")
+            await msg.reply("✅ **Отчёт принят!** ��\n\n⏰ Таймер перезапускается на 7 дней\n\n🎯 Продолжай тренироваться и не забывай отправлять `#training_done`!")
             logging.info(f"Ответ 'Отчёт принят' отправлен пользователю {user_id}")
         except Exception as e:
             logging.error(f"Ошибка при отправке ответа пользователю {user_id}: {e}")
