@@ -1,0 +1,11 @@
+# Telegram Bot Token
+# Получите токен у @BotFather в Telegram
+API_TOKEN=your_bot_token_here
+
+# Пример:
+# API_TOKEN=1234567890:ABCdefGHIjklMNOpqrsTUVwxyz
+
+# Инструкция:
+# 1. Скопируйте этот файл и переименуйте в .env
+# 2. Замените your_bot_token_here на ваш реальный токен бота
+# 3. Файл .env будет автоматически игнорироваться git'ом 
