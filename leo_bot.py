@@ -102,14 +102,6 @@ async def handle_message(msg: types.Message):
         
         # Проверяем, является ли отправитель администратором
         try:
-            activation_message = f"🐆 **Fat Leopard активирован!**\n\n"
-            activation_message += f"🦁 **Я питаюсь ленивыми леопардами и становлюсь жирнее!**\n\n"
-            activation_message += f"⏰ **Таймеры запущены для всех участников!**\n"
-            activation_message += f"• 6 дней до предупреждения\n"
-            activation_message += f"• 7 дней до удаления\n\n"
-            activation_message += f"🦁 **Вы ведь не хотите стать как я?**\n"
-            activation_message += f"Тогда тренируйтесь и отправляйте `#training_done`!"
-            
             chat_member = await bot.get_chat_member(chat_id, msg.from_user.id)
             if chat_member.status not in [ChatMemberStatus.ADMINISTRATOR, ChatMemberStatus.CREATOR]:
                 await msg.reply("❌ Только администраторы могут использовать эту команду!")
@@ -191,62 +183,63 @@ async def handle_message(msg: types.Message):
             await msg.reply("❌ Ошибка при запуске таймеров")
         return
 
-    # Обработка обычных сообщений
-    chat_id = msg.chat.id
-    user_id = msg.from_user.id
-    current_time = datetime.utcnow()
-    has_training_done = msg.text and "#training_done" in msg.text.lower()
-    
-    logging.info(f"Получено сообщение от {user_id}: '{msg.text}' (has_training_done: {has_training_done})")
-
-    # Автоматически сохраняем информацию о сообщении
-    try:
-        async with aiosqlite.connect(DB_NAME) as db:
-            # Сохраняем информацию о сообщении
-            await db.execute('''
-                INSERT OR REPLACE INTO message_log (user_id, chat_id, last_message, has_training_done)
-                VALUES (?, ?, ?, ?)
-            ''', (user_id, chat_id, current_time.isoformat(), has_training_done))
-            await db.commit()
-            logging.info(f"Сообщение пользователя {user_id} в чате {chat_id} сохранено в БД")
-    except Exception as e:
-        logging.error(f"Ошибка при сохранении сообщения: {e}")
-
-    # Автоматически запускаем таймер для нового пользователя
-    if user_id not in scheduled_removals:
-        username = msg.from_user.username or msg.from_user.first_name
-        logging.info(f"🆕 НОВЫЙ ПОЛЬЗОВАТЕЛЬ: Запускаем таймер для пользователя {user_id} (@{username}) при первом сообщении")
-        warning_task = asyncio.create_task(schedule_user_warning(user_id, chat_id, username, 6 * 24 * 60 * 60))  # 6 дней
-        removal_task = asyncio.create_task(schedule_user_removal(user_id, chat_id, 7 * 24 * 60 * 60))  # 7 дней
-        scheduled_removals[user_id] = {"warning": warning_task, "removal": removal_task}
-        logging.info(f"⏰ Таймер запущен для нового пользователя {user_id} (@{username})")
-
-    if has_training_done:
-        # Если это отчет о тренировке, сохраняем в training_log
-        async with aiosqlite.connect(DB_NAME) as db:
-            await db.execute('''
-                INSERT OR REPLACE INTO training_log (user_id, last_report)
-                VALUES (?, ?)
-            ''', (user_id, current_time.isoformat()))
-            await db.commit()
-        logging.info(f"Отчет о тренировке сохранен для пользователя {user_id}")
-        try:
-            await msg.reply("✅ **Отчёт принят!** ��\n\n⏰ Таймер перезапускается на 7 дней\n\n🎯 Продолжай тренироваться и не забывай отправлять `#training_done`!")
-            logging.info(f"Ответ 'Отчёт принят' отправлен пользователю {user_id}")
-        except Exception as e:
-            logging.error(f"Ошибка при отправке ответа пользователю {user_id}: {e}")
+    # Обработка обычных сообщений (только если это не команда)
+    if not msg.text or not msg.text.startswith("/"):
+        chat_id = msg.chat.id
+        user_id = msg.from_user.id
+        current_time = datetime.utcnow()
+        has_training_done = msg.text and "#training_done" in msg.text.lower()
         
-        # Запускаем новый персональный таймер на 7 дней после #training_done
-        username = msg.from_user.username or msg.from_user.first_name
-        timer_start_time = current_time.isoformat()
-        logging.info(f"ЗАПУСК НОВОГО ТАЙМЕРА: После #training_done планируем удаление пользователя {user_id} (@{username}) через 7 дней")
-        warning_task = asyncio.create_task(schedule_user_warning(user_id, chat_id, username, 6 * 24 * 60 * 60, timer_start_time))  # 6 дней
-        removal_task = asyncio.create_task(schedule_user_removal(user_id, chat_id, 7 * 24 * 60 * 60, timer_start_time))  # 7 дней
-        scheduled_removals[user_id] = {"warning": warning_task, "removal": removal_task}
-        logging.info(f"Новый персональный таймер запущен для пользователя {user_id} - предупреждение через 6 дней, удаление через 7 дней")
-    else:
-        # Игнорируем обычные сообщения - они не влияют на таймер
-        logging.info(f"ОБЫЧНОЕ СООБЩЕНИЕ: Игнорируем сообщение от пользователя {user_id} - таймер не перезапускается")
+        logging.info(f"Получено сообщение от {user_id}: '{msg.text}' (has_training_done: {has_training_done})")
+
+        # Автоматически сохраняем информацию о сообщении
+        try:
+            async with aiosqlite.connect(DB_NAME) as db:
+                # Сохраняем информацию о сообщении
+                await db.execute('''
+                    INSERT OR REPLACE INTO message_log (user_id, chat_id, last_message, has_training_done)
+                    VALUES (?, ?, ?, ?)
+                ''', (user_id, chat_id, current_time.isoformat(), has_training_done))
+                await db.commit()
+                logging.info(f"Сообщение пользователя {user_id} в чате {chat_id} сохранено в БД")
+        except Exception as e:
+            logging.error(f"Ошибка при сохранении сообщения: {e}")
+
+        # Автоматически запускаем таймер для нового пользователя
+        if user_id not in scheduled_removals:
+            username = msg.from_user.username or msg.from_user.first_name
+            logging.info(f"🆕 НОВЫЙ ПОЛЬЗОВАТЕЛЬ: Запускаем таймер для пользователя {user_id} (@{username}) при первом сообщении")
+            warning_task = asyncio.create_task(schedule_user_warning(user_id, chat_id, username, 6 * 24 * 60 * 60))  # 6 дней
+            removal_task = asyncio.create_task(schedule_user_removal(user_id, chat_id, 7 * 24 * 60 * 60))  # 7 дней
+            scheduled_removals[user_id] = {"warning": warning_task, "removal": removal_task}
+            logging.info(f"⏰ Таймер запущен для нового пользователя {user_id} (@{username})")
+
+        if has_training_done:
+            # Если это отчет о тренировке, сохраняем в training_log
+            async with aiosqlite.connect(DB_NAME) as db:
+                await db.execute('''
+                    INSERT OR REPLACE INTO training_log (user_id, last_report)
+                    VALUES (?, ?)
+                ''', (user_id, current_time.isoformat()))
+                await db.commit()
+            logging.info(f"Отчет о тренировке сохранен для пользователя {user_id}")
+            try:
+                await msg.reply("✅ **Отчёт принят!** 💪\n\n⏰ Таймер перезапускается на 7 дней\n\n🎯 Продолжай тренироваться и не забывай отправлять `#training_done`!")
+                logging.info(f"Ответ 'Отчёт принят' отправлен пользователю {user_id}")
+            except Exception as e:
+                logging.error(f"Ошибка при отправке ответа пользователю {user_id}: {e}")
+            
+            # Запускаем новый персональный таймер на 7 дней после #training_done
+            username = msg.from_user.username or msg.from_user.first_name
+            timer_start_time = current_time.isoformat()
+            logging.info(f"ЗАПУСК НОВОГО ТАЙМЕРА: После #training_done планируем удаление пользователя {user_id} (@{username}) через 7 дней")
+            warning_task = asyncio.create_task(schedule_user_warning(user_id, chat_id, username, 6 * 24 * 60 * 60, timer_start_time))  # 6 дней
+            removal_task = asyncio.create_task(schedule_user_removal(user_id, chat_id, 7 * 24 * 60 * 60, timer_start_time))  # 7 дней
+            scheduled_removals[user_id] = {"warning": warning_task, "removal": removal_task}
+            logging.info(f"Новый персональный таймер запущен для пользователя {user_id} - предупреждение через 6 дней, удаление через 7 дней")
+        else:
+            # Игнорируем обычные сообщения - они не влияют на таймер
+            logging.info(f"ОБЫЧНОЕ СООБЩЕНИЕ: Игнорируем сообщение от пользователя {user_id} - таймер не перезапускается")
 
 
 def cancel_user_removal(user_id: int):
