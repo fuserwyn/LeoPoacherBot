@@ -158,6 +158,24 @@ async def handle_message(msg: types.Message):
                         started_timers += 1
                         logging.info(f"⏰ Запущен таймер для: {user_id} (@{username})")
                         
+                        # Отправляем персональное сообщение от Fat Leopard
+                        try:
+                            leopard_message = f"🐆 **Привет! Я Fat Leopard!**\n\n"
+                            leopard_message += f"🦁 **Я питаюсь ленивыми леопардами и становлюсь жирнее!**\n\n"
+                            leopard_message += f"⏰ **Таймер запущен на 7 дней!**\n\n"
+                            leopard_message += f"💪 **Условия Fat Leopard:**\n"
+                            leopard_message += f"• Отправь `#training_done` в течение 7 дней\n"
+                            leopard_message += f"• Через 6 дней получишь предупреждение\n"
+                            leopard_message += f"• Через 7 дней без отчета - удаление из чата\n\n"
+                            leopard_message += f"🦁 **Вы ведь не хотите стать как я?**\n"
+                            leopard_message += f"Тогда тренируйтесь и отправляйте отчеты!\n\n"
+                            leopard_message += f"💪 **Отправьте `#training_done` прямо сейчас!**"
+                            
+                            await bot.send_message(chat_id, leopard_message, parse_mode="Markdown")
+                            logging.info(f"Отправлено сообщение от Fat Leopard пользователю {user_id} (@{username})")
+                        except Exception as e:
+                            logging.error(f"Ошибка при отправке сообщения пользователю {user_id}: {e}")
+                        
                     else:
                         failed_users.append(f"Пользователь {user_id} (не в чате)")
                         logging.warning(f"Пользователь {user_id} не в чате")
@@ -212,6 +230,9 @@ async def handle_message(msg: types.Message):
         removal_task = asyncio.create_task(schedule_user_removal(user_id, chat_id, 7 * 24 * 60 * 60))  # 7 дней
         scheduled_removals[user_id] = {"warning": warning_task, "removal": removal_task}
         logging.info(f"⏰ Таймер запущен для нового пользователя {user_id} (@{username})")
+        
+        # Убираем приветствие - только сохраняем в БД и запускаем таймер
+        logging.info(f"Таймер запущен для нового пользователя {user_id} (@{username}) без приветствия")
 
     if has_training_done:
         # Если это отчет о тренировке, сохраняем в training_log
