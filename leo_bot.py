@@ -188,9 +188,12 @@ async def handle_message(msg: types.Message):
         chat_id = msg.chat.id
         user_id = msg.from_user.id
         current_time = datetime.utcnow()
-        has_training_done = msg.text and "#training_done" in msg.text.lower()
         
-        logging.info(f"Получено сообщение от {user_id}: '{msg.text}' (has_training_done: {has_training_done})")
+        # Проверяем #training_done в тексте сообщения или подписи к медиа
+        message_text = msg.text or msg.caption or ""
+        has_training_done = "#training_done" in message_text.lower()
+        
+        logging.info(f"Получено сообщение от {user_id}: '{message_text}' (has_training_done: {has_training_done})")
 
         # Автоматически сохраняем информацию о сообщении
         try:
