@@ -388,6 +388,58 @@ async def handle_message(msg: types.Message):
             await msg.reply(f"❌ Ошибка отправки: {e}")
         return
 
+    # Обработка команды /db_full для владельца
+    if msg.text and msg.text.startswith("/db_full"):
+        if msg.from_user.id != OWNER_ID:
+            await msg.reply("❌ Только владелец может использовать эту команду!")
+            return
+        
+        try:
+            async with aiosqlite.connect(DB_NAME) as db:
+                # Получаем статистику
+                async with db.execute('''
+                    SELECT 
+                        COUNT(*) as total_users,
+                        SUM(CASE WHEN has_training_done = 1 THEN 1 ELSE 0 END) as training_done,
+                        SUM(CASE WHEN has_sick_leave = 1 THEN 1 ELSE 0 END) as sick_leave,
+                        SUM(CASE WHEN has_healthy = 1 THEN 1 ELSE 0 END) as healthy
+                    FROM message_log
+                ''') as cursor:
+                    stats = await cursor.fetchone()
+                
+                # Получаем последние записи
+                async with db.execute('''
+                    SELECT user_id, chat_id, last_message, has_training_done, has_sick_leave, has_healthy, timer_start_time, sick_leave_start_time
+                    FROM message_log 
+                    ORDER BY last_message DESC LIMIT 10
+                ''') as cursor:
+                    recent = await cursor.fetchall()
+                
+                # Формируем отчет
+                report = f"📊 **Полная статистика БД**\n\n"
+                report += f"👥 **Всего пользователей:** {stats[0]}\n"
+                report += f"✅ **С training_done:** {stats[1]}\n"
+                report += f"🏥 **На больничном:** {stats[2]}\n"
+                report += f"💪 **Выздоровели:** {stats[3]}\n\n"
+                
+                report += f"🕐 **Последние 10 записей:**\n"
+                for i, (user_id, chat_id, last_msg, training, sick, healthy, timer, sick_time) in enumerate(recent, 1):
+                    status = []
+                    if training: status.append("✅")
+                    if sick: status.append("🏥")
+                    if healthy: status.append("💪")
+                    if timer: status.append("⏰")
+                    if sick_time: status.append("📅")
+                    
+                    status_str = " ".join(status) if status else "📝"
+                    report += f"{i}. ID:{user_id} {status_str}\n"
+                
+                await msg.reply(report, parse_mode="Markdown")
+                
+        except Exception as e:
+            await msg.reply(f"❌ Ошибка при получении данных: {e}")
+        return
+
     # Обработка обычных сообщений (только если это не команда)
     if not msg.text or not msg.text.startswith("/"):
         chat_id = msg.chat.id
