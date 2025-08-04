@@ -446,6 +446,58 @@ async def handle_message(msg: types.Message):
             await msg.reply(f"❌ Ошибка при получении данных: {e}")
         return
 
+    # Обработка команды /db_all для владельца (показывает все чаты)
+    if msg.text and msg.text.startswith("/db_all"):
+        if msg.from_user.id != OWNER_ID:
+            await msg.reply("❌ Только владелец может использовать эту команду!")
+            return
+        
+        try:
+            async with aiosqlite.connect(DB_NAME) as db:
+                # Получаем статистику по всем чатам
+                async with db.execute('''
+                    SELECT 
+                        chat_id,
+                        COUNT(*) as total_users,
+                        SUM(CASE WHEN has_training_done = 1 THEN 1 ELSE 0 END) as training_done,
+                        SUM(CASE WHEN has_sick_leave = 1 THEN 1 ELSE 0 END) as sick_leave,
+                        SUM(CASE WHEN has_healthy = 1 THEN 1 ELSE 0 END) as healthy
+                    FROM message_log
+                    GROUP BY chat_id
+                    ORDER BY total_users DESC
+                ''') as cursor:
+                    chat_stats = await cursor.fetchall()
+                
+                # Получаем общую статистику
+                async with db.execute('''
+                    SELECT 
+                        COUNT(*) as total_users,
+                        COUNT(DISTINCT chat_id) as total_chats,
+                        SUM(CASE WHEN has_training_done = 1 THEN 1 ELSE 0 END) as training_done,
+                        SUM(CASE WHEN has_sick_leave = 1 THEN 1 ELSE 0 END) as sick_leave,
+                        SUM(CASE WHEN has_healthy = 1 THEN 1 ELSE 0 END) as healthy
+                    FROM message_log
+                ''') as cursor:
+                    total_stats = await cursor.fetchone()
+                
+                # Формируем отчет
+                report = f"📊 **Статистика по всем чатам**\n\n"
+                report += f"👥 **Всего пользователей:** {total_stats[0]}\n"
+                report += f"💬 **Всего чатов:** {total_stats[1]}\n"
+                report += f"✅ **С training_done:** {total_stats[2]}\n"
+                report += f"🏥 **На больничном:** {total_stats[3]}\n"
+                report += f"💪 **Выздоровели:** {total_stats[4]}\n\n"
+                
+                report += f"📋 **По чатам:**\n"
+                for chat_id, total, training, sick, healthy in chat_stats:
+                    report += f"• Чат {chat_id}: {total} пользователей (✅{training} 🏥{sick} 💪{healthy})\n"
+                
+                await msg.reply(report, parse_mode="Markdown")
+                
+        except Exception as e:
+            await msg.reply(f"❌ Ошибка при получении данных: {e}")
+        return
+
     # Обработка обычных сообщений (только если это не команда)
     if not msg.text or not msg.text.startswith("/"):
         chat_id = msg.chat.id
