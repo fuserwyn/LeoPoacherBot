@@ -5,6 +5,9 @@ API_TOKEN=your_bot_token_here
 # Пример:
 # API_TOKEN=1234567890:ABCdefGHIjklMNOpqrsTUVwxyz
 
+# ID владельца (owner) для специальных команд
+OWNER_ID=123456789
+
 # Инструкция:
 # 1. Скопируйте этот файл и переименуйте в .env
 # 2. Замените your_bot_token_here на ваш реальный токен бота
