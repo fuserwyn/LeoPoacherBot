@@ -335,12 +335,57 @@ async def handle_message(msg: types.Message):
         if not text:
             await msg.reply("⚠️ Укажите текст для отправки.")
             return
+        
+        # Если команда отправлена в личку боту, запрашиваем ID чата
+        if msg.chat.type == "private":
+            await msg.reply("📝 Отправьте ID чата, куда нужно отправить сообщение.\n\nЧтобы получить ID чата:\n1. Добавьте бота в нужный чат\n2. Отправьте в чат команду /chat_id\n3. Скопируйте полученный ID")
+            return
+        
+        # Отправляем сообщение в чат
         await bot.send_message(msg.chat.id, f"🦁 {text}")
         # Попытка удалить команду из чата (если есть права)
         try:
             await bot.delete_message(msg.chat.id, msg.message_id)
         except Exception as e:
             logging.warning(f"Не удалось удалить команду /leopard_say: {e}")
+        return
+
+    # Обработка команды /chat_id для получения ID чата
+    if msg.text and msg.text.startswith("/chat_id"):
+        if msg.from_user.id != OWNER_ID:
+            return
+        chat_id = msg.chat.id
+        chat_title = msg.chat.title or "Личный чат"
+        await msg.reply(f"📊 **Информация о чате:**\n\n🆔 **ID чата:** `{chat_id}`\n📝 **Название:** {chat_title}\n\n💡 Скопируйте ID чата для использования в личке с ботом")
+        return
+
+    # Обработка команды для отправки сообщения в конкретный чат (из лички)
+    if msg.text and msg.text.startswith("/send_to_chat"):
+        if msg.from_user.id != OWNER_ID:
+            await msg.reply("❌ Только владелец может использовать эту команду!")
+            return
+        if msg.chat.type != "private":
+            await msg.reply("⚠️ Эта команда работает только в личке с ботом.")
+            return
+        
+        # Парсим команду: /send_to_chat CHAT_ID текст сообщения
+        parts = msg.text.split(" ", 2)
+        if len(parts) < 3:
+            await msg.reply("⚠️ Использование: /send_to_chat CHAT_ID текст сообщения")
+            return
+        
+        try:
+            target_chat_id = int(parts[1])
+            message_text = parts[2]
+            
+            # Отправляем сообщение в указанный чат
+            await bot.send_message(target_chat_id, f"🦁 {message_text}")
+            await msg.reply(f"✅ Сообщение отправлено в чат {target_chat_id}")
+            
+        except ValueError:
+            await msg.reply("❌ Неверный формат ID чата. Используйте: /send_to_chat CHAT_ID текст")
+        except Exception as e:
+            await msg.reply(f"❌ Ошибка отправки: {e}")
         return
 
     # Обработка обычных сообщений (только если это не команда)
