@@ -178,11 +178,14 @@ async def handle_message(msg: types.Message):
     if msg.text and msg.text.startswith("/db"):
         chat_id = msg.chat.id
         
-        # Проверяем, является ли отправитель администратором
+        # Проверяем, является ли отправитель администратором или владельцем
         try:
             chat_member = await bot.get_chat_member(chat_id, msg.from_user.id)
-            if chat_member.status not in [ChatMemberStatus.ADMINISTRATOR, ChatMemberStatus.CREATOR] or msg.from_user.id != OWNER_ID:
-                await msg.reply("❌ Только администраторы могут использовать эту команду!")
+            is_admin = chat_member.status in [ChatMemberStatus.ADMINISTRATOR, ChatMemberStatus.CREATOR]
+            is_owner = msg.from_user.id == OWNER_ID
+            
+            if not is_admin and not is_owner:
+                await msg.reply("❌ Только администраторы или владелец могут использовать эту команду!")
                 return
         except Exception as e:
             logging.warning(f"Ошибка при проверке прав администратора: {e}")
@@ -243,11 +246,14 @@ async def handle_message(msg: types.Message):
     if msg.text and msg.text.startswith("/start_timer"):
         chat_id = msg.chat.id
         
-        # Проверяем, является ли отправитель администратором
+        # Проверяем, является ли отправитель администратором или владельцем
         try:
             chat_member = await bot.get_chat_member(chat_id, msg.from_user.id)
-            if chat_member.status not in [ChatMemberStatus.ADMINISTRATOR, ChatMemberStatus.CREATOR]:
-                await msg.reply("❌ Только администраторы могут использовать эту команду!")
+            is_admin = chat_member.status in [ChatMemberStatus.ADMINISTRATOR, ChatMemberStatus.CREATOR]
+            is_owner = msg.from_user.id == OWNER_ID
+            
+            if not is_admin and not is_owner:
+                await msg.reply("❌ Только администраторы или владелец могут использовать эту команду!")
                 return
         except Exception as e:
             logging.warning(f"Ошибка при проверке прав администратора: {e}")
