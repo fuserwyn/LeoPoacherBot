@@ -336,6 +336,11 @@ async def handle_message(msg: types.Message):
             await msg.reply("⚠️ Укажите текст для отправки.")
             return
         await bot.send_message(msg.chat.id, f"🦁 {text}")
+        # Попытка удалить команду из чата (если есть права)
+        try:
+            await bot.delete_message(msg.chat.id, msg.message_id)
+        except Exception as e:
+            logging.warning(f"Не удалось удалить команду /leopard_say: {e}")
         return
 
     # Обработка обычных сообщений (только если это не команда)
