@@ -22,25 +22,61 @@ DB_NAME = "training.db"
 
 
 async def init_db():
+    """Инициализирует базу данных"""
     async with aiosqlite.connect(DB_NAME) as db:
-        # Таблица для отчетов
-        await db.execute('''
-            CREATE TABLE IF NOT EXISTS training_log (
-                user_id INTEGER PRIMARY KEY,
-                last_report TEXT
-            )
-        ''')
-        # Таблица для отслеживания последних сообщений
+        # Создаем таблицу для логирования сообщений
         await db.execute('''
             CREATE TABLE IF NOT EXISTS message_log (
                 user_id INTEGER,
                 chat_id INTEGER,
                 last_message TEXT,
                 has_training_done BOOLEAN DEFAULT FALSE,
+                has_sick_leave BOOLEAN DEFAULT FALSE,
+                has_healthy BOOLEAN DEFAULT FALSE,
                 PRIMARY KEY (user_id, chat_id)
             )
         ''')
+        
+        # Создаем таблицу для отчетов о тренировках
+        await db.execute('''
+            CREATE TABLE IF NOT EXISTS training_log (
+                user_id INTEGER PRIMARY KEY,
+                last_report TEXT
+            )
+        ''')
+        
+        # Безопасная миграция для добавления поля has_sick_leave
+        try:
+            # Проверяем, существует ли поле has_sick_leave
+            await db.execute('''
+                SELECT has_sick_leave FROM message_log LIMIT 1
+            ''')
+            logging.info("Поле has_sick_leave уже существует в базе данных")
+        except aiosqlite.OperationalError:
+            # Поле не существует, добавляем его
+            logging.info("Добавляем поле has_sick_leave в существующую базу данных")
+            await db.execute('''
+                ALTER TABLE message_log ADD COLUMN has_sick_leave BOOLEAN DEFAULT FALSE
+            ''')
+            logging.info("Поле has_sick_leave успешно добавлено")
+        
+        # Безопасная миграция для добавления поля has_healthy
+        try:
+            # Проверяем, существует ли поле has_healthy
+            await db.execute('''
+                SELECT has_healthy FROM message_log LIMIT 1
+            ''')
+            logging.info("Поле has_healthy уже существует в базе данных")
+        except aiosqlite.OperationalError:
+            # Поле не существует, добавляем его
+            logging.info("Добавляем поле has_healthy в существующую базу данных")
+            await db.execute('''
+                ALTER TABLE message_log ADD COLUMN has_healthy BOOLEAN DEFAULT FALSE
+            ''')
+            logging.info("Поле has_healthy успешно добавлено")
+        
         await db.commit()
+        logging.info("База данных инициализирована")
 
 
 @dp.chat_member()
@@ -75,23 +111,24 @@ async def handle_message(msg: types.Message):
     # Обработка команды /help
     if msg.text and msg.text.startswith("/help"):
         help_text = """
-🤖 **LeoPoacherBot - Команды:**
-
-📝 **Команды администратора:**
-• `/start_timer` - Запустить таймеры для всех пользователей в БД (Толстый Леопард)
-• `/help` - Показать это сообщение
-
 💪 **Отчеты о тренировке:**
 • `#training_done` - Отправить отчет о тренировке
+• `#sick_leave` - Запросить больничный (приостанавливает таймер)
+• `#healthy` - Заявить о выздоровлении (возобновляет таймер)
 
 ⏰ **Как работает бот:**
 • При добавлении бота в чат автоматически запускаются таймеры для всех участников
 • При получении `#training_done` таймер перезапускается на 7 дней
+• При получении `#sick_leave` таймер приостанавливается на время болезни
+• При получении `#healthy` таймер возобновляется с того места где прервали
 • Через 6 дней без `#training_done` - предупреждение
 • Через 7 дней без `#training_done` - удаление из чата
 
-🔧 **Требования:**
-• Бот должен быть администратором чата для полного функционала
+🏥 **Система больничного:**
+• Отправьте `#sick_leave` если заболели или уезжаете
+• Таймер приостанавливается на время больничного
+• После выздоровления отправьте `#healthy` для возобновления таймера
+• Таймер возобновится с того места где прервали
 """
         await msg.reply(help_text, parse_mode="Markdown")
         return
@@ -141,7 +178,7 @@ async def handle_message(msg: types.Message):
                         async with aiosqlite.connect(DB_NAME) as db:
                             await db.execute('''
                                 UPDATE message_log 
-                                SET last_message = ?, has_training_done = FALSE
+                                SET last_message = ?, has_training_done = FALSE, has_sick_leave = FALSE, has_healthy = FALSE
                                 WHERE user_id = ? AND chat_id = ?
                             ''', (current_time, user_id, chat_id))
                             await db.commit()
@@ -192,17 +229,19 @@ async def handle_message(msg: types.Message):
         # Проверяем #training_done в тексте сообщения или подписи к медиа
         message_text = msg.text or msg.caption or ""
         has_training_done = "#training_done" in message_text.lower()
+        has_sick_leave = "#sick_leave" in message_text.lower()
+        has_healthy = "#healthy" in message_text.lower()
         
-        logging.info(f"Получено сообщение от {user_id}: '{message_text}' (has_training_done: {has_training_done})")
+        logging.info(f"Получено сообщение от {user_id}: '{message_text}' (has_training_done: {has_training_done}, has_sick_leave: {has_sick_leave}, has_healthy: {has_healthy})")
 
         # Автоматически сохраняем информацию о сообщении
         try:
             async with aiosqlite.connect(DB_NAME) as db:
                 # Сохраняем информацию о сообщении
                 await db.execute('''
-                    INSERT OR REPLACE INTO message_log (user_id, chat_id, last_message, has_training_done)
-                    VALUES (?, ?, ?, ?)
-                ''', (user_id, chat_id, current_time.isoformat(), has_training_done))
+                    INSERT OR REPLACE INTO message_log (user_id, chat_id, last_message, has_training_done, has_sick_leave, has_healthy)
+                    VALUES (?, ?, ?, ?, ?, ?)
+                ''', (user_id, chat_id, current_time.isoformat(), has_training_done, has_sick_leave, has_healthy))
                 await db.commit()
                 logging.info(f"Сообщение пользователя {user_id} в чате {chat_id} сохранено в БД")
         except Exception as e:
@@ -240,6 +279,68 @@ async def handle_message(msg: types.Message):
             removal_task = asyncio.create_task(schedule_user_removal(user_id, chat_id, 7 * 24 * 60 * 60, timer_start_time))  # 7 дней
             scheduled_removals[user_id] = {"warning": warning_task, "removal": removal_task}
             logging.info(f"Новый персональный таймер запущен для пользователя {user_id} - предупреждение через 6 дней, удаление через 7 дней")
+        
+        elif has_sick_leave:
+            # Если это больничный, приостанавливаем таймер
+            username = msg.from_user.username or msg.from_user.first_name
+            logging.info(f"🏥 БОЛЬНИЧНЫЙ: Пользователь {user_id} (@{username}) запросил больничный")
+            
+            # Отменяем существующие таймеры
+            if user_id in scheduled_removals:
+                cancel_user_removal(user_id)
+                logging.info(f"Таймеры для пользователя {user_id} приостановлены на время больничного")
+            
+            try:
+                await msg.reply("🏥 **Больничный принят!** 🤒\n\n⏸️ Таймер приостановлен на время болезни\n\n💪 Выздоравливай и возвращайся к тренировкам!\n\n📝 Когда поправишься, отправь `#healthy` для возобновления таймера")
+                logging.info(f"Ответ 'Больничный принят' отправлен пользователю {user_id}")
+            except Exception as e:
+                logging.error(f"Ошибка при отправке ответа о больничном пользователю {user_id}: {e}")
+        
+        elif has_healthy:
+            # Если это выздоровление, возобновляем таймер с того места где прервали
+            username = msg.from_user.username or msg.from_user.first_name
+            logging.info(f"💪 ВЫЗДОРОВЛЕНИЕ: Пользователь {user_id} (@{username}) выздоровел и возобновляет таймер")
+            
+            # Проверяем, был ли пользователь на больничном
+            async with aiosqlite.connect(DB_NAME) as db:
+                async with db.execute('''
+                    SELECT has_sick_leave FROM message_log 
+                    WHERE user_id = ? AND chat_id = ? 
+                    ORDER BY last_message DESC LIMIT 1
+                ''', (user_id, chat_id)) as cursor:
+                    row = await cursor.fetchone()
+                    was_on_sick_leave = row and row[0] if row else False
+            
+            if was_on_sick_leave:
+                # Возобновляем таймер с того места где прервали (остаток времени)
+                remaining_warning_time = 6 * 24 * 60 * 60  # 6 дней
+                remaining_removal_time = 7 * 24 * 60 * 60  # 7 дней
+                
+                warning_task = asyncio.create_task(schedule_user_warning(user_id, chat_id, username, remaining_warning_time))
+                removal_task = asyncio.create_task(schedule_user_removal(user_id, chat_id, remaining_removal_time))
+                scheduled_removals[user_id] = {"warning": warning_task, "removal": removal_task}
+                
+                try:
+                    await msg.reply("💪 **Выздоровление принято!** 🎉\n\n⏰ Таймер возобновлен с того места где прервали\n\n• 6 дней до предупреждения\n• 7 дней до удаления\n\n💪 Добро пожаловать обратно к тренировкам!")
+                    logging.info(f"Ответ 'Выздоровление принято' отправлен пользователю {user_id}")
+                except Exception as e:
+                    logging.error(f"Ошибка при отправке ответа о выздоровлении пользователю {user_id}: {e}")
+                
+                logging.info(f"Таймер возобновлен для пользователя {user_id} после больничного")
+            else:
+                # Если не был на больничном, запускаем обычный таймер
+                warning_task = asyncio.create_task(schedule_user_warning(user_id, chat_id, username, 6 * 24 * 60 * 60))
+                removal_task = asyncio.create_task(schedule_user_removal(user_id, chat_id, 7 * 24 * 60 * 60))
+                scheduled_removals[user_id] = {"warning": warning_task, "removal": removal_task}
+                
+                try:
+                    await msg.reply("💪 **Таймер запущен!** 🎯\n\n⏰ Новый таймер на 7 дней\n\n• 6 дней до предупреждения\n• 7 дней до удаления\n\n💪 Тренируйся и отправляй `#training_done`!")
+                    logging.info(f"Ответ 'Таймер запущен' отправлен пользователю {user_id}")
+                except Exception as e:
+                    logging.error(f"Ошибка при отправке ответа о запуске таймера пользователю {user_id}: {e}")
+                
+                logging.info(f"Новый таймер запущен для пользователя {user_id}")
+        
         else:
             # Игнорируем обычные сообщения - они не влияют на таймер
             logging.info(f"ОБЫЧНОЕ СООБЩЕНИЕ: Игнорируем сообщение от пользователя {user_id} - таймер не перезапускается")
