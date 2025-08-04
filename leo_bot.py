@@ -181,7 +181,7 @@ async def handle_message(msg: types.Message):
         # Проверяем, является ли отправитель администратором
         try:
             chat_member = await bot.get_chat_member(chat_id, msg.from_user.id)
-            if chat_member.status not in [ChatMemberStatus.ADMINISTRATOR, ChatMemberStatus.CREATOR]:
+            if chat_member.status not in [ChatMemberStatus.ADMINISTRATOR, ChatMemberStatus.CREATOR] or msg.from_user.id != OWNER_ID:
                 await msg.reply("❌ Только администраторы могут использовать эту команду!")
                 return
         except Exception as e:
