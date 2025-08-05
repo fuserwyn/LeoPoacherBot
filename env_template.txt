@@ -2,13 +2,21 @@
 # Получите токен у @BotFather в Telegram
 API_TOKEN=your_bot_token_here
 
-# Пример:
-# API_TOKEN=1234567890:ABCdefGHIjklMNOpqrsTUVwxyz
+# Owner ID (ваш Telegram ID)
+OWNER_ID=your_telegram_id_here
 
-# ID владельца (owner) для специальных команд
-OWNER_ID=123456789
+# PostgreSQL Database Configuration
+DATABASE_URL=postgresql+asyncpg://username:password@localhost:5432/leo_bot_db
+
+# Пример для локальной разработки:
+# DATABASE_URL=postgresql+asyncpg://postgres:password@localhost:5432/leo_bot_db
+
+# Пример для Railway:
+# DATABASE_URL=postgresql+asyncpg://postgres:password@containers-us-west-1.railway.app:5432/railway
 
 # Инструкция:
 # 1. Скопируйте этот файл и переименуйте в .env
 # 2. Замените your_bot_token_here на ваш реальный токен бота
-# 3. Файл .env будет автоматически игнорироваться git'ом 
+# 3. Замените your_telegram_id_here на ваш Telegram ID
+# 4. Настройте DATABASE_URL для вашей PostgreSQL базы данных
+# 5. Файл .env будет автоматически игнорироваться git'ом 
