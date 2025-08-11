@@ -18,11 +18,11 @@ clean:
 	go clean
 
 # Сборка Docker образа
-docker-build: build
+docker-build:
 	docker build -t leo-bot .
 
 # Запуск с Docker Compose (локально)
-docker-run: build
+docker-run:
 	docker-compose up --build
 
 # Сборка и запуск Docker (все в одном)
