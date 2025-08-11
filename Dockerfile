@@ -1,23 +1,42 @@
-# Минимальный образ с базовыми системными библиотеками
-FROM debian:bullseye-slim
+# Используем официальный образ Go для сборки
+FROM golang:1.21-alpine AS builder
 
-# Устанавливаем только необходимые пакеты
-RUN apt-get update && apt-get install -y \
-    ca-certificates \
-    && rm -rf /var/lib/apt/lists/*
-
-# Создаем пользователя для безопасности
-RUN groupadd -g 1001 appgroup && \
-    useradd -u 1001 -g appgroup -s /bin/false appuser
+# Устанавливаем необходимые пакеты
+RUN apk add --no-cache git ca-certificates tzdata
 
 # Устанавливаем рабочую директорию
 WORKDIR /app
 
-# Копируем предварительно собранный бинарный файл
-COPY bin/leo-bot /app/main
+# Копируем файлы зависимостей
+COPY go.mod go.sum ./
+
+# Скачиваем зависимости
+RUN go mod download
+
+# Копируем исходный код
+COPY . .
+
+# Собираем приложение
+RUN CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -o main ./cmd/bot
+
+# Финальный образ
+FROM alpine:latest
+
+# Устанавливаем ca-certificates для HTTPS запросов
+RUN apk --no-cache add ca-certificates tzdata
+
+# Создаем пользователя для безопасности
+RUN addgroup -g 1001 -S appgroup && \
+    adduser -u 1001 -S appuser -G appgroup
+
+# Устанавливаем рабочую директорию
+WORKDIR /app
+
+# Копируем бинарный файл из builder
+COPY --from=builder /app/main .
 
 # Делаем файл исполняемым
-RUN chmod +x /app/main
+RUN chmod +x main
 
 # Меняем владельца файла
 RUN chown -R appuser:appgroup /app
@@ -29,4 +48,4 @@ USER appuser
 EXPOSE 8080
 
 # Запускаем приложение
-CMD ["/app/main"]
+CMD ["./main"]

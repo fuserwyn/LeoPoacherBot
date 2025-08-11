@@ -25,6 +25,11 @@ docker-build: build
 docker-run: build
 	docker-compose up --build
 
+# Сборка и запуск Docker (все в одном)
+docker-build-run: build
+	docker build -t leo-bot .
+	docker-compose up
+
 # Остановка Docker Compose
 docker-stop:
 	docker-compose down
