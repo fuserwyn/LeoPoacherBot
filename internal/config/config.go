@@ -23,7 +23,7 @@ func Load() (*Config, error) {
 	return &Config{
 		APIToken:    getEnv("API_TOKEN", ""),
 		OwnerID:     ownerID,
-		DatabaseURL: getEnv("DATABASE_URL", "postgres://postgres:password@localhost:5432/leo_bot_db?sslmode=disable"),
+		DatabaseURL: getEnv("DATABASE_URL", "postgresql://postgres:password@localhost:5432/leo_bot_db?sslmode=disable"),
 		LogLevel:    getEnv("LOG_LEVEL", "info"),
 	}, nil
 }

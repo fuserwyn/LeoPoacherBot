@@ -40,3 +40,16 @@ docker-logs:
 # Подключение к базе данных
 db-connect:
 	docker-compose exec postgres psql -U postgres -d leo_bot_db
+
+# Запуск только базы данных
+db-start:
+	docker-compose up -d postgres
+
+# Остановка базы данных
+db-stop:
+	docker-compose stop postgres
+
+# Сброс базы данных
+db-reset:
+	docker-compose down -v
+	docker-compose up -d postgres

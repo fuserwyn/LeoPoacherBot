@@ -1,8 +1,8 @@
 # Используем официальный образ Go
-FROM golang:1.21-alpine AS builder
+FROM golang:1.21 AS builder
 
 # Устанавливаем необходимые пакеты
-RUN apk add --no-cache git ca-certificates tzdata
+RUN apt-get update && apt-get install -y git ca-certificates tzdata && rm -rf /var/lib/apt/lists/*
 
 # Устанавливаем рабочую директорию
 WORKDIR /app
@@ -20,14 +20,14 @@ COPY . .
 RUN CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -o main ./cmd/bot
 
 # Используем минимальный образ для финального контейнера
-FROM alpine:latest
+FROM debian:bullseye-slim
 
 # Устанавливаем ca-certificates для HTTPS запросов
-RUN apk --no-cache add ca-certificates tzdata
+RUN apt-get update && apt-get install -y ca-certificates tzdata && rm -rf /var/lib/apt/lists/*
 
 # Создаем пользователя для безопасности
-RUN addgroup -g 1001 -S appgroup && \
-    adduser -u 1001 -S appuser -G appgroup
+RUN groupadd -g 1001 appgroup && \
+    useradd -u 1001 -g appgroup -s /bin/false appuser
 
 # Устанавливаем рабочую директорию
 WORKDIR /app
