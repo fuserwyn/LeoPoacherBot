@@ -716,8 +716,8 @@ func (b *Bot) handlePoints(msg *tgbotapi.Message) {
 }
 
 func (b *Bot) startTimer(userID, chatID int64, username string) {
-	// Для тестирования используем короткие интервалы
-	b.startTimerWithDuration(userID, chatID, username, 2*time.Minute)
+	// Предупреждение через 6 дней, удаление через 7 дней
+	b.startTimerWithDuration(userID, chatID, username, 7*24*time.Hour)
 }
 
 func (b *Bot) startTimerWithDuration(userID, chatID int64, username string, duration time.Duration) {
@@ -755,10 +755,10 @@ func (b *Bot) startTimerWithDuration(userID, chatID int64, username string, dura
 		}
 	}
 
-	// Рассчитываем время предупреждения (1 минута или половина оставшегося времени)
-	warningTime := 1 * time.Minute
-	if duration < 2*time.Minute {
-		warningTime = duration / 2
+	// Рассчитываем время предупреждения (6 дней до удаления)
+	warningTime := duration - 24*time.Hour // Предупреждение за 1 день до удаления
+	if warningTime < 0 {
+		warningTime = duration / 2 // Fallback если время слишком короткое
 	}
 
 	// Запускаем предупреждение
@@ -796,7 +796,7 @@ func (b *Bot) cancelTimer(userID int64) {
 }
 
 func (b *Bot) sendWarning(userID, chatID int64, username string) {
-	message := fmt.Sprintf("⚠️ Предупреждение!\n\n@%s, ты не отправлял отчет о тренировке уже 1 минуту!\n\n🦁 Я питаюсь ленивыми леопардами и становлюсь жирнее!\n\n💪 Ты ведь не хочешь стать как я?\n\n⏰ У тебя осталась 1 минута до удаления из чата!\n\n🎯 Отправь #training_done прямо сейчас!", username)
+	message := fmt.Sprintf("⚠️ Предупреждение!\n\n@%s, ты не отправлял отчет о тренировке уже 6 дней!\n\n🦁 Я питаюсь ленивыми леопардами и становлюсь жирнее!\n\n💪 Ты ведь не хочешь стать как я?\n\n⏰ У тебя остался 1 день до удаления из чата!\n\n🎯 Отправь #training_done прямо сейчас!", username)
 
 	msg := tgbotapi.NewMessage(chatID, message)
 	b.logger.Infof("Sending warning to user %d (%s)", userID, username)
