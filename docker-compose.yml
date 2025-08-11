@@ -23,6 +23,12 @@ services:
     ports:
       - "5432:5432"
     restart: unless-stopped
+    # Добавляем retry логику для Railway
+    deploy:
+      restart_policy:
+        condition: on-failure
+        delay: 5s
+        max_attempts: 3
 
 volumes:
   postgres_data:
