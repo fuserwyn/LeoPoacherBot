@@ -22,11 +22,17 @@ RUN echo "=== go.sum content ===" && ls -la go.sum && cat go.sum
 # Проверяем все .go файлы
 RUN echo "=== Go files ===" && find . -name "*.go" -type f
 
-# Скачиваем зависимости
-RUN go mod download
+# Скачиваем зависимости (принудительно)
+RUN go mod download -x
 
 # Проверяем модули
 RUN echo "=== Go modules ===" && go list -m all
+
+# Проверяем, что go.sum создался
+RUN echo "=== Checking go.sum ===" && ls -la go.sum* 2>/dev/null || echo "go.sum not found, but continuing..."
+
+# Принудительно создаем go.sum если его нет
+RUN go mod verify || echo "go.mod verification failed, but continuing..."
 
 # Собираем приложение
 RUN CGO_ENABLED=0 GOOS=linux go build -o main ./cmd/bot
