@@ -7,3 +7,7 @@ healthcheckPath = "/health"
 healthcheckTimeout = 300
 restartPolicyType = "on_failure"
 restartPolicyMaxRetries = 3
+
+# Go specific configuration
+[build.variables]
+GO_VERSION = "1.21"

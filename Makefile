@@ -21,7 +21,7 @@ clean:
 docker-build: build
 	docker build -t leo-bot .
 
-# Запуск с Docker Compose
+# Запуск с Docker Compose (локально)
 docker-run: build
 	docker-compose up --build
 
@@ -29,6 +29,12 @@ docker-run: build
 docker-build-run: build
 	docker build -t leo-bot .
 	docker-compose up
+
+# Railway deployment (использует Nixpacks)
+railway-deploy:
+	git add .
+	git commit -m "Update for Railway deployment"
+	git push
 
 # Остановка Docker Compose
 docker-stop:
