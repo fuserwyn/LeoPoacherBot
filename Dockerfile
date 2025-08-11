@@ -34,6 +34,12 @@ RUN echo "=== Checking go.sum ===" && ls -la go.sum* 2>/dev/null || echo "go.sum
 # Принудительно создаем go.sum если его нет
 RUN go mod verify || echo "go.mod verification failed, but continuing..."
 
+# Создаем go.sum если его нет
+RUN go mod tidy || echo "go mod tidy failed, but continuing..."
+
+# Проверяем, что go.sum создался
+RUN echo "=== Final go.sum check ===" && ls -la go.sum* 2>/dev/null || echo "go.sum still not found"
+
 # Собираем приложение
 RUN CGO_ENABLED=0 GOOS=linux go build -o main ./cmd/bot
 
