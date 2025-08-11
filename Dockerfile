@@ -1,32 +1,26 @@
-# Используем официальный образ Go для сборки
-FROM golang:1.21 AS builder
+# Простой Dockerfile для Railway
+FROM golang:1.21
 
 # Устанавливаем рабочую директорию
 WORKDIR /app
 
-# Копируем файлы зависимостей
-COPY go.mod go.sum ./
+# Проверяем содержимое директории
+RUN pwd && ls -la
+
+# Копируем все файлы
+COPY . .
+
+# Проверяем, что файлы скопировались
+RUN echo "=== After COPY ===" && ls -la && echo "=== go.mod content ===" && cat go.mod
 
 # Скачиваем зависимости
 RUN go mod download
 
-# Копируем исходный код
-COPY . .
-
 # Собираем приложение
-RUN CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -o main ./cmd/bot
-
-# Финальный образ - используем distroless для минимального размера
-FROM gcr.io/distroless/static-debian11
-
-# Копируем бинарный файл
-COPY --from=builder /app/main /app/main
-
-# Устанавливаем рабочую директорию
-WORKDIR /app
+RUN CGO_ENABLED=0 GOOS=linux go build -o main ./cmd/bot
 
 # Открываем порт
 EXPOSE 8080
 
 # Запускаем приложение
-CMD ["/app/main"]
+CMD ["./main"]
