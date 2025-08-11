@@ -200,24 +200,11 @@ func (b *Bot) handleTrainingDone(msg *tgbotapi.Message) {
 		b.logger.Errorf("Failed to update streak: %v", err)
 	}
 
-	// Получаем обновленные калории
-	currentCalories, err := b.db.GetUserCalories(msg.From.ID, msg.Chat.ID)
-	if err != nil {
-		b.logger.Errorf("Failed to get user calories: %v", err)
-		currentCalories = 0
-	}
-
-	// Формируем сообщение о наградах
-	bonusText := ""
-	if caloriesToAdd > 1 {
-		bonusText = fmt.Sprintf("\n🔥 Бонус за серию: +%d калорий!", caloriesToAdd-1)
-	}
-
 	// Проверяем, был ли пользователь на больничном
 	wasOnSickLeave := messageLog.HasSickLeave && !messageLog.HasHealthy
 
-	// Отправляем подтверждение с калориями
-	reply := tgbotapi.NewMessage(msg.Chat.ID, fmt.Sprintf("✅ Отчёт принят! 💪\n\n🔥 +1 калория за тренировку!%s\n💰 Всего сожжено калорий: %d\n📈 Серия: %d дней\n\n⏰ Таймер перезапускается на 2 минуты (тест)\n\n🎯 Продолжай тренироваться и не забывай отправлять #training_done!", bonusText, currentCalories, newStreakDays))
+	// Отправляем подтверждение
+	reply := tgbotapi.NewMessage(msg.Chat.ID, fmt.Sprintf("✅ Отчёт принят! 💪\n\n⏰ Таймер перезапускается на 7 дней\n\n🎯 Продолжай тренироваться и не забывай отправлять #training_done!"))
 
 	b.logger.Infof("Sending training done message to chat %d", msg.Chat.ID)
 	_, err = b.api.Send(reply)
