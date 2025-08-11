@@ -16,11 +16,11 @@ RUN echo "=== After COPY ===" && ls -la && echo "=== Current directory ===" && p
 # Проверяем go.mod
 RUN echo "=== go.mod content ===" && cat go.mod
 
-# Проверяем go.sum
-RUN echo "=== go.sum content ===" && ls -la go.sum && cat go.sum
-
 # Проверяем все .go файлы
 RUN echo "=== Go files ===" && find . -name "*.go" -type f
+
+# Проверяем go.sum (если есть)
+RUN echo "=== Checking go.sum ===" && ls -la go.sum* 2>/dev/null || echo "go.sum not found, continuing..."
 
 # Скачиваем зависимости (принудительно)
 RUN go mod download -x
