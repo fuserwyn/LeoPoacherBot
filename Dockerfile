@@ -11,10 +11,16 @@ RUN pwd && ls -la
 COPY . .
 
 # Проверяем, что файлы скопировались
-RUN echo "=== After COPY ===" && ls -la && echo "=== go.mod content ===" && cat go.mod
+RUN echo "=== After COPY ===" && ls -la && echo "=== Current directory ===" && pwd
+
+# Проверяем go.mod
+RUN echo "=== go.mod content ===" && cat go.mod
 
 # Проверяем go.sum
-RUN echo "=== go.sum content ===" && cat go.sum
+RUN echo "=== go.sum content ===" && ls -la go.sum && cat go.sum
+
+# Проверяем все .go файлы
+RUN echo "=== Go files ===" && find . -name "*.go" -type f
 
 # Скачиваем зависимости
 RUN go mod download
