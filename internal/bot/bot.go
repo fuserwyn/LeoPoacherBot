@@ -419,7 +419,7 @@ func (b *Bot) handleHealthy(msg *tgbotapi.Message) {
 		}
 	} else {
 		// Если нет сохраненного времени, используем полный таймер
-		remainingTime = 2 * time.Minute
+		remainingTime = 7 * 24 * time.Hour
 		b.logger.Warnf("No rest time saved, using full timer: %v", remainingTime)
 	}
 
