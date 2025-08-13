@@ -97,6 +97,8 @@ func (b *Bot) handleCommand(msg *tgbotapi.Message) {
 		b.handleTop(msg)
 	case "points":
 		b.handlePoints(msg)
+	case "send_to_chat":
+		b.handleSendToChat(msg)
 	default:
 		b.logger.Warnf("Unknown command: %s", command)
 	}
@@ -505,6 +507,7 @@ func (b *Bot) handleHelp(msg *tgbotapi.Message) {
 
 📝 Команды администратора:
 • /start_timer — Запустить таймеры для всех пользователей
+• /send_to_chat — Отправить сообщение в чат
 • /db — Показать статистику БД
 • /help — Показать это сообщение
 
@@ -968,4 +971,34 @@ func (b *Bot) calculateRemainingTime(messageLog *models.MessageLog) time.Duratio
 	}
 
 	return remainingTime
+}
+
+func (b *Bot) handleSendToChat(msg *tgbotapi.Message) {
+	// Проверяем права администратора
+	if !b.isAdmin(msg.Chat.ID, msg.From.ID) {
+		reply := tgbotapi.NewMessage(msg.Chat.ID, "❌ Только администраторы или владелец могут использовать эту команду!")
+		b.api.Send(reply)
+		return
+	}
+
+	// Получаем аргументы команды
+	args := msg.CommandArguments()
+	if args == "" {
+		reply := tgbotapi.NewMessage(msg.Chat.ID, "📝 Использование: /send_to_chat <текст сообщения>\n\nПример: /send_to_chat Привет всем! 🦁")
+		b.api.Send(reply)
+		return
+	}
+
+	// Отправляем сообщение в чат
+	reply := tgbotapi.NewMessage(msg.Chat.ID, args)
+	b.logger.Infof("Admin %d (%s) sent message to chat %d: %s", msg.From.ID, msg.From.UserName, msg.Chat.ID, args)
+	
+	_, err := b.api.Send(reply)
+	if err != nil {
+		b.logger.Errorf("Failed to send message to chat: %v", err)
+		errorReply := tgbotapi.NewMessage(msg.Chat.ID, "❌ Ошибка при отправке сообщения в чат")
+		b.api.Send(errorReply)
+	} else {
+		b.logger.Infof("Successfully sent message to chat %d", msg.Chat.ID)
+	}
 }

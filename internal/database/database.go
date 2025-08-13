@@ -7,6 +7,7 @@ import (
 
 	"leo-bot/internal/logger"
 	"leo-bot/internal/models"
+	"leo-bot/internal/utils"
 
 	_ "github.com/lib/pq"
 )
@@ -99,7 +100,7 @@ func (d *Database) CreateTables() error {
 func (d *Database) SaveMessageLog(msg *models.MessageLog) error {
 	query := `
 		INSERT INTO message_log (user_id, username, chat_id, calories, streak_days, last_training_date, last_message, has_training_done, has_sick_leave, has_healthy, is_deleted, timer_start_time, sick_leave_start_time, sick_leave_end_time, sick_time, rest_time_till_del, updated_at)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, CURRENT_TIMESTAMP)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)
 		ON CONFLICT (user_id, chat_id) 
 		DO UPDATE SET 
 			username = EXCLUDED.username,
@@ -116,8 +117,11 @@ func (d *Database) SaveMessageLog(msg *models.MessageLog) error {
 			sick_leave_end_time = EXCLUDED.sick_leave_end_time,
 			sick_time = EXCLUDED.sick_time,
 			rest_time_till_del = EXCLUDED.rest_time_till_del,
-			updated_at = CURRENT_TIMESTAMP
+			updated_at = $17
 	`
+
+	// Используем московское время
+	moscowTime := utils.FormatMoscowTime(utils.GetMoscowTime())
 
 	// Временное логирование для отладки
 	fmt.Printf("DEBUG: Saving to DB - UserID: %d, TimerStartTime: %v, SickLeaveStartTime: %v, RestTimeTillDel: %v\n",
@@ -125,7 +129,7 @@ func (d *Database) SaveMessageLog(msg *models.MessageLog) error {
 
 	result, err := d.db.Exec(query,
 		msg.UserID, msg.Username, msg.ChatID, msg.Calories, msg.StreakDays, msg.LastTrainingDate, msg.LastMessage, msg.HasTrainingDone,
-		msg.HasSickLeave, msg.HasHealthy, msg.IsDeleted, msg.TimerStartTime, msg.SickLeaveStartTime, msg.SickLeaveEndTime, msg.SickTime, msg.RestTimeTillDel)
+		msg.HasSickLeave, msg.HasHealthy, msg.IsDeleted, msg.TimerStartTime, msg.SickLeaveStartTime, msg.SickLeaveEndTime, msg.SickTime, msg.RestTimeTillDel, moscowTime)
 
 	if err != nil {
 		fmt.Printf("DEBUG: Save error: %v\n", err)
@@ -200,15 +204,17 @@ func (d *Database) GetUsersByChatID(chatID int64) ([]*models.MessageLog, error) 
 func (d *Database) SaveTrainingLog(training *models.TrainingLog) error {
 	query := `
 		INSERT INTO training_log (user_id, username, last_report, updated_at)
-		VALUES ($1, $2, $3, CURRENT_TIMESTAMP)
+		VALUES ($1, $2, $3, $4)
 		ON CONFLICT (user_id) 
 		DO UPDATE SET 
 			username = EXCLUDED.username,
 			last_report = EXCLUDED.last_report,
-			updated_at = CURRENT_TIMESTAMP
+			updated_at = $4
 	`
 
-	_, err := d.db.Exec(query, training.UserID, training.Username, training.LastReport)
+	// Используем московское время
+	moscowTime := utils.FormatMoscowTime(utils.GetMoscowTime())
+	_, err := d.db.Exec(query, training.UserID, training.Username, training.LastReport, moscowTime)
 	return err
 }
 
@@ -247,10 +253,12 @@ func (d *Database) GetDatabaseStats() (map[string]interface{}, error) {
 func (d *Database) AddCalories(userID, chatID int64, calories int) error {
 	query := `
 		UPDATE message_log 
-		SET calories = calories + $3, updated_at = CURRENT_TIMESTAMP
+		SET calories = calories + $3, updated_at = $4
 		WHERE user_id = $1 AND chat_id = $2
 	`
-	_, err := d.db.Exec(query, userID, chatID, calories)
+	// Используем московское время
+	moscowTime := utils.FormatMoscowTime(utils.GetMoscowTime())
+	_, err := d.db.Exec(query, userID, chatID, calories, moscowTime)
 	return err
 }
 
@@ -272,10 +280,12 @@ func (d *Database) GetUserCalories(userID, chatID int64) (int, error) {
 func (d *Database) UpdateStreak(userID, chatID int64, streakDays int, lastTrainingDate string) error {
 	query := `
 		UPDATE message_log 
-		SET streak_days = $3, last_training_date = $4, updated_at = CURRENT_TIMESTAMP
+		SET streak_days = $3, last_training_date = $4, updated_at = $5
 		WHERE user_id = $1 AND chat_id = $2
 	`
-	_, err := d.db.Exec(query, userID, chatID, streakDays, lastTrainingDate)
+	// Используем московское время
+	moscowTime := utils.FormatMoscowTime(utils.GetMoscowTime())
+	_, err := d.db.Exec(query, userID, chatID, streakDays, lastTrainingDate, moscowTime)
 	return err
 }
 
@@ -283,10 +293,12 @@ func (d *Database) UpdateStreak(userID, chatID int64, streakDays int, lastTraini
 func (d *Database) MarkUserAsDeleted(userID, chatID int64) error {
 	query := `
 		UPDATE message_log 
-		SET is_deleted = TRUE, updated_at = CURRENT_TIMESTAMP
+		SET is_deleted = TRUE, updated_at = $3
 		WHERE user_id = $1 AND chat_id = $2
 	`
-	_, err := d.db.Exec(query, userID, chatID)
+	// Используем московское время
+	moscowTime := utils.FormatMoscowTime(utils.GetMoscowTime())
+	_, err := d.db.Exec(query, userID, chatID, moscowTime)
 	return err
 }
 
