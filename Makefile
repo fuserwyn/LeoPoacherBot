@@ -64,3 +64,11 @@ db-stop:
 db-reset:
 	docker-compose down -v
 	docker-compose up -d postgres
+
+# Запуск миграций
+migrate:
+	go run ./cmd/migrate
+
+# Сборка команды миграций
+build-migrate:
+	go build -o bin/migrate ./cmd/migrate

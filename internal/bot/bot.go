@@ -248,9 +248,9 @@ func (b *Bot) handleSickLeave(msg *tgbotapi.Message) {
 	var remainingTime time.Duration
 
 	if messageLog.TimerStartTime != nil {
-		timerStart, err := time.Parse(time.RFC3339, *messageLog.TimerStartTime)
+		timerStart, err := utils.ParseMoscowTime(*messageLog.TimerStartTime)
 		if err == nil {
-			sickStart, err := time.Parse(time.RFC3339, sickLeaveStartTime)
+			sickStart, err := utils.ParseMoscowTime(sickLeaveStartTime)
 			if err == nil {
 				// Время с тренировки до начала болезни
 				timeFromTrainingToSick := sickStart.Sub(timerStart)
@@ -719,9 +719,8 @@ func (b *Bot) startTimerWithDuration(userID, chatID int64, username string, dura
 	if err != nil {
 		b.logger.Errorf("Failed to get message log for timer start: %v", err)
 	} else {
-		// Не затираем timer_start_time, если оно уже есть
-		// (оставляем как есть, не присваиваем nil)
-		// Все остальные поля обновляем как обычно
+		// Обновляем время начала таймера
+		messageLog.TimerStartTime = &timerStartTime
 		if err := b.db.SaveMessageLog(messageLog); err != nil {
 			b.logger.Errorf("Failed to save timer start time: %v", err)
 		} else {
@@ -941,7 +940,7 @@ func (b *Bot) calculateRemainingTime(messageLog *models.MessageLog) time.Duratio
 
 	// Если был больничный и пользователь выздоровел
 	if messageLog.SickLeaveStartTime != nil && messageLog.HasSickLeave && messageLog.HasHealthy {
-		sickLeaveStart, err := time.Parse(time.RFC3339, *messageLog.SickLeaveStartTime)
+		sickLeaveStart, err := utils.ParseMoscowTime(*messageLog.SickLeaveStartTime)
 		if err != nil {
 			b.logger.Errorf("Failed to parse sick leave start time: %v", err)
 			return fullTimerDuration
@@ -962,7 +961,9 @@ func (b *Bot) calculateRemainingTime(messageLog *models.MessageLog) time.Duratio
 	}
 
 	// Обычный случай - рассчитываем оставшееся время
-	elapsedTime := time.Since(timerStart)
+	// Используем московское время для расчета
+	moscowNow := utils.GetMoscowTime()
+	elapsedTime := moscowNow.Sub(timerStart)
 	remainingTime := fullTimerDuration - elapsedTime
 
 	if remainingTime <= 0 {

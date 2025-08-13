@@ -81,6 +81,11 @@ func (d *Database) CreateTables() error {
 		}
 	}
 
+	// Запускаем миграции для обновления схемы
+	if err := d.RunMigrations(); err != nil {
+		return fmt.Errorf("failed to run migrations: %w", err)
+	}
+
 	return nil
 }
 
