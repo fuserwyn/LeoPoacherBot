@@ -42,22 +42,10 @@ func (d *Database) Close() error {
 	return d.db.Close()
 }
 
-// CreateTables создает таблицы в базе данных
+// CreateTables создает таблицы в базе данных, если они не существуют
 func (d *Database) CreateTables() error {
-	// Сначала удаляем существующие таблицы, если они есть
-	dropQueries := []string{
-		`DROP TABLE IF EXISTS training_log CASCADE`,
-		`DROP TABLE IF EXISTS message_log CASCADE`,
-	}
-
-	for _, query := range dropQueries {
-		if _, err := d.db.Exec(query); err != nil {
-			d.logger.Warnf("Failed to drop table: %v", err)
-		}
-	}
-
 	queries := []string{
-		`CREATE TABLE message_log (
+		`CREATE TABLE IF NOT EXISTS message_log (
 			user_id BIGINT,
 			username TEXT DEFAULT '',
 			chat_id BIGINT,
@@ -78,7 +66,7 @@ func (d *Database) CreateTables() error {
 			updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
 			PRIMARY KEY (user_id, chat_id)
 		)`,
-		`CREATE TABLE training_log (
+		`CREATE TABLE IF NOT EXISTS training_log (
 			user_id BIGINT PRIMARY KEY,
 			username TEXT DEFAULT '',
 			last_report TEXT NOT NULL,

@@ -11,6 +11,7 @@ import (
 	"leo-bot/internal/database"
 	"leo-bot/internal/logger"
 	"leo-bot/internal/models"
+	"leo-bot/internal/utils"
 
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 )
@@ -97,8 +98,6 @@ func (b *Bot) handleCommand(msg *tgbotapi.Message) {
 		b.handleTop(msg)
 	case "points":
 		b.handlePoints(msg)
-	case "send_to_chat":
-		b.handleSendToChat(msg)
 	default:
 		b.logger.Warnf("Unknown command: %s", command)
 	}
@@ -135,7 +134,7 @@ func (b *Bot) handleMessage(msg *tgbotapi.Message) {
 		Username:        username,
 		Calories:        0, // Будет обновлено при обработке хештегов
 		StreakDays:      0,
-		LastMessage:     time.Now().Format(time.RFC3339),
+		LastMessage:     utils.FormatMoscowTime(utils.GetMoscowTime()),
 		HasTrainingDone: hasTrainingDone,
 		HasSickLeave:    hasSickLeave,
 		HasHealthy:      hasHealthy,
@@ -174,7 +173,7 @@ func (b *Bot) handleTrainingDone(msg *tgbotapi.Message) {
 	trainingLog := &models.TrainingLog{
 		UserID:     msg.From.ID,
 		Username:   username,
-		LastReport: time.Now().Format(time.RFC3339),
+		LastReport: utils.FormatMoscowTime(utils.GetMoscowTime()),
 	}
 
 	if err := b.db.SaveTrainingLog(trainingLog); err != nil {
@@ -197,7 +196,7 @@ func (b *Bot) handleTrainingDone(msg *tgbotapi.Message) {
 	}
 
 	// Обновляем серию
-	today := time.Now().Format("2006-01-02")
+	today := utils.GetMoscowDate()
 	if err := b.db.UpdateStreak(msg.From.ID, msg.Chat.ID, newStreakDays, today); err != nil {
 		b.logger.Errorf("Failed to update streak: %v", err)
 	}
@@ -240,7 +239,7 @@ func (b *Bot) handleSickLeave(msg *tgbotapi.Message) {
 	}
 
 	// Записываем время начала больничного
-	sickLeaveStartTime := time.Now().Format(time.RFC3339)
+	sickLeaveStartTime := utils.FormatMoscowTime(utils.GetMoscowTime())
 	messageLog.SickLeaveStartTime = &sickLeaveStartTime
 	b.logger.Infof("Set sick leave start time: %s", sickLeaveStartTime)
 
@@ -332,16 +331,16 @@ func (b *Bot) handleHealthy(msg *tgbotapi.Message) {
 	}
 
 	// Записываем время окончания больничного
-	sickLeaveEndTime := time.Now().Format(time.RFC3339)
+	sickLeaveEndTime := utils.FormatMoscowTime(utils.GetMoscowTime())
 	messageLog.SickLeaveEndTime = &sickLeaveEndTime
 	b.logger.Infof("Set sick leave end time: %s", sickLeaveEndTime)
 
 	// Рассчитываем время болезни
 	if messageLog.SickLeaveStartTime != nil {
 		b.logger.Infof("Sick leave start time: %s", *messageLog.SickLeaveStartTime)
-		sickStart, err := time.Parse(time.RFC3339, *messageLog.SickLeaveStartTime)
+		sickStart, err := utils.ParseMoscowTime(*messageLog.SickLeaveStartTime)
 		if err == nil {
-			sickEnd, err := time.Parse(time.RFC3339, sickLeaveEndTime)
+			sickEnd, err := utils.ParseMoscowTime(sickLeaveEndTime)
 			if err == nil {
 				sickDuration := sickEnd.Sub(sickStart)
 				sickTimeStr := sickDuration.String()
@@ -507,7 +506,6 @@ func (b *Bot) handleHelp(msg *tgbotapi.Message) {
 
 📝 Команды администратора:
 • /start_timer — Запустить таймеры для всех пользователей
-• /send_to_chat — Отправить сообщение в чат
 • /db — Показать статистику БД
 • /help — Показать это сообщение
 
@@ -704,7 +702,7 @@ func (b *Bot) startTimerWithDuration(userID, chatID int64, username string, dura
 	warningTask := make(chan bool)
 	removalTask := make(chan bool)
 
-	timerStartTime := time.Now().Format(time.RFC3339)
+	timerStartTime := utils.FormatMoscowTime(utils.GetMoscowTime())
 	timerInfo := &models.TimerInfo{
 		UserID:         userID,
 		ChatID:         chatID,
@@ -858,7 +856,7 @@ func (b *Bot) isUserInChat(chatID, userID int64) bool {
 }
 
 func (b *Bot) calculateCalories(messageLog *models.MessageLog) (int, int) {
-	today := time.Now().Format("2006-01-02")
+	today := utils.GetMoscowDate()
 
 	// Базовые калории за тренировку
 	caloriesToAdd := 1
@@ -872,8 +870,9 @@ func (b *Bot) calculateCalories(messageLog *models.MessageLog) (int, int) {
 	newStreakDays := 1
 
 	if messageLog.LastTrainingDate != nil {
-		yesterday := time.Now().AddDate(0, 0, -1).Format("2006-01-02")
-		if *messageLog.LastTrainingDate == yesterday {
+		yesterday := utils.GetMoscowTime().AddDate(0, 0, -1)
+		yesterdayStr := utils.GetMoscowDateFromTime(yesterday)
+		if *messageLog.LastTrainingDate == yesterdayStr {
 			// Продолжаем серию
 			newStreakDays = messageLog.StreakDays + 1
 		} else {
@@ -908,7 +907,7 @@ func (b *Bot) calculateRemainingTime(messageLog *models.MessageLog) time.Duratio
 	}
 
 	// Парсим время начала таймера
-	timerStart, err := time.Parse(time.RFC3339, *messageLog.TimerStartTime)
+	timerStart, err := utils.ParseMoscowTime(*messageLog.TimerStartTime)
 	if err != nil {
 		b.logger.Errorf("Failed to parse timer start time: %v", err)
 		return 7 * 24 * time.Hour
@@ -921,7 +920,7 @@ func (b *Bot) calculateRemainingTime(messageLog *models.MessageLog) time.Duratio
 	if messageLog.SickLeaveStartTime != nil && messageLog.HasSickLeave && !messageLog.HasHealthy {
 		// Пользователь на больничном - таймер приостановлен
 		// Возвращаем оставшееся время на момент больничного
-		sickLeaveStart, err := time.Parse(time.RFC3339, *messageLog.SickLeaveStartTime)
+		sickLeaveStart, err := utils.ParseMoscowTime(*messageLog.SickLeaveStartTime)
 		if err != nil {
 			b.logger.Errorf("Failed to parse sick leave start time: %v", err)
 			return fullTimerDuration
@@ -971,34 +970,4 @@ func (b *Bot) calculateRemainingTime(messageLog *models.MessageLog) time.Duratio
 	}
 
 	return remainingTime
-}
-
-func (b *Bot) handleSendToChat(msg *tgbotapi.Message) {
-	// Проверяем права администратора
-	if !b.isAdmin(msg.Chat.ID, msg.From.ID) {
-		reply := tgbotapi.NewMessage(msg.Chat.ID, "❌ Только администраторы или владелец могут использовать эту команду!")
-		b.api.Send(reply)
-		return
-	}
-
-	// Получаем аргументы команды
-	args := msg.CommandArguments()
-	if args == "" {
-		reply := tgbotapi.NewMessage(msg.Chat.ID, "📝 Использование: /send_to_chat <текст сообщения>\n\nПример: /send_to_chat Привет всем! 🦁")
-		b.api.Send(reply)
-		return
-	}
-
-	// Отправляем сообщение в чат
-	reply := tgbotapi.NewMessage(msg.Chat.ID, args)
-	b.logger.Infof("Admin %d (%s) sent message to chat %d: %s", msg.From.ID, msg.From.UserName, msg.Chat.ID, args)
-	
-	_, err := b.api.Send(reply)
-	if err != nil {
-		b.logger.Errorf("Failed to send message to chat: %v", err)
-		errorReply := tgbotapi.NewMessage(msg.Chat.ID, "❌ Ошибка при отправке сообщения в чат")
-		b.api.Send(errorReply)
-	} else {
-		b.logger.Infof("Successfully sent message to chat %d", msg.Chat.ID)
-	}
 }
