@@ -98,6 +98,8 @@ func (b *Bot) handleCommand(msg *tgbotapi.Message) {
 		b.handleTop(msg)
 	case "points":
 		b.handlePoints(msg)
+	case "send_to_chat":
+		b.handleSendToChat(msg)
 	default:
 		b.logger.Warnf("Unknown command: %s", command)
 	}
@@ -686,6 +688,60 @@ func (b *Bot) handlePoints(msg *tgbotapi.Message) {
 		b.logger.Errorf("Failed to send calories message: %v", err)
 	} else {
 		b.logger.Infof("Successfully sent calories message to chat %d", msg.Chat.ID)
+	}
+}
+
+func (b *Bot) handleSendToChat(msg *tgbotapi.Message) {
+	// Проверяем права доступа - только владелец бота может отправлять сообщения в другие чаты
+	if msg.From.ID != b.config.OwnerID {
+		reply := tgbotapi.NewMessage(msg.Chat.ID, "❌ У вас нет прав для использования этой команды")
+		b.api.Send(reply)
+		return
+	}
+
+	// Получаем аргументы команды
+	args := msg.CommandArguments()
+	if args == "" {
+		reply := tgbotapi.NewMessage(msg.Chat.ID, "❌ Использование: /send_to_chat <chat_id> <текст_сообщения>")
+		b.api.Send(reply)
+		return
+	}
+
+	// Разбираем аргументы
+	parts := strings.SplitN(args, " ", 2)
+	if len(parts) != 2 {
+		reply := tgbotapi.NewMessage(msg.Chat.ID, "❌ Использование: /send_to_chat <chat_id> <текст_сообщения>")
+		b.api.Send(reply)
+		return
+	}
+
+	// Парсим chat_id
+	chatID, err := strconv.ParseInt(parts[0], 10, 64)
+	if err != nil {
+		reply := tgbotapi.NewMessage(msg.Chat.ID, "❌ Неверный формат chat_id")
+		b.api.Send(reply)
+		return
+	}
+
+	// Получаем текст сообщения
+	messageText := parts[1]
+
+	// Создаем сообщение для отправки
+	chatMessage := tgbotapi.NewMessage(chatID, messageText)
+
+	// Отправляем сообщение в указанный чат
+	b.logger.Infof("Sending message to chat %d: %s", chatID, messageText)
+	_, err = b.api.Send(chatMessage)
+	if err != nil {
+		errorMsg := fmt.Sprintf("❌ Ошибка при отправке сообщения в чат %d: %v", chatID, err)
+		reply := tgbotapi.NewMessage(msg.Chat.ID, errorMsg)
+		b.api.Send(reply)
+		b.logger.Errorf("Failed to send message to chat %d: %v", chatID, err)
+	} else {
+		successMsg := fmt.Sprintf("✅ Сообщение успешно отправлено в чат %d", chatID)
+		reply := tgbotapi.NewMessage(msg.Chat.ID, successMsg)
+		b.api.Send(reply)
+		b.logger.Infof("Successfully sent message to chat %d", chatID)
 	}
 }
 

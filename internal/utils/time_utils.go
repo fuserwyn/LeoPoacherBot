@@ -43,3 +43,4 @@ func GetMoscowDate() string {
 func GetMoscowDateFromTime(t time.Time) string {
 	return t.In(moscowLocation).Format("2006-01-02")
 }
+
