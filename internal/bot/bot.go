@@ -338,7 +338,7 @@ func (b *Bot) handleTrainingDone(msg *tgbotapi.Message) {
 		} else {
 			b.logger.Infof("Successfully sent training done message to chat %d", msg.Chat.ID)
 		}
-	} else {
+	} else if caloriesToAdd == 0 {
 		// Если тренировка уже была сегодня, отправляем мотивирующее сообщение
 		reply := tgbotapi.NewMessage(msg.Chat.ID, "🦁 Какой мотивированный леопард! Еще одна тренировка сегодня! 💪\n\n🔥 Твоя мотивация впечатляет\n\n⏰ Таймер уже перезапущен на 7 дней\n\n🎯 Завтра снова отправляй #training_done для продолжения серии!")
 
@@ -350,6 +350,7 @@ func (b *Bot) handleTrainingDone(msg *tgbotapi.Message) {
 			b.logger.Infof("Successfully sent already trained today message to chat %d", msg.Chat.ID)
 		}
 	}
+	// Если caloriesToAdd > 0 И есть achievement (кубки), то ничего дополнительного не отправляем
 
 	// Если пользователь был на больничном, сбрасываем флаги больничного и помечаем как здорового
 	if wasOnSickLeave {
