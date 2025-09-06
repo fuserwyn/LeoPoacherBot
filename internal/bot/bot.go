@@ -375,7 +375,14 @@ func (b *Bot) handleTrainingDone(msg *tgbotapi.Message) {
 	// Отправляем подтверждение только если была добавлена новая тренировка
 	// И только если не было отправлено сообщение о кубках
 	if caloriesToAdd > 0 && !weeklyAchievement && !twoWeekAchievement && !threeWeekAchievement && !monthlyAchievement && !quarterlyAchievement {
-		reply := tgbotapi.NewMessage(msg.Chat.ID, fmt.Sprintf("✅ Отчёт принят! 💪\n\n🦁 Ты тренируешься дней подряд: %d\n\n⏰ Таймер перезапускается на 7 дней\n\n🎯 Продолжай тренироваться и не забывай отправлять #training_done!", newStreakDays))
+		// Получаем текущее количество кубков пользователя
+		currentCups, err := b.db.GetUserCups(msg.From.ID, msg.Chat.ID)
+		if err != nil {
+			b.logger.Errorf("Failed to get user cups for confirmation message: %v", err)
+			currentCups = 0
+		}
+
+		reply := tgbotapi.NewMessage(msg.Chat.ID, fmt.Sprintf("✅ Отчёт принят! 💪\n\n🦁 Ты тренируешься дней подряд: %d\n🏆 Всего кубков: %d\n\n⏰ Таймер перезапускается на 7 дней\n\n🎯 Продолжай тренироваться и не забывай отправлять #training_done!", newStreakDays, currentCups))
 
 		b.logger.Infof("Sending training done message to chat %d", msg.Chat.ID)
 		_, err = b.api.Send(reply)
@@ -386,7 +393,14 @@ func (b *Bot) handleTrainingDone(msg *tgbotapi.Message) {
 		}
 	} else if caloriesToAdd == 0 {
 		// Если тренировка уже была сегодня, отправляем мотивирующее сообщение
-		reply := tgbotapi.NewMessage(msg.Chat.ID, "🦁 Какой мотивированный леопард! Еще одна тренировка сегодня! 💪\n\n🔥 Твоя мотивация впечатляет\n\n⏰ Таймер уже перезапущен на 7 дней\n\n🎯 Завтра снова отправляй #training_done для продолжения серии!")
+		// Получаем текущее количество кубков пользователя
+		currentCups, err := b.db.GetUserCups(msg.From.ID, msg.Chat.ID)
+		if err != nil {
+			b.logger.Errorf("Failed to get user cups for double training message: %v", err)
+			currentCups = 0
+		}
+
+		reply := tgbotapi.NewMessage(msg.Chat.ID, fmt.Sprintf("🦁 Какой мотивированный леопард! Еще одна тренировка сегодня! 💪\n\n🔥 Твоя мотивация впечатляет\n🏆 Всего кубков: %d\n\n⏰ Таймер уже перезапущен на 7 дней\n\n🎯 Завтра снова отправляй #training_done для продолжения серии!", currentCups))
 
 		b.logger.Infof("Sending already trained today message to chat %d", msg.Chat.ID)
 		_, err = b.api.Send(reply)
