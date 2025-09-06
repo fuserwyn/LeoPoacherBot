@@ -64,6 +64,12 @@ func (b *Bot) Start(ctx context.Context) error {
 }
 
 func (b *Bot) handleUpdate(update tgbotapi.Update) {
+	// Обрабатываем добавление новых участников
+	if update.Message != nil && len(update.Message.NewChatMembers) > 0 {
+		b.handleNewChatMembers(update.Message)
+		return
+	}
+
 	if update.Message == nil {
 		return
 	}
@@ -103,6 +109,72 @@ func (b *Bot) handleCommand(msg *tgbotapi.Message) {
 	default:
 		b.logger.Warnf("Unknown command: %s", command)
 	}
+}
+
+func (b *Bot) handleNewChatMembers(msg *tgbotapi.Message) {
+	// Отправляем приветственное сообщение для каждого нового участника
+	for _, newMember := range msg.NewChatMembers {
+		// Пропускаем ботов
+		if newMember.IsBot {
+			continue
+		}
+
+		// Получаем никнейм пользователя
+		username := ""
+		if newMember.UserName != "" {
+			username = "@" + newMember.UserName
+		} else if newMember.FirstName != "" {
+			username = newMember.FirstName
+			if newMember.LastName != "" {
+				username += " " + newMember.LastName
+			}
+		} else {
+			username = fmt.Sprintf("User%d", newMember.ID)
+		}
+
+		// Отправляем приветственное сообщение
+		b.sendWelcomeMessage(msg.Chat.ID, username, newMember.ID)
+	}
+}
+
+func (b *Bot) sendWelcomeMessage(chatID int64, username string, userID int64) {
+	// Создаем приветственное сообщение
+	welcomeText := `Я ваш хладнокровный тренер, который следит за тренировками всегда, я все вижу и не оставляю в стае тех, кто не занимается больше 7 дней!
+
+💪 Отчеты о тренировке:
+• #training_done — Отправить отчет о тренировке
+
+🏥 Больничный:
+• #sick_leave — Взять больничный (приостанавливает таймер)
+• #healthy — Выздороветь (возобновляет таймер)
+
+⏰ Как я слежу за тренировками:
+• При получении #training_done таймер перезапускается на 7 дней
+• Через 6 дней без #training_done - предупреждение
+• Через 7 дней без #training_done - удаление из чата
+
+📋 Правила:
+• Отчётом считается любое сообщение с тегом #training_done
+• Если заболели — отправь #sick_leave
+• После выздоровления — отправь #healthy
+• Через 6 дней без отчёта — предупреждение
+• Через 7 дней без отчёта — удаление из чата
+
+🦁`
+
+	// Отправляем сообщение
+	reply := tgbotapi.NewMessage(chatID, welcomeText)
+
+	b.logger.Infof("Sending welcome message to chat %d for new user %s (ID: %d)", chatID, username, userID)
+	_, err := b.api.Send(reply)
+	if err != nil {
+		b.logger.Errorf("Failed to send welcome message: %v", err)
+	} else {
+		b.logger.Infof("Successfully sent welcome message to chat %d for new user %s", chatID, username)
+	}
+
+	// Запускаем таймер для нового пользователя
+	b.startTimer(userID, chatID, username)
 }
 
 func (b *Bot) handleMessage(msg *tgbotapi.Message) {
