@@ -341,6 +341,15 @@ func (b *Bot) handleTrainingDone(msg *tgbotapi.Message) {
 			}
 			b.sendQuarterlyCupsReward(msg, username, newStreakDays)
 		}
+
+		// Проверяем супер-уровень после начисления кубков
+		totalCups, err := b.db.GetUserCups(msg.From.ID, msg.Chat.ID)
+		if err != nil {
+			b.logger.Errorf("Failed to get user cups for super level check: %v", err)
+		} else if totalCups > 420 {
+			// Отправляем сообщение о супер-уровне
+			b.sendSuperLevelMessage(msg, username, totalCups)
+		}
 	}
 
 	// Отправляем подтверждение только если была добавлена новая тренировка
@@ -877,8 +886,15 @@ func (b *Bot) handleCups(msg *tgbotapi.Message) {
 		username = fmt.Sprintf("User%d", msg.From.ID)
 	}
 
-	// Формируем сообщение
-	cupsText := fmt.Sprintf("🏆 Ваши кубки:\n\n👤 %s\n🎯 Всего заработано кубков: %d\n\n💡 Отправляйте #training_done для получения кубков!\n\n🎊 Розыгрыш футболки Fat Leopard при достижении 420 кубков!", username, cups)
+	// Формируем сообщение в зависимости от количества кубков
+	var cupsText string
+	if cups > 420 {
+		cupsText = fmt.Sprintf("🌟⚡ СУПЕР-УРОВЕНЬ! ⚡🌟\n\n👤 %s\n🎯 Всего заработано кубков: %d\n\n🏆 ТЫ ПРЕВЗОШЕЛ ВСЕ ОЖИДАНИЯ!\n💪 Ты не просто чемпион - ты СУПЕР-ЧЕМПИОН!\n🔥 Твоя мотивация безгранична!\n⭐ Ты вдохновляешь всю стаю!\n👑 Ты король мотивации!\n\n🎯 Продолжай в том же духе, супер-леопард!", username, cups)
+	} else if cups >= 420 {
+		cupsText = fmt.Sprintf("🎊 ПОЗДРАВЛЯЕМ! 🎊\n\n👤 %s\n🎯 Всего заработано кубков: %d\n\n🏆 ТЫ ДОСТИГ ЦЕЛИ РОЗЫГРЫША!\n🎁 Участвуешь в розыгрыше футболки Fat Leopard!\n💪 Ты настоящий чемпион!\n🔥 Продолжай тренироваться!", username, cups)
+	} else {
+		cupsText = fmt.Sprintf("🏆 Ваши кубки:\n\n👤 %s\n🎯 Всего заработано кубков: %d\n\n💡 Отправляйте #training_done для получения кубков!\n\n🎊 Розыгрыш футболки Fat Leopard при достижении 420 кубков!", username, cups)
+	}
 
 	reply := tgbotapi.NewMessage(msg.Chat.ID, cupsText)
 
@@ -1352,5 +1368,42 @@ func (b *Bot) sendQuarterlyCupsReward(msg *tgbotapi.Message, username string, st
 		b.logger.Errorf("Failed to send quarterly cups reward: %v", err)
 	} else {
 		b.logger.Infof("Successfully sent quarterly cups reward to chat %d for user %s", msg.Chat.ID, username)
+	}
+}
+
+func (b *Bot) sendSuperLevelMessage(msg *tgbotapi.Message, username string, totalCups int) {
+	// Создаем сообщение о супер-уровне
+	superMessage := fmt.Sprintf(`🌟⚡ СУПЕР-УРОВЕНЬ ДОСТИГНУТ! ⚡🌟
+
+%s, ты накопил %d кубков! 
+
+🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆
+🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆
+🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆
+🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆
+🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆
+
+🎊 ТЫ ПРЕВЗОШЕЛ ВСЕ ОЖИДАНИЯ! 🎊
+
+🦁 Fat Leopard в полном восторге! 
+💪 Ты не просто чемпион - ты СУПЕР-ЧЕМПИОН!
+🔥 Твоя мотивация безгранична!
+⭐ Ты вдохновляешь всю стаю!
+👑 Ты король мотивации!
+🌟 Ты сияешь ярче всех!
+
+🎯 Продолжай в том же духе, супер-леопард!
+
+#super_level #%d_cups #motivation_king`, username, totalCups, totalCups)
+
+	// Отправляем сообщение о супер-уровне
+	reply := tgbotapi.NewMessage(msg.Chat.ID, superMessage)
+
+	b.logger.Infof("Sending super level message to chat %d for user %s (total cups: %d)", msg.Chat.ID, username, totalCups)
+	_, err := b.api.Send(reply)
+	if err != nil {
+		b.logger.Errorf("Failed to send super level message: %v", err)
+	} else {
+		b.logger.Infof("Successfully sent super level message to chat %d for user %s", msg.Chat.ID, username)
 	}
 }
