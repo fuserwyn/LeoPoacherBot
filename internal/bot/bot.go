@@ -266,17 +266,27 @@ func (b *Bot) handleTrainingDone(msg *tgbotapi.Message) {
 	// Рассчитываем калории и серию
 	caloriesToAdd, newStreakDays, weeklyAchievement, monthlyAchievement, quarterlyAchievement := b.calculateCalories(messageLog)
 
+	// ДЕБАГ: Логируем результат расчета
+	b.logger.Infof("DEBUG handleTrainingDone: caloriesToAdd=%d, newStreakDays=%d", caloriesToAdd, newStreakDays)
+
 	// Начисляем калории
 	if err := b.db.AddCalories(msg.From.ID, msg.Chat.ID, caloriesToAdd); err != nil {
 		b.logger.Errorf("Failed to add calories: %v", err)
+	} else {
+		b.logger.Infof("DEBUG: Successfully added %d calories", caloriesToAdd)
 	}
 
 	// Обновляем серию только если была добавлена новая тренировка
 	if caloriesToAdd > 0 {
 		today := utils.GetMoscowDate()
+		b.logger.Infof("DEBUG: Updating streak to %d with date %s", newStreakDays, today)
 		if err := b.db.UpdateStreak(msg.From.ID, msg.Chat.ID, newStreakDays, today); err != nil {
 			b.logger.Errorf("Failed to update streak: %v", err)
+		} else {
+			b.logger.Infof("DEBUG: Successfully updated streak to %d", newStreakDays)
 		}
+	} else {
+		b.logger.Infof("DEBUG: Skipping streak update (caloriesToAdd = 0)")
 	}
 
 	// Проверяем, был ли пользователь на больничном
@@ -1026,11 +1036,16 @@ func (b *Bot) isUserInChat(chatID, userID int64) bool {
 func (b *Bot) calculateCalories(messageLog *models.MessageLog) (int, int, bool, bool, bool) {
 	today := utils.GetMoscowDate()
 
+	// ДЕБАГ: Логируем входные данные
+	b.logger.Infof("DEBUG calculateCalories: today=%s, LastTrainingDate=%v, StreakDays=%d",
+		today, messageLog.LastTrainingDate, messageLog.StreakDays)
+
 	// Базовые калории за тренировку
 	caloriesToAdd := 1
 
 	// Проверяем, была ли уже тренировка сегодня
 	if messageLog.LastTrainingDate != nil && *messageLog.LastTrainingDate == today {
+		b.logger.Infof("DEBUG: Уже тренировались сегодня, возвращаем 0 калорий")
 		return 0, messageLog.StreakDays, false, false, false // Уже тренировались сегодня
 	}
 
@@ -1040,17 +1055,22 @@ func (b *Bot) calculateCalories(messageLog *models.MessageLog) (int, int, bool, 
 	if messageLog.LastTrainingDate != nil {
 		yesterday := utils.GetMoscowTime().AddDate(0, 0, -1)
 		yesterdayStr := utils.GetMoscowDateFromTime(yesterday)
+		b.logger.Infof("DEBUG: Сравниваем LastTrainingDate=%s с yesterday=%s", *messageLog.LastTrainingDate, yesterdayStr)
+
 		if *messageLog.LastTrainingDate == yesterdayStr {
 			// Продолжаем серию
 			newStreakDays = messageLog.StreakDays + 1
+			b.logger.Infof("DEBUG: Продолжаем серию: %d + 1 = %d", messageLog.StreakDays, newStreakDays)
 		} else {
 			// Серия прервана, начинаем заново
 			newStreakDays = 1
+			b.logger.Infof("DEBUG: Серия прервана, начинаем заново: %d", newStreakDays)
 		}
 	} else {
 		// Если нет данных о последней тренировке, но есть streak, продолжаем его
 		if messageLog.StreakDays > 0 {
 			newStreakDays = messageLog.StreakDays + 1
+			b.logger.Infof("DEBUG: Нет данных о последней тренировке, продолжаем streak: %d + 1 = %d", messageLog.StreakDays, newStreakDays)
 		}
 	}
 
@@ -1078,6 +1098,10 @@ func (b *Bot) calculateCalories(messageLog *models.MessageLog) (int, int, bool, 
 
 	// Проверяем, достиг ли пользователь квартальной серии (90 дней подряд)
 	quarterlyAchievement := newStreakDays == 90
+
+	// ДЕБАГ: Логируем результат
+	b.logger.Infof("DEBUG calculateCalories RESULT: caloriesToAdd=%d, newStreakDays=%d, weekly=%t, monthly=%t, quarterly=%t",
+		caloriesToAdd, newStreakDays, weeklyAchievement, monthlyAchievement, quarterlyAchievement)
 
 	return caloriesToAdd, newStreakDays, weeklyAchievement, monthlyAchievement, quarterlyAchievement
 }
