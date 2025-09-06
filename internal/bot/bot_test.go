@@ -7,6 +7,7 @@ import (
 	"leo-bot/internal/config"
 	"leo-bot/internal/logger"
 	"leo-bot/internal/models"
+	"leo-bot/internal/utils"
 
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 )
@@ -431,4 +432,90 @@ func TestSendWelcomeMessage(t *testing.T) {
 	// Проверяем, что функция существует и может быть вызвана
 	// (без реального вызова, так как нет мока для API)
 	t.Log("sendWelcomeMessage function exists and can be called")
+}
+
+func TestCalculateCaloriesDoubleTraining(t *testing.T) {
+	// Создаем тестовый бот
+	cfg := &config.Config{OwnerID: 123}
+	bot := &Bot{config: cfg, logger: logger.New("info")}
+
+	// Тест 1: Первая тренировка сегодня
+	messageLog1 := &models.MessageLog{
+		LastTrainingDate: nil,
+		StreakDays:       0,
+	}
+
+	calories1, streakDays1, weeklyAchievement1, monthlyAchievement1, quarterlyAchievement1 := bot.calculateCalories(messageLog1)
+
+	// Первая тренировка должна дать калории и увеличить streak
+	if calories1 == 0 {
+		t.Error("Expected calories > 0 for first training today")
+	}
+	if streakDays1 != 1 {
+		t.Errorf("Expected streak days 1 for first training, got %d", streakDays1)
+	}
+	if weeklyAchievement1 {
+		t.Error("Expected no weekly achievement for first training")
+	}
+	if monthlyAchievement1 {
+		t.Error("Expected no monthly achievement for first training")
+	}
+	if quarterlyAchievement1 {
+		t.Error("Expected no quarterly achievement for first training")
+	}
+
+	// Тест 2: Вторая тренировка в тот же день
+	today := utils.GetMoscowDate()
+	messageLog2 := &models.MessageLog{
+		LastTrainingDate: &today,
+		StreakDays:       1,
+	}
+
+	calories2, streakDays2, weeklyAchievement2, monthlyAchievement2, quarterlyAchievement2 := bot.calculateCalories(messageLog2)
+
+	// Вторая тренировка в тот же день не должна дать калории и не должна изменить streak
+	if calories2 != 0 {
+		t.Errorf("Expected calories 0 for second training today, got %d", calories2)
+	}
+	if streakDays2 != 1 {
+		t.Errorf("Expected streak days 1 for second training today, got %d", streakDays2)
+	}
+	if weeklyAchievement2 {
+		t.Error("Expected no weekly achievement for second training today")
+	}
+	if monthlyAchievement2 {
+		t.Error("Expected no monthly achievement for second training today")
+	}
+	if quarterlyAchievement2 {
+		t.Error("Expected no quarterly achievement for second training today")
+	}
+
+	// Тест 3: Тренировка на следующий день после двойной тренировки
+	yesterday := utils.GetMoscowTime().AddDate(0, 0, -1)
+	yesterdayStr := utils.GetMoscowDateFromTime(yesterday)
+	messageLog3 := &models.MessageLog{
+		LastTrainingDate: &yesterdayStr,
+		StreakDays:       1,
+	}
+
+	calories3, streakDays3, weeklyAchievement3, monthlyAchievement3, quarterlyAchievement3 := bot.calculateCalories(messageLog3)
+
+	// Тренировка на следующий день должна продолжить серию
+	if calories3 == 0 {
+		t.Error("Expected calories > 0 for training next day")
+	}
+	if streakDays3 != 2 {
+		t.Errorf("Expected streak days 2 for training next day, got %d", streakDays3)
+	}
+	if weeklyAchievement3 {
+		t.Error("Expected no weekly achievement for 2-day streak")
+	}
+	if monthlyAchievement3 {
+		t.Error("Expected no monthly achievement for 2-day streak")
+	}
+	if quarterlyAchievement3 {
+		t.Error("Expected no quarterly achievement for 2-day streak")
+	}
+
+	t.Log("Double training logic test passed")
 }

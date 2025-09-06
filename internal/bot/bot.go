@@ -271,39 +271,57 @@ func (b *Bot) handleTrainingDone(msg *tgbotapi.Message) {
 		b.logger.Errorf("Failed to add calories: %v", err)
 	}
 
-	// Обновляем серию
-	today := utils.GetMoscowDate()
-	if err := b.db.UpdateStreak(msg.From.ID, msg.Chat.ID, newStreakDays, today); err != nil {
-		b.logger.Errorf("Failed to update streak: %v", err)
+	// Обновляем серию только если была добавлена новая тренировка
+	if caloriesToAdd > 0 {
+		today := utils.GetMoscowDate()
+		if err := b.db.UpdateStreak(msg.From.ID, msg.Chat.ID, newStreakDays, today); err != nil {
+			b.logger.Errorf("Failed to update streak: %v", err)
+		}
 	}
 
 	// Проверяем, был ли пользователь на больничном
 	wasOnSickLeave := messageLog.HasSickLeave && !messageLog.HasHealthy
 
-	// Отправляем 42 кубка за недельную серию
-	if weeklyAchievement {
-		b.sendWeeklyCupsReward(msg, username, newStreakDays)
+	// Отправляем достижения только если была добавлена новая тренировка
+	if caloriesToAdd > 0 {
+		// Отправляем 42 кубка за недельную серию
+		if weeklyAchievement {
+			b.sendWeeklyCupsReward(msg, username, newStreakDays)
+		}
+
+		// Отправляем 420 кубков за месячную серию
+		if monthlyAchievement {
+			b.sendMonthlyCupsReward(msg, username, newStreakDays)
+		}
+
+		// Отправляем 4200 кубков за квартальную серию
+		if quarterlyAchievement {
+			b.sendQuarterlyCupsReward(msg, username, newStreakDays)
+		}
 	}
 
-	// Отправляем 420 кубков за месячную серию
-	if monthlyAchievement {
-		b.sendMonthlyCupsReward(msg, username, newStreakDays)
-	}
+	// Отправляем подтверждение только если была добавлена новая тренировка
+	if caloriesToAdd > 0 {
+		reply := tgbotapi.NewMessage(msg.Chat.ID, "✅ Отчёт принят! 💪\n\n⏰ Таймер перезапускается на 7 дней\n\n🎯 Продолжай тренироваться и не забывай отправлять #training_done!")
 
-	// Отправляем 4200 кубков за квартальную серию
-	if quarterlyAchievement {
-		b.sendQuarterlyCupsReward(msg, username, newStreakDays)
-	}
-
-	// Отправляем подтверждение
-	reply := tgbotapi.NewMessage(msg.Chat.ID, "✅ Отчёт принят! 💪\n\n⏰ Таймер перезапускается на 7 дней\n\n🎯 Продолжай тренироваться и не забывай отправлять #training_done!")
-
-	b.logger.Infof("Sending training done message to chat %d", msg.Chat.ID)
-	_, err = b.api.Send(reply)
-	if err != nil {
-		b.logger.Errorf("Failed to send training done message: %v", err)
+		b.logger.Infof("Sending training done message to chat %d", msg.Chat.ID)
+		_, err = b.api.Send(reply)
+		if err != nil {
+			b.logger.Errorf("Failed to send training done message: %v", err)
+		} else {
+			b.logger.Infof("Successfully sent training done message to chat %d", msg.Chat.ID)
+		}
 	} else {
-		b.logger.Infof("Successfully sent training done message to chat %d", msg.Chat.ID)
+		// Если тренировка уже была сегодня, отправляем мотивирующее сообщение
+		reply := tgbotapi.NewMessage(msg.Chat.ID, "🦁 Какой мотивированный леопард! Еще одна тренировка! 💪\n\n🔥 Твоя мотивация впечатляет\n\n⏰ Таймер уже перезапущен на 7 дней\n\n🎯 Завтра снова отправляй #training_done для продолжения серии!")
+
+		b.logger.Infof("Sending already trained today message to chat %d", msg.Chat.ID)
+		_, err = b.api.Send(reply)
+		if err != nil {
+			b.logger.Errorf("Failed to send already trained today message: %v", err)
+		} else {
+			b.logger.Infof("Successfully sent already trained today message to chat %d", msg.Chat.ID)
+		}
 	}
 
 	// Если пользователь был на больничном, сбрасываем флаги больничного и помечаем как здорового
