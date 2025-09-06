@@ -282,7 +282,7 @@ func (b *Bot) handleTrainingDone(msg *tgbotapi.Message) {
 	}
 
 	// Рассчитываем калории и серию
-	caloriesToAdd, newStreakDays, weeklyAchievement, monthlyAchievement, quarterlyAchievement := b.calculateCalories(messageLog)
+	caloriesToAdd, newStreakDays, weeklyAchievement, twoWeekAchievement, threeWeekAchievement, monthlyAchievement, quarterlyAchievement := b.calculateCalories(messageLog)
 
 	// ДЕБАГ: Логируем результат расчета
 	b.logger.Infof("DEBUG handleTrainingDone: caloriesToAdd=%d, newStreakDays=%d", caloriesToAdd, newStreakDays)
@@ -322,6 +322,26 @@ func (b *Bot) handleTrainingDone(msg *tgbotapi.Message) {
 			b.sendWeeklyCupsReward(msg, username, newStreakDays)
 		}
 
+		// Начисляем и отправляем 42 кубка за двухнедельную серию
+		if twoWeekAchievement {
+			if err := b.db.AddCups(msg.From.ID, msg.Chat.ID, 42); err != nil {
+				b.logger.Errorf("Failed to add two-week cups: %v", err)
+			} else {
+				b.logger.Infof("Successfully added 42 cups for two-week achievement")
+			}
+			b.sendTwoWeekCupsReward(msg, username, newStreakDays)
+		}
+
+		// Начисляем и отправляем 42 кубка за трехнедельную серию
+		if threeWeekAchievement {
+			if err := b.db.AddCups(msg.From.ID, msg.Chat.ID, 42); err != nil {
+				b.logger.Errorf("Failed to add three-week cups: %v", err)
+			} else {
+				b.logger.Infof("Successfully added 42 cups for three-week achievement")
+			}
+			b.sendThreeWeekCupsReward(msg, username, newStreakDays)
+		}
+
 		// Начисляем и отправляем 420 кубков за месячную серию
 		if monthlyAchievement {
 			if err := b.db.AddCups(msg.From.ID, msg.Chat.ID, 420); err != nil {
@@ -354,7 +374,7 @@ func (b *Bot) handleTrainingDone(msg *tgbotapi.Message) {
 
 	// Отправляем подтверждение только если была добавлена новая тренировка
 	// И только если не было отправлено сообщение о кубках
-	if caloriesToAdd > 0 && !weeklyAchievement && !monthlyAchievement && !quarterlyAchievement {
+	if caloriesToAdd > 0 && !weeklyAchievement && !twoWeekAchievement && !threeWeekAchievement && !monthlyAchievement && !quarterlyAchievement {
 		reply := tgbotapi.NewMessage(msg.Chat.ID, fmt.Sprintf("✅ Отчёт принят! 💪\n\n🦁 Ты тренируешься дней подряд: %d\n\n⏰ Таймер перезапускается на 7 дней\n\n🎯 Продолжай тренироваться и не забывай отправлять #training_done!", newStreakDays))
 
 		b.logger.Infof("Sending training done message to chat %d", msg.Chat.ID)
@@ -690,6 +710,8 @@ func (b *Bot) handleHelp(msg *tgbotapi.Message) {
 • Через 6 дней без #training_done - предупреждение
 • Через 7 дней без #training_done - удаление из чата
 • 🏆 7 дней подряд = 42 КУБКА! 🏆
+• 🏆🏆 14 дней подряд = 42 КУБКА! 🏆🏆
+• 🏆🏆🏆 21 день подряд = 42 КУБКА! 🏆🏆🏆
 • 🏆🏆🏆 30 дней подряд = 420 КУБКОВ! 🏆🏆🏆
 • 🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆 90 дней подряд = 4200 КУБКОВ! 🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆
 
@@ -736,6 +758,8 @@ func (b *Bot) handleStart(msg *tgbotapi.Message) {
 • Через 6 дней без отчета — предупреждение
 • Через 7 дней без отчета — удаление из чата
 • 🏆 7 дней подряд = 42 КУБКА! 🏆
+• 🏆🏆 14 дней подряд = 42 КУБКА! 🏆🏆
+• 🏆🏆🏆 21 день подряд = 42 КУБКА! 🏆🏆🏆
 • 🏆🏆🏆 30 дней подряд = 420 КУБКОВ! 🏆🏆🏆
 • 🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆 90 дней подряд = 4200 КУБКОВ! 🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆
 
@@ -1126,7 +1150,7 @@ func (b *Bot) isUserInChat(chatID, userID int64) bool {
 	return err == nil
 }
 
-func (b *Bot) calculateCalories(messageLog *models.MessageLog) (int, int, bool, bool, bool) {
+func (b *Bot) calculateCalories(messageLog *models.MessageLog) (int, int, bool, bool, bool, bool, bool) {
 	today := utils.GetMoscowDate()
 
 	// ДЕБАГ: Логируем входные данные
@@ -1139,7 +1163,7 @@ func (b *Bot) calculateCalories(messageLog *models.MessageLog) (int, int, bool, 
 	// Проверяем, была ли уже тренировка сегодня
 	if messageLog.LastTrainingDate != nil && *messageLog.LastTrainingDate == today {
 		b.logger.Infof("DEBUG: Уже тренировались сегодня, возвращаем 0 калорий")
-		return 0, messageLog.StreakDays, false, false, false // Уже тренировались сегодня
+		return 0, messageLog.StreakDays, false, false, false, false, false // Уже тренировались сегодня
 	}
 
 	// Рассчитываем новую серию
@@ -1186,6 +1210,12 @@ func (b *Bot) calculateCalories(messageLog *models.MessageLog) (int, int, bool, 
 	// Проверяем, достиг ли пользователь недельной серии (7 дней подряд)
 	weeklyAchievement := newStreakDays == 7
 
+	// Проверяем, достиг ли пользователь двухнедельной серии (14 дней подряд)
+	twoWeekAchievement := newStreakDays == 14
+
+	// Проверяем, достиг ли пользователь трехнедельной серии (21 день подряд)
+	threeWeekAchievement := newStreakDays == 21
+
 	// Проверяем, достиг ли пользователь месячной серии (30 дней подряд)
 	monthlyAchievement := newStreakDays == 30
 
@@ -1193,10 +1223,10 @@ func (b *Bot) calculateCalories(messageLog *models.MessageLog) (int, int, bool, 
 	quarterlyAchievement := newStreakDays == 90
 
 	// ДЕБАГ: Логируем результат
-	b.logger.Infof("DEBUG calculateCalories RESULT: caloriesToAdd=%d, newStreakDays=%d, weekly=%t, monthly=%t, quarterly=%t",
-		caloriesToAdd, newStreakDays, weeklyAchievement, monthlyAchievement, quarterlyAchievement)
+	b.logger.Infof("DEBUG calculateCalories RESULT: caloriesToAdd=%d, newStreakDays=%d, weekly=%t, twoWeek=%t, threeWeek=%t, monthly=%t, quarterly=%t",
+		caloriesToAdd, newStreakDays, weeklyAchievement, twoWeekAchievement, threeWeekAchievement, monthlyAchievement, quarterlyAchievement)
 
-	return caloriesToAdd, newStreakDays, weeklyAchievement, monthlyAchievement, quarterlyAchievement
+	return caloriesToAdd, newStreakDays, weeklyAchievement, twoWeekAchievement, threeWeekAchievement, monthlyAchievement, quarterlyAchievement
 }
 
 func (b *Bot) calculateRemainingTime(messageLog *models.MessageLog) time.Duration {
@@ -1368,6 +1398,73 @@ func (b *Bot) sendQuarterlyCupsReward(msg *tgbotapi.Message, username string, st
 		b.logger.Errorf("Failed to send quarterly cups reward: %v", err)
 	} else {
 		b.logger.Infof("Successfully sent quarterly cups reward to chat %d for user %s", msg.Chat.ID, username)
+	}
+}
+
+func (b *Bot) sendTwoWeekCupsReward(msg *tgbotapi.Message, username string, streakDays int) {
+	// Создаем сообщение с 42 кубками
+	cupsMessage := fmt.Sprintf(`🏆🏆 НЕВЕРОЯТНО! 🏆🏆
+
+%s, ты тренируешься уже %d дней подряд! 
+
+🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆
+🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆
+🎯 42 КУБКА за твою двухнедельную серию! 🎯
+🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆
+🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆
+
+🦁 Fat Leopard в восторге от твоей мотивации! 
+💪 Ты настоящий воин!
+🔥 Твоя сила растет с каждым днем!
+⭐ Ты вдохновляешь всю стаю!
+
+#two_week_champion #42_cups #training_warrior`, username, streakDays)
+
+	// Отправляем сообщение с кубками
+	reply := tgbotapi.NewMessage(msg.Chat.ID, cupsMessage)
+
+	b.logger.Infof("Sending two-week cups reward to chat %d for user %s (streak: %d days)", msg.Chat.ID, username, streakDays)
+	_, err := b.api.Send(reply)
+	if err != nil {
+		b.logger.Errorf("Failed to send two-week cups reward: %v", err)
+	} else {
+		b.logger.Infof("Successfully sent two-week cups reward to chat %d for user %s", msg.Chat.ID, username)
+	}
+}
+
+func (b *Bot) sendThreeWeekCupsReward(msg *tgbotapi.Message, username string, streakDays int) {
+	// Создаем сообщение с 42 кубками
+	cupsMessage := fmt.Sprintf(`🏆🏆🏆 ФЕНОМЕНАЛЬНО! 🏆🏆🏆
+
+%s, ты тренируешься уже %d дней подряд! 
+
+🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆
+🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆
+🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆
+🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆
+🎯 42 КУБКА за твою трехнедельную серию! 🎯
+🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆
+🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆
+🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆
+🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆
+
+🦁 Fat Leopard поражен твоей силой воли! 
+💪 Ты абсолютный чемпион!
+🔥 Твоя мотивация не знает границ!
+⭐ Ты легенда среди леопардов!
+👑 Ты король мотивации!
+
+#three_week_legend #42_cups #training_king`, username, streakDays)
+
+	// Отправляем сообщение с кубками
+	reply := tgbotapi.NewMessage(msg.Chat.ID, cupsMessage)
+
+	b.logger.Infof("Sending three-week cups reward to chat %d for user %s (streak: %d days)", msg.Chat.ID, username, streakDays)
+	_, err := b.api.Send(reply)
+	if err != nil {
+		b.logger.Errorf("Failed to send three-week cups reward: %v", err)
+	} else {
+		b.logger.Infof("Successfully sent three-week cups reward to chat %d for user %s", msg.Chat.ID, username)
 	}
 }
 

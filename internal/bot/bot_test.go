@@ -130,7 +130,7 @@ func TestCalculateCaloriesWeeklyAchievement(t *testing.T) {
 
 	// Симулируем 7 дней подряд тренировок
 	for day := 1; day <= 7; day++ {
-		calories, streakDays, weeklyAchievement, monthlyAchievement, quarterlyAchievement := bot.calculateCalories(messageLog)
+		calories, streakDays, weeklyAchievement, twoWeekAchievement, threeWeekAchievement, monthlyAchievement, quarterlyAchievement := bot.calculateCalories(messageLog)
 
 		if day == 7 {
 			// На 7-й день должно быть недельное достижение
@@ -143,7 +143,13 @@ func TestCalculateCaloriesWeeklyAchievement(t *testing.T) {
 			if calories < 6 { // 1 базовая + 5 за 7 дней
 				t.Errorf("Day %d: Expected calories >= 6 for 7-day streak, got %d", day, calories)
 			}
-			// На 7-й день не должно быть месячного и квартального достижений
+			// На 7-й день не должно быть других достижений
+			if twoWeekAchievement {
+				t.Errorf("Day %d: Expected no two-week achievement for 7-day streak", day)
+			}
+			if threeWeekAchievement {
+				t.Errorf("Day %d: Expected no three-week achievement for 7-day streak", day)
+			}
 			if monthlyAchievement {
 				t.Errorf("Day %d: Expected no monthly achievement for 7-day streak", day)
 			}
@@ -154,6 +160,12 @@ func TestCalculateCaloriesWeeklyAchievement(t *testing.T) {
 			// До 7-го дня не должно быть достижений
 			if weeklyAchievement {
 				t.Errorf("Day %d: Expected no weekly achievement for %d-day streak", day, day)
+			}
+			if twoWeekAchievement {
+				t.Errorf("Day %d: Expected no two-week achievement for %d-day streak", day, day)
+			}
+			if threeWeekAchievement {
+				t.Errorf("Day %d: Expected no three-week achievement for %d-day streak", day, day)
 			}
 			if monthlyAchievement {
 				t.Errorf("Day %d: Expected no monthly achievement for %d-day streak", day, day)
@@ -175,7 +187,7 @@ func TestCalculateCaloriesWeeklyAchievement(t *testing.T) {
 		StreakDays:       6, // 6 дней подряд
 	}
 
-	calories2, streakDays2, weeklyAchievement2, monthlyAchievement2, quarterlyAchievement2 := bot.calculateCalories(messageLog2)
+	calories2, streakDays2, weeklyAchievement2, twoWeekAchievement2, threeWeekAchievement2, monthlyAchievement2, quarterlyAchievement2 := bot.calculateCalories(messageLog2)
 
 	// На 7-й день должно быть недельное достижение
 	if !weeklyAchievement2 {
@@ -201,7 +213,7 @@ func TestCalculateCaloriesWeeklyAchievement(t *testing.T) {
 		StreakDays:       5, // 5 дней подряд
 	}
 
-	calories3, streakDays3, weeklyAchievement3, monthlyAchievement3, quarterlyAchievement3 := bot.calculateCalories(messageLog3)
+	calories3, streakDays3, weeklyAchievement3, twoWeekAchievement3, threeWeekAchievement3, monthlyAchievement3, quarterlyAchievement3 := bot.calculateCalories(messageLog3)
 
 	// На 6-й день не должно быть достижений
 	if weeklyAchievement3 {
@@ -239,7 +251,7 @@ func TestCalculateCaloriesMonthlyAchievement(t *testing.T) {
 		StreakDays:       29, // 29 дней подряд
 	}
 
-	calories, streakDays, weeklyAchievement, monthlyAchievement, quarterlyAchievement := bot.calculateCalories(messageLog)
+	calories, streakDays, weeklyAchievement, twoWeekAchievement, threeWeekAchievement, monthlyAchievement, quarterlyAchievement := bot.calculateCalories(messageLog)
 
 	// На 30-й день должно быть месячное достижение
 	if !monthlyAchievement {
@@ -265,7 +277,7 @@ func TestCalculateCaloriesMonthlyAchievement(t *testing.T) {
 		StreakDays:       14, // 14 дней подряд
 	}
 
-	calories2, streakDays2, _, monthlyAchievement2, quarterlyAchievement2 := bot.calculateCalories(messageLog2)
+	calories2, streakDays2, _, _, _, monthlyAchievement2, quarterlyAchievement2 := bot.calculateCalories(messageLog2)
 
 	// На 15-й день не должно быть месячного и квартального достижений
 	if monthlyAchievement2 {
@@ -300,7 +312,7 @@ func TestCalculateCaloriesQuarterlyAchievement(t *testing.T) {
 		StreakDays:       89, // 89 дней подряд
 	}
 
-	calories, streakDays, weeklyAchievement, monthlyAchievement, quarterlyAchievement := bot.calculateCalories(messageLog)
+	calories, streakDays, weeklyAchievement, twoWeekAchievement, threeWeekAchievement, monthlyAchievement, quarterlyAchievement := bot.calculateCalories(messageLog)
 
 	// На 90-й день должно быть квартальное достижение
 	if !quarterlyAchievement {
@@ -326,7 +338,7 @@ func TestCalculateCaloriesQuarterlyAchievement(t *testing.T) {
 		StreakDays:       45, // 45 дней подряд
 	}
 
-	calories2, streakDays2, _, _, quarterlyAchievement2 := bot.calculateCalories(messageLog2)
+	calories2, streakDays2, _, _, _, _, quarterlyAchievement2 := bot.calculateCalories(messageLog2)
 
 	// На 46-й день не должно быть квартального достижения
 	if quarterlyAchievement2 {
@@ -445,7 +457,7 @@ func TestCalculateCaloriesDoubleTraining(t *testing.T) {
 		StreakDays:       0,
 	}
 
-	calories1, streakDays1, weeklyAchievement1, monthlyAchievement1, quarterlyAchievement1 := bot.calculateCalories(messageLog1)
+	calories1, streakDays1, weeklyAchievement1, twoWeekAchievement1, threeWeekAchievement1, monthlyAchievement1, quarterlyAchievement1 := bot.calculateCalories(messageLog1)
 
 	// Первая тренировка должна дать калории и увеличить streak
 	if calories1 == 0 {
@@ -471,7 +483,7 @@ func TestCalculateCaloriesDoubleTraining(t *testing.T) {
 		StreakDays:       1,
 	}
 
-	calories2, streakDays2, weeklyAchievement2, monthlyAchievement2, quarterlyAchievement2 := bot.calculateCalories(messageLog2)
+	calories2, streakDays2, weeklyAchievement2, twoWeekAchievement2, threeWeekAchievement2, monthlyAchievement2, quarterlyAchievement2 := bot.calculateCalories(messageLog2)
 
 	// Вторая тренировка в тот же день не должна дать калории и не должна изменить streak
 	if calories2 != 0 {
@@ -498,7 +510,7 @@ func TestCalculateCaloriesDoubleTraining(t *testing.T) {
 		StreakDays:       1,
 	}
 
-	calories3, streakDays3, weeklyAchievement3, monthlyAchievement3, quarterlyAchievement3 := bot.calculateCalories(messageLog3)
+	calories3, streakDays3, weeklyAchievement3, twoWeekAchievement3, threeWeekAchievement3, monthlyAchievement3, quarterlyAchievement3 := bot.calculateCalories(messageLog3)
 
 	// Тренировка на следующий день должна продолжить серию
 	if calories3 == 0 {
