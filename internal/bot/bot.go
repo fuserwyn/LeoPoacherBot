@@ -203,22 +203,38 @@ func (b *Bot) handleMessage(msg *tgbotapi.Message) {
 		username = fmt.Sprintf("User%d", msg.From.ID)
 	}
 
-	// Сохраняем сообщение в базу данных
-	messageLog := &models.MessageLog{
-		UserID:          msg.From.ID,
-		ChatID:          msg.Chat.ID,
-		Username:        username,
-		Calories:        0, // Будет обновлено при обработке хештегов
-		StreakDays:      0,
-		LastMessage:     utils.FormatMoscowTime(utils.GetMoscowTime()),
-		HasTrainingDone: hasTrainingDone,
-		HasSickLeave:    hasSickLeave,
-		HasHealthy:      hasHealthy,
-		IsDeleted:       false,
-	}
+	// Получаем существующие данные пользователя
+	existingLog, err := b.db.GetMessageLog(msg.From.ID, msg.Chat.ID)
+	if err != nil {
+		// Если пользователя нет в БД, создаем новую запись
+		messageLog := &models.MessageLog{
+			UserID:          msg.From.ID,
+			ChatID:          msg.Chat.ID,
+			Username:        username,
+			Calories:        0,
+			StreakDays:      0,
+			LastMessage:     utils.FormatMoscowTime(utils.GetMoscowTime()),
+			HasTrainingDone: hasTrainingDone,
+			HasSickLeave:    hasSickLeave,
+			HasHealthy:      hasHealthy,
+			IsDeleted:       false,
+		}
 
-	if err := b.db.SaveMessageLog(messageLog); err != nil {
-		b.logger.Errorf("Failed to save message log: %v", err)
+		if err := b.db.SaveMessageLog(messageLog); err != nil {
+			b.logger.Errorf("Failed to save message log: %v", err)
+		}
+	} else {
+		// Обновляем только необходимые поля, сохраняя streak данные
+		existingLog.Username = username
+		existingLog.LastMessage = utils.FormatMoscowTime(utils.GetMoscowTime())
+		existingLog.HasTrainingDone = hasTrainingDone
+		existingLog.HasSickLeave = hasSickLeave
+		existingLog.HasHealthy = hasHealthy
+		existingLog.IsDeleted = false
+
+		if err := b.db.SaveMessageLog(existingLog); err != nil {
+			b.logger.Errorf("Failed to update message log: %v", err)
+		}
 	}
 
 	// Обрабатываем хештеги
