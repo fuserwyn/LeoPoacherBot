@@ -327,8 +327,9 @@ func (b *Bot) handleTrainingDone(msg *tgbotapi.Message) {
 	}
 
 	// Отправляем подтверждение только если была добавлена новая тренировка
-	if caloriesToAdd > 0 {
-		reply := tgbotapi.NewMessage(msg.Chat.ID, "✅ Отчёт принят! 💪\n\n⏰ Таймер перезапускается на 7 дней\n\n🎯 Продолжай тренироваться и не забывай отправлять #training_done!")
+	// И только если не было отправлено сообщение о кубках
+	if caloriesToAdd > 0 && !weeklyAchievement && !monthlyAchievement && !quarterlyAchievement {
+		reply := tgbotapi.NewMessage(msg.Chat.ID, fmt.Sprintf("✅ Отчёт принят! 💪\n\n🦁 Ты тренируешься уже %d дней подряд!\n\n⏰ Таймер перезапускается на 7 дней\n\n🎯 Продолжай тренироваться и не забывай отправлять #training_done!", newStreakDays))
 
 		b.logger.Infof("Sending training done message to chat %d", msg.Chat.ID)
 		_, err = b.api.Send(reply)
