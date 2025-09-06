@@ -157,8 +157,6 @@ func (d *Database) GetMessageLog(userID, chatID int64) (*models.MessageLog, erro
 	// Временное логирование для отладки
 	fmt.Printf("DEBUG: Retrieved from DB - UserID: %d, HasSickLeave: %t, TimerStartTime: %v, SickLeaveStartTime: %v, RestTimeTillDel: %v\n",
 		msg.UserID, msg.HasSickLeave, msg.TimerStartTime, msg.SickLeaveStartTime, msg.RestTimeTillDel)
-	fmt.Printf("DEBUG: Retrieved from DB - StreakDays: %d, LastTrainingDate: %v\n",
-		msg.StreakDays, msg.LastTrainingDate)
 
 	return &msg, nil
 }
