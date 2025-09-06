@@ -190,7 +190,7 @@ func (b *Bot) handleTrainingDone(msg *tgbotapi.Message) {
 	}
 
 	// Рассчитываем калории и серию
-	caloriesToAdd, newStreakDays := b.calculateCalories(messageLog)
+	caloriesToAdd, newStreakDays, weeklyAchievement := b.calculateCalories(messageLog)
 
 	// Начисляем калории
 	if err := b.db.AddCalories(msg.From.ID, msg.Chat.ID, caloriesToAdd); err != nil {
@@ -206,8 +206,13 @@ func (b *Bot) handleTrainingDone(msg *tgbotapi.Message) {
 	// Проверяем, был ли пользователь на больничном
 	wasOnSickLeave := messageLog.HasSickLeave && !messageLog.HasHealthy
 
+	// Отправляем 42 кубка за недельную серию
+	if weeklyAchievement {
+		b.sendWeeklyCupsReward(msg, username, newStreakDays)
+	}
+
 	// Отправляем подтверждение
-	reply := tgbotapi.NewMessage(msg.Chat.ID, fmt.Sprintf("✅ Отчёт принят! 💪\n\n⏰ Таймер перезапускается на 7 дней\n\n🎯 Продолжай тренироваться и не забывай отправлять #training_done!"))
+	reply := tgbotapi.NewMessage(msg.Chat.ID, "✅ Отчёт принят! 💪\n\n⏰ Таймер перезапускается на 7 дней\n\n🎯 Продолжай тренироваться и не забывай отправлять #training_done!")
 
 	b.logger.Infof("Sending training done message to chat %d", msg.Chat.ID)
 	_, err = b.api.Send(reply)
@@ -523,6 +528,7 @@ func (b *Bot) handleHelp(msg *tgbotapi.Message) {
 • При получении #training_done таймер перезапускается на 7 дней
 • Через 6 дней без #training_done - предупреждение
 • Через 7 дней без #training_done - удаление из чата
+• 🏆 7 дней подряд = 42 КУБКА! 🏆
 
 📋 Правила:
 • Отчётом считается любое сообщение с тегом #training_done
@@ -566,6 +572,7 @@ func (b *Bot) handleStart(msg *tgbotapi.Message) {
 • Каждый отчет с #training_done перезапускает таймер на 7 дней
 • Через 6 дней без отчета — предупреждение
 • Через 7 дней без отчета — удаление из чата
+• 🏆 7 дней подряд = 42 КУБКА! 🏆
 
 🎯 **Начни прямо сейчас — отправь #training_done!**`
 
@@ -910,7 +917,7 @@ func (b *Bot) isUserInChat(chatID, userID int64) bool {
 	return err == nil
 }
 
-func (b *Bot) calculateCalories(messageLog *models.MessageLog) (int, int) {
+func (b *Bot) calculateCalories(messageLog *models.MessageLog) (int, int, bool) {
 	today := utils.GetMoscowDate()
 
 	// Базовые калории за тренировку
@@ -918,7 +925,7 @@ func (b *Bot) calculateCalories(messageLog *models.MessageLog) (int, int) {
 
 	// Проверяем, была ли уже тренировка сегодня
 	if messageLog.LastTrainingDate != nil && *messageLog.LastTrainingDate == today {
-		return 0, messageLog.StreakDays // Уже тренировались сегодня
+		return 0, messageLog.StreakDays, false // Уже тренировались сегодня
 	}
 
 	// Рассчитываем новую серию
@@ -952,7 +959,10 @@ func (b *Bot) calculateCalories(messageLog *models.MessageLog) (int, int) {
 		caloriesToAdd += 2
 	}
 
-	return caloriesToAdd, newStreakDays
+	// Проверяем, достиг ли пользователь недельной серии (7 дней подряд)
+	weeklyAchievement := newStreakDays == 7
+
+	return caloriesToAdd, newStreakDays, weeklyAchievement
 }
 
 func (b *Bot) calculateRemainingTime(messageLog *models.MessageLog) time.Duration {
@@ -1027,4 +1037,34 @@ func (b *Bot) calculateRemainingTime(messageLog *models.MessageLog) time.Duratio
 	}
 
 	return remainingTime
+}
+
+func (b *Bot) sendWeeklyCupsReward(msg *tgbotapi.Message, username string, streakDays int) {
+	// Создаем сообщение с 42 кубками
+	cupsMessage := fmt.Sprintf(`🏆 НЕВЕРОЯТНО! 🏆
+
+%s, ты тренируешься уже %d дней подряд! 
+
+🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆
+
+🎯 42 КУБКА ЗА ТВОЮ НЕДЕЛЬНУЮ СЕРИЮ! 🎯
+
+🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆
+
+🦁 Fat Leopard гордится тобой! 
+💪 Ты настоящий чемпион!
+🔥 Продолжай в том же духе!
+
+#weekly_champion #42_cups #training_streak`, username, streakDays)
+
+	// Отправляем сообщение с кубками
+	reply := tgbotapi.NewMessage(msg.Chat.ID, cupsMessage)
+
+	b.logger.Infof("Sending weekly cups reward to chat %d for user %s (streak: %d days)", msg.Chat.ID, username, streakDays)
+	_, err := b.api.Send(reply)
+	if err != nil {
+		b.logger.Errorf("Failed to send weekly cups reward: %v", err)
+	} else {
+		b.logger.Infof("Successfully sent weekly cups reward to chat %d for user %s", msg.Chat.ID, username)
+	}
 }

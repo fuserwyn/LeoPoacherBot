@@ -111,3 +111,51 @@ func TestHandleSendToChat(t *testing.T) {
 	_ = ownerMsgNoArgs
 	_ = ownerMsgBadFormat
 }
+
+func TestCalculateCaloriesWeeklyAchievement(t *testing.T) {
+	// Создаем тестовый бот
+	cfg := &config.Config{OwnerID: 123}
+	bot := &Bot{
+		config: cfg,
+		logger: logger.New("info"),
+	}
+
+	// Тест 1: Пользователь достигает 7-дневной серии
+	today := "2024-01-07"
+	messageLog := &models.MessageLog{
+		LastTrainingDate: &today,
+		StreakDays:       6, // 6 дней подряд
+	}
+
+	calories, streakDays, weeklyAchievement := bot.calculateCalories(messageLog)
+
+	// Проверяем, что достигнута недельная серия
+	if !weeklyAchievement {
+		t.Error("Expected weekly achievement for 7-day streak")
+	}
+
+	if streakDays != 7 {
+		t.Errorf("Expected streak days 7, got %d", streakDays)
+	}
+
+	// Тест 2: Пользователь не достигает недельной серии
+	messageLog2 := &models.MessageLog{
+		LastTrainingDate: &today,
+		StreakDays:       3, // 3 дня подряд
+	}
+
+	calories2, streakDays2, weeklyAchievement2 := bot.calculateCalories(messageLog2)
+
+	// Проверяем, что недельная серия не достигнута
+	if weeklyAchievement2 {
+		t.Error("Expected no weekly achievement for 4-day streak")
+	}
+
+	if streakDays2 != 4 {
+		t.Errorf("Expected streak days 4, got %d", streakDays2)
+	}
+
+	// Проверяем, что функции не падают с ошибками
+	_ = calories
+	_ = calories2
+}
