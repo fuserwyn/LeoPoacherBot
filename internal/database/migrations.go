@@ -58,6 +58,20 @@ var Migrations = []Migration{
 			ALTER COLUMN updated_at SET DEFAULT CURRENT_TIMESTAMP;
 		`,
 	},
+	{
+		Version:     2,
+		Description: "Add cups_earned field to message_log table",
+		UpSQL: `
+			-- Добавляем поле cups_earned в таблицу message_log
+			ALTER TABLE message_log 
+			ADD COLUMN cups_earned INTEGER DEFAULT 0;
+		`,
+		DownSQL: `
+			-- Удаляем поле cups_earned из таблицы message_log
+			ALTER TABLE message_log 
+			DROP COLUMN cups_earned;
+		`,
+	},
 }
 
 // MigrationRecord представляет запись о выполненной миграции

@@ -92,13 +92,14 @@ func (d *Database) CreateTables() error {
 // SaveMessageLog сохраняет информацию о сообщении
 func (d *Database) SaveMessageLog(msg *models.MessageLog) error {
 	query := `
-		INSERT INTO message_log (user_id, username, chat_id, calories, streak_days, last_training_date, last_message, has_training_done, has_sick_leave, has_healthy, is_deleted, timer_start_time, sick_leave_start_time, sick_leave_end_time, sick_time, rest_time_till_del, updated_at)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)
+		INSERT INTO message_log (user_id, username, chat_id, calories, streak_days, cups_earned, last_training_date, last_message, has_training_done, has_sick_leave, has_healthy, is_deleted, timer_start_time, sick_leave_start_time, sick_leave_end_time, sick_time, rest_time_till_del, updated_at)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18)
 		ON CONFLICT (user_id, chat_id) 
 		DO UPDATE SET 
 			username = EXCLUDED.username,
 			calories = EXCLUDED.calories,
 			streak_days = EXCLUDED.streak_days,
+			cups_earned = EXCLUDED.cups_earned,
 			last_training_date = EXCLUDED.last_training_date,
 			last_message = EXCLUDED.last_message,
 			has_training_done = EXCLUDED.has_training_done,
@@ -110,7 +111,7 @@ func (d *Database) SaveMessageLog(msg *models.MessageLog) error {
 			sick_leave_end_time = EXCLUDED.sick_leave_end_time,
 			sick_time = EXCLUDED.sick_time,
 			rest_time_till_del = EXCLUDED.rest_time_till_del,
-			updated_at = $17
+			updated_at = $18
 	`
 
 	// Используем московское время
@@ -121,7 +122,7 @@ func (d *Database) SaveMessageLog(msg *models.MessageLog) error {
 		msg.UserID, msg.TimerStartTime, msg.SickLeaveStartTime, msg.RestTimeTillDel)
 
 	result, err := d.db.Exec(query,
-		msg.UserID, msg.Username, msg.ChatID, msg.Calories, msg.StreakDays, msg.LastTrainingDate, msg.LastMessage, msg.HasTrainingDone,
+		msg.UserID, msg.Username, msg.ChatID, msg.Calories, msg.StreakDays, msg.CupsEarned, msg.LastTrainingDate, msg.LastMessage, msg.HasTrainingDone,
 		msg.HasSickLeave, msg.HasHealthy, msg.IsDeleted, msg.TimerStartTime, msg.SickLeaveStartTime, msg.SickLeaveEndTime, msg.SickTime, msg.RestTimeTillDel, moscowTime)
 
 	if err != nil {
@@ -139,7 +140,7 @@ func (d *Database) SaveMessageLog(msg *models.MessageLog) error {
 // GetMessageLog получает информацию о сообщении пользователя
 func (d *Database) GetMessageLog(userID, chatID int64) (*models.MessageLog, error) {
 	query := `
-		SELECT user_id, username, chat_id, calories, streak_days, last_training_date, last_message, has_training_done, has_sick_leave, has_healthy, is_deleted,
+		SELECT user_id, username, chat_id, calories, streak_days, cups_earned, last_training_date, last_message, has_training_done, has_sick_leave, has_healthy, is_deleted,
 		       timer_start_time, sick_leave_start_time, sick_leave_end_time, sick_time, rest_time_till_del, created_at, updated_at
 		FROM message_log 
 		WHERE user_id = $1 AND chat_id = $2
@@ -147,7 +148,7 @@ func (d *Database) GetMessageLog(userID, chatID int64) (*models.MessageLog, erro
 
 	var msg models.MessageLog
 	err := d.db.QueryRow(query, userID, chatID).Scan(
-		&msg.UserID, &msg.Username, &msg.ChatID, &msg.Calories, &msg.StreakDays, &msg.LastTrainingDate, &msg.LastMessage, &msg.HasTrainingDone,
+		&msg.UserID, &msg.Username, &msg.ChatID, &msg.Calories, &msg.StreakDays, &msg.CupsEarned, &msg.LastTrainingDate, &msg.LastMessage, &msg.HasTrainingDone,
 		&msg.HasSickLeave, &msg.HasHealthy, &msg.IsDeleted, &msg.TimerStartTime, &msg.SickLeaveStartTime, &msg.SickLeaveEndTime, &msg.SickTime, &msg.RestTimeTillDel,
 		&msg.CreatedAt, &msg.UpdatedAt)
 	if err != nil {
@@ -280,6 +281,36 @@ func (d *Database) UpdateStreak(userID, chatID int64, streakDays int, lastTraini
 	moscowTime := utils.FormatMoscowTime(utils.GetMoscowTime())
 	_, err := d.db.Exec(query, userID, chatID, streakDays, lastTrainingDate, moscowTime)
 	return err
+}
+
+// AddCups добавляет кубки пользователю
+func (d *Database) AddCups(userID, chatID int64, cups int) error {
+	query := `
+		UPDATE message_log 
+		SET cups_earned = cups_earned + $3, updated_at = $4
+		WHERE user_id = $1 AND chat_id = $2
+	`
+	// Используем московское время
+	moscowTime := utils.FormatMoscowTime(utils.GetMoscowTime())
+	_, err := d.db.Exec(query, userID, chatID, cups, moscowTime)
+	return err
+}
+
+// GetUserCups получает количество заработанных кубков пользователя
+func (d *Database) GetUserCups(userID, chatID int64) (int, error) {
+	query := `
+		SELECT COALESCE(cups_earned, 0) 
+		FROM message_log 
+		WHERE user_id = $1 AND chat_id = $2
+	`
+
+	var cups int
+	err := d.db.QueryRow(query, userID, chatID).Scan(&cups)
+	if err != nil {
+		return 0, err
+	}
+
+	return cups, nil
 }
 
 // MarkUserAsDeleted помечает пользователя как удаленного

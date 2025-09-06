@@ -104,6 +104,8 @@ func (b *Bot) handleCommand(msg *tgbotapi.Message) {
 		b.handleTop(msg)
 	case "points":
 		b.handlePoints(msg)
+	case "cups":
+		b.handleCups(msg)
 	case "send_to_chat":
 		b.handleSendToChat(msg)
 	default:
@@ -310,18 +312,33 @@ func (b *Bot) handleTrainingDone(msg *tgbotapi.Message) {
 
 	// Отправляем достижения только если была добавлена новая тренировка
 	if caloriesToAdd > 0 {
-		// Отправляем 42 кубка за недельную серию
+		// Начисляем и отправляем 42 кубка за недельную серию
 		if weeklyAchievement {
+			if err := b.db.AddCups(msg.From.ID, msg.Chat.ID, 42); err != nil {
+				b.logger.Errorf("Failed to add weekly cups: %v", err)
+			} else {
+				b.logger.Infof("Successfully added 42 cups for weekly achievement")
+			}
 			b.sendWeeklyCupsReward(msg, username, newStreakDays)
 		}
 
-		// Отправляем 420 кубков за месячную серию
+		// Начисляем и отправляем 420 кубков за месячную серию
 		if monthlyAchievement {
+			if err := b.db.AddCups(msg.From.ID, msg.Chat.ID, 420); err != nil {
+				b.logger.Errorf("Failed to add monthly cups: %v", err)
+			} else {
+				b.logger.Infof("Successfully added 420 cups for monthly achievement")
+			}
 			b.sendMonthlyCupsReward(msg, username, newStreakDays)
 		}
 
-		// Отправляем 4200 кубков за квартальную серию
+		// Начисляем и отправляем 4200 кубков за квартальную серию
 		if quarterlyAchievement {
+			if err := b.db.AddCups(msg.From.ID, msg.Chat.ID, 4200); err != nil {
+				b.logger.Errorf("Failed to add quarterly cups: %v", err)
+			} else {
+				b.logger.Infof("Successfully added 4200 cups for quarterly achievement")
+			}
 			b.sendQuarterlyCupsReward(msg, username, newStreakDays)
 		}
 	}
@@ -646,6 +663,11 @@ func (b *Bot) handleHelp(msg *tgbotapi.Message) {
 • /db — Показать статистику БД
 • /help — Показать это сообщение
 
+🏆 Команды пользователей:
+• /top — Показать топ пользователей по калориям
+• /points — Показать ваши калории
+• /cups — Показать ваши заработанные кубки
+
 💪 Отчеты о тренировке:
 • #training_done — Отправить отчет о тренировке
 
@@ -829,6 +851,43 @@ func (b *Bot) handlePoints(msg *tgbotapi.Message) {
 		b.logger.Errorf("Failed to send calories message: %v", err)
 	} else {
 		b.logger.Infof("Successfully sent calories message to chat %d", msg.Chat.ID)
+	}
+}
+
+func (b *Bot) handleCups(msg *tgbotapi.Message) {
+	// Получаем кубки пользователя
+	cups, err := b.db.GetUserCups(msg.From.ID, msg.Chat.ID)
+	if err != nil {
+		b.logger.Errorf("Failed to get user cups: %v", err)
+		reply := tgbotapi.NewMessage(msg.Chat.ID, "❌ Ошибка при получении данных")
+		b.api.Send(reply)
+		return
+	}
+
+	// Получаем никнейм пользователя
+	username := ""
+	if msg.From.UserName != "" {
+		username = "@" + msg.From.UserName
+	} else if msg.From.FirstName != "" {
+		username = msg.From.FirstName
+		if msg.From.LastName != "" {
+			username += " " + msg.From.LastName
+		}
+	} else {
+		username = fmt.Sprintf("User%d", msg.From.ID)
+	}
+
+	// Формируем сообщение
+	cupsText := fmt.Sprintf("🏆 Ваши кубки:\n\n👤 %s\n🎯 Всего заработано кубков: %d\n\n💡 Отправляйте #training_done для получения кубков!\n\n🎊 Розыгрыш футболки Fat Leopard при достижении 420 кубков!", username, cups)
+
+	reply := tgbotapi.NewMessage(msg.Chat.ID, cupsText)
+
+	b.logger.Infof("Sending cups message to chat %d", msg.Chat.ID)
+	_, err = b.api.Send(reply)
+	if err != nil {
+		b.logger.Errorf("Failed to send cups message: %v", err)
+	} else {
+		b.logger.Infof("Successfully sent cups message to chat %d", msg.Chat.ID)
 	}
 }
 
