@@ -1116,6 +1116,59 @@ func (b *Bot) startTimerWithDuration(userID, chatID int64, username string, dura
 	b.logger.Infof("Started timer for user %d (%s) - warning in %v, removal in %v", userID, username, warningTime, duration)
 }
 
+// restoreTimerWithDuration восстанавливает таймер без обновления timer_start_time в БД
+func (b *Bot) restoreTimerWithDuration(userID, chatID int64, username string, duration time.Duration, existingTimerStartTime string) {
+	// Отменяем существующие таймеры
+	b.cancelTimer(userID)
+
+	// Создаем новые таймеры
+	warningTask := make(chan bool)
+	removalTask := make(chan bool)
+
+	timerInfo := &models.TimerInfo{
+		UserID:         userID,
+		ChatID:         chatID,
+		Username:       username,
+		WarningTask:    warningTask,
+		RemovalTask:    removalTask,
+		TimerStartTime: existingTimerStartTime, // Используем существующее время из БД
+	}
+
+	b.timers[userID] = timerInfo
+
+	// НЕ обновляем timer_start_time в БД - используем существующее значение
+
+	// Рассчитываем время предупреждения (6 дней до удаления)
+	warningTime := duration - 24*time.Hour // Предупреждение за 1 день до удаления
+	if warningTime < 0 {
+		warningTime = duration / 2 // Fallback если время слишком короткое
+	}
+
+	// Запускаем предупреждение
+	go func() {
+		time.Sleep(warningTime)
+		select {
+		case <-warningTask:
+			return // Таймер отменен
+		default:
+			b.sendWarning(userID, chatID, username)
+		}
+	}()
+
+	// Запускаем удаление через указанное время
+	go func() {
+		time.Sleep(duration)
+		select {
+		case <-removalTask:
+			return // Таймер отменен
+		default:
+			b.removeUser(userID, chatID, username)
+		}
+	}()
+
+	b.logger.Infof("Restored timer for user %d (%s) - warning in %v, removal in %v (timer start time: %s)", userID, username, warningTime, duration, existingTimerStartTime)
+}
+
 func (b *Bot) cancelTimer(userID int64) {
 	if timer, exists := b.timers[userID]; exists {
 		close(timer.WarningTask)
@@ -1397,8 +1450,13 @@ func (b *Bot) recoverTimersFromDatabase() error {
 			continue
 		}
 
-		// Восстанавливаем таймер
-		b.startTimerWithDuration(user.UserID, user.ChatID, user.Username, remainingTime)
+		// Восстанавливаем таймер без обновления timer_start_time в БД
+		if user.TimerStartTime != nil {
+			b.restoreTimerWithDuration(user.UserID, user.ChatID, user.Username, remainingTime, *user.TimerStartTime)
+		} else {
+			// Fallback - если timer_start_time отсутствует, используем обычный старт
+			b.startTimerWithDuration(user.UserID, user.ChatID, user.Username, remainingTime)
+		}
 		recoveredCount++
 
 		b.logger.Infof("Recovered timer for user %d (%s) - remaining time: %v", user.UserID, user.Username, remainingTime)
