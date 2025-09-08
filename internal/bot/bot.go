@@ -146,6 +146,29 @@ func (b *Bot) handleNewChatMembers(msg *tgbotapi.Message) {
 }
 
 func (b *Bot) sendWelcomeMessage(chatID int64, username string, userID int64) {
+	// Создаем запись пользователя в БД с запущенным таймером
+	timerStartTime := utils.FormatMoscowTime(utils.GetMoscowTime())
+	messageLog := &models.MessageLog{
+		UserID:          userID,
+		ChatID:          chatID,
+		Username:        username,
+		Calories:        0,
+		StreakDays:      0,
+		CupsEarned:      0,
+		LastMessage:     timerStartTime,
+		HasTrainingDone: false,
+		HasSickLeave:    false,
+		HasHealthy:      false,
+		IsDeleted:       false,
+		TimerStartTime:  &timerStartTime, // Сразу устанавливаем время начала таймера
+	}
+
+	if err := b.db.SaveMessageLog(messageLog); err != nil {
+		b.logger.Errorf("Failed to save new user to database: %v", err)
+	} else {
+		b.logger.Infof("Successfully saved new user %s (ID: %d) to database with timer start time", username, userID)
+	}
+
 	// Создаем приветственное сообщение с упоминанием пользователя
 	welcomeText := fmt.Sprintf(`%s, добро пожаловать в стаю! 🦁
 
@@ -159,6 +182,7 @@ func (b *Bot) sendWelcomeMessage(chatID int64, username string, userID int64) {
 • #healthy — Выздороветь (возобновляет таймер)
 
 ⏰ Как я слежу за тренировками:
+• Таймер уже запущен! У тебя есть 7 дней на первую тренировку
 • При получении #training_done таймер перезапускается на 7 дней
 • Через 6 дней без #training_done - предупреждение
 • Через 7 дней без #training_done - удаление из чата
@@ -171,7 +195,7 @@ func (b *Bot) sendWelcomeMessage(chatID int64, username string, userID int64) {
 • Через 6 дней без отчёта — предупреждение
 • Через 7 дней без отчёта — удаление из чата
 
-🦁`, username)
+🎯 Начни прямо сейчас — отправь #training_done!`, username)
 
 	// Отправляем сообщение
 	reply := tgbotapi.NewMessage(chatID, welcomeText)
