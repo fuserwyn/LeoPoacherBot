@@ -165,7 +165,7 @@ func (d *Database) GetMessageLog(userID, chatID int64) (*models.MessageLog, erro
 // GetUsersByChatID получает всех пользователей в чате
 func (d *Database) GetUsersByChatID(chatID int64) ([]*models.MessageLog, error) {
 	query := `
-		SELECT user_id, username, chat_id, calories, streak_days, last_training_date, last_message, has_training_done, has_sick_leave, has_healthy, is_deleted,
+		SELECT user_id, username, chat_id, calories, streak_days, cups_earned, last_training_date, last_message, has_training_done, has_sick_leave, has_healthy, is_deleted,
 		       timer_start_time, sick_leave_start_time, sick_leave_end_time, sick_time, rest_time_till_del, created_at, updated_at
 		FROM message_log 
 		WHERE chat_id = $1 AND is_deleted = FALSE
@@ -182,7 +182,7 @@ func (d *Database) GetUsersByChatID(chatID int64) ([]*models.MessageLog, error) 
 	for rows.Next() {
 		var msg models.MessageLog
 		err := rows.Scan(
-			&msg.UserID, &msg.Username, &msg.ChatID, &msg.Calories, &msg.StreakDays, &msg.LastTrainingDate, &msg.LastMessage, &msg.HasTrainingDone,
+			&msg.UserID, &msg.Username, &msg.ChatID, &msg.Calories, &msg.StreakDays, &msg.CupsEarned, &msg.LastTrainingDate, &msg.LastMessage, &msg.HasTrainingDone,
 			&msg.HasSickLeave, &msg.HasHealthy, &msg.IsDeleted, &msg.TimerStartTime, &msg.SickLeaveStartTime, &msg.SickLeaveEndTime, &msg.SickTime, &msg.RestTimeTillDel,
 			&msg.CreatedAt, &msg.UpdatedAt)
 		if err != nil {
@@ -329,7 +329,7 @@ func (d *Database) MarkUserAsDeleted(userID, chatID int64) error {
 // GetTopUsers получает топ пользователей по калориям
 func (d *Database) GetTopUsers(chatID int64, limit int) ([]*models.MessageLog, error) {
 	query := `
-		SELECT user_id, username, chat_id, calories, streak_days, last_training_date, last_message, has_training_done, has_sick_leave, has_healthy, is_deleted,
+		SELECT user_id, username, chat_id, calories, streak_days, cups_earned, last_training_date, last_message, has_training_done, has_sick_leave, has_healthy, is_deleted,
 		       timer_start_time, sick_leave_start_time, sick_leave_end_time, sick_time, rest_time_till_del, created_at, updated_at
 		FROM message_log 
 		WHERE chat_id = $1 AND calories > 0 AND is_deleted = FALSE
@@ -347,7 +347,39 @@ func (d *Database) GetTopUsers(chatID int64, limit int) ([]*models.MessageLog, e
 	for rows.Next() {
 		var msg models.MessageLog
 		err := rows.Scan(
-			&msg.UserID, &msg.Username, &msg.ChatID, &msg.Calories, &msg.StreakDays, &msg.LastTrainingDate, &msg.LastMessage, &msg.HasTrainingDone,
+			&msg.UserID, &msg.Username, &msg.ChatID, &msg.Calories, &msg.StreakDays, &msg.CupsEarned, &msg.LastTrainingDate, &msg.LastMessage, &msg.HasTrainingDone,
+			&msg.HasSickLeave, &msg.HasHealthy, &msg.IsDeleted, &msg.TimerStartTime, &msg.SickLeaveStartTime, &msg.SickLeaveEndTime, &msg.SickTime, &msg.RestTimeTillDel,
+			&msg.CreatedAt, &msg.UpdatedAt)
+		if err != nil {
+			return nil, err
+		}
+		users = append(users, &msg)
+	}
+
+	return users, nil
+}
+
+// GetAllUsersWithTimers получает всех пользователей с активными таймерами
+func (d *Database) GetAllUsersWithTimers() ([]*models.MessageLog, error) {
+	query := `
+		SELECT user_id, username, chat_id, calories, streak_days, cups_earned, last_training_date, last_message, has_training_done, has_sick_leave, has_healthy, is_deleted,
+		       timer_start_time, sick_leave_start_time, sick_leave_end_time, sick_time, rest_time_till_del, created_at, updated_at
+		FROM message_log 
+		WHERE timer_start_time IS NOT NULL AND is_deleted = FALSE
+		ORDER BY timer_start_time ASC
+	`
+
+	rows, err := d.db.Query(query)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var users []*models.MessageLog
+	for rows.Next() {
+		var msg models.MessageLog
+		err := rows.Scan(
+			&msg.UserID, &msg.Username, &msg.ChatID, &msg.Calories, &msg.StreakDays, &msg.CupsEarned, &msg.LastTrainingDate, &msg.LastMessage, &msg.HasTrainingDone,
 			&msg.HasSickLeave, &msg.HasHealthy, &msg.IsDeleted, &msg.TimerStartTime, &msg.SickLeaveStartTime, &msg.SickLeaveEndTime, &msg.SickTime, &msg.RestTimeTillDel,
 			&msg.CreatedAt, &msg.UpdatedAt)
 		if err != nil {

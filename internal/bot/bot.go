@@ -47,6 +47,12 @@ func New(cfg *config.Config, db *database.Database, log logger.Logger) (*Bot, er
 func (b *Bot) Start(ctx context.Context) error {
 	b.logger.Info("Starting bot...")
 
+	// Восстанавливаем таймеры из базы данных
+	if err := b.recoverTimersFromDatabase(); err != nil {
+		b.logger.Errorf("Failed to recover timers from database: %v", err)
+		// Не останавливаем бота, просто логируем ошибку
+	}
+
 	u := tgbotapi.NewUpdate(0)
 	u.Timeout = 60
 
@@ -1332,6 +1338,50 @@ func (b *Bot) calculateRemainingTime(messageLog *models.MessageLog) time.Duratio
 	}
 
 	return remainingTime
+}
+
+// recoverTimersFromDatabase восстанавливает таймеры из базы данных при запуске бота
+func (b *Bot) recoverTimersFromDatabase() error {
+	b.logger.Info("Recovering timers from database...")
+
+	// Получаем всех пользователей с активными таймерами
+	users, err := b.db.GetAllUsersWithTimers()
+	if err != nil {
+		return fmt.Errorf("failed to get users with timers: %w", err)
+	}
+
+	recoveredCount := 0
+	for _, user := range users {
+		// Пропускаем пользователей на больничном
+		if user.HasSickLeave && !user.HasHealthy {
+			b.logger.Infof("Skipping user %d (%s) - on sick leave", user.UserID, user.Username)
+			continue
+		}
+
+		// Пропускаем удаленных пользователей
+		if user.IsDeleted {
+			b.logger.Infof("Skipping user %d (%s) - deleted", user.UserID, user.Username)
+			continue
+		}
+
+		// Рассчитываем оставшееся время
+		remainingTime := b.calculateRemainingTime(user)
+		if remainingTime <= 0 {
+			// Время истекло - удаляем пользователя
+			b.logger.Infof("Timer expired for user %d (%s), removing from chat", user.UserID, user.Username)
+			b.removeUser(user.UserID, user.ChatID, user.Username)
+			continue
+		}
+
+		// Восстанавливаем таймер
+		b.startTimerWithDuration(user.UserID, user.ChatID, user.Username, remainingTime)
+		recoveredCount++
+
+		b.logger.Infof("Recovered timer for user %d (%s) - remaining time: %v", user.UserID, user.Username, remainingTime)
+	}
+
+	b.logger.Infof("Successfully recovered %d timers from database", recoveredCount)
+	return nil
 }
 
 func (b *Bot) sendWeeklyCupsReward(msg *tgbotapi.Message, username string, streakDays int) {
