@@ -407,15 +407,42 @@ func (b *Bot) handleTrainingDone(msg *tgbotapi.Message) {
 	b.logger.Infof("DEBUG: hasAnyAchievement=%t, caloriesToAdd=%d", hasAnyAchievement, caloriesToAdd)
 
 	if !hasAnyAchievement {
-		// НЕТ achievement - отправляем обычное подтверждение
-		reply := tgbotapi.NewMessage(msg.Chat.ID, fmt.Sprintf("✅ Отчёт принят! 💪\n\n🦁 Ты тренируешься дней подряд: %d\n🏆 +1 кубок за тренировку!\n🏆 Всего кубков: %d\n\n⏰ Таймер перезапускается на 7 дней\n\n🎯 Продолжай тренироваться и не забывай отправлять #training_done!", newStreakDays, currentCups))
+		if caloriesToAdd > 0 {
+			// Новая тренировка БЕЗ achievement - отправляем обычное подтверждение
+			reply := tgbotapi.NewMessage(msg.Chat.ID, fmt.Sprintf("✅ Отчёт принят! 💪\n\n🦁 Ты тренируешься дней подряд: %d\n🏆 +1 кубок за тренировку!\n🏆 Всего кубков: %d\n\n⏰ Таймер перезапускается на 7 дней\n\n🎯 Продолжай тренироваться и не забывай отправлять #training_done!", newStreakDays, currentCups))
 
-		b.logger.Infof("Sending training done message to chat %d", msg.Chat.ID)
-		_, err = b.api.Send(reply)
-		if err != nil {
-			b.logger.Errorf("Failed to send training done message: %v", err)
+			b.logger.Infof("Sending training done message to chat %d", msg.Chat.ID)
+			_, err = b.api.Send(reply)
+			if err != nil {
+				b.logger.Errorf("Failed to send training done message: %v", err)
+			} else {
+				b.logger.Infof("Successfully sent training done message to chat %d", msg.Chat.ID)
+			}
 		} else {
-			b.logger.Infof("Successfully sent training done message to chat %d", msg.Chat.ID)
+			// Дополнительная тренировка в тот же день
+			// Начисляем 1 кубок за дополнительную тренировку
+			if err := b.db.AddCups(msg.From.ID, msg.Chat.ID, 1); err != nil {
+				b.logger.Errorf("Failed to add cup for double training: %v", err)
+			} else {
+				b.logger.Infof("Successfully added 1 cup for double training")
+			}
+
+			// Получаем обновленное количество кубков
+			currentCups, err := b.db.GetUserCups(msg.From.ID, msg.Chat.ID)
+			if err != nil {
+				b.logger.Errorf("Failed to get user cups for double training message: %v", err)
+				currentCups = 0
+			}
+
+			reply := tgbotapi.NewMessage(msg.Chat.ID, fmt.Sprintf("🦁 Какой мотивированный леопард! Еще одна тренировка сегодня! 💪\n\n🔥 Твоя мотивация впечатляет\n🏆 +1 кубок за дополнительную тренировку!\n🏆 Всего кубков: %d\n\n⏰ Таймер уже перезапущен на 7 дней\n\n🎯 Завтра снова отправляй #training_done для продолжения серии!", currentCups))
+
+			b.logger.Infof("Sending already trained today message to chat %d", msg.Chat.ID)
+			_, err = b.api.Send(reply)
+			if err != nil {
+				b.logger.Errorf("Failed to send already trained today message: %v", err)
+			} else {
+				b.logger.Infof("Successfully sent already trained today message to chat %d", msg.Chat.ID)
+			}
 		}
 	}
 
