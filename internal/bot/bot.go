@@ -316,7 +316,8 @@ func (b *Bot) handleTrainingDone(msg *tgbotapi.Message) {
 	caloriesToAdd, newStreakDays, weeklyAchievement, twoWeekAchievement, threeWeekAchievement, monthlyAchievement, quarterlyAchievement := b.calculateCalories(messageLog)
 
 	// ДЕБАГ: Логируем результат расчета
-	b.logger.Infof("DEBUG handleTrainingDone: caloriesToAdd=%d, newStreakDays=%d", caloriesToAdd, newStreakDays)
+	b.logger.Infof("DEBUG handleTrainingDone: caloriesToAdd=%d, newStreakDays=%d, weeklyAchievement=%t, twoWeekAchievement=%t, threeWeekAchievement=%t, monthlyAchievement=%t, quarterlyAchievement=%t",
+		caloriesToAdd, newStreakDays, weeklyAchievement, twoWeekAchievement, threeWeekAchievement, monthlyAchievement, quarterlyAchievement)
 
 	// Начисляем калории
 	if err := b.db.AddCalories(msg.From.ID, msg.Chat.ID, caloriesToAdd); err != nil {
@@ -341,7 +342,7 @@ func (b *Bot) handleTrainingDone(msg *tgbotapi.Message) {
 	// Проверяем, был ли пользователь на больничном
 	wasOnSickLeave := messageLog.HasSickLeave && !messageLog.HasHealthy
 
-	// Отправляем достижения только если была добавлена новая тренировка
+	// Начисляем кубки только если была добавлена новая тренировка
 	if caloriesToAdd > 0 {
 		// Начисляем 1 кубок за каждую тренировку
 		if err := b.db.AddCups(msg.From.ID, msg.Chat.ID, 1); err != nil {
@@ -350,53 +351,91 @@ func (b *Bot) handleTrainingDone(msg *tgbotapi.Message) {
 			b.logger.Infof("Successfully added 1 cup for daily training")
 		}
 
-		// Начисляем и отправляем 42 кубка за недельную серию
+		// Начисляем дополнительные кубки за achievements (но НЕ отправляем сообщения пока)
 		if weeklyAchievement {
 			if err := b.db.AddCups(msg.From.ID, msg.Chat.ID, 42); err != nil {
 				b.logger.Errorf("Failed to add weekly cups: %v", err)
 			} else {
 				b.logger.Infof("Successfully added 42 cups for weekly achievement")
 			}
-			b.sendWeeklyCupsReward(msg, username, newStreakDays)
 		}
 
-		// Начисляем и отправляем 42 кубка за двухнедельную серию
 		if twoWeekAchievement {
 			if err := b.db.AddCups(msg.From.ID, msg.Chat.ID, 42); err != nil {
 				b.logger.Errorf("Failed to add two-week cups: %v", err)
 			} else {
 				b.logger.Infof("Successfully added 42 cups for two-week achievement")
 			}
-			b.sendTwoWeekCupsReward(msg, username, newStreakDays)
 		}
 
-		// Начисляем и отправляем 42 кубка за трехнедельную серию
 		if threeWeekAchievement {
 			if err := b.db.AddCups(msg.From.ID, msg.Chat.ID, 42); err != nil {
 				b.logger.Errorf("Failed to add three-week cups: %v", err)
 			} else {
 				b.logger.Infof("Successfully added 42 cups for three-week achievement")
 			}
-			b.sendThreeWeekCupsReward(msg, username, newStreakDays)
 		}
 
-		// Начисляем и отправляем 420 кубков за месячную серию
 		if monthlyAchievement {
 			if err := b.db.AddCups(msg.From.ID, msg.Chat.ID, 420); err != nil {
 				b.logger.Errorf("Failed to add monthly cups: %v", err)
 			} else {
 				b.logger.Infof("Successfully added 420 cups for monthly achievement")
 			}
-			b.sendMonthlyCupsReward(msg, username, newStreakDays)
 		}
 
-		// Начисляем и отправляем 4200 кубков за квартальную серию
 		if quarterlyAchievement {
 			if err := b.db.AddCups(msg.From.ID, msg.Chat.ID, 4200); err != nil {
 				b.logger.Errorf("Failed to add quarterly cups: %v", err)
 			} else {
 				b.logger.Infof("Successfully added 4200 cups for quarterly achievement")
 			}
+		}
+	}
+
+	// ВСЕГДА отправляем ответ при получении #training_done
+	// Получаем текущее количество кубков пользователя
+	currentCups, err := b.db.GetUserCups(msg.From.ID, msg.Chat.ID)
+	if err != nil {
+		b.logger.Errorf("Failed to get user cups for confirmation message: %v", err)
+		currentCups = 0
+	}
+
+	// Проверяем, есть ли achievement
+	hasAnyAchievement := weeklyAchievement || twoWeekAchievement || threeWeekAchievement || monthlyAchievement || quarterlyAchievement
+
+	b.logger.Infof("DEBUG: hasAnyAchievement=%t, caloriesToAdd=%d", hasAnyAchievement, caloriesToAdd)
+
+	if !hasAnyAchievement {
+		// НЕТ achievement - отправляем обычное подтверждение
+		reply := tgbotapi.NewMessage(msg.Chat.ID, fmt.Sprintf("✅ Отчёт принят! 💪\n\n🦁 Ты тренируешься дней подряд: %d\n🏆 +1 кубок за тренировку!\n🏆 Всего кубков: %d\n\n⏰ Таймер перезапускается на 7 дней\n\n🎯 Продолжай тренироваться и не забывай отправлять #training_done!", newStreakDays, currentCups))
+
+		b.logger.Infof("Sending training done message to chat %d", msg.Chat.ID)
+		_, err = b.api.Send(reply)
+		if err != nil {
+			b.logger.Errorf("Failed to send training done message: %v", err)
+		} else {
+			b.logger.Infof("Successfully sent training done message to chat %d", msg.Chat.ID)
+		}
+	}
+
+	// Отправляем сообщения об achievements (вместо обычного подтверждения)
+	if hasAnyAchievement {
+		b.logger.Infof("Sending achievement messages instead of regular confirmation")
+
+		if weeklyAchievement {
+			b.sendWeeklyCupsReward(msg, username, newStreakDays)
+		}
+		if twoWeekAchievement {
+			b.sendTwoWeekCupsReward(msg, username, newStreakDays)
+		}
+		if threeWeekAchievement {
+			b.sendThreeWeekCupsReward(msg, username, newStreakDays)
+		}
+		if monthlyAchievement {
+			b.sendMonthlyCupsReward(msg, username, newStreakDays)
+		}
+		if quarterlyAchievement {
 			b.sendQuarterlyCupsReward(msg, username, newStreakDays)
 		}
 
@@ -409,53 +448,6 @@ func (b *Bot) handleTrainingDone(msg *tgbotapi.Message) {
 			b.sendSuperLevelMessage(msg, username, totalCups)
 		}
 	}
-
-	// Отправляем подтверждение только если была добавлена новая тренировка
-	// И только если не было отправлено сообщение о кубках
-	if caloriesToAdd > 0 && !weeklyAchievement && !twoWeekAchievement && !threeWeekAchievement && !monthlyAchievement && !quarterlyAchievement {
-		// Получаем текущее количество кубков пользователя
-		currentCups, err := b.db.GetUserCups(msg.From.ID, msg.Chat.ID)
-		if err != nil {
-			b.logger.Errorf("Failed to get user cups for confirmation message: %v", err)
-			currentCups = 0
-		}
-
-		reply := tgbotapi.NewMessage(msg.Chat.ID, fmt.Sprintf("✅ Отчёт принят! 💪\n\n🦁 Ты тренируешься дней подряд: %d\n🏆 +1 кубок за тренировку!\n🏆 Всего кубков: %d\n\n⏰ Таймер перезапускается на 7 дней\n\n🎯 Продолжай тренироваться и не забывай отправлять #training_done!", newStreakDays, currentCups))
-
-		b.logger.Infof("Sending training done message to chat %d", msg.Chat.ID)
-		_, err = b.api.Send(reply)
-		if err != nil {
-			b.logger.Errorf("Failed to send training done message: %v", err)
-		} else {
-			b.logger.Infof("Successfully sent training done message to chat %d", msg.Chat.ID)
-		}
-	} else if caloriesToAdd == 0 {
-		// Если тренировка уже была сегодня, отправляем мотивирующее сообщение
-		// Начисляем 1 кубок за дополнительную тренировку
-		if err := b.db.AddCups(msg.From.ID, msg.Chat.ID, 1); err != nil {
-			b.logger.Errorf("Failed to add cup for double training: %v", err)
-		} else {
-			b.logger.Infof("Successfully added 1 cup for double training")
-		}
-
-		// Получаем текущее количество кубков пользователя
-		currentCups, err := b.db.GetUserCups(msg.From.ID, msg.Chat.ID)
-		if err != nil {
-			b.logger.Errorf("Failed to get user cups for double training message: %v", err)
-			currentCups = 0
-		}
-
-		reply := tgbotapi.NewMessage(msg.Chat.ID, fmt.Sprintf("🦁 Какой мотивированный леопард! Еще одна тренировка сегодня! 💪\n\n🔥 Твоя мотивация впечатляет\n🏆 +1 кубок за дополнительную тренировку!\n🏆 Всего кубков: %d\n\n⏰ Таймер уже перезапущен на 7 дней\n\n🎯 Завтра снова отправляй #training_done для продолжения серии!", currentCups))
-
-		b.logger.Infof("Sending already trained today message to chat %d", msg.Chat.ID)
-		_, err = b.api.Send(reply)
-		if err != nil {
-			b.logger.Errorf("Failed to send already trained today message: %v", err)
-		} else {
-			b.logger.Infof("Successfully sent already trained today message to chat %d", msg.Chat.ID)
-		}
-	}
-	// Если caloriesToAdd > 0 И есть achievement (кубки), то ничего дополнительного не отправляем
 
 	// Если пользователь был на больничном, сбрасываем флаги больничного и помечаем как здорового
 	if wasOnSickLeave {
@@ -1467,6 +1459,8 @@ func (b *Bot) recoverTimersFromDatabase() error {
 }
 
 func (b *Bot) sendWeeklyCupsReward(msg *tgbotapi.Message, username string, streakDays int) {
+	b.logger.Infof("DEBUG sendWeeklyCupsReward called for user %s (streak: %d days)", username, streakDays)
+
 	// Создаем сообщение с 42 кубками
 	cupsMessage := fmt.Sprintf(`🏆 НЕВЕРОЯТНО! 🏆
 
