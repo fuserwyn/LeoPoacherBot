@@ -72,6 +72,20 @@ var Migrations = []Migration{
 			DROP COLUMN cups_earned;
 		`,
 	},
+	{
+		Version:     3,
+		Description: "Add calorie_streak_days field to message_log table",
+		UpSQL: `
+			-- Добавляем поле calorie_streak_days в таблицу message_log
+			ALTER TABLE message_log 
+			ADD COLUMN calorie_streak_days INTEGER DEFAULT 0;
+		`,
+		DownSQL: `
+			-- Удаляем поле calorie_streak_days из таблицы message_log
+			ALTER TABLE message_log 
+			DROP COLUMN calorie_streak_days;
+		`,
+	},
 }
 
 // MigrationRecord представляет запись о выполненной миграции

@@ -826,21 +826,16 @@ func (b *Bot) handleChange(msg *tgbotapi.Message) {
 		return
 	}
 
-	// Сбрасываем серию дней после обмена калорий
-	// Обмен калорий означает "потратил накопленную энергию", поэтому серия начинается заново
-	if err := b.db.UpdateStreak(msg.From.ID, msg.Chat.ID, 0, ""); err != nil {
-		b.logger.Errorf("Failed to reset streak after exchange: %v", err)
-		// Не прерываем выполнение, просто логируем ошибку
-	} else {
-		b.logger.Infof("Successfully reset streak to 0 after exchange for user %d", msg.From.ID)
-	}
+	// Обмен калорий НЕ сбрасывает streak_days
+	// streak_days нужен для подсчета серии дней для получения кубков (7 дней = 42 кубка)
+	// Обмен калорий - это просто обмен накопленных калорий на кубки
 
 	// Получаем обновленные значения
 	newCalories := currentCalories - caloriesToSpend
 	newCups := currentCups + cupsToAdd
 
 	// Отправляем сообщение об успешном обмене
-	reply := tgbotapi.NewMessage(msg.Chat.ID, fmt.Sprintf("🔄 Обмен выполнен! 💪\n\n%s сожжено калорий 🔥 %d калорий → 🏆 %d кубка\n\n📊 Твой баланс:\n🔥 Калории: %d\n🏆 Кубки: %d\n\n💡 Курс: %d калорий = %d кубка\n\n⚠️ Серия дней сброшена! Следующая тренировка будет за 1 калорию", username, caloriesToSpend, cupsToAdd, newCalories, newCups, exchangeRate, cupsPerExchange))
+	reply := tgbotapi.NewMessage(msg.Chat.ID, fmt.Sprintf("🔄 Обмен выполнен! 💪\n\n%s сожжено калорий 🔥 %d калорий → 🏆 %d кубка\n\n📊 Твой баланс:\n🔥 Калории: %d\n🏆 Кубки: %d\n\n💡 Курс: %d калорий = %d кубка", username, caloriesToSpend, cupsToAdd, newCalories, newCups, exchangeRate, cupsPerExchange))
 
 	b.logger.Infof("Sending exchange success message to chat %d", msg.Chat.ID)
 	_, err = b.api.Send(reply)
@@ -1454,10 +1449,10 @@ func (b *Bot) calculateCalories(messageLog *models.MessageLog) (int, int, bool, 
 		}
 	}
 
-	// Новая система: линейный рост калорий за серию
-	// День 1: 1 калория, День 2: 2 калории, День 3: 3 калории, и т.д.
-	caloriesToAdd := newStreakDays
-	b.logger.Infof("DEBUG: Линейный рост: день %d = %d калорий", newStreakDays, caloriesToAdd)
+	// Новая система: калории всегда начинаются с 1
+	// После обмена калорий или пропуска дня калории начинаются заново с 1
+	caloriesToAdd := 1
+	b.logger.Infof("DEBUG: Калории всегда начинаются с 1: %d калорий", caloriesToAdd)
 
 	// Бонус за возвращение после больничного
 	if messageLog.HasSickLeave && messageLog.HasHealthy {
