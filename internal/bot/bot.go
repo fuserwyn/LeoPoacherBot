@@ -181,6 +181,9 @@ func (b *Bot) sendWelcomeMessage(chatID int64, username string, userID int64) {
 • #sick_leave — Взять больничный (приостанавливает таймер)
 • #healthy — Выздороветь (возобновляет таймер)
 
+🔄 Обмен:
+• #change — Обменять калории на кубки (10 калорий = 1 кубок)
+
 ⏰ Как я слежу за тренировками:
 • Таймер уже запущен! У тебя есть 7 дней на первую тренировку
 • При получении #training_done таймер перезапускается на 7 дней
@@ -222,6 +225,7 @@ func (b *Bot) handleMessage(msg *tgbotapi.Message) {
 	hasTrainingDone := strings.Contains(strings.ToLower(text), "#training_done")
 	hasSickLeave := strings.Contains(strings.ToLower(text), "#sick_leave")
 	hasHealthy := strings.Contains(strings.ToLower(text), "#healthy")
+	hasChange := strings.Contains(strings.ToLower(text), "#change")
 
 	// Получаем никнейм пользователя
 	username := ""
@@ -277,6 +281,8 @@ func (b *Bot) handleMessage(msg *tgbotapi.Message) {
 		b.handleSickLeave(msg)
 	} else if hasHealthy {
 		b.handleHealthy(msg)
+	} else if hasChange {
+		b.handleChange(msg)
 	}
 }
 
@@ -724,6 +730,90 @@ func (b *Bot) handleHealthy(msg *tgbotapi.Message) {
 	}
 }
 
+func (b *Bot) handleChange(msg *tgbotapi.Message) {
+	// Получаем никнейм пользователя
+	username := ""
+	if msg.From.UserName != "" {
+		username = "@" + msg.From.UserName
+	} else if msg.From.FirstName != "" {
+		username = msg.From.FirstName
+		if msg.From.LastName != "" {
+			username += " " + msg.From.LastName
+		}
+	} else {
+		username = fmt.Sprintf("User%d", msg.From.ID)
+	}
+
+	// Получаем текущие данные пользователя
+	messageLog, err := b.db.GetMessageLog(msg.From.ID, msg.Chat.ID)
+	if err != nil {
+		b.logger.Errorf("Failed to get message log: %v", err)
+		reply := tgbotapi.NewMessage(msg.Chat.ID, "❌ Ошибка получения данных пользователя")
+		b.api.Send(reply)
+		return
+	}
+
+	// Получаем текущие калории и кубки
+	currentCalories := messageLog.Calories
+	currentCups, err := b.db.GetUserCups(msg.From.ID, msg.Chat.ID)
+	if err != nil {
+		b.logger.Errorf("Failed to get user cups: %v", err)
+		currentCups = 0
+	}
+
+	// Курс обмена: 10 калорий = 1 кубок
+	exchangeRate := 10
+	cupsCanBuy := currentCalories / exchangeRate
+
+	if cupsCanBuy == 0 {
+		// Недостаточно калорий для обмена
+		reply := tgbotapi.NewMessage(msg.Chat.ID, fmt.Sprintf("💪 %s, у тебя %d калорий\n\n🔄 Для обмена нужно минимум %d калорий\n🏆 За %d калорий можно получить 1 кубок\n\n💡 Продолжай тренироваться!", username, currentCalories, exchangeRate, exchangeRate))
+		b.logger.Infof("Sending insufficient calories message to chat %d", msg.Chat.ID)
+		_, err = b.api.Send(reply)
+		if err != nil {
+			b.logger.Errorf("Failed to send insufficient calories message: %v", err)
+		} else {
+			b.logger.Infof("Successfully sent insufficient calories message to chat %d", msg.Chat.ID)
+		}
+		return
+	}
+
+	// Выполняем обмен
+	caloriesToSpend := cupsCanBuy * exchangeRate
+	cupsToAdd := cupsCanBuy
+
+	// Списываем калории
+	if err := b.db.AddCalories(msg.From.ID, msg.Chat.ID, -caloriesToSpend); err != nil {
+		b.logger.Errorf("Failed to spend calories: %v", err)
+		reply := tgbotapi.NewMessage(msg.Chat.ID, "❌ Ошибка при списании калорий")
+		b.api.Send(reply)
+		return
+	}
+
+	// Добавляем кубки
+	if err := b.db.AddCups(msg.From.ID, msg.Chat.ID, cupsToAdd); err != nil {
+		b.logger.Errorf("Failed to add cups: %v", err)
+		reply := tgbotapi.NewMessage(msg.Chat.ID, "❌ Ошибка при добавлении кубков")
+		b.api.Send(reply)
+		return
+	}
+
+	// Получаем обновленные значения
+	newCalories := currentCalories - caloriesToSpend
+	newCups := currentCups + cupsToAdd
+
+	// Отправляем сообщение об успешном обмене
+	reply := tgbotapi.NewMessage(msg.Chat.ID, fmt.Sprintf("🔄 Обмен выполнен! 💪\n\n%s, ты обменял:\n🔥 %d калорий → 🏆 %d кубков\n\n📊 Твой баланс:\n🔥 Калории: %d\n🏆 Кубки: %d\n\n💡 Курс: %d калорий = 1 кубок", username, caloriesToSpend, cupsToAdd, newCalories, newCups, exchangeRate))
+
+	b.logger.Infof("Sending exchange success message to chat %d", msg.Chat.ID)
+	_, err = b.api.Send(reply)
+	if err != nil {
+		b.logger.Errorf("Failed to send exchange success message: %v", err)
+	} else {
+		b.logger.Infof("Successfully sent exchange success message to chat %d", msg.Chat.ID)
+	}
+}
+
 func (b *Bot) handleStartTimer(msg *tgbotapi.Message) {
 	// Проверяем права администратора
 	if !b.isAdmin(msg.Chat.ID, msg.From.ID) {
@@ -782,6 +872,9 @@ func (b *Bot) handleHelp(msg *tgbotapi.Message) {
 • #sick_leave — Взять больничный (приостанавливает таймер)
 • #healthy — Выздороветь (возобновляет таймер)
 
+🔄 Обмен:
+• #change — Обменять калории на кубки (10 калорий = 1 кубок)
+
 ⏰ Как работает бот:
 • При добавлении бота в чат запускаются таймеры для всех участников
 • При получении #training_done таймер перезапускается на 7 дней
@@ -830,6 +923,9 @@ func (b *Bot) handleStart(msg *tgbotapi.Message) {
 🏥 **Больничный:**
 • #sick_leave — Взять больничный (приостанавливает таймер)
 • #healthy — Выздороветь (возобновляет таймер)
+
+🔄 **Обмен:**
+• #change — Обменять калории на кубки (10 калорий = 1 кубок)
 
 ⏰ **Как это работает:**
 • При добавлении бота в чат запускаются таймеры для всех участников
@@ -1290,9 +1386,6 @@ func (b *Bot) calculateCalories(messageLog *models.MessageLog) (int, int, bool, 
 	b.logger.Infof("DEBUG calculateCalories: today=%s, LastTrainingDate=%v, StreakDays=%d",
 		today, messageLog.LastTrainingDate, messageLog.StreakDays)
 
-	// Базовые калории за тренировку
-	caloriesToAdd := 1
-
 	// Проверяем, была ли уже тренировка сегодня
 	if messageLog.LastTrainingDate != nil && *messageLog.LastTrainingDate == today {
 		b.logger.Infof("DEBUG: Уже тренировались сегодня, возвращаем 0 калорий")
@@ -1324,16 +1417,10 @@ func (b *Bot) calculateCalories(messageLog *models.MessageLog) (int, int, bool, 
 		}
 	}
 
-	// Бонусы за серию
-	if newStreakDays >= 30 {
-		caloriesToAdd += 20 // 30 дней подряд
-	} else if newStreakDays >= 14 {
-		caloriesToAdd += 10 // 14 дней подряд
-	} else if newStreakDays >= 7 {
-		caloriesToAdd += 5 // 7 дней подряд
-	} else if newStreakDays >= 3 {
-		caloriesToAdd += 2 // 3 дня подряд
-	}
+	// Новая система: линейный рост калорий за серию
+	// День 1: 1 калория, День 2: 2 калории, День 3: 3 калории, и т.д.
+	caloriesToAdd := newStreakDays
+	b.logger.Infof("DEBUG: Линейный рост: день %d = %d калорий", newStreakDays, caloriesToAdd)
 
 	// Бонус за возвращение после больничного
 	if messageLog.HasSickLeave && messageLog.HasHealthy {
