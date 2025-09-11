@@ -355,7 +355,7 @@ func (b *Bot) handleTrainingDone(msg *tgbotapi.Message) {
 	// Обновляем серию только если была добавлена новая тренировка
 	if caloriesToAdd > 0 {
 		today := utils.GetMoscowDate()
-		
+
 		// Обновляем streak_days для кубков
 		b.logger.Infof("DEBUG: Updating streak to %d with date %s", newStreakDays, today)
 		if err := b.db.UpdateStreak(msg.From.ID, msg.Chat.ID, newStreakDays, today); err != nil {
@@ -363,7 +363,7 @@ func (b *Bot) handleTrainingDone(msg *tgbotapi.Message) {
 		} else {
 			b.logger.Infof("DEBUG: Successfully updated streak to %d", newStreakDays)
 		}
-		
+
 		// Обновляем серию дней для калорий
 		b.logger.Infof("DEBUG: Updating calorie streak to %d with date %s", newCalorieStreakDays, today)
 		if err := b.db.UpdateCalorieStreakWithDate(msg.From.ID, msg.Chat.ID, newCalorieStreakDays, today); err != nil {
@@ -839,7 +839,7 @@ func (b *Bot) handleChange(msg *tgbotapi.Message) {
 	// Обмен калорий НЕ сбрасывает streak_days
 	// streak_days нужен для подсчета серии дней для получения кубков (7 дней = 42 кубка)
 	// Обмен калорий - это просто обмен накопленных калорий на кубки
-	
+
 	// Сбрасываем calorie_streak_days после обмена калорий
 	if err := b.db.ResetCalorieStreak(msg.From.ID, msg.Chat.ID); err != nil {
 		b.logger.Errorf("Failed to reset calorie streak: %v", err)
