@@ -310,6 +310,19 @@ func (d *Database) UpdateCalorieStreak(userID, chatID int64, calorieStreakDays i
 	return err
 }
 
+// UpdateCalorieStreakWithDate обновляет серию дней для калорий с датой последней тренировки
+func (d *Database) UpdateCalorieStreakWithDate(userID, chatID int64, calorieStreakDays int, lastTrainingDate string) error {
+	query := `
+		UPDATE message_log 
+		SET calorie_streak_days = $3, last_training_date = $4, updated_at = $5
+		WHERE user_id = $1 AND chat_id = $2
+	`
+	// Используем московское время
+	moscowTime := utils.FormatMoscowTime(utils.GetMoscowTime())
+	_, err := d.db.Exec(query, userID, chatID, calorieStreakDays, lastTrainingDate, moscowTime)
+	return err
+}
+
 // ResetCalorieStreak сбрасывает серию дней для калорий
 func (d *Database) ResetCalorieStreak(userID, chatID int64) error {
 	query := `
