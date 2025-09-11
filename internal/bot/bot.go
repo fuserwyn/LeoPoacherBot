@@ -182,7 +182,7 @@ func (b *Bot) sendWelcomeMessage(chatID int64, username string, userID int64) {
 • #healthy — Выздороветь (возобновляет таймер)
 
 🔄 Обмен:
-• #change — Обменять калории на кубки (10 калорий = 1 кубок)
+• #change — Обменять калории на кубки (100 калорий = 42 кубка)
 
 ⏰ Как я слежу за тренировками:
 • Таймер уже запущен! У тебя есть 7 дней на первую тренировку
@@ -332,6 +332,26 @@ func (b *Bot) handleTrainingDone(msg *tgbotapi.Message) {
 		b.logger.Infof("DEBUG: Successfully added %d calories", caloriesToAdd)
 	}
 
+	// Проверяем, достиг ли пользователь 100 калорий для обмена
+	if caloriesToAdd > 0 {
+		// Получаем обновленное количество калорий
+		updatedCalories, err := b.db.GetUserCalories(msg.From.ID, msg.Chat.ID)
+		if err != nil {
+			b.logger.Errorf("Failed to get updated calories: %v", err)
+		} else if updatedCalories >= 100 && updatedCalories-caloriesToAdd < 100 {
+			// Пользователь только что достиг 100 калорий
+			exchangeMessage := tgbotapi.NewMessage(msg.Chat.ID, fmt.Sprintf("🎉 Поздравляем! 🎉\n\n%s, ты достиг %d калорий!\n\n🔄 Теперь можешь совершить обмен!\n💡 Напиши #change для обмена 100 калорий на 42 кубка!", username, updatedCalories))
+
+			b.logger.Infof("Sending 100 calories achievement message to chat %d", msg.Chat.ID)
+			_, err = b.api.Send(exchangeMessage)
+			if err != nil {
+				b.logger.Errorf("Failed to send 100 calories achievement message: %v", err)
+			} else {
+				b.logger.Infof("Successfully sent 100 calories achievement message to chat %d", msg.Chat.ID)
+			}
+		}
+	}
+
 	// Обновляем серию только если была добавлена новая тренировка
 	if caloriesToAdd > 0 {
 		today := utils.GetMoscowDate()
@@ -415,7 +435,7 @@ func (b *Bot) handleTrainingDone(msg *tgbotapi.Message) {
 	if !hasAnyAchievement {
 		if caloriesToAdd > 0 {
 			// Новая тренировка БЕЗ achievement - отправляем обычное подтверждение
-			reply := tgbotapi.NewMessage(msg.Chat.ID, fmt.Sprintf("✅ Отчёт принят! 💪\n\n🦁 Ты тренируешься дней подряд: %d\n🏆 +1 кубок за тренировку!\n🏆 Всего кубков: %d\n\n⏰ Таймер перезапускается на 7 дней\n\n🎯 Продолжай тренироваться и не забывай отправлять #training_done!", newStreakDays, currentCups))
+			reply := tgbotapi.NewMessage(msg.Chat.ID, fmt.Sprintf("✅ Отчёт принят! 💪\n\n🦁 Ты тренируешься дней подряд: %d\n🔥 Калорий: %d\n🏆 +1 кубок за тренировку!\n🏆 Всего кубков: %d\n\n⏰ Таймер перезапускается на 7 дней\n\n🎯 Продолжай тренироваться и не забывай отправлять #training_done!", newStreakDays, caloriesToAdd, currentCups))
 
 			b.logger.Infof("Sending training done message to chat %d", msg.Chat.ID)
 			_, err = b.api.Send(reply)
@@ -761,13 +781,14 @@ func (b *Bot) handleChange(msg *tgbotapi.Message) {
 		currentCups = 0
 	}
 
-	// Курс обмена: 10 калорий = 1 кубок
-	exchangeRate := 10
-	cupsCanBuy := currentCalories / exchangeRate
+	// Курс обмена: 100 калорий = 42 кубка
+	exchangeRate := 100
+	cupsPerExchange := 42
+	exchangesCanMake := currentCalories / exchangeRate
 
-	if cupsCanBuy == 0 {
+	if exchangesCanMake == 0 {
 		// Недостаточно калорий для обмена
-		reply := tgbotapi.NewMessage(msg.Chat.ID, fmt.Sprintf("💪 %s, у тебя %d калорий\n\n🔄 Для обмена нужно минимум %d калорий\n🏆 За %d калорий можно получить 1 кубок\n\n💡 Продолжай тренироваться!", username, currentCalories, exchangeRate, exchangeRate))
+		reply := tgbotapi.NewMessage(msg.Chat.ID, fmt.Sprintf("💪 %s, у тебя %d калорий\n\n🔄 Для обмена нужно минимум %d калорий\n🏆 За %d калорий можно получить %d кубков\n\n⏰ Пока рано! Еще потренируйся!\n\n🎯 Продолжай тренироваться и накапливай калории!", username, currentCalories, exchangeRate, exchangeRate, cupsPerExchange))
 		b.logger.Infof("Sending insufficient calories message to chat %d", msg.Chat.ID)
 		_, err = b.api.Send(reply)
 		if err != nil {
@@ -778,9 +799,9 @@ func (b *Bot) handleChange(msg *tgbotapi.Message) {
 		return
 	}
 
-	// Выполняем обмен
-	caloriesToSpend := cupsCanBuy * exchangeRate
-	cupsToAdd := cupsCanBuy
+	// Выполняем обмен (только полные обмены)
+	caloriesToSpend := exchangesCanMake * exchangeRate
+	cupsToAdd := exchangesCanMake * cupsPerExchange
 
 	// Списываем калории
 	if err := b.db.AddCalories(msg.From.ID, msg.Chat.ID, -caloriesToSpend); err != nil {
@@ -798,12 +819,21 @@ func (b *Bot) handleChange(msg *tgbotapi.Message) {
 		return
 	}
 
+	// Сбрасываем серию дней после обмена калорий
+	// Обмен калорий означает "потратил накопленную энергию", поэтому серия начинается заново
+	if err := b.db.UpdateStreak(msg.From.ID, msg.Chat.ID, 0, ""); err != nil {
+		b.logger.Errorf("Failed to reset streak after exchange: %v", err)
+		// Не прерываем выполнение, просто логируем ошибку
+	} else {
+		b.logger.Infof("Successfully reset streak to 0 after exchange for user %d", msg.From.ID)
+	}
+
 	// Получаем обновленные значения
 	newCalories := currentCalories - caloriesToSpend
 	newCups := currentCups + cupsToAdd
 
 	// Отправляем сообщение об успешном обмене
-	reply := tgbotapi.NewMessage(msg.Chat.ID, fmt.Sprintf("🔄 Обмен выполнен! 💪\n\n%s, ты обменял:\n🔥 %d калорий → 🏆 %d кубков\n\n📊 Твой баланс:\n🔥 Калории: %d\n🏆 Кубки: %d\n\n💡 Курс: %d калорий = 1 кубок", username, caloriesToSpend, cupsToAdd, newCalories, newCups, exchangeRate))
+	reply := tgbotapi.NewMessage(msg.Chat.ID, fmt.Sprintf("🔄 Обмен выполнен! 💪\n\n%s, ты обменял:\n🔥 %d калорий → 🏆 %d кубков\n\n📊 Твой баланс:\n🔥 Калории: %d\n🏆 Кубки: %d\n\n💡 Курс: %d калорий = %d кубков\n\n⚠️ Серия дней сброшена! Следующая тренировка будет за 1 калорию", username, caloriesToSpend, cupsToAdd, newCalories, newCups, exchangeRate, cupsPerExchange))
 
 	b.logger.Infof("Sending exchange success message to chat %d", msg.Chat.ID)
 	_, err = b.api.Send(reply)
@@ -873,7 +903,7 @@ func (b *Bot) handleHelp(msg *tgbotapi.Message) {
 • #healthy — Выздороветь (возобновляет таймер)
 
 🔄 Обмен:
-• #change — Обменять калории на кубки (10 калорий = 1 кубок)
+• #change — Обменять калории на кубки (100 калорий = 42 кубка)
 
 ⏰ Как работает бот:
 • При добавлении бота в чат запускаются таймеры для всех участников
