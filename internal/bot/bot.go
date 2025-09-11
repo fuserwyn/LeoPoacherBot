@@ -494,19 +494,19 @@ func (b *Bot) handleTrainingDone(msg *tgbotapi.Message) {
 		b.logger.Infof("Sending achievement messages instead of regular confirmation")
 
 		if weeklyAchievement {
-			b.sendWeeklyCupsReward(msg, username, newStreakDays)
+			b.sendWeeklyCupsReward(msg, username, newStreakDays, caloriesToAdd)
 		}
 		if twoWeekAchievement {
-			b.sendTwoWeekCupsReward(msg, username, newStreakDays)
+			b.sendTwoWeekCupsReward(msg, username, newStreakDays, caloriesToAdd)
 		}
 		if threeWeekAchievement {
-			b.sendThreeWeekCupsReward(msg, username, newStreakDays)
+			b.sendThreeWeekCupsReward(msg, username, newStreakDays, caloriesToAdd)
 		}
 		if monthlyAchievement {
-			b.sendMonthlyCupsReward(msg, username, newStreakDays)
+			b.sendMonthlyCupsReward(msg, username, newStreakDays, caloriesToAdd)
 		}
 		if quarterlyAchievement {
-			b.sendQuarterlyCupsReward(msg, username, newStreakDays)
+			b.sendQuarterlyCupsReward(msg, username, newStreakDays, caloriesToAdd)
 		}
 
 		// Проверяем супер-уровень после начисления кубков
@@ -1646,7 +1646,7 @@ func (b *Bot) recoverTimersFromDatabase() error {
 	return nil
 }
 
-func (b *Bot) sendWeeklyCupsReward(msg *tgbotapi.Message, username string, streakDays int) {
+func (b *Bot) sendWeeklyCupsReward(msg *tgbotapi.Message, username string, streakDays int, caloriesAdded int) {
 	b.logger.Infof("DEBUG sendWeeklyCupsReward called for user %s (streak: %d days)", username, streakDays)
 
 	// Получаем текущее количество калорий
@@ -1676,13 +1676,15 @@ func (b *Bot) sendWeeklyCupsReward(msg *tgbotapi.Message, username string, strea
 🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆
 🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆
 
+🔥 +%d калорий
 🔥 Всего калорий: %d
+🏆 +42 кубка
 🏆 Всего кубков: %d
 🦁 Fat Leopard гордится тобой! 
 💪 Ты настоящий чемпион!
 🔥 Продолжай в том же духе!
 
-#weekly_champion #42_cups #training_streak`, username, streakDays, totalCalories, totalCups)
+#weekly_champion #42_cups #training_streak`, username, streakDays, caloriesAdded, totalCalories, totalCups)
 
 	// Отправляем сообщение с кубками
 	reply := tgbotapi.NewMessage(msg.Chat.ID, cupsMessage)
@@ -1696,7 +1698,7 @@ func (b *Bot) sendWeeklyCupsReward(msg *tgbotapi.Message, username string, strea
 	}
 }
 
-func (b *Bot) sendMonthlyCupsReward(msg *tgbotapi.Message, username string, streakDays int) {
+func (b *Bot) sendMonthlyCupsReward(msg *tgbotapi.Message, username string, streakDays int, caloriesAdded int) {
 	// Получаем текущее количество калорий
 	totalCalories, err := b.db.GetUserCalories(msg.From.ID, msg.Chat.ID)
 	if err != nil {
@@ -1731,14 +1733,16 @@ func (b *Bot) sendMonthlyCupsReward(msg *tgbotapi.Message, username string, stre
 
 🎯 +420 КУБКОВ ЗА ТВОЮ МЕСЯЧНУЮ СЕРИЮ! 🎯
 
+🔥 +%d калорий
 🔥 Всего калорий: %d
+🏆 +420 кубков
 🏆 Всего кубков: %d
 🦁 Fat Leopard в шоке от твоей мотивации! 
 💪 Ты абсолютная легенда!
 🔥 Ты вдохновляешь всех вокруг!
 ⭐ Ты настоящий чемпион чемпионов!
 
-#monthly_legend #420_cups #training_legend`, username, streakDays, totalCalories, totalCups)
+#monthly_legend #420_cups #training_legend`, username, streakDays, caloriesAdded, totalCalories, totalCups)
 
 	// Отправляем сообщение с кубками
 	reply := tgbotapi.NewMessage(msg.Chat.ID, cupsMessage)
@@ -1752,7 +1756,7 @@ func (b *Bot) sendMonthlyCupsReward(msg *tgbotapi.Message, username string, stre
 	}
 }
 
-func (b *Bot) sendQuarterlyCupsReward(msg *tgbotapi.Message, username string, streakDays int) {
+func (b *Bot) sendQuarterlyCupsReward(msg *tgbotapi.Message, username string, streakDays int, caloriesAdded int) {
 	// Получаем текущее количество калорий
 	totalCalories, err := b.db.GetUserCalories(msg.From.ID, msg.Chat.ID)
 	if err != nil {
@@ -1776,7 +1780,9 @@ func (b *Bot) sendQuarterlyCupsReward(msg *tgbotapi.Message, username string, st
 
 🎯 +4200 КУБКОВ ЗА ТВОЮ КВАРТАЛЬНУЮ СЕРИЮ! 🎯
 
+🔥 +%d калорий
 🔥 Всего калорий: %d
+🏆 +4200 кубков
 🏆 Всего кубков: %d
 🦁 Fat Leopard падает в обморок от твоей силы воли! 
 💪 Ты божественное создание!
@@ -1785,7 +1791,7 @@ func (b *Bot) sendQuarterlyCupsReward(msg *tgbotapi.Message, username string, st
 👑 Ты король всех королей!
 🌟 Ты сияешь ярче всех звезд!
 
-#quarterly_god #4200_cups #training_emperor`, username, streakDays, totalCalories, totalCups)
+#quarterly_god #4200_cups #training_emperor`, username, streakDays, caloriesAdded, totalCalories, totalCups)
 
 	// Отправляем сообщение с кубками
 	reply := tgbotapi.NewMessage(msg.Chat.ID, cupsMessage)
@@ -1799,7 +1805,7 @@ func (b *Bot) sendQuarterlyCupsReward(msg *tgbotapi.Message, username string, st
 	}
 }
 
-func (b *Bot) sendTwoWeekCupsReward(msg *tgbotapi.Message, username string, streakDays int) {
+func (b *Bot) sendTwoWeekCupsReward(msg *tgbotapi.Message, username string, streakDays int, caloriesAdded int) {
 	// Получаем текущее количество калорий
 	totalCalories, err := b.db.GetUserCalories(msg.From.ID, msg.Chat.ID)
 	if err != nil {
@@ -1827,14 +1833,16 @@ func (b *Bot) sendTwoWeekCupsReward(msg *tgbotapi.Message, username string, stre
 🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆
 🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆
 
+🔥 +%d калорий
 🔥 Всего калорий: %d
+🏆 +42 кубка
 🏆 Всего кубков: %d
 🦁 Fat Leopard в восторге от твоей мотивации! 
 💪 Ты настоящий воин!
 🔥 Твоя сила растет с каждым днем!
 ⭐ Ты вдохновляешь всю стаю!
 
-#two_week_champion #42_cups #training_warrior`, username, streakDays, totalCalories, totalCups)
+#two_week_champion #42_cups #training_warrior`, username, streakDays, caloriesAdded, totalCalories, totalCups)
 
 	// Отправляем сообщение с кубками
 	reply := tgbotapi.NewMessage(msg.Chat.ID, cupsMessage)
@@ -1848,7 +1856,7 @@ func (b *Bot) sendTwoWeekCupsReward(msg *tgbotapi.Message, username string, stre
 	}
 }
 
-func (b *Bot) sendThreeWeekCupsReward(msg *tgbotapi.Message, username string, streakDays int) {
+func (b *Bot) sendThreeWeekCupsReward(msg *tgbotapi.Message, username string, streakDays int, caloriesAdded int) {
 	// Получаем текущее количество калорий
 	totalCalories, err := b.db.GetUserCalories(msg.From.ID, msg.Chat.ID)
 	if err != nil {
@@ -1880,7 +1888,9 @@ func (b *Bot) sendThreeWeekCupsReward(msg *tgbotapi.Message, username string, st
 🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆
 🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆
 
+🔥 +%d калорий
 🔥 Всего калорий: %d
+🏆 +42 кубка
 🏆 Всего кубков: %d
 🦁 Fat Leopard поражен твоей силой воли! 
 💪 Ты абсолютный чемпион!
@@ -1888,7 +1898,7 @@ func (b *Bot) sendThreeWeekCupsReward(msg *tgbotapi.Message, username string, st
 ⭐ Ты легенда среди леопардов!
 👑 Ты король мотивации!
 
-#three_week_legend #42_cups #training_king`, username, streakDays, totalCalories, totalCups)
+#three_week_legend #42_cups #training_king`, username, streakDays, caloriesAdded, totalCalories, totalCups)
 
 	// Отправляем сообщение с кубками
 	reply := tgbotapi.NewMessage(msg.Chat.ID, cupsMessage)
