@@ -434,8 +434,15 @@ func (b *Bot) handleTrainingDone(msg *tgbotapi.Message) {
 
 	if !hasAnyAchievement {
 		if caloriesToAdd > 0 {
+			// Получаем общее количество калорий для отображения
+			totalCalories, err := b.db.GetUserCalories(msg.From.ID, msg.Chat.ID)
+			if err != nil {
+				b.logger.Errorf("Failed to get total calories for message: %v", err)
+				totalCalories = 0
+			}
+
 			// Новая тренировка БЕЗ achievement - отправляем обычное подтверждение
-			reply := tgbotapi.NewMessage(msg.Chat.ID, fmt.Sprintf("✅ Отчёт принят! 💪\n\n🦁 Ты тренируешься дней подряд: %d\n🔥 Калорий: %d\n🏆 +1 кубок за тренировку!\n🏆 Всего кубков: %d\n\n⏰ Таймер перезапускается на 7 дней\n\n🎯 Продолжай тренироваться и не забывай отправлять #training_done!", newStreakDays, caloriesToAdd, currentCups))
+			reply := tgbotapi.NewMessage(msg.Chat.ID, fmt.Sprintf("✅ Отчёт принят! 💪\n\n🦁 Ты тренируешься дней подряд: %d\n🔥 +%d калорий\n🔥 Всего калорий: %d\n🏆 +1 кубок за тренировку!\n🏆 Всего кубков: %d\n\n⏰ Таймер перезапускается на 7 дней\n\n🎯 Продолжай тренироваться и не забывай отправлять #training_done!", newStreakDays, caloriesToAdd, totalCalories, currentCups))
 
 			b.logger.Infof("Sending training done message to chat %d", msg.Chat.ID)
 			_, err = b.api.Send(reply)
