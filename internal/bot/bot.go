@@ -1491,10 +1491,10 @@ func (b *Bot) calculateCalories(messageLog *models.MessageLog) (int, int, int, b
 		}
 	}
 
-	// Новая система: калории всегда начинаются с 1
-	// После обмена калорий или пропуска дня калории начинаются заново с 1
-	caloriesToAdd := 1
-	b.logger.Infof("DEBUG: Калории всегда начинаются с 1: %d калорий", caloriesToAdd)
+	// Система калорий: количество калорий = количество дней в серии
+	// calorie_streak_days=4 → +4 калории, calorie_streak_days=5 → +5 калорий
+	caloriesToAdd := newCalorieStreakDays
+	b.logger.Infof("DEBUG: Калории равны количеству дней в серии: %d калорий", caloriesToAdd)
 
 	// Бонус за возвращение после больничного
 	if messageLog.HasSickLeave && messageLog.HasHealthy {
