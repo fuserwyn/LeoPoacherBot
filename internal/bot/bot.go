@@ -1656,12 +1656,20 @@ func (b *Bot) sendWeeklyCupsReward(msg *tgbotapi.Message, username string, strea
 		totalCalories = 0
 	}
 
+	// Получаем текущее количество кубков
+	totalCups, err := b.db.GetUserCups(msg.From.ID, msg.Chat.ID)
+	if err != nil {
+		b.logger.Errorf("Failed to get total cups for weekly reward: %v", err)
+		totalCups = 0
+	}
+
 	// Создаем сообщение с 42 кубками
 	cupsMessage := fmt.Sprintf(`🏆 НЕВЕРОЯТНО! 🏆
 
 %s, ты тренируешься уже %d дней подряд! 
 
 🔥 Всего калорий: %d
+🏆 Всего кубков: %d
 
 🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆
 🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆
@@ -1673,7 +1681,7 @@ func (b *Bot) sendWeeklyCupsReward(msg *tgbotapi.Message, username string, strea
 💪 Ты настоящий чемпион!
 🔥 Продолжай в том же духе!
 
-#weekly_champion #42_cups #training_streak`, username, streakDays, totalCalories)
+#weekly_champion #42_cups #training_streak`, username, streakDays, totalCalories, totalCups)
 
 	// Отправляем сообщение с кубками
 	reply := tgbotapi.NewMessage(msg.Chat.ID, cupsMessage)
