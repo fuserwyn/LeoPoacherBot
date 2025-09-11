@@ -340,7 +340,7 @@ func (b *Bot) handleTrainingDone(msg *tgbotapi.Message) {
 			b.logger.Errorf("Failed to get updated calories: %v", err)
 		} else if updatedCalories >= 100 && updatedCalories-caloriesToAdd < 100 {
 			// Пользователь только что достиг 100 калорий
-			exchangeMessage := tgbotapi.NewMessage(msg.Chat.ID, fmt.Sprintf("🎉 Поздравляем! 🎉\n\n%s, ты достиг %d калорий!\n\n🔄 Теперь можешь совершить обмен!\n💡 Напиши #change для обмена 100 калорий на 42 кубка!", username, updatedCalories))
+			exchangeMessage := tgbotapi.NewMessage(msg.Chat.ID, fmt.Sprintf("🎉 Поздравляю! 🎉\n\n%s, достигнуто %d калорий!\n\n🔄 Теперь можешь совершить обмен!\n💡 Напиши #change для обмена 100 калорий на 42 кубка!", username, updatedCalories))
 
 			b.logger.Infof("Sending 100 calories achievement message to chat %d", msg.Chat.ID)
 			_, err = b.api.Send(exchangeMessage)
@@ -605,7 +605,7 @@ func (b *Bot) handleSickLeave(msg *tgbotapi.Message) {
 	b.cancelTimer(msg.From.ID)
 
 	// Отправляем подтверждение
-	reply := tgbotapi.NewMessage(msg.Chat.ID, fmt.Sprintf("🏥 Больничный принят! 🤒\n\n⏸️ Таймер приостановлен на время болезни\n\n💪 Выздоравливай и возвращайся к тренировкам!\n\n📝 Когда поправишься, отправь #healthy для возобновления таймера"))
+	reply := tgbotapi.NewMessage(msg.Chat.ID, "🏥 Больничный принят! 🤒\n\n⏸️ Таймер приостановлен на время болезни\n\n💪 Выздоравливай и возвращайся к тренировкам!\n\n📝 Когда поправишься, отправь #healthy для возобновления таймера")
 
 	b.logger.Infof("Sending sick leave message to chat %d", msg.Chat.ID)
 	_, err = b.api.Send(reply)
@@ -746,7 +746,7 @@ func (b *Bot) handleHealthy(msg *tgbotapi.Message) {
 	b.startTimerWithDuration(msg.From.ID, msg.Chat.ID, msg.From.UserName, remainingTime)
 
 	// Отправляем подтверждение
-	reply := tgbotapi.NewMessage(msg.Chat.ID, fmt.Sprintf("💪 Выздоровление принято! 🎉\n\n⏰ Таймер возобновлён с места остановки!"))
+	reply := tgbotapi.NewMessage(msg.Chat.ID, "💪 Выздоровление принято! 🎉\n\n⏰ Таймер возобновлён с места остановки!")
 
 	b.logger.Infof("Sending healthy message to chat %d", msg.Chat.ID)
 	_, err = b.api.Send(reply)
@@ -1612,11 +1612,19 @@ func (b *Bot) recoverTimersFromDatabase() error {
 func (b *Bot) sendWeeklyCupsReward(msg *tgbotapi.Message, username string, streakDays int) {
 	b.logger.Infof("DEBUG sendWeeklyCupsReward called for user %s (streak: %d days)", username, streakDays)
 
+	// Получаем текущее количество калорий
+	totalCalories, err := b.db.GetUserCalories(msg.From.ID, msg.Chat.ID)
+	if err != nil {
+		b.logger.Errorf("Failed to get total calories for weekly reward: %v", err)
+		totalCalories = 0
+	}
+
 	// Создаем сообщение с 42 кубками
 	cupsMessage := fmt.Sprintf(`🏆 НЕВЕРОЯТНО! 🏆
 
 %s, ты тренируешься уже %d дней подряд! 
 
+🔥 Всего калорий: %d
 
 🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆
 🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆
@@ -1628,13 +1636,13 @@ func (b *Bot) sendWeeklyCupsReward(msg *tgbotapi.Message, username string, strea
 💪 Ты настоящий чемпион!
 🔥 Продолжай в том же духе!
 
-#weekly_champion #42_cups #training_streak`, username, streakDays)
+#weekly_champion #42_cups #training_streak`, username, streakDays, totalCalories)
 
 	// Отправляем сообщение с кубками
 	reply := tgbotapi.NewMessage(msg.Chat.ID, cupsMessage)
 
 	b.logger.Infof("Sending weekly cups reward to chat %d for user %s (streak: %d days)", msg.Chat.ID, username, streakDays)
-	_, err := b.api.Send(reply)
+	_, err = b.api.Send(reply)
 	if err != nil {
 		b.logger.Errorf("Failed to send weekly cups reward: %v", err)
 	} else {
@@ -1643,10 +1651,19 @@ func (b *Bot) sendWeeklyCupsReward(msg *tgbotapi.Message, username string, strea
 }
 
 func (b *Bot) sendMonthlyCupsReward(msg *tgbotapi.Message, username string, streakDays int) {
+	// Получаем текущее количество калорий
+	totalCalories, err := b.db.GetUserCalories(msg.From.ID, msg.Chat.ID)
+	if err != nil {
+		b.logger.Errorf("Failed to get total calories for monthly reward: %v", err)
+		totalCalories = 0
+	}
+
 	// Создаем сообщение с 420 кубками
 	cupsMessage := fmt.Sprintf(`🏆🏆🏆 ЛЕГЕНДА! 🏆🏆🏆
 
 %s, ты тренируешься уже %d дней подряд! 
+
+🔥 Всего калорий: %d
 
 🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆
 🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆
@@ -1666,13 +1683,13 @@ func (b *Bot) sendMonthlyCupsReward(msg *tgbotapi.Message, username string, stre
 🔥 Ты вдохновляешь всех вокруг!
 ⭐ Ты настоящий чемпион чемпионов!
 
-#monthly_legend #420_cups #training_legend`, username, streakDays)
+#monthly_legend #420_cups #training_legend`, username, streakDays, totalCalories)
 
 	// Отправляем сообщение с кубками
 	reply := tgbotapi.NewMessage(msg.Chat.ID, cupsMessage)
 
 	b.logger.Infof("Sending monthly cups reward to chat %d for user %s (streak: %d days)", msg.Chat.ID, username, streakDays)
-	_, err := b.api.Send(reply)
+	_, err = b.api.Send(reply)
 	if err != nil {
 		b.logger.Errorf("Failed to send monthly cups reward: %v", err)
 	} else {
@@ -1681,10 +1698,19 @@ func (b *Bot) sendMonthlyCupsReward(msg *tgbotapi.Message, username string, stre
 }
 
 func (b *Bot) sendQuarterlyCupsReward(msg *tgbotapi.Message, username string, streakDays int) {
+	// Получаем текущее количество калорий
+	totalCalories, err := b.db.GetUserCalories(msg.From.ID, msg.Chat.ID)
+	if err != nil {
+		b.logger.Errorf("Failed to get total calories for quarterly reward: %v", err)
+		totalCalories = 0
+	}
+
 	// Создаем сообщение с 4200 кубками
 	cupsMessage := fmt.Sprintf(`🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆 БОЖЕСТВЕННО! 🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆
 
 %s, ты тренируешься уже %d дней подряд! 
+
+🔥 Всего калорий: %d
 
 🎯 4200 КУБКОВ ЗА ТВОЮ КВАРТАЛЬНУЮ СЕРИЮ! 🎯
 
@@ -1695,13 +1721,13 @@ func (b *Bot) sendQuarterlyCupsReward(msg *tgbotapi.Message, username string, st
 👑 Ты король всех королей!
 🌟 Ты сияешь ярче всех звезд!
 
-#quarterly_god #4200_cups #training_emperor`, username, streakDays)
+#quarterly_god #4200_cups #training_emperor`, username, streakDays, totalCalories)
 
 	// Отправляем сообщение с кубками
 	reply := tgbotapi.NewMessage(msg.Chat.ID, cupsMessage)
 
 	b.logger.Infof("Sending quarterly cups reward to chat %d for user %s (streak: %d days)", msg.Chat.ID, username, streakDays)
-	_, err := b.api.Send(reply)
+	_, err = b.api.Send(reply)
 	if err != nil {
 		b.logger.Errorf("Failed to send quarterly cups reward: %v", err)
 	} else {
@@ -1710,10 +1736,19 @@ func (b *Bot) sendQuarterlyCupsReward(msg *tgbotapi.Message, username string, st
 }
 
 func (b *Bot) sendTwoWeekCupsReward(msg *tgbotapi.Message, username string, streakDays int) {
+	// Получаем текущее количество калорий
+	totalCalories, err := b.db.GetUserCalories(msg.From.ID, msg.Chat.ID)
+	if err != nil {
+		b.logger.Errorf("Failed to get total calories for two-week reward: %v", err)
+		totalCalories = 0
+	}
+
 	// Создаем сообщение с 42 кубками
 	cupsMessage := fmt.Sprintf(`🏆🏆 НЕВЕРОЯТНО! 🏆🏆
 
 %s, ты тренируешься уже %d дней подряд! 
+
+🔥 Всего калорий: %d
 
 🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆
 🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆
@@ -1726,13 +1761,13 @@ func (b *Bot) sendTwoWeekCupsReward(msg *tgbotapi.Message, username string, stre
 🔥 Твоя сила растет с каждым днем!
 ⭐ Ты вдохновляешь всю стаю!
 
-#two_week_champion #42_cups #training_warrior`, username, streakDays)
+#two_week_champion #42_cups #training_warrior`, username, streakDays, totalCalories)
 
 	// Отправляем сообщение с кубками
 	reply := tgbotapi.NewMessage(msg.Chat.ID, cupsMessage)
 
 	b.logger.Infof("Sending two-week cups reward to chat %d for user %s (streak: %d days)", msg.Chat.ID, username, streakDays)
-	_, err := b.api.Send(reply)
+	_, err = b.api.Send(reply)
 	if err != nil {
 		b.logger.Errorf("Failed to send two-week cups reward: %v", err)
 	} else {
@@ -1741,10 +1776,19 @@ func (b *Bot) sendTwoWeekCupsReward(msg *tgbotapi.Message, username string, stre
 }
 
 func (b *Bot) sendThreeWeekCupsReward(msg *tgbotapi.Message, username string, streakDays int) {
+	// Получаем текущее количество калорий
+	totalCalories, err := b.db.GetUserCalories(msg.From.ID, msg.Chat.ID)
+	if err != nil {
+		b.logger.Errorf("Failed to get total calories for three-week reward: %v", err)
+		totalCalories = 0
+	}
+
 	// Создаем сообщение с 42 кубками
 	cupsMessage := fmt.Sprintf(`🏆🏆🏆 ФЕНОМЕНАЛЬНО! 🏆🏆🏆
 
 %s, ты тренируешься уже %d дней подряд! 
+
+🔥 Всего калорий: %d
 
 🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆
 🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆
@@ -1762,13 +1806,13 @@ func (b *Bot) sendThreeWeekCupsReward(msg *tgbotapi.Message, username string, st
 ⭐ Ты легенда среди леопардов!
 👑 Ты король мотивации!
 
-#three_week_legend #42_cups #training_king`, username, streakDays)
+#three_week_legend #42_cups #training_king`, username, streakDays, totalCalories)
 
 	// Отправляем сообщение с кубками
 	reply := tgbotapi.NewMessage(msg.Chat.ID, cupsMessage)
 
 	b.logger.Infof("Sending three-week cups reward to chat %d for user %s (streak: %d days)", msg.Chat.ID, username, streakDays)
-	_, err := b.api.Send(reply)
+	_, err = b.api.Send(reply)
 	if err != nil {
 		b.logger.Errorf("Failed to send three-week cups reward: %v", err)
 	} else {
