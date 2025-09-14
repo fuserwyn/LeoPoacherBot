@@ -73,6 +73,54 @@ func TestCalculateRemainingTime(t *testing.T) {
 	}
 }
 
+func TestFormatDurationToDays(t *testing.T) {
+	// Создаем тестовый бот
+	cfg := &config.Config{OwnerID: 123}
+	bot := &Bot{
+		config: cfg,
+	}
+
+	// Тест 1: Только дни
+	duration := 5 * 24 * time.Hour
+	result := bot.formatDurationToDays(duration)
+	expected := "5 дн."
+	if result != expected {
+		t.Errorf("Expected %s, got %s", expected, result)
+	}
+
+	// Тест 2: Дни и часы
+	duration = 3*24*time.Hour + 5*time.Hour
+	result = bot.formatDurationToDays(duration)
+	expected = "3 дн. 5 ч."
+	if result != expected {
+		t.Errorf("Expected %s, got %s", expected, result)
+	}
+
+	// Тест 3: Только часы
+	duration = 2 * time.Hour
+	result = bot.formatDurationToDays(duration)
+	expected = "2 ч."
+	if result != expected {
+		t.Errorf("Expected %s, got %s", expected, result)
+	}
+
+	// Тест 4: Часы и минуты
+	duration = 1*time.Hour + 30*time.Minute
+	result = bot.formatDurationToDays(duration)
+	expected = "1 ч. 30 мин."
+	if result != expected {
+		t.Errorf("Expected %s, got %s", expected, result)
+	}
+
+	// Тест 5: Только минуты
+	duration = 45 * time.Minute
+	result = bot.formatDurationToDays(duration)
+	expected = "45 мин."
+	if result != expected {
+		t.Errorf("Expected %s, got %s", expected, result)
+	}
+}
+
 func TestIsAdmin(t *testing.T) {
 	// Создаем тестовый бот
 	cfg := &config.Config{OwnerID: 123}

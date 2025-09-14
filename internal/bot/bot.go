@@ -548,7 +548,7 @@ func (b *Bot) handleSickLeave(msg *tgbotapi.Message) {
 	b.logger.Infof("Set sick leave start time: %s", sickLeaveStartTime)
 
 	// Рассчитываем оставшееся время до удаления
-	fullTimerDuration := 2 * time.Minute // Для тестирования
+	fullTimerDuration := 7 * 24 * time.Hour // 7 дней
 	var remainingTime time.Duration
 
 	if messageLog.TimerStartTime != nil {
@@ -614,8 +614,11 @@ func (b *Bot) handleSickLeave(msg *tgbotapi.Message) {
 	// Отменяем существующие таймеры
 	b.cancelTimer(msg.From.ID)
 
-	// Отправляем подтверждение
-	reply := tgbotapi.NewMessage(msg.Chat.ID, "🏥 Больничный принят! 🤒\n\n⏸️ Таймер приостановлен на время болезни\n\n💪 Выздоравливай и возвращайся к тренировкам!\n\n📝 Когда поправишься, отправь #healthy для возобновления таймера")
+	// Форматируем оставшееся время
+	remainingTimeFormatted := b.formatDurationToDays(remainingTime)
+
+	// Отправляем подтверждение с информацией о времени после разморозки
+	reply := tgbotapi.NewMessage(msg.Chat.ID, fmt.Sprintf("🏥 Больничный принят! 🤒\n\n⏸️ Таймер приостановлен на время болезни\n\n❄️ После выздоровления останется: %s до удаления\n\n💪 Выздоравливай и возвращайся к тренировкам!\n\n📝 Когда поправишься, отправь #healthy для возобновления таймера", remainingTimeFormatted))
 
 	b.logger.Infof("Sending sick leave message to chat %d", msg.Chat.ID)
 	_, err = b.api.Send(reply)
@@ -755,8 +758,11 @@ func (b *Bot) handleHealthy(msg *tgbotapi.Message) {
 	// Запускаем таймер с оставшимся временем
 	b.startTimerWithDuration(msg.From.ID, msg.Chat.ID, msg.From.UserName, remainingTime)
 
-	// Отправляем подтверждение
-	reply := tgbotapi.NewMessage(msg.Chat.ID, "💪 Выздоровление принято! 🎉\n\n⏰ Таймер возобновлён с места остановки!")
+	// Форматируем оставшееся время
+	remainingTimeFormatted := b.formatDurationToDays(remainingTime)
+
+	// Отправляем подтверждение с информацией о времени до удаления
+	reply := tgbotapi.NewMessage(msg.Chat.ID, fmt.Sprintf("💪 Выздоровление принято! 🎉\n\n⏰ Таймер возобновлён с места остановки!\n\n⏳ До удаления осталось: %s\n\n🦁 Не дай мне стать жирным леопардом!", remainingTimeFormatted))
 
 	b.logger.Infof("Sending healthy message to chat %d", msg.Chat.ID)
 	_, err = b.api.Send(reply)
@@ -1521,6 +1527,27 @@ func (b *Bot) calculateCalories(messageLog *models.MessageLog) (int, int, int, b
 		caloriesToAdd, newStreakDays, newCalorieStreakDays, weeklyAchievement, twoWeekAchievement, threeWeekAchievement, monthlyAchievement, quarterlyAchievement)
 
 	return caloriesToAdd, newStreakDays, newCalorieStreakDays, weeklyAchievement, twoWeekAchievement, threeWeekAchievement, monthlyAchievement, quarterlyAchievement
+}
+
+// formatDurationToDays форматирует время в читаемый вид (дни, часы, минуты)
+func (b *Bot) formatDurationToDays(duration time.Duration) string {
+	days := int(duration.Hours() / 24)
+	hours := int(duration.Hours()) % 24
+	minutes := int(duration.Minutes()) % 60
+
+	if days > 0 {
+		if hours > 0 {
+			return fmt.Sprintf("%d дн. %d ч.", days, hours)
+		}
+		return fmt.Sprintf("%d дн.", days)
+	} else if hours > 0 {
+		if minutes > 0 {
+			return fmt.Sprintf("%d ч. %d мин.", hours, minutes)
+		}
+		return fmt.Sprintf("%d ч.", hours)
+	} else {
+		return fmt.Sprintf("%d мин.", minutes)
+	}
 }
 
 func (b *Bot) calculateRemainingTime(messageLog *models.MessageLog) time.Duration {
