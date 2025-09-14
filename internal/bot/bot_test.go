@@ -121,6 +121,61 @@ func TestFormatDurationToDays(t *testing.T) {
 	}
 }
 
+func TestSickLeaveRecoveryScenario(t *testing.T) {
+	// Создаем мок логгер
+	log := logger.New("info")
+
+	// Создаем тестовый бот
+	cfg := &config.Config{OwnerID: 123}
+	bot := &Bot{
+		logger: log,
+		config: cfg,
+	}
+
+	// Тест: Больничный сценарий - тренировка, больничный, выздоровление
+	// Создаем фиксированные даты для тестирования
+	trainingTime := time.Date(2024, 9, 11, 10, 0, 0, 0, time.UTC)
+	sickStartTime := time.Date(2024, 9, 13, 10, 0, 0, 0, time.UTC)
+
+	timerStartStr := trainingTime.Format(time.RFC3339)
+	sickStartStr := sickStartTime.Format(time.RFC3339)
+
+	// Создаем пользователя на больничном
+	messageLogSickLeave := &models.MessageLog{
+		TimerStartTime:     &timerStartStr,
+		SickLeaveStartTime: &sickStartStr,
+		HasSickLeave:       true,
+		HasHealthy:         false, // На больничном
+	}
+
+	// Проверяем время на больничном
+	remainingTimeOnSick := bot.calculateRemainingTime(messageLogSickLeave)
+	expectedTimeOnSick := 5 * 24 * time.Hour // 7 - 2 = 5 дней
+
+	if remainingTimeOnSick != expectedTimeOnSick {
+		t.Errorf("On sick leave: Expected %v, got %v", expectedTimeOnSick, remainingTimeOnSick)
+	}
+
+	// Пользователь выздоровел
+	messageLogSickLeave.HasHealthy = true
+
+	// Проверяем время после выздоровления
+	remainingTimeAfterRecovery := bot.calculateRemainingTime(messageLogSickLeave)
+	expectedTimeAfterRecovery := 5 * 24 * time.Hour // Должно остаться то же время
+
+	if remainingTimeAfterRecovery != expectedTimeAfterRecovery {
+		t.Errorf("After recovery: Expected %v, got %v", expectedTimeAfterRecovery, remainingTimeAfterRecovery)
+	}
+
+	// Проверяем форматирование времени
+	formattedTime := bot.formatDurationToDays(remainingTimeAfterRecovery)
+	expectedFormatted := "5 дн."
+
+	if formattedTime != expectedFormatted {
+		t.Errorf("Formatted time: Expected %s, got %s", expectedFormatted, formattedTime)
+	}
+}
+
 func TestIsAdmin(t *testing.T) {
 	// Создаем тестовый бот
 	cfg := &config.Config{OwnerID: 123}

@@ -577,10 +577,8 @@ func (b *Bot) handleSickLeave(msg *tgbotapi.Message) {
 		b.logger.Warnf("Timer start time is nil, using full duration")
 	}
 
-	// Сохраняем остаток времени
-	restTimeStr := remainingTime.String()
-	messageLog.RestTimeTillDel = &restTimeStr
-	b.logger.Infof("Saved rest time till deletion: %s", restTimeStr)
+	// Логируем рассчитанное время
+	b.logger.Infof("Calculated remaining time at sick leave start: %v", remainingTime)
 
 	// Обновляем флаги больничного
 	messageLog.HasSickLeave = true
@@ -690,12 +688,6 @@ func (b *Bot) handleHealthy(msg *tgbotapi.Message) {
 		}
 		return "nil"
 	}())
-	b.logger.Infof("  RestTimeTillDel: %s", func() string {
-		if messageLog.RestTimeTillDel != nil {
-			return *messageLog.RestTimeTillDel
-		}
-		return "nil"
-	}())
 
 	if err := b.db.SaveMessageLog(messageLog); err != nil {
 		b.logger.Errorf("Failed to update message log: %v", err)
@@ -703,33 +695,9 @@ func (b *Bot) handleHealthy(msg *tgbotapi.Message) {
 		b.logger.Infof("Successfully saved message log with sick leave data")
 	}
 
-	// Используем сохраненный остаток времени
-	var remainingTime time.Duration
-	if messageLog.RestTimeTillDel != nil {
-		// Парсим сохраненное время
-		restTimeStr := *messageLog.RestTimeTillDel
-		b.logger.Infof("Parsing rest time: %s", restTimeStr)
-		// Простой парсинг для тестирования (формат "1m30s")
-		if strings.Contains(restTimeStr, "m") {
-			parts := strings.Split(restTimeStr, "m")
-			if len(parts) == 2 {
-				minutes, _ := strconv.Atoi(parts[0])
-				secondsStr := strings.TrimSuffix(parts[1], "s")
-				seconds, _ := strconv.Atoi(secondsStr)
-				remainingTime = time.Duration(minutes)*time.Minute + time.Duration(seconds)*time.Second
-				b.logger.Infof("Parsed rest time: %dm %ds = %v", minutes, seconds, remainingTime)
-			}
-		} else if strings.Contains(restTimeStr, "s") {
-			secondsStr := strings.TrimSuffix(restTimeStr, "s")
-			seconds, _ := strconv.Atoi(secondsStr)
-			remainingTime = time.Duration(seconds) * time.Second
-			b.logger.Infof("Parsed rest time: %ds = %v", seconds, remainingTime)
-		}
-	} else {
-		// Если нет сохраненного времени, используем полный таймер
-		remainingTime = 7 * 24 * time.Hour
-		b.logger.Warnf("No rest time saved, using full timer: %v", remainingTime)
-	}
+	// Рассчитываем оставшееся время используя исправленную функцию
+	remainingTime := b.calculateRemainingTime(messageLog)
+	b.logger.Infof("Calculated remaining time after recovery: %v", remainingTime)
 
 	// Проверяем, не истекло ли время
 	if remainingTime <= 0 {
