@@ -47,6 +47,30 @@ func TestCalculateRemainingTime(t *testing.T) {
 	if remainingTime != expectedTime {
 		t.Errorf("Expected %v, got %v", expectedTime, remainingTime)
 	}
+
+	// Тест 3: Больничный сценарий - тренировка 11.09, больничный 13.09, выход 19.09
+	// Создаем фиксированные даты для тестирования
+	trainingTime := time.Date(2024, 9, 11, 10, 0, 0, 0, time.UTC)
+	sickStartTime := time.Date(2024, 9, 13, 10, 0, 0, 0, time.UTC)
+
+	timerStartStr := trainingTime.Format(time.RFC3339)
+	sickStartStr := sickStartTime.Format(time.RFC3339)
+
+	messageLogSickLeave := &models.MessageLog{
+		TimerStartTime:     &timerStartStr,
+		SickLeaveStartTime: &sickStartStr,
+		HasSickLeave:       true,
+		HasHealthy:         true, // Пользователь выздоровел
+	}
+
+	remainingTime = bot.calculateRemainingTime(messageLogSickLeave)
+
+	// Ожидаемое время: 7 дней - 2 дня (с 11.09 до 13.09) = 5 дней
+	expectedTime = 5 * 24 * time.Hour
+
+	if remainingTime != expectedTime {
+		t.Errorf("Sick leave test: Expected %v, got %v", expectedTime, remainingTime)
+	}
 }
 
 func TestIsAdmin(t *testing.T) {

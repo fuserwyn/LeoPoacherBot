@@ -1573,15 +1573,18 @@ func (b *Bot) calculateRemainingTime(messageLog *models.MessageLog) time.Duratio
 		// Рассчитываем время, которое прошло до больничного
 		timeBeforeSickLeave := sickLeaveStart.Sub(timerStart)
 
-		// Оставшееся время после больничного
-		remainingTime := fullTimerDuration - timeBeforeSickLeave
+		// Оставшееся время на момент начала больничного
+		remainingTimeAtSickStart := fullTimerDuration - timeBeforeSickLeave
 
 		// Если время истекло до больничного, возвращаем 0
-		if remainingTime <= 0 {
+		if remainingTimeAtSickStart <= 0 {
 			return 0 // Время истекло
 		}
 
-		return remainingTime
+		// После выздоровления возвращаем то же время, что было на момент больничного
+		// Время больничного не засчитывается в общий таймер
+		b.logger.Infof("User recovered from sick leave. Remaining time at sick start: %v", remainingTimeAtSickStart)
+		return remainingTimeAtSickStart
 	}
 
 	// Обычный случай - рассчитываем оставшееся время
