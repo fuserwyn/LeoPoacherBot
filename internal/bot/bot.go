@@ -554,7 +554,7 @@ func (b *Bot) handleSickLeave(msg *tgbotapi.Message) {
 	b.logger.Infof("Set sick leave start time: %s", sickLeaveStartTime)
 
 	// Рассчитываем оставшееся время до удаления
-	fullTimerDuration := 7 * 24 * time.Hour // 7 дней
+	fullTimerDuration := 2 * time.Minute // 2 минуты
 	var remainingTime time.Duration
 
 	if messageLog.TimerStartTime != nil {
@@ -870,7 +870,7 @@ func (b *Bot) handleStartTimer(msg *tgbotapi.Message) {
 	}
 
 	// Отправляем отчет
-	reply := tgbotapi.NewMessage(msg.Chat.ID, fmt.Sprintf("🐆 Fat Leopard активирован!\n\n⏱️ Запущено таймеров: %d\n⏰ Время: 7 дней\n💪 Действие: Отправь #training_done", startedCount))
+	reply := tgbotapi.NewMessage(msg.Chat.ID, fmt.Sprintf("🐆 Fat Leopard активирован!\n\n⏱️ Запущено таймеров: %d\n⏰ Время: 2 минуты\n💪 Действие: Отправь #training_done", startedCount))
 
 	b.logger.Infof("Sending start timer message to chat %d", msg.Chat.ID)
 	_, err = b.api.Send(reply)
@@ -1348,8 +1348,8 @@ func (b *Bot) handleSendToChat(msg *tgbotapi.Message) {
 }
 
 func (b *Bot) startTimer(userID, chatID int64, username string) {
-	// Предупреждение через 6 дней, удаление через 7 дней
-	b.startTimerWithDuration(userID, chatID, username, 7*24*time.Hour)
+	// Предупреждение через 1 минуту, удаление через 2 минуты
+	b.startTimerWithDuration(userID, chatID, username, 2*time.Minute)
 }
 
 func (b *Bot) startTimerWithDuration(userID, chatID int64, username string, duration time.Duration) {
@@ -1393,8 +1393,8 @@ func (b *Bot) startTimerWithDuration(userID, chatID int64, username string, dura
 		}
 	}
 
-	// Рассчитываем время предупреждения (6 дней до удаления)
-	warningTime := duration - 24*time.Hour // Предупреждение за 1 день до удаления
+	// Рассчитываем время предупреждения (1 минута до удаления)
+	warningTime := duration - 1*time.Minute // Предупреждение за 1 минуту до удаления
 	if warningTime < 0 {
 		warningTime = duration / 2 // Fallback если время слишком короткое
 	}
@@ -1446,8 +1446,8 @@ func (b *Bot) restoreTimerWithDuration(userID, chatID int64, username string, du
 
 	// НЕ обновляем timer_start_time в БД - используем существующее значение
 
-	// Рассчитываем время предупреждения (6 дней до удаления)
-	warningTime := duration - 24*time.Hour // Предупреждение за 1 день до удаления
+	// Рассчитываем время предупреждения (1 минута до удаления)
+	warningTime := duration - 1*time.Minute // Предупреждение за 1 минуту до удаления
 	if warningTime < 0 {
 		warningTime = duration / 2 // Fallback если время слишком короткое
 	}
@@ -1487,7 +1487,7 @@ func (b *Bot) cancelTimer(userID int64) {
 }
 
 func (b *Bot) sendWarning(userID, chatID int64, username string) {
-	message := fmt.Sprintf("⚠️ Предупреждение!\n\n%s, ты не отправляешь отчет о тренировке уже 6 дней!\n\n🦁 Я питаюсь ленивыми леопардами и становлюсь жирнее!\n\n💪 Ты ведь не хочешь стать как я?\n\n⏰ У тебя остался 1 день до удаления из чата!\n\n🎯 Отправь #training_done прямо сейчас!", username)
+	message := fmt.Sprintf("⚠️ Предупреждение!\n\n%s, у тебя осталась 1 минута до удаления!\n\n🦁 Я питаюсь ленивыми леопардами и становлюсь жирнее!\n\n💪 Ты ведь не хочешь стать как я?\n\n⏰ У тебя осталась 1 минута до удаления из чата!\n\n🎯 Отправь #training_done прямо сейчас!", username)
 
 	msg := tgbotapi.NewMessage(chatID, message)
 	b.logger.Infof("Sending warning to user %d (%s)", userID, username)
@@ -1691,18 +1691,18 @@ func (b *Bot) formatDurationToDays(duration time.Duration) string {
 func (b *Bot) calculateRemainingTime(messageLog *models.MessageLog) time.Duration {
 	// Если нет данных о времени, возвращаем полный таймер
 	if messageLog.TimerStartTime == nil {
-		return 7 * 24 * time.Hour
+		return 2 * time.Minute
 	}
 
 	// Парсим время начала таймера
 	timerStart, err := utils.ParseMoscowTime(*messageLog.TimerStartTime)
 	if err != nil {
 		b.logger.Errorf("Failed to parse timer start time: %v", err)
-		return 7 * 24 * time.Hour
+		return 2 * time.Minute
 	}
 
-	// Полное время таймера (7 дней)
-	fullTimerDuration := 7 * 24 * time.Hour
+	// Полное время таймера (2 минуты)
+	fullTimerDuration := 2 * time.Minute
 
 	// Если был больничный, учитываем его
 	if messageLog.SickLeaveStartTime != nil && messageLog.HasSickLeave && !messageLog.HasHealthy {
