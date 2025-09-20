@@ -1689,8 +1689,13 @@ func (b *Bot) formatDurationToDays(duration time.Duration) string {
 }
 
 func (b *Bot) calculateRemainingTime(messageLog *models.MessageLog) time.Duration {
+	b.logger.Infof("DEBUG calculateRemainingTime: HasSickLeave=%t, HasHealthy=%t, SickLeaveStartTime=%v, SickLeaveEndTime=%v",
+		messageLog.HasSickLeave, messageLog.HasHealthy,
+		messageLog.SickLeaveStartTime != nil, messageLog.SickLeaveEndTime != nil)
+
 	// Если нет данных о времени, возвращаем полный таймер
 	if messageLog.TimerStartTime == nil {
+		b.logger.Infof("DEBUG: TimerStartTime is nil, returning full duration")
 		return 2 * time.Minute
 	}
 
@@ -1727,8 +1732,9 @@ func (b *Bot) calculateRemainingTime(messageLog *models.MessageLog) time.Duratio
 		return remainingTime
 	}
 
-	// Если был больничный и пользователь выздоровел
-	if messageLog.SickLeaveStartTime != nil && messageLog.HasSickLeave && messageLog.HasHealthy {
+	// Если был больничный и пользователь выздоровел (проверяем по наличию SickLeaveStartTime и SickLeaveEndTime)
+	if messageLog.SickLeaveStartTime != nil && messageLog.SickLeaveEndTime != nil && messageLog.HasHealthy {
+		b.logger.Infof("DEBUG: User recovered from sick leave, calculating remaining time")
 		sickLeaveStart, err := utils.ParseMoscowTime(*messageLog.SickLeaveStartTime)
 		if err != nil {
 			b.logger.Errorf("Failed to parse sick leave start time: %v", err)
@@ -1737,12 +1743,15 @@ func (b *Bot) calculateRemainingTime(messageLog *models.MessageLog) time.Duratio
 
 		// Рассчитываем время, которое прошло до больничного
 		timeBeforeSickLeave := sickLeaveStart.Sub(timerStart)
+		b.logger.Infof("DEBUG: Timer start: %v, Sick start: %v, Time before sick: %v", timerStart, sickLeaveStart, timeBeforeSickLeave)
 
 		// Оставшееся время на момент начала больничного
 		remainingTimeAtSickStart := fullTimerDuration - timeBeforeSickLeave
+		b.logger.Infof("DEBUG: Full duration: %v, Remaining at sick start: %v", fullTimerDuration, remainingTimeAtSickStart)
 
 		// Если время истекло до больничного, возвращаем 0
 		if remainingTimeAtSickStart <= 0 {
+			b.logger.Infof("DEBUG: Time expired before sick leave, returning 0")
 			return 0 // Время истекло
 		}
 
