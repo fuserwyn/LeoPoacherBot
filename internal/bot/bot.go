@@ -112,6 +112,12 @@ func (b *Bot) handleCommand(msg *tgbotapi.Message) {
 		b.handlePoints(msg)
 	case "cups":
 		b.handleCups(msg)
+	case "set_exempt":
+		b.handleSetExempt(msg)
+	case "remove_exempt":
+		b.handleRemoveExempt(msg)
+	case "list_users":
+		b.handleListUsers(msg)
 	case "send_to_chat":
 		b.handleSendToChat(msg)
 	default:
@@ -1130,6 +1136,163 @@ func (b *Bot) handleCups(msg *tgbotapi.Message) {
 	}
 }
 
+func (b *Bot) handleSetExempt(msg *tgbotapi.Message) {
+	// Проверяем права администратора
+	if !b.isAdmin(msg.Chat.ID, msg.From.ID) {
+		reply := tgbotapi.NewMessage(msg.Chat.ID, "❌ Только администраторы или владелец могут использовать эту команду!")
+		b.api.Send(reply)
+		return
+	}
+
+	// Парсим аргументы команды
+	args := strings.Fields(msg.Text)
+	if len(args) < 2 {
+		reply := tgbotapi.NewMessage(msg.Chat.ID, "❌ Использование: /set_exempt @username")
+		b.api.Send(reply)
+		return
+	}
+
+	// Извлекаем username из аргумента
+	searchUsername := args[1]
+
+	// Логируем поиск для отладки
+	b.logger.Infof("Searching for user: '%s' in chat %d", searchUsername, msg.Chat.ID)
+
+	// Находим пользователя по username (функция сама обработает разные форматы)
+	userID, err := b.db.GetUserIDByUsername(searchUsername, msg.Chat.ID)
+	if err != nil {
+		b.logger.Errorf("Failed to get user ID by username '%s': %v", searchUsername, err)
+		reply := tgbotapi.NewMessage(msg.Chat.ID, fmt.Sprintf("❌ Пользователь %s не найден в базе данных", searchUsername))
+		b.api.Send(reply)
+		return
+	}
+
+	b.logger.Infof("Found user ID %d for username '%s'", userID, searchUsername)
+
+	// Устанавливаем исключение
+	messageLog, err := b.db.GetMessageLog(userID, msg.Chat.ID)
+	if err != nil {
+		b.logger.Errorf("Failed to get message log: %v", err)
+		reply := tgbotapi.NewMessage(msg.Chat.ID, "❌ Ошибка при получении данных пользователя")
+		b.api.Send(reply)
+		return
+	}
+
+	messageLog.IsExemptFromDeletion = true
+	if err := b.db.SaveMessageLog(messageLog); err != nil {
+		b.logger.Errorf("Failed to save message log: %v", err)
+		reply := tgbotapi.NewMessage(msg.Chat.ID, "❌ Ошибка при сохранении данных")
+		b.api.Send(reply)
+		return
+	}
+
+	// Отменяем таймер если он активен
+	b.cancelTimer(userID)
+
+	reply := tgbotapi.NewMessage(msg.Chat.ID, fmt.Sprintf("✅ Пользователь %s исключен из правила удаления за неактивность", messageLog.Username))
+	b.api.Send(reply)
+}
+
+func (b *Bot) handleRemoveExempt(msg *tgbotapi.Message) {
+	// Проверяем права администратора
+	if !b.isAdmin(msg.Chat.ID, msg.From.ID) {
+		reply := tgbotapi.NewMessage(msg.Chat.ID, "❌ Только администраторы или владелец могут использовать эту команду!")
+		b.api.Send(reply)
+		return
+	}
+
+	// Парсим аргументы команды
+	args := strings.Fields(msg.Text)
+	if len(args) < 2 {
+		reply := tgbotapi.NewMessage(msg.Chat.ID, "❌ Использование: /remove_exempt @username")
+		b.api.Send(reply)
+		return
+	}
+
+	// Извлекаем username из аргумента
+	searchUsername := args[1]
+
+	// Логируем поиск для отладки
+	b.logger.Infof("Searching for user: '%s' in chat %d", searchUsername, msg.Chat.ID)
+
+	// Находим пользователя по username (функция сама обработает разные форматы)
+	userID, err := b.db.GetUserIDByUsername(searchUsername, msg.Chat.ID)
+	if err != nil {
+		b.logger.Errorf("Failed to get user ID by username '%s': %v", searchUsername, err)
+		reply := tgbotapi.NewMessage(msg.Chat.ID, fmt.Sprintf("❌ Пользователь %s не найден в базе данных", searchUsername))
+		b.api.Send(reply)
+		return
+	}
+
+	b.logger.Infof("Found user ID %d for username '%s'", userID, searchUsername)
+
+	// Убираем исключение
+	messageLog, err := b.db.GetMessageLog(userID, msg.Chat.ID)
+	if err != nil {
+		b.logger.Errorf("Failed to get message log: %v", err)
+		reply := tgbotapi.NewMessage(msg.Chat.ID, "❌ Ошибка при получении данных пользователя")
+		b.api.Send(reply)
+		return
+	}
+
+	messageLog.IsExemptFromDeletion = false
+	if err := b.db.SaveMessageLog(messageLog); err != nil {
+		b.logger.Errorf("Failed to save message log: %v", err)
+		reply := tgbotapi.NewMessage(msg.Chat.ID, "❌ Ошибка при сохранении данных")
+		b.api.Send(reply)
+		return
+	}
+
+	// Запускаем таймер для пользователя
+	b.startTimer(userID, msg.Chat.ID, messageLog.Username)
+
+	reply := tgbotapi.NewMessage(msg.Chat.ID, fmt.Sprintf("✅ Пользователь %s больше не исключен из правила удаления. Таймер запущен.", messageLog.Username))
+	b.api.Send(reply)
+}
+
+func (b *Bot) handleListUsers(msg *tgbotapi.Message) {
+	// Проверяем права администратора
+	if !b.isAdmin(msg.Chat.ID, msg.From.ID) {
+		reply := tgbotapi.NewMessage(msg.Chat.ID, "❌ Только администраторы или владелец могут использовать эту команду!")
+		b.api.Send(reply)
+		return
+	}
+
+	// Получаем всех пользователей в чате
+	users, err := b.db.GetUsersByChatID(msg.Chat.ID)
+	if err != nil {
+		b.logger.Errorf("Failed to get users: %v", err)
+		reply := tgbotapi.NewMessage(msg.Chat.ID, "❌ Ошибка при получении списка пользователей")
+		b.api.Send(reply)
+		return
+	}
+
+	if len(users) == 0 {
+		reply := tgbotapi.NewMessage(msg.Chat.ID, "📝 В чате нет пользователей в базе данных")
+		b.api.Send(reply)
+		return
+	}
+
+	// Формируем список пользователей
+	var userList strings.Builder
+	userList.WriteString("📋 Список пользователей в чате:\n\n")
+
+	for i, user := range users {
+		exemptStatus := "❌"
+		if user.IsExemptFromDeletion {
+			exemptStatus = "✅"
+		}
+
+		userList.WriteString(fmt.Sprintf("%d. %s (ID: %d) %s\n",
+			i+1, user.Username, user.UserID, exemptStatus))
+	}
+
+	userList.WriteString("\n✅ = исключен из удаления\n❌ = подпадает под правило удаления")
+
+	reply := tgbotapi.NewMessage(msg.Chat.ID, userList.String())
+	b.api.Send(reply)
+}
+
 func (b *Bot) handleSendToChat(msg *tgbotapi.Message) {
 	// Проверяем права доступа - только владелец бота может отправлять сообщения в другие чаты
 	if msg.From.ID != b.config.OwnerID {
@@ -1190,6 +1353,13 @@ func (b *Bot) startTimer(userID, chatID int64, username string) {
 }
 
 func (b *Bot) startTimerWithDuration(userID, chatID int64, username string, duration time.Duration) {
+	// Проверяем, не исключен ли пользователь из удаления
+	messageLog, err := b.db.GetMessageLog(userID, chatID)
+	if err == nil && messageLog.IsExemptFromDeletion {
+		b.logger.Infof("User %d (%s) is exempt from deletion, skipping timer", userID, username)
+		return
+	}
+
 	// Отменяем существующие таймеры
 	b.cancelTimer(userID)
 
@@ -1210,7 +1380,7 @@ func (b *Bot) startTimerWithDuration(userID, chatID int64, username string, dura
 	b.timers[userID] = timerInfo
 
 	// Сохраняем время начала таймера в базу данных
-	messageLog, err := b.db.GetMessageLog(userID, chatID)
+	messageLog, err = b.db.GetMessageLog(userID, chatID)
 	if err != nil {
 		b.logger.Errorf("Failed to get message log for timer start: %v", err)
 	} else {
@@ -1607,6 +1777,10 @@ func (b *Bot) recoverTimersFromDatabase() error {
 
 	recoveredCount := 0
 	for _, user := range users {
+		// Дополнительное логирование для диагностики проблем с короткими ID
+		b.logger.Infof("Processing user: ID=%d, Username='%s', ChatID=%d, HasSickLeave=%t, HasHealthy=%t, IsDeleted=%t, IsExemptFromDeletion=%t",
+			user.UserID, user.Username, user.ChatID, user.HasSickLeave, user.HasHealthy, user.IsDeleted, user.IsExemptFromDeletion)
+
 		// Пропускаем пользователей на больничном
 		if user.HasSickLeave && !user.HasHealthy {
 			b.logger.Infof("Skipping user %d (%s) - on sick leave", user.UserID, user.Username)
@@ -1616,6 +1790,12 @@ func (b *Bot) recoverTimersFromDatabase() error {
 		// Пропускаем удаленных пользователей
 		if user.IsDeleted {
 			b.logger.Infof("Skipping user %d (%s) - deleted", user.UserID, user.Username)
+			continue
+		}
+
+		// Пропускаем пользователей, исключенных из удаления
+		if user.IsExemptFromDeletion {
+			b.logger.Infof("Skipping user %d (%s) - exempt from deletion", user.UserID, user.Username)
 			continue
 		}
 

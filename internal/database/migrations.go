@@ -86,6 +86,20 @@ var Migrations = []Migration{
 			DROP COLUMN calorie_streak_days;
 		`,
 	},
+	{
+		Version:     4,
+		Description: "Add is_exempt_from_deletion field to message_log table",
+		UpSQL: `
+			-- Добавляем поле is_exempt_from_deletion в таблицу message_log
+			ALTER TABLE message_log 
+			ADD COLUMN is_exempt_from_deletion BOOLEAN DEFAULT FALSE;
+		`,
+		DownSQL: `
+			-- Удаляем поле is_exempt_from_deletion из таблицы message_log
+			ALTER TABLE message_log 
+			DROP COLUMN is_exempt_from_deletion;
+		`,
+	},
 }
 
 // MigrationRecord представляет запись о выполненной миграции

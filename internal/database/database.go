@@ -3,6 +3,7 @@ package database
 import (
 	"database/sql"
 	"fmt"
+	"strings"
 	"time"
 
 	"leo-bot/internal/logger"
@@ -57,6 +58,7 @@ func (d *Database) CreateTables() error {
 			has_sick_leave BOOLEAN DEFAULT FALSE,
 			has_healthy BOOLEAN DEFAULT FALSE,
 			is_deleted BOOLEAN DEFAULT FALSE,
+			is_exempt_from_deletion BOOLEAN DEFAULT FALSE,
 			timer_start_time TEXT,
 			sick_leave_start_time TEXT,
 			sick_leave_end_time TEXT,
@@ -92,8 +94,8 @@ func (d *Database) CreateTables() error {
 // SaveMessageLog сохраняет информацию о сообщении
 func (d *Database) SaveMessageLog(msg *models.MessageLog) error {
 	query := `
-		INSERT INTO message_log (user_id, username, chat_id, calories, streak_days, calorie_streak_days, cups_earned, last_training_date, last_message, has_training_done, has_sick_leave, has_healthy, is_deleted, timer_start_time, sick_leave_start_time, sick_leave_end_time, sick_time, rest_time_till_del, updated_at)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19)
+		INSERT INTO message_log (user_id, username, chat_id, calories, streak_days, calorie_streak_days, cups_earned, last_training_date, last_message, has_training_done, has_sick_leave, has_healthy, is_deleted, is_exempt_from_deletion, timer_start_time, sick_leave_start_time, sick_leave_end_time, sick_time, rest_time_till_del, updated_at)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20)
 		ON CONFLICT (user_id, chat_id) 
 		DO UPDATE SET 
 			username = EXCLUDED.username,
@@ -107,12 +109,13 @@ func (d *Database) SaveMessageLog(msg *models.MessageLog) error {
 			has_sick_leave = EXCLUDED.has_sick_leave,
 			has_healthy = EXCLUDED.has_healthy,
 			is_deleted = EXCLUDED.is_deleted,
+			is_exempt_from_deletion = EXCLUDED.is_exempt_from_deletion,
 			timer_start_time = EXCLUDED.timer_start_time,
 			sick_leave_start_time = EXCLUDED.sick_leave_start_time,
 			sick_leave_end_time = EXCLUDED.sick_leave_end_time,
 			sick_time = EXCLUDED.sick_time,
 			rest_time_till_del = EXCLUDED.rest_time_till_del,
-			updated_at = $19
+			updated_at = $20
 	`
 
 	// Используем московское время
@@ -124,7 +127,7 @@ func (d *Database) SaveMessageLog(msg *models.MessageLog) error {
 
 	result, err := d.db.Exec(query,
 		msg.UserID, msg.Username, msg.ChatID, msg.Calories, msg.StreakDays, msg.CalorieStreakDays, msg.CupsEarned, msg.LastTrainingDate, msg.LastMessage, msg.HasTrainingDone,
-		msg.HasSickLeave, msg.HasHealthy, msg.IsDeleted, msg.TimerStartTime, msg.SickLeaveStartTime, msg.SickLeaveEndTime, msg.SickTime, msg.RestTimeTillDel, moscowTime)
+		msg.HasSickLeave, msg.HasHealthy, msg.IsDeleted, msg.IsExemptFromDeletion, msg.TimerStartTime, msg.SickLeaveStartTime, msg.SickLeaveEndTime, msg.SickTime, msg.RestTimeTillDel, moscowTime)
 
 	if err != nil {
 		fmt.Printf("DEBUG: Save error: %v\n", err)
@@ -141,7 +144,7 @@ func (d *Database) SaveMessageLog(msg *models.MessageLog) error {
 // GetMessageLog получает информацию о сообщении пользователя
 func (d *Database) GetMessageLog(userID, chatID int64) (*models.MessageLog, error) {
 	query := `
-		SELECT user_id, username, chat_id, calories, streak_days, calorie_streak_days, cups_earned, last_training_date, last_message, has_training_done, has_sick_leave, has_healthy, is_deleted,
+		SELECT user_id, username, chat_id, calories, streak_days, calorie_streak_days, cups_earned, last_training_date, last_message, has_training_done, has_sick_leave, has_healthy, is_deleted, is_exempt_from_deletion,
 		       timer_start_time, sick_leave_start_time, sick_leave_end_time, sick_time, rest_time_till_del, created_at, updated_at
 		FROM message_log 
 		WHERE user_id = $1 AND chat_id = $2
@@ -150,7 +153,7 @@ func (d *Database) GetMessageLog(userID, chatID int64) (*models.MessageLog, erro
 	var msg models.MessageLog
 	err := d.db.QueryRow(query, userID, chatID).Scan(
 		&msg.UserID, &msg.Username, &msg.ChatID, &msg.Calories, &msg.StreakDays, &msg.CalorieStreakDays, &msg.CupsEarned, &msg.LastTrainingDate, &msg.LastMessage, &msg.HasTrainingDone,
-		&msg.HasSickLeave, &msg.HasHealthy, &msg.IsDeleted, &msg.TimerStartTime, &msg.SickLeaveStartTime, &msg.SickLeaveEndTime, &msg.SickTime, &msg.RestTimeTillDel,
+		&msg.HasSickLeave, &msg.HasHealthy, &msg.IsDeleted, &msg.IsExemptFromDeletion, &msg.TimerStartTime, &msg.SickLeaveStartTime, &msg.SickLeaveEndTime, &msg.SickTime, &msg.RestTimeTillDel,
 		&msg.CreatedAt, &msg.UpdatedAt)
 	if err != nil {
 		return nil, err
@@ -166,7 +169,7 @@ func (d *Database) GetMessageLog(userID, chatID int64) (*models.MessageLog, erro
 // GetUsersByChatID получает всех пользователей в чате
 func (d *Database) GetUsersByChatID(chatID int64) ([]*models.MessageLog, error) {
 	query := `
-		SELECT user_id, username, chat_id, calories, streak_days, calorie_streak_days, cups_earned, last_training_date, last_message, has_training_done, has_sick_leave, has_healthy, is_deleted,
+		SELECT user_id, username, chat_id, calories, streak_days, calorie_streak_days, cups_earned, last_training_date, last_message, has_training_done, has_sick_leave, has_healthy, is_deleted, is_exempt_from_deletion,
 		       timer_start_time, sick_leave_start_time, sick_leave_end_time, sick_time, rest_time_till_del, created_at, updated_at
 		FROM message_log 
 		WHERE chat_id = $1 AND is_deleted = FALSE
@@ -184,7 +187,7 @@ func (d *Database) GetUsersByChatID(chatID int64) ([]*models.MessageLog, error) 
 		var msg models.MessageLog
 		err := rows.Scan(
 			&msg.UserID, &msg.Username, &msg.ChatID, &msg.Calories, &msg.StreakDays, &msg.CupsEarned, &msg.LastTrainingDate, &msg.LastMessage, &msg.HasTrainingDone,
-			&msg.HasSickLeave, &msg.HasHealthy, &msg.IsDeleted, &msg.TimerStartTime, &msg.SickLeaveStartTime, &msg.SickLeaveEndTime, &msg.SickTime, &msg.RestTimeTillDel,
+			&msg.HasSickLeave, &msg.HasHealthy, &msg.IsDeleted, &msg.IsExemptFromDeletion, &msg.TimerStartTime, &msg.SickLeaveStartTime, &msg.SickLeaveEndTime, &msg.SickTime, &msg.RestTimeTillDel,
 			&msg.CreatedAt, &msg.UpdatedAt)
 		if err != nil {
 			return nil, err
@@ -193,6 +196,57 @@ func (d *Database) GetUsersByChatID(chatID int64) ([]*models.MessageLog, error) 
 	}
 
 	return users, nil
+}
+
+// GetUserIDByUsername получает user_id по username в конкретном чате
+// Поддерживает поиск по разным форматам: @username, username, "Имя Фамилия"
+func (d *Database) GetUserIDByUsername(username string, chatID int64) (int64, error) {
+	// Сначала пробуем точное совпадение
+	query := `
+		SELECT user_id FROM message_log 
+		WHERE username = $1 AND chat_id = $2
+	`
+	var userID int64
+	err := d.db.QueryRow(query, username, chatID).Scan(&userID)
+	if err == nil {
+		return userID, nil
+	}
+
+	// Если не найдено, пробуем поиск с @
+	if !strings.HasPrefix(username, "@") {
+		query = `
+			SELECT user_id FROM message_log 
+			WHERE username = $1 AND chat_id = $2
+		`
+		err = d.db.QueryRow(query, "@"+username, chatID).Scan(&userID)
+		if err == nil {
+			return userID, nil
+		}
+	}
+
+	// Если не найдено, пробуем поиск без @
+	if strings.HasPrefix(username, "@") {
+		query = `
+			SELECT user_id FROM message_log 
+			WHERE username = $1 AND chat_id = $2
+		`
+		err = d.db.QueryRow(query, username[1:], chatID).Scan(&userID)
+		if err == nil {
+			return userID, nil
+		}
+	}
+
+	// Если все еще не найдено, пробуем поиск по частичному совпадению (для случаев типа "OggO Logos")
+	query = `
+		SELECT user_id FROM message_log 
+		WHERE username ILIKE $1 AND chat_id = $2
+	`
+	err = d.db.QueryRow(query, "%"+username+"%", chatID).Scan(&userID)
+	if err == nil {
+		return userID, nil
+	}
+
+	return 0, fmt.Errorf("user not found")
 }
 
 // SaveTrainingLog сохраняет отчет о тренировке
@@ -382,7 +436,7 @@ func (d *Database) MarkUserAsDeleted(userID, chatID int64) error {
 // GetTopUsers получает топ пользователей по калориям
 func (d *Database) GetTopUsers(chatID int64, limit int) ([]*models.MessageLog, error) {
 	query := `
-		SELECT user_id, username, chat_id, calories, streak_days, calorie_streak_days, cups_earned, last_training_date, last_message, has_training_done, has_sick_leave, has_healthy, is_deleted,
+		SELECT user_id, username, chat_id, calories, streak_days, calorie_streak_days, cups_earned, last_training_date, last_message, has_training_done, has_sick_leave, has_healthy, is_deleted, is_exempt_from_deletion,
 		       timer_start_time, sick_leave_start_time, sick_leave_end_time, sick_time, rest_time_till_del, created_at, updated_at
 		FROM message_log 
 		WHERE chat_id = $1 AND calories > 0 AND is_deleted = FALSE
@@ -401,7 +455,7 @@ func (d *Database) GetTopUsers(chatID int64, limit int) ([]*models.MessageLog, e
 		var msg models.MessageLog
 		err := rows.Scan(
 			&msg.UserID, &msg.Username, &msg.ChatID, &msg.Calories, &msg.StreakDays, &msg.CupsEarned, &msg.LastTrainingDate, &msg.LastMessage, &msg.HasTrainingDone,
-			&msg.HasSickLeave, &msg.HasHealthy, &msg.IsDeleted, &msg.TimerStartTime, &msg.SickLeaveStartTime, &msg.SickLeaveEndTime, &msg.SickTime, &msg.RestTimeTillDel,
+			&msg.HasSickLeave, &msg.HasHealthy, &msg.IsDeleted, &msg.IsExemptFromDeletion, &msg.TimerStartTime, &msg.SickLeaveStartTime, &msg.SickLeaveEndTime, &msg.SickTime, &msg.RestTimeTillDel,
 			&msg.CreatedAt, &msg.UpdatedAt)
 		if err != nil {
 			return nil, err
@@ -415,7 +469,7 @@ func (d *Database) GetTopUsers(chatID int64, limit int) ([]*models.MessageLog, e
 // GetAllUsersWithTimers получает всех пользователей с активными таймерами
 func (d *Database) GetAllUsersWithTimers() ([]*models.MessageLog, error) {
 	query := `
-		SELECT user_id, username, chat_id, calories, streak_days, calorie_streak_days, cups_earned, last_training_date, last_message, has_training_done, has_sick_leave, has_healthy, is_deleted,
+		SELECT user_id, username, chat_id, calories, streak_days, calorie_streak_days, cups_earned, last_training_date, last_message, has_training_done, has_sick_leave, has_healthy, is_deleted, is_exempt_from_deletion,
 		       timer_start_time, sick_leave_start_time, sick_leave_end_time, sick_time, rest_time_till_del, created_at, updated_at
 		FROM message_log 
 		WHERE timer_start_time IS NOT NULL AND is_deleted = FALSE
@@ -433,7 +487,7 @@ func (d *Database) GetAllUsersWithTimers() ([]*models.MessageLog, error) {
 		var msg models.MessageLog
 		err := rows.Scan(
 			&msg.UserID, &msg.Username, &msg.ChatID, &msg.Calories, &msg.StreakDays, &msg.CupsEarned, &msg.LastTrainingDate, &msg.LastMessage, &msg.HasTrainingDone,
-			&msg.HasSickLeave, &msg.HasHealthy, &msg.IsDeleted, &msg.TimerStartTime, &msg.SickLeaveStartTime, &msg.SickLeaveEndTime, &msg.SickTime, &msg.RestTimeTillDel,
+			&msg.HasSickLeave, &msg.HasHealthy, &msg.IsDeleted, &msg.IsExemptFromDeletion, &msg.TimerStartTime, &msg.SickLeaveStartTime, &msg.SickLeaveEndTime, &msg.SickTime, &msg.RestTimeTillDel,
 			&msg.CreatedAt, &msg.UpdatedAt)
 		if err != nil {
 			return nil, err
