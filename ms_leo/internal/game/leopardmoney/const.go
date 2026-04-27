@@ -4,9 +4,9 @@ package leopardmoney
 import "time"
 
 const (
-	// EntryRub — вход в группу (руб.), для env / документации.
+	// EntryRub — стоимость доступа в Fat Leopard MiniApp (руб.), для env / документации.
 	EntryRub = 420
-	// ReturnRub — возврат после удаления (руб.).
+	// ReturnRub — повторный доступ после кика за неактивность (руб.).
 	ReturnRub = 210
 	// FreezeRub — покупка заморозки XP (руб.).
 	FreezeRub = 42

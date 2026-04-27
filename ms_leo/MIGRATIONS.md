@@ -18,7 +18,7 @@
 
 **Изменения**:
 - `training_state` (легаси: `message_log`) — `created_at` / `updated_at` → `TIMESTAMP WITH TIME ZONE` с московским временем
-- `training_log.*` (таблица позже удалена в миграции 31) — те же приведения к МСК
+- `training_log.*` — те же приведения к МСК
 
 ### Миграция 14: `training_sessions.session_date`
 
@@ -26,15 +26,20 @@
 
 ### Миграция 15: `training_log` и несколько чатов
 
-Добавляется **`chat_id`**, первичный ключ **`(user_id, chat_id)`**. Уже существующие строки получают `chat_id = 0` (наследие «один глобальный отчёт на пользователя»). Таблица позже удалена в миграции 31.
+Добавляется **`chat_id`**, первичный ключ **`(user_id, chat_id)`**. Уже существующие строки получают `chat_id = 0` (наследие «один глобальный отчёт на пользователя»).
 
-### Миграция 31: чистка мёртвой схемы
+### Миграция 31: история личного чата с Лео (кросс-девайс)
 
-Удаляются неиспользуемые поля и таблицы, оставшиеся после перехода на mini-app-only архитектуру:
-- `training_state.rest_time_till_del` — больше не пишется/не читается, кик считается по `timer_start_time`.
-- `training_state.lifecycle_status` — раньше писалось значением `'active'` и в `ms_leo`, и в `ms_payments`, но никогда не читалось.
-- `miniapp_pack_group_chat.telegram_message_id` (и уникальный индекс `uq_miniapp_pack_group_telegram_msg`) — общий чат полностью свой в мини-аппе, в TG-группу не зеркалим.
-- Таблица `training_log` целиком — последний отчёт о тренировке хранится в `training_state.last_training_date` / `last_message`.
+Создаётся таблица `miniapp_personal_chat` для серверного хранения переписки юзера с Лео. Раньше история жила в `localStorage` браузера/устройства — между Telegram Desktop и iPhone синхронизация ломалась. Теперь источник правды — БД.
+
+Поля:
+- `id BIGSERIAL PRIMARY KEY` — серверный id, используется как `since_id` курсор в API.
+- `user_id BIGINT NOT NULL`, `pack_chat_id BIGINT NOT NULL` — изоляция между паками.
+- `role TEXT NOT NULL CHECK (role IN ('user','leo'))` — кто пишет.
+- `message_text TEXT NOT NULL`, `created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()`.
+- Индексы по `(user_id, pack_chat_id, id DESC)` и `(user_id, pack_chat_id, created_at DESC)` — для быстрого фида.
+
+API: `POST /api/miniapp/personal-chat/feed` с `{ init_data, since_id }` возвращает упорядоченный список сообщений в хронологическом порядке. Запись юзер-сообщений идёт в `ProcessMiniAppPrivateText`, ответов Лео — в `miniappPersonalPush`.
 
 ## Ручной запуск миграций
 

@@ -16,13 +16,17 @@ from app.services.telegram_gateway import TelegramGateway
 
 logger = logging.getLogger(__name__)
 
-_PAYWALL_POST_PAYMENT_MINI_APP = (
-    "У бота должна появиться кнопка мини-приложения (внизу экрана в этом чате или через меню ⋮) — "
-    "зайди туда: так удобнее общий чат стаи и материалы."
-)
-_PAYWALL_POST_PAYMENT_INVITE_REJOIN = (
-    "Ссылку по возможности создаём без срока действия по времени; если Telegram пишет, что она недействительна — "
-    "/rejoin или /start, бот пришлёт новую."
+# Текст после успешной оплаты Yookassa. Архитектура mini-app-only:
+# TG-группы как сущности больше нет (см. ms_leo: paywallPostPaymentUserText), вся
+# механика стаи живёт в мини-аппе. Поэтому никакой «Войти в группу», invite-ссылок,
+# /rejoin-инструкций — только указатель открыть мини-апп.
+_PAYWALL_POST_PAYMENT_TEXT = (
+    "✅ Оплата через ЮKassa принята, вход в Fat Leopard MiniApp открыт на 30 дней.\n\n"
+    "📱 Открой мини-приложение бота — кнопка LeopardMiniApp внизу в этом чате (или через меню ⋮). "
+    "Там лента стаи, общий чат, тренировки и больничные. При первом открытии бот автоматически "
+    "добавит тебя в стаю и запустит таймер активности.\n\n"
+    "ℹ️ Тренировки можно отмечать кнопкой «+» в мини-аппе, либо просто отправить в личку боту "
+    "сообщение с тегом #training_done."
 )
 
 
@@ -205,49 +209,12 @@ class PaymentWebhookService:
                 user_tid,
                 chat_id,
             )
-        await self._telegram.unban_chat_member(chat_id, user_tid)
 
-        approved = await self._telegram.approve_chat_join_request(chat_id, user_tid)
-        primary_jr = self._settings.paywall_invite_creates_join_request
-        invite, used_jr = await self._telegram.create_chat_invite_link_best_effort(
-            chat_id, primary_creates_join_request=primary_jr
-        )
-
-        btn = "📩 Войти в группу"
-        if invite:
-            lead = (
-                "✅ Оплата через ЮKassa принята, доступ к группе открыт на 30 дней.\n\n"
-                f"{_PAYWALL_POST_PAYMENT_MINI_APP}\n\n"
-            )
-            if approved:
-                body = (
-                    "Если ты ещё не в чате — нажми кнопку ниже и заверши вход: ты вступаешь после успешной оплаты, доступ с нашей стороны уже открыт.\n\n"
-                )
-            else:
-                body = (
-                    "Нажми кнопку ниже и заверши вход в группу — оплата засчитана, подтверждение для оплативших выполняется автоматически.\n\n"
-                )
-            if used_jr:
-                body += (
-                    "Если интерфейс Telegram похож на «запрос на вступление» — для оплативших это формальный шаг: ты уже в правильном сценарии после оплаты.\n\n"
-                )
-            text = lead + body + _PAYWALL_POST_PAYMENT_INVITE_REJOIN
-            await self._telegram.send_message(user_tid, text, button_text=btn, button_url=invite)
-        elif approved:
-            await self._telegram.send_message(
-                user_tid,
-                "✅ Оплата через ЮKassa принята, доступ к группе открыт на 30 дней.\n\n"
-                f"{_PAYWALL_POST_PAYMENT_MINI_APP}\n\n"
-                "Вход с нашей стороны подтверждён — заходи в чат, если ещё не внутри.",
-            )
-        else:
-            await self._telegram.send_message(
-                user_tid,
-                "✅ Оплата принята, доступ записан.\n\n"
-                f"{_PAYWALL_POST_PAYMENT_MINI_APP}\n\n"
-                "Заверши вход в группу по ссылке из бота в личке — для оплативших это вход после оплаты, не случайный запрос. "
-                "Не удалось создать новую ссылку здесь: проверь, что бот — админ группы с правом приглашений; или открой /start у бота.",
-            )
+        # Группы больше нет: никаких unban/approve_join/create_invite, никакой кнопки «Войти в группу».
+        # Доступ к мини-аппу открывается строкой в paywall_access_requests (выше),
+        # а кнопка LeopardMiniApp у юзера появляется через setChatMenuButton со стороны ms_leo
+        # после первого /start или ближайшего хука обновления menu button.
+        await self._telegram.send_message(user_tid, _PAYWALL_POST_PAYMENT_TEXT)
 
         if not self._ledger:
             logger.info(

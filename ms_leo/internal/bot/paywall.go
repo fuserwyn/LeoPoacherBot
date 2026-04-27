@@ -267,12 +267,12 @@ func (b *Bot) paywallReturnInlineKeyboard() *tgbotapi.InlineKeyboardMarkup {
 	return &tgbotapi.InlineKeyboardMarkup{InlineKeyboard: rows}
 }
 
-// paywallReturnPromptText — текст экрана «вернуться в Fat Leopard» (был кикнут за неактивность).
-// Цена не пишем — она прямо в кнопках выбора способа (см. paywallReturnInlineKeyboard).
-// Параметр `price` оставлен в сигнатуре для совместимости со старыми вызовами/тестами,
-// но в видимый текст не подставляется.
+// paywallReturnPromptText — текст экрана покупки доступа (после кика за неактивность или из inline-кнопки «Вернуться»).
+// Группы у нас больше нет, поэтому ни «возвращения», ни «вступления» в тексте — просто факт: после оплаты
+// MiniApp откроется на 30 дней. Цена прямо на кнопках (см. paywallReturnInlineKeyboard).
+// Параметр оставлен в сигнатуре для совместимости со старыми вызовами/тестами, но не подставляется.
 func paywallReturnPromptText(_ string) string {
-	return "Возвращение в Fat Leopard MiniApp.\n\nВыбери способ оплаты ниже — на кнопке указана цена.\nДоступ после оплаты — 30 дней."
+	return "🚪 Вход в Fat Leopard MiniApp открывается после оплаты — 30 дней.\n\nВыбери способ оплаты ниже — цена указана прямо на кнопке."
 }
 
 func (b *Bot) paywallNotifyUser(userID int64, text string) {

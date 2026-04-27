@@ -22,14 +22,15 @@ type Config struct {
 	OpenRouterTimeout  time.Duration // HTTP-таймаут к OpenRouter (весь запрос + чтение тела)
 	ScanHistoryOnStart bool   // Сканировать историю при старте (по умолчанию false)
 
-	// Платный доступ в группу (Telegram Payments + заявки на вступление).
-	// Принципы: бот — админ группы с правом одобрять заявки; группа с включёнными заявками;
-	// PAYMENT_PROVIDER_TOKEN (карта в Telegram), опционально PAYMENT_STARS_ENABLED + сумма звёзд (дополнительно к RUB/ЮKassa),
-	// либо только PAYMENT_CURRENCY=XTR (устаревший режим «только звёзды»).
+	// Платный доступ к Fat Leopard MiniApp (Telegram Payments + ЮKassa).
+	// Архитектура mini-app-only: TG-группы как сущности больше нет, MonetizedChatID
+	// используется только как стабильный «pack id» в БД (paywall_access_requests / training_state).
+	// Способы оплаты: PAYMENT_PROVIDER_TOKEN (карта в Telegram), ЮKassa (YOOKASSA_*),
+	// PAYMENT_STARS_ENABLED + сумма звёзд (дополнительно к RUB), либо PAYMENT_CURRENCY=XTR (только звёзды, устаревший режим).
 	PaywallEnabled         bool
-	MonetizedChatID        int64  // ID группы (например -100...)
-	MonetizedChatInviteURL string // Запасная ссылка; лучше оставить пустой — бот создаст ссылку через API (нужны права админа в группе)
-	// По API createChatInviteLink: true = ссылка с заявкой на вступление (как «подать заявку»), false = обычное вступление.
+	MonetizedChatID        int64  // Логический ID стаи в БД (исторически — chat id Telegram-группы; группа больше не используется).
+	MonetizedChatInviteURL string // Deprecated: оставлено только для обратной совместимости со старыми env. Не используется в новом флоу.
+	// Deprecated: оставлено для совместимости со старыми env, в новом mini-app flow не используется.
 	PaywallInviteCreatesJoinRequest bool
 	PaymentProviderToken            string // токен провайдера из BotFather (не коммитить в git)
 	PaymentCurrency                 string // RUB и др. ISO 4217, либо XTR (Telegram Stars: 1 единица = 1 звезда)
@@ -43,7 +44,7 @@ type Config struct {
 	// ЮKassa (оплата по ссылке); вебхук — отдельный сервис ms_payments (docker-compose payment-webhook).
 	YookassaShopID          string
 	YookassaSecretKey       string
-	YookassaReturnURL       string // redirect после оплаты, https (например приглашение в группу или t.me)
+	YookassaReturnURL       string // redirect после оплаты, https. Группы у нас больше нет — кладём ссылку на бота, например https://t.me/<bot_username>
 	YookassaNotificationURL string // POST payment.succeeded на этот URL (лучше задать = публичный URL ms_payments …/api/v1/webhook/payment)
 	// Сумма/валюта для CreatePayment (при PAYMENT_CURRENCY=XTR — в рублях из PAYMENT_AMOUNT_RUB / PAYMENT_YOOKASSA_*).
 	YookassaAmountMinor int
@@ -78,9 +79,13 @@ func Load() (*Config, error) {
 		apiToken = getEnv("API_TOKEN", "")
 	}
 
+	// YOOKASSA_RETURN_URL — куда Yookassa возвращает пользователя в браузере после оплаты.
+	// Группы Telegram больше нет, поэтому fallback к MONETIZED_CHAT_INVITE_URL убран:
+	// если переменная не задана, используем нейтральный https://t.me, чтобы случайно не открыть
+	// инвайт в устаревшую группу. В .env удобно поставить https://t.me/<your_bot_username>.
 	ykReturn := strings.TrimSpace(getEnv("YOOKASSA_RETURN_URL", ""))
 	if ykReturn == "" {
-		ykReturn = strings.TrimSpace(getEnv("MONETIZED_CHAT_INVITE_URL", ""))
+		ykReturn = "https://t.me"
 	}
 
 	orTimeout := 3 * time.Minute

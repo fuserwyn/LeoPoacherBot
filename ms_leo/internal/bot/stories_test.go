@@ -96,13 +96,19 @@ func TestStory2ReturnKeyboardVariants(t *testing.T) {
 }
 
 func TestStory2ReturnPromptText(t *testing.T) {
-	// Цена больше не подставляется в текст: она отображается прямо на кнопках
-	// способа оплаты. Параметр сохранён только для совместимости со старыми тестами.
+	// Mini-app-only архитектура: «возвращения» и упоминаний группы быть не должно.
+	// Текст должен явно говорить про вход в MiniApp + что цена на кнопке.
 	txt := paywallReturnPromptText("")
-	if !strings.Contains(txt, "Возвращение в Fat Leopard MiniApp") {
-		t.Fatalf("unexpected prompt text: %q", txt)
+	if strings.Contains(txt, "Возвращение") || strings.Contains(txt, "возвращ") {
+		t.Fatalf("prompt must not mention 'возвращение' (no group concept anymore): %q", txt)
 	}
-	if !strings.Contains(txt, "цена") {
+	if strings.Contains(strings.ToLower(txt), "групп") {
+		t.Fatalf("prompt must not mention group: %q", txt)
+	}
+	if !strings.Contains(txt, "Fat Leopard MiniApp") {
+		t.Fatalf("prompt should reference Fat Leopard MiniApp: %q", txt)
+	}
+	if !strings.Contains(strings.ToLower(txt), "цена") {
 		t.Fatalf("prompt should mention that price is on the button: %q", txt)
 	}
 }
