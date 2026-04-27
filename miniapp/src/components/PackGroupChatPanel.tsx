@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { timeAgoFromISO } from "../lib/timeAgo";
+import { formatChatTime, timeAgoFromISO } from "../lib/timeAgo";
 import "./PackGroupChatPanel.css";
 
 const apiBase = (import.meta.env.VITE_MINIAPP_API_URL as string | undefined)?.replace(/\/$/, "") ?? "";
@@ -120,7 +120,7 @@ export function PackGroupChatPanel({ initData, inTelegram, meId, showAlert, onHa
               className={`packroom__row ${m.is_leo ? "packroom__row--leo" : mine ? "packroom__row--me" : "packroom__row--oth"}`}
             >
               <div className="packroom__meta">
-                {m.is_leo ? "Лео" : m.username} · {timeAgoFromISO(m.created_at)}
+                {m.is_leo ? "Лео" : m.username} · {formatChatTime(m.created_at)} · {timeAgoFromISO(m.created_at)}
               </div>
               <div className="packroom__bubble">{m.text}</div>
             </div>

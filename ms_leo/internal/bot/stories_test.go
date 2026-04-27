@@ -30,6 +30,9 @@ func TestStory1RemovalDMContentAndButton(t *testing.T) {
 }
 
 func TestStory2ReturnKeyboardVariants(t *testing.T) {
+	// С апреля 2026 цена пишется прямо в подписи кнопки (см. требование пользователя
+	// «и в карте и в звёздах сразу в способах оплаты писать стоимость»). Тест проверяет
+	// и наличие нужных способов, и присутствие цены в каждой кнопке.
 	tests := []struct {
 		name              string
 		cfg               *config.Config
@@ -38,13 +41,13 @@ func TestStory2ReturnKeyboardVariants(t *testing.T) {
 		{
 			name: "stars and provider",
 			cfg: &config.Config{
-				PaymentStarsEnabled:   true,
-				PaymentStarsAmount:    210,
-				PaymentProviderToken:  "provider-token",
-				PaymentCurrency:       "RUB",
+				PaymentStarsEnabled:     true,
+				PaymentStarsAmount:      210,
+				PaymentProviderToken:    "provider-token",
+				PaymentCurrency:         "RUB",
 				PaymentAmountMinorUnits: 21000,
 			},
-			wantButtonsByText: []string{"💳 Оплатить картой (Telegram)", "⭐ Оплатить Stars"},
+			wantButtonsByText: []string{"💳 Оплатить картой (Telegram) — 210 ₽", "⭐ Оплатить Stars — 210 ⭐"},
 		},
 		{
 			name: "stars only",
@@ -52,7 +55,7 @@ func TestStory2ReturnKeyboardVariants(t *testing.T) {
 				PaymentCurrency:         "XTR",
 				PaymentAmountMinorUnits: 210,
 			},
-			wantButtonsByText: []string{"⭐ Оплатить Stars"},
+			wantButtonsByText: []string{"⭐ Оплатить Stars — 210 ⭐"},
 		},
 		{
 			name: "card only yookassa",
@@ -63,7 +66,7 @@ func TestStory2ReturnKeyboardVariants(t *testing.T) {
 				YookassaCurrency:    "RUB",
 				PaymentCurrency:     "RUB",
 			},
-			wantButtonsByText: []string{"💳 Оплатить картой (ЮKassa)"},
+			wantButtonsByText: []string{"💳 Оплатить картой (ЮKassa) — 210 ₽"},
 		},
 	}
 
@@ -92,16 +95,15 @@ func TestStory2ReturnKeyboardVariants(t *testing.T) {
 	}
 }
 
-func TestStory2ReturnPromptTextIncludesPrice(t *testing.T) {
-	txt := paywallReturnPromptText("210 ₽ или 210 ⭐")
-	if !strings.Contains(txt, "Возвращение в стаю") {
+func TestStory2ReturnPromptText(t *testing.T) {
+	// Цена больше не подставляется в текст: она отображается прямо на кнопках
+	// способа оплаты. Параметр сохранён только для совместимости со старыми тестами.
+	txt := paywallReturnPromptText("")
+	if !strings.Contains(txt, "Возвращение в Fat Leopard MiniApp") {
 		t.Fatalf("unexpected prompt text: %q", txt)
 	}
-	if !strings.Contains(txt, "Stars") || !strings.Contains(txt, "Карта") {
-		t.Fatalf("prompt does not include both methods: %q", txt)
-	}
-	if !strings.Contains(txt, "210 ₽ или 210 ⭐") {
-		t.Fatalf("prompt does not include price: %q", txt)
+	if !strings.Contains(txt, "цена") {
+		t.Fatalf("prompt should mention that price is on the button: %q", txt)
 	}
 }
 

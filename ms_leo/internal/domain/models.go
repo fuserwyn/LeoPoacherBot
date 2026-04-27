@@ -91,6 +91,15 @@ type PackGroupChatMessage struct {
 	IsLeo     bool   `json:"is_leo"`
 }
 
+// MiniappPersonalChatMessage — личный чат юзера с Лео (источник правды живёт в БД,
+// синхронизирован между всеми устройствами одного юзера). role = "user" | "leo".
+type MiniappPersonalChatMessage struct {
+	ID        int64  `json:"id"`
+	Role      string `json:"role"`
+	Text      string `json:"text"`
+	CreatedAt string `json:"created_at"`
+}
+
 // TrainingSession представляет одну зафиксированную тренировочную сессию.
 type TrainingSession struct {
 	ID            int64     `json:"id" db:"id"`

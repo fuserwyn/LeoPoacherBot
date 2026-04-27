@@ -1,6 +1,7 @@
 package bot
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"strings"
@@ -11,6 +12,13 @@ import (
 
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 )
+
+// inactivityKickWatchdogInterval — как часто periodic-страховка добивает кики, которые
+// рантайм-таймер мог пропустить (рестарт мс «между» сработками, потерянная горутина и т.п.).
+// Источник правды — calculateRemainingTime по той же pack-row (chat_id == MonetizedChatID),
+// что и в recoverTimersFromDatabase. Идемпотентно: removeUser помечает is_deleted=true,
+// а GetAllUsersWithTimers фильтрует is_deleted=false — повторного кика быть не может.
+const inactivityKickWatchdogInterval = 30 * time.Minute
 
 func parseLastMessageTime(lastMessage string) (time.Time, error) {
 	if ts, err := utils.ParseMoscowTime(lastMessage); err == nil {
@@ -133,6 +141,10 @@ func (b *Bot) removeUser(userID, chatID int64, username string) {
 			b.logger.Errorf("Failed to expire paywall access for inactive user %d: %v", userID, expErr)
 		}
 		b.savePackRemovedMiniappFeed(chatID, userID, username)
+		// Кикнутый юзер не должен видеть синюю web_app-кнопку LeopardMiniApp в ЛС.
+		// Сбрасываем кеш, чтобы applyMiniappMenuButtonForUser форсированно отправил commands.
+		invalidateMiniappMenuButtonCache(userID)
+		b.applyMiniappMenuButtonForUser(userID)
 		b.logger.Infof("Removed user %d (%s) from pack: paywall access expired, miniapp feed updated", userID, username)
 	} else {
 		// chatID != MonetizedChatID — это приватный «message_log в личке» (chatID == userID).
@@ -215,4 +227,80 @@ func (b *Bot) recoverTimersFromDatabase() error {
 
 	b.logger.Infof("Successfully recovered %d timers from database", recoveredCount)
 	return nil
+}
+
+// startInactivityKickWatchdog — periodic-страховка от «забытых» киков: если рантайм-таймер
+// не сработал (рестарт мс ровно между моментом старта таймера и его deadline, потерянная
+// горутина после паники, невидимый дрейф расчёта), watchdog раз в inactivityKickWatchdogInterval
+// проходит по pack-row training_state и зовёт removeUser для всех, у кого calculateRemainingTime <= 0.
+//
+// Без watchdog'а такие юзеры висели бы как «заблудившиеся в лесу»: timer_start_time старый,
+// is_deleted=false, доступ в мини-аппе формально активен. С watchdog'ом «всех найдём».
+//
+// Идемпотентность: GetAllUsersWithTimers исключает is_deleted=false, MarkUserAsDeleted в
+// removeUser ставит is_deleted=true — повторного DM/feed-карточки/expirePaywall не будет.
+func (b *Bot) startInactivityKickWatchdog(ctx context.Context) {
+	if b == nil {
+		return
+	}
+	if b.config == nil || b.config.MonetizedChatID == 0 {
+		b.logger.Info("inactivity kick watchdog: skipped, MONETIZED_CHAT_ID не настроен")
+		return
+	}
+	b.logger.Infof("inactivity kick watchdog: started, interval=%s", inactivityKickWatchdogInterval)
+	ticker := time.NewTicker(inactivityKickWatchdogInterval)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			b.logger.Info("inactivity kick watchdog: stopped")
+			return
+		case <-ticker.C:
+			b.runInactivityKickSweep()
+		}
+	}
+}
+
+// runInactivityKickSweep — одна итерация watchdog'а. Логика — копия фильтров из
+// recoverTimersFromDatabase, минус восстановление работающих таймеров: нас интересуют
+// только те, кому уже пора «съесть».
+func (b *Bot) runInactivityKickSweep() {
+	users, err := b.db.GetAllUsersWithTimers()
+	if err != nil {
+		b.logger.Errorf("inactivity kick watchdog: get users with timers: %v", err)
+		return
+	}
+	checked := 0
+	expired := 0
+	for _, user := range users {
+		if user == nil {
+			continue
+		}
+		// Только pack-row — таймер кика «живёт» именно на ней (см. recoverTimersFromDatabase).
+		if b.config.MonetizedChatID != 0 && user.ChatID != b.config.MonetizedChatID {
+			continue
+		}
+		if user.IsDeleted || user.IsExemptFromDeletion {
+			continue
+		}
+		if user.HasSickLeave && !user.HasHealthy {
+			continue
+		}
+		if user.TimerStartTime == nil {
+			continue
+		}
+		checked++
+		if b.calculateRemainingTime(user) > 0 {
+			continue
+		}
+		b.logger.Warnf("inactivity kick watchdog: overdue user %d (%s) chat=%d — removing",
+			user.UserID, user.Username, user.ChatID)
+		b.removeUser(user.UserID, user.ChatID, user.Username)
+		expired++
+	}
+	if expired > 0 {
+		b.logger.Infof("inactivity kick watchdog: sweep done, checked=%d, removed=%d", checked, expired)
+	} else {
+		b.logger.Debugf("inactivity kick watchdog: sweep done, checked=%d, no overdue users", checked)
+	}
 }

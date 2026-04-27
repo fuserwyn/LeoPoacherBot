@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { drainLeoPersonalInbox } from "../lib/leoPersonalInbox";
-import { type Msg, loadLeoChat, saveLeoChat, getTelegramUserId } from "../lib/leoChatStorage";
+import { formatChatTime } from "../lib/timeAgo";
 import "./ChatScreen.css";
 
 const envApi = (import.meta.env.VITE_MINIAPP_API_URL as string | undefined)?.replace(/\/$/, "") ?? "";
@@ -16,36 +16,148 @@ type Props = {
   onInboxDrained?: () => void;
 };
 
+// Сообщение в локальном UI: серверное (с числовым id и ISO created_at) и
+// оптимистичное (id вида "local-..." без серверного id; ждёт следующий polling,
+// после которого замещается серверным дубликатом). Источник правды — сервер
+// (/api/miniapp/personal-chat/feed): локальный кеш живёт только до replace.
+type ChatMsg = {
+  uiKey: string;
+  serverID?: number;
+  role: "user" | "leo";
+  text: string;
+  // ISO-строка от сервера или ISO от Date.now() для оптимистичных.
+  createdAt: string;
+};
+
+type ServerMsg = { id: number; role: "user" | "leo"; text: string; created_at: string };
+
 function nowId() {
-  return `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
+  return `local-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
+}
+
+// Подмерживает серверную пачку в текущий список:
+//   • удаляет локальные оптимистичные user-сообщения, чьи (text, role) совпали с пришедшими;
+//   • добавляет новые серверные.
+function mergeFromServer(prev: ChatMsg[], incoming: ServerMsg[]): ChatMsg[] {
+  if (incoming.length === 0) return prev;
+  const haveServerIDs = new Set<number>();
+  for (const m of prev) {
+    if (m.serverID) haveServerIDs.add(m.serverID);
+  }
+  const fresh = incoming.filter((m) => !haveServerIDs.has(m.id));
+  if (fresh.length === 0) return prev;
+  // Сматчим оптимистичные user-сообщения по тексту (порядок прилёта совпадает).
+  const out = prev.slice();
+  for (const sm of fresh) {
+    if (sm.role === "user") {
+      const idx = out.findIndex(
+        (m) => !m.serverID && m.role === "user" && m.text.trim() === sm.text.trim()
+      );
+      if (idx >= 0) {
+        out[idx] = { uiKey: `s-${sm.id}`, serverID: sm.id, role: "user", text: sm.text, createdAt: sm.created_at };
+        continue;
+      }
+    }
+    out.push({ uiKey: `s-${sm.id}`, serverID: sm.id, role: sm.role, text: sm.text, createdAt: sm.created_at });
+  }
+  // Сортировка по серверному id (где есть), потом по времени; локальные без id — в конец.
+  out.sort((a, b) => {
+    if (a.serverID && b.serverID) return a.serverID - b.serverID;
+    if (a.serverID && !b.serverID) return -1;
+    if (!a.serverID && b.serverID) return 1;
+    return new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime();
+  });
+  return out;
+}
+
+// Максимальный серверный id в списке — для since_id-инкрементального запроса.
+function maxServerID(items: ChatMsg[]): number {
+  let max = 0;
+  for (const m of items) {
+    if (m.serverID && m.serverID > max) max = m.serverID;
+  }
+  return max;
 }
 
 export function ChatScreen({ name, initData, inTelegram, showAlert, onInboxDrained }: Props) {
   const [text, setText] = useState("");
   const [sending, setSending] = useState(false);
-  const [items, setItems] = useState<Msg[]>(() => loadLeoChat(getTelegramUserId()));
+  const [items, setItems] = useState<ChatMsg[]>([]);
+  const [loaded, setLoaded] = useState(false);
   const endRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
     endRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [items, sending]);
 
+  // Первая загрузка истории + инкрементальный polling каждые 3 секунды.
+  // Источник правды — БД на сервере (см. /api/miniapp/personal-chat/feed).
+  // Это даёт синхронизацию между всеми устройствами одного юзера (Telegram
+  // Desktop / iPhone и т.д.).
   useEffect(() => {
-    saveLeoChat(getTelegramUserId(), items);
-  }, [items]);
+    if (!envApi || !inTelegram || !initData?.trim()) return;
+    let cancelled = false;
+    let timer: ReturnType<typeof setTimeout> | null = null;
 
-  /** Предупреждения и ответы из очереди miniappPersonal — показать в чате и снять бейдж. */
+    const fetchSlice = async (sinceID: number) => {
+      try {
+        const res = await fetch(`${envApi}/api/miniapp/personal-chat/feed`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ init_data: initData, since_id: sinceID }),
+        });
+        if (!res.ok) return;
+        const j = (await res.json().catch(() => ({}))) as { ok?: boolean; messages?: ServerMsg[] };
+        if (cancelled) return;
+        const incoming = j.messages ?? [];
+        if (incoming.length > 0) {
+          setItems((prev) => mergeFromServer(prev, incoming));
+        }
+      } catch {
+        // тихо: следующая итерация цикла исправит, если сеть моргнула
+      }
+    };
+
+    const loop = async () => {
+      // Первое чтение — since_id=0 (последние ~200 сообщений).
+      // Дальше — since_id = max(server_id) уже виденных, инкрементально.
+      let sinceID = 0;
+      while (!cancelled) {
+        await fetchSlice(sinceID);
+        if (cancelled) return;
+        setLoaded(true);
+        // Берём актуальный max через функциональный setState.
+        await new Promise<void>((r) => {
+          setItems((prev) => {
+            sinceID = Math.max(sinceID, maxServerID(prev));
+            return prev;
+          });
+          // даём React отрисовать
+          timer = setTimeout(() => r(), 0);
+        });
+        await new Promise<void>((r) => {
+          timer = setTimeout(r, 3000);
+        });
+      }
+    };
+    void loop();
+    return () => {
+      cancelled = true;
+      if (timer) clearTimeout(timer);
+    };
+  }, [inTelegram, initData]);
+
+  /** Дополнительно дёрнуть очередь поллинга-warning'ов: бейдж в табах сбрасываем. */
   useEffect(() => {
     if (!envApi || !inTelegram || !initData?.trim()) return;
     let cancelled = false;
     (async () => {
       const parts = await drainLeoPersonalInbox(initData);
       if (cancelled) return;
+      // Сами тексты подгружаются через основной poll feed (Лео туда же сохраняет).
+      // Здесь только сброс бейджа.
       if (parts.length > 0) {
-        setItems((prev) => [
-          ...prev,
-          ...parts.map((text) => ({ id: nowId(), role: "system" as const, time: Date.now(), text })),
-        ]);
+        // ничего не добавляем в state — основной поллер подтянет
       }
       onInboxDrained?.();
     })();
@@ -68,7 +180,10 @@ export function ChatScreen({ name, initData, inTelegram, showAlert, onInboxDrain
       return;
     }
     setSending(true);
-    setItems((prev) => [...prev, { id: nowId(), role: "user", text: t, time: Date.now() }]);
+    setItems((prev) => [
+      ...prev,
+      { uiKey: nowId(), role: "user", text: t, createdAt: new Date().toISOString() },
+    ]);
     setText("");
     try {
       const w = window.Telegram?.WebApp;
@@ -88,59 +203,8 @@ export function ChatScreen({ name, initData, inTelegram, showAlert, onInboxDrain
         showAlert(j.error ?? `Ошибка ${res.status}`);
         return;
       }
-      const replyNow = j.reply_text?.trim();
-      if (replyNow) {
-        setItems((prev) => [...prev, { id: nowId(), role: "system", time: Date.now(), text: replyNow }]);
-        return;
-      }
-      if (j.pending) {
-        const deadline = Date.now() + 4 * 60 * 1000;
-        let gotAny = false;
-        let idleEmpty = 0;
-        while (Date.now() < deadline) {
-          await new Promise((r) => setTimeout(r, 1500));
-          const pr = await fetch(`${envApi}/api/miniapp/personal-reply/poll`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ init_data: initData }),
-          });
-          const pj = (await pr.json().catch(() => ({}))) as { reply_text?: string; error?: string; ok?: boolean };
-          if (!pr.ok) {
-            showAlert(pj.error ?? `Ошибка poll ${pr.status}`);
-            break;
-          }
-          const chunk = pj.reply_text?.trim();
-          if (chunk) {
-            gotAny = true;
-            idleEmpty = 0;
-            setItems((prev) => [...prev, { id: nowId(), role: "system", time: Date.now(), text: chunk }]);
-            continue;
-          }
-          idleEmpty++;
-          if (gotAny && idleEmpty >= 2) break;
-        }
-        if (!gotAny) {
-          setItems((prev) => [
-            ...prev,
-            {
-              id: nowId(),
-              role: "system",
-              time: Date.now(),
-              text: "Ответ задерживается. Загляни в личку с ботом в Telegram — там он уже может быть.",
-            },
-          ]);
-        }
-        return;
-      }
-      setItems((prev) => [
-        ...prev,
-        {
-          id: nowId(),
-          role: "system",
-          time: Date.now(),
-          text: "Сообщение ушло боту. Открой чат с ботом в Telegram, если ждёшь ответ там.",
-        },
-      ]);
+      // reply_text/pending больше не нужны для UI — основной поллер фида
+      // подхватит и юзер-сообщение (с серверным id) и ответ Лео из БД.
     } catch (e) {
       showAlert(e instanceof Error ? e.message : "Сеть");
     } finally {
@@ -176,15 +240,30 @@ export function ChatScreen({ name, initData, inTelegram, showAlert, onInboxDrain
         </div>
       </header>
       <div className="chat__log" role="log" aria-label="Сообщения с ботом">
+        {loaded && items.length === 0 && (
+          <div className="chat__row chat__row--sys">
+            <img className="chat__bubble-avatar" src={AVATAR_URL} width={36} height={36} alt="" aria-hidden="true" />
+            <div className="chat__bubble chat__bubble--sys">
+              Привет! Здесь личный чат с Лео — ИИ отвечает на любой текст, есть #training_done и /start. История
+              синхронизируется между всеми твоими устройствами.
+            </div>
+          </div>
+        )}
         {items.map((m) =>
           m.role === "user" ? (
-            <div key={m.id} className="chat__row chat__row--user">
-              <div className="chat__bubble chat__bubble--user">{m.text}</div>
+            <div key={m.uiKey} className="chat__row chat__row--user">
+              <div className="chat__bubble-wrap chat__bubble-wrap--user">
+                <div className="chat__bubble chat__bubble--user">{m.text}</div>
+                <div className="chat__time chat__time--user">{formatChatTime(m.createdAt)}</div>
+              </div>
             </div>
           ) : (
-            <div key={m.id} className="chat__row chat__row--sys">
+            <div key={m.uiKey} className="chat__row chat__row--sys">
               <img className="chat__bubble-avatar" src={AVATAR_URL} width={36} height={36} alt="" aria-hidden="true" />
-              <div className="chat__bubble chat__bubble--sys">{m.text}</div>
+              <div className="chat__bubble-wrap chat__bubble-wrap--sys">
+                <div className="chat__bubble chat__bubble--sys">{m.text}</div>
+                <div className="chat__time chat__time--sys">{formatChatTime(m.createdAt)}</div>
+              </div>
             </div>
           )
         )}

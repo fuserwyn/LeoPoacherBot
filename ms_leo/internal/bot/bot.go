@@ -177,6 +177,8 @@ func (b *Bot) Start(ctx context.Context) error {
 	go b.startDailySummaryScheduler(ctx)
 	go b.startDailyWisdomScheduler(ctx)
 	go b.startOutboxWorker(ctx)
+	// Periodic-страховка от пропущенных киков (см. startInactivityKickWatchdog).
+	go b.startInactivityKickWatchdog(ctx)
 
 	updatesCh := b.runGetUpdatesWithWebApp(ctx)
 
@@ -1008,6 +1010,13 @@ func (b *Bot) handleHelp(msg *tgbotapi.Message) {
 }
 
 func (b *Bot) handleStart(msg *tgbotapi.Message) {
+	// Меню-кнопка LeopardMiniApp в ЛС: показываем только paid+не кикнутым.
+	// /start — самое подходящее место, чтобы ленивого синхронизировать состояние
+	// для уже существующих юзеров без отдельной миграции через API.
+	if msg.From != nil && msg.Chat.IsPrivate() {
+		b.applyMiniappMenuButtonForUser(msg.From.ID)
+	}
+
 	if msg.From != nil && msg.Chat.IsPrivate() && b.paywallActive() && b.paywallPrivateNeedsPayFirst(msg.From.ID) {
 		b.ensurePaywallInvoiceSent(msg.From.ID)
 		if b.paywallPrivateNeedsPayFirst(msg.From.ID) {

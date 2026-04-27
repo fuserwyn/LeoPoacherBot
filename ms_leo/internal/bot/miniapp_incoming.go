@@ -69,6 +69,9 @@ func (b *Bot) ProcessMiniAppPrivateText(d initdata.InitData, text string) MiniAp
 	}
 	_ = PrivateTextMessageFromInitUser(d, text) // для будущих чек-ов; сейчас сообщение всегда private, отдельный paywall-гейт не нужен
 	b.miniappPersonalClear(d.User.ID)
+	// Юзер-сообщение из мини-аппа: сохраняем в БД сразу, чтобы оно появилось в истории
+	// на всех устройствах одного юзера (см. требование «история чата должна быть общей»).
+	b.savePersonalChatMessage(d.User.ID, "user", text)
 	// В личку Telegram из мини-аппа не дублируем (ответы Лео по-прежнему в апп через poll).
 	// Исключение по смыслу: предупреждения дней 5–7 без отчёта — шлём в апп из timer_leopard (как дубль к DM).
 	go b.runMiniAppPrivateTextWorker(d, text)

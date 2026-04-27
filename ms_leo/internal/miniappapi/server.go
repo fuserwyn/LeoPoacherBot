@@ -39,6 +39,8 @@ func (s *Server) serve(w http.ResponseWriter, r *http.Request) {
 		s.handlePostPersonalPendingCount(w, r)
 	case path == "/api/miniapp/personal-reply/poll" && r.Method == http.MethodPost:
 		s.handlePostPersonalReplyPoll(w, r)
+	case path == "/api/miniapp/personal-chat/feed" && r.Method == http.MethodPost:
+		s.handlePostPersonalChatFeed(w, r)
 	case path == "/api/miniapp/feed" && r.Method == http.MethodPost:
 		s.handlePostFeed(w, r)
 	case path == "/api/miniapp/feed/training/react" && r.Method == http.MethodPost:
@@ -609,6 +611,61 @@ func (s *Server) handlePostPackGroupMessage(w http.ResponseWriter, r *http.Reque
 		out["reply_text"] = miniRes.ReplyText
 	}
 	_ = json.NewEncoder(w).Encode(out)
+}
+
+// handlePostPersonalChatFeed — серверная история приватного чата юзера с Лео.
+// Источник правды для синхронизации между устройствами: localStorage заменён БД.
+// Если sinceID > 0 — отдаём только записи новее (incremental polling); иначе —
+// последние N сообщений (для первого открытия экрана).
+func (s *Server) handlePostPersonalChatFeed(w http.ResponseWriter, r *http.Request) {
+	corsWriteHeaders(w, r)
+	if s.bot == nil || s.token == "" {
+		s.jsonErr(w, http.StatusServiceUnavailable, "server_unavailable")
+		return
+	}
+	var body struct {
+		InitData string `json:"init_data"`
+		SinceID  int64  `json:"since_id"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		s.jsonErr(w, http.StatusBadRequest, "invalid_json")
+		return
+	}
+	if body.InitData == "" {
+		s.jsonErr(w, http.StatusBadRequest, "missing_init_data")
+		return
+	}
+	if err := initdata.Validate(body.InitData, s.token, 24*time.Hour); err != nil {
+		s.logger.Warnf("miniapp personal chat feed invalid init: %v", err)
+		s.jsonErr(w, http.StatusUnauthorized, "invalid_init_data")
+		return
+	}
+	parsed, err := initdata.Parse(body.InitData)
+	if err != nil {
+		s.jsonErr(w, http.StatusBadRequest, "parse_init_data")
+		return
+	}
+	if parsed.User.ID == 0 {
+		s.jsonErr(w, http.StatusBadRequest, "user_missing")
+		return
+	}
+	if err := s.bot.AssertMiniAppPackChatAligns(parsed); err != nil {
+		if errors.Is(err, bot.ErrMiniAppChatMismatch) {
+			s.jsonErr(w, http.StatusConflict, "chat_mismatch")
+			return
+		}
+		s.logger.Errorf("miniapp personal chat feed assert: %v", err)
+		s.jsonErr(w, http.StatusInternalServerError, "assert_chat_error")
+		return
+	}
+	items, err := s.bot.MiniappPersonalChatHistory(parsed.User.ID, body.SinceID)
+	if err != nil {
+		s.logger.Errorf("miniapp personal chat feed load: %v", err)
+		s.jsonErr(w, http.StatusInternalServerError, "feed_error")
+		return
+	}
+	w.Header().Set("Content-Type", "application/json; charset=utf-8")
+	_ = json.NewEncoder(w).Encode(map[string]any{"ok": true, "messages": items})
 }
 
 func (s *Server) handlePostHealthStatus(w http.ResponseWriter, r *http.Request) {

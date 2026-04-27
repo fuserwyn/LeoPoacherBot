@@ -113,55 +113,78 @@ func (b *Bot) paywallActive() bool {
 	return b.config.PaywallEnabled && b.config.MonetizedChatID != 0
 }
 
-// paywallPrivateUnpaidUserText — только оплата и шаги (без полной справки бота).
-// Счёт/ссылка должны уйти отдельным сообщением *до* этого текста (см. handleStart / help).
-func (b *Bot) paywallPrivateUnpaidUserText() string {
-	priceRub := ""
-	if b.config.PaywallUsesStars() {
-		priceRub += fmt.Sprintf(" Звёзды Telegram: %d ⭐.", b.config.PaywallStarsInvoiceAmount())
+// paywallPriceYookassaShort — короткая «210 ₽» / «210,50 ₽» / «100 USD» для кнопки/UI.
+func (b *Bot) paywallPriceYookassaShort() string {
+	if !b.config.PaywallYookassaReady() {
+		return ""
 	}
-	if b.config.PaywallYookassaReady() {
-		yk := b.config.YookassaAmountMinor
-		yc := b.config.YookassaCurrency
-		if yc == "RUB" && yk > 0 {
-			rub := yk / 100
-			kop := yk % 100
-			if kop == 0 {
-				priceRub += fmt.Sprintf(" Карта (ЮKassa): %d ₽.", rub)
-			} else {
-				priceRub += fmt.Sprintf(" Карта (ЮKassa): %d,%02d ₽.", rub, kop)
-			}
-		} else if yk > 0 && yc != "" {
-			priceRub += fmt.Sprintf(" Карта (ЮKassa): %d мин. ед. %s.", yk, yc)
-		}
+	yk := b.config.YookassaAmountMinor
+	yc := strings.TrimSpace(b.config.YookassaCurrency)
+	if yk <= 0 {
+		return ""
 	}
-	if b.config.PaywallUsesTelegramProviderInvoice() && b.config.PaymentCurrency == "RUB" && b.config.PaymentAmountMinorUnits > 0 {
-		rub := b.config.PaymentAmountMinorUnits / 100
-		kop := b.config.PaymentAmountMinorUnits % 100
+	if yc == "RUB" {
+		rub := yk / 100
+		kop := yk % 100
 		if kop == 0 {
-			priceRub += fmt.Sprintf(" Карта (Telegram): %d ₽.", rub)
-		} else {
-			priceRub += fmt.Sprintf(" Карта (Telegram): %d,%02d ₽.", rub, kop)
+			return fmt.Sprintf("%d ₽", rub)
 		}
-	} else if b.config.PaywallUsesTelegramProviderInvoice() && b.config.PaymentAmountMinorUnits > 0 && b.config.PaymentCurrency != "" && b.config.PaymentCurrency != "XTR" {
-		priceRub += fmt.Sprintf(" Карта (Telegram): %d мин. ед. %s.", b.config.PaymentAmountMinorUnits, b.config.PaymentCurrency)
+		return fmt.Sprintf("%d,%02d ₽", rub, kop)
 	}
+	if yc != "" {
+		return fmt.Sprintf("%d %s", yk, yc)
+	}
+	return ""
+}
 
+// paywallPriceProviderShort — короткая цена для Telegram Provider Invoice (карта в TG).
+func (b *Bot) paywallPriceProviderShort() string {
+	if !b.config.PaywallUsesTelegramProviderInvoice() {
+		return ""
+	}
+	am := b.config.PaymentAmountMinorUnits
+	cur := strings.TrimSpace(b.config.PaymentCurrency)
+	if am <= 0 || cur == "" || cur == "XTR" {
+		return ""
+	}
+	if cur == "RUB" {
+		rub := am / 100
+		kop := am % 100
+		if kop == 0 {
+			return fmt.Sprintf("%d ₽", rub)
+		}
+		return fmt.Sprintf("%d,%02d ₽", rub, kop)
+	}
+	return fmt.Sprintf("%d %s", am, cur)
+}
+
+// paywallPriceStarsShort — «350 ⭐» для кнопки.
+func (b *Bot) paywallPriceStarsShort() string {
+	n := b.config.PaywallStarsInvoiceAmount()
+	if n <= 0 {
+		return ""
+	}
+	return fmt.Sprintf("%d ⭐", n)
+}
+
+// paywallPrivateUnpaidUserText — только оплата и шаги (без полной справки бота).
+// Цены вынесены прямо в кнопки выбора способа (см. paywallUnpaidInlineKeyboard) — здесь не дублируем.
+func (b *Bot) paywallPrivateUnpaidUserText() string {
 	if !b.config.PaywallPaymentReady() {
-		return `💳 Платный вход в стаю Fat Leopard
+		return `💳 Платный доступ к Fat Leopard MiniApp
 
 ⚠️ Оплата у бота ещё не настроена. Напиши администратору.
 
-Когда заработает — здесь появятся кнопки выбора способа оплаты.` + priceRub + `
+Когда заработает — здесь появятся кнопки выбора способа оплаты.
 
 Доступ после оплаты — 30 дней.`
 	}
 
-	return `💳 Платный вход в стаю Fat Leopard
+	return `💳 Платный доступ к Fat Leopard MiniApp
 
-Нажми кнопку нужного способа — пришлю счёт или ссылку на оплату. Достаточно **одного** успешного платежа.
+Нажми кнопку нужного способа — пришлю ссылку на оплату или счёт. Достаточно **одного** успешного платежа.
 
-После оплаты откроется мини-приложение бота — там лента, чат стаи, тренировки и больничные. Полную справку бота — тоже после оплаты. Доступ 30 дней.` + priceRub + `
+После оплаты откроется мини-приложение бота — там лента стаи, общий чат, тренировки и больничные. Полную справку бота — тоже после оплаты. Доступ 30 дней.
 
 Пока без оплаты длинную справку не показываю.
 
@@ -171,21 +194,36 @@ _Кнопки работают только в этом чате с ботом �
 }
 
 // paywallUnpaidInlineKeyboard — отдельные кнопки под каждый способ оплаты.
+// Цена пишется прямо в подписи кнопки, чтобы юзер не получал отдельных сообщений
+// с дублированием цены (см. требование пользователя «и в карте и в звёздах сразу
+// в способах оплаты писать стоимость»).
 func (b *Bot) paywallUnpaidInlineKeyboard() *tgbotapi.InlineKeyboardMarkup {
 	var rows [][]tgbotapi.InlineKeyboardButton
 	if b.config.PaywallYookassaReady() {
+		label := "💳 Банковская карта (ЮKassa)"
+		if p := b.paywallPriceYookassaShort(); p != "" {
+			label = "💳 Банковская карта (ЮKassa) — " + p
+		}
 		rows = append(rows, tgbotapi.NewInlineKeyboardRow(
-			tgbotapi.NewInlineKeyboardButtonData("💳 Банковская карта (ЮKassa)", paywallCallbackPayYookassa),
+			tgbotapi.NewInlineKeyboardButtonData(label, paywallCallbackPayYookassa),
 		))
 	}
 	if b.config.PaywallUsesTelegramProviderInvoice() {
+		label := "💳 Банковская карта (в Telegram)"
+		if p := b.paywallPriceProviderShort(); p != "" {
+			label = "💳 Банковская карта (в Telegram) — " + p
+		}
 		rows = append(rows, tgbotapi.NewInlineKeyboardRow(
-			tgbotapi.NewInlineKeyboardButtonData("💳 Банковская карта (в Telegram)", paywallCallbackPayProvider),
+			tgbotapi.NewInlineKeyboardButtonData(label, paywallCallbackPayProvider),
 		))
 	}
 	if b.config.PaywallUsesStars() {
+		label := "⭐ Telegram Stars"
+		if p := b.paywallPriceStarsShort(); p != "" {
+			label = "⭐ Telegram Stars — " + p
+		}
 		rows = append(rows, tgbotapi.NewInlineKeyboardRow(
-			tgbotapi.NewInlineKeyboardButtonData("⭐ Telegram Stars", paywallCallbackPayStars),
+			tgbotapi.NewInlineKeyboardButtonData(label, paywallCallbackPayStars),
 		))
 	}
 	if len(rows) == 0 {
@@ -197,18 +235,30 @@ func (b *Bot) paywallUnpaidInlineKeyboard() *tgbotapi.InlineKeyboardMarkup {
 func (b *Bot) paywallReturnInlineKeyboard() *tgbotapi.InlineKeyboardMarkup {
 	var rows [][]tgbotapi.InlineKeyboardButton
 	if b.config.PaywallYookassaReady() {
+		label := "💳 Оплатить картой (ЮKassa)"
+		if p := b.paywallPriceYookassaShort(); p != "" {
+			label = "💳 Оплатить картой (ЮKassa) — " + p
+		}
 		rows = append(rows, tgbotapi.NewInlineKeyboardRow(
-			tgbotapi.NewInlineKeyboardButtonData("💳 Оплатить картой (ЮKassa)", paywallCallbackPayYookassa),
+			tgbotapi.NewInlineKeyboardButtonData(label, paywallCallbackPayYookassa),
 		))
 	}
 	if b.config.PaywallUsesTelegramProviderInvoice() {
+		label := "💳 Оплатить картой (Telegram)"
+		if p := b.paywallPriceProviderShort(); p != "" {
+			label = "💳 Оплатить картой (Telegram) — " + p
+		}
 		rows = append(rows, tgbotapi.NewInlineKeyboardRow(
-			tgbotapi.NewInlineKeyboardButtonData("💳 Оплатить картой (Telegram)", paywallCallbackPayProvider),
+			tgbotapi.NewInlineKeyboardButtonData(label, paywallCallbackPayProvider),
 		))
 	}
 	if b.config.PaywallUsesStars() {
+		label := "⭐ Оплатить Stars"
+		if p := b.paywallPriceStarsShort(); p != "" {
+			label = "⭐ Оплатить Stars — " + p
+		}
 		rows = append(rows, tgbotapi.NewInlineKeyboardRow(
-			tgbotapi.NewInlineKeyboardButtonData("⭐ Оплатить Stars", paywallCallbackPayStars),
+			tgbotapi.NewInlineKeyboardButtonData(label, paywallCallbackPayStars),
 		))
 	}
 	if len(rows) == 0 {
@@ -217,8 +267,12 @@ func (b *Bot) paywallReturnInlineKeyboard() *tgbotapi.InlineKeyboardMarkup {
 	return &tgbotapi.InlineKeyboardMarkup{InlineKeyboard: rows}
 }
 
-func paywallReturnPromptText(price string) string {
-	return "Возвращение в стаю.\n\nВыбери способ оплаты:\n• Карта (ЮKassa или Telegram)\n• Telegram Stars\n\nЦена: " + price
+// paywallReturnPromptText — текст экрана «вернуться в Fat Leopard» (был кикнут за неактивность).
+// Цена не пишем — она прямо в кнопках выбора способа (см. paywallReturnInlineKeyboard).
+// Параметр `price` оставлен в сигнатуре для совместимости со старыми вызовами/тестами,
+// но в видимый текст не подставляется.
+func paywallReturnPromptText(_ string) string {
+	return "Возвращение в Fat Leopard MiniApp.\n\nВыбери способ оплаты ниже — на кнопке указана цена.\nДоступ после оплаты — 30 дней."
 }
 
 func (b *Bot) paywallNotifyUser(userID int64, text string) {
@@ -372,10 +426,13 @@ func (b *Bot) SendPaywallProviderInvoice(userID, reqID int64) error {
 	return err
 }
 
-// SendYookassaPaymentLink создаёт платёж в ЮKassa и отправляет пользователю кнопку со ссылкой на оплату.
-func (b *Bot) SendYookassaPaymentLink(userID, reqID int64) error {
+// paywallCreateYookassaPayment создаёт платёж в ЮKassa и возвращает confirmation URL.
+// Сообщение пользователю НЕ отправляет — это нужно для нового флоу с editMessage в callback'е,
+// где URL-кнопка ставится прямо в исходное сообщение «Выбери способ оплаты», без второго экрана
+// «вот тебе ещё одна кнопка Оплатить» (см. требование пользователя).
+func (b *Bot) paywallCreateYookassaPayment(userID, reqID int64) (string, error) {
 	if b.config.YookassaShopID == "" || b.config.YookassaSecretKey == "" {
-		return fmt.Errorf("yookassa credentials empty")
+		return "", fmt.Errorf("yookassa credentials empty")
 	}
 	returnURL := strings.TrimSpace(b.config.YookassaReturnURL)
 	if returnURL == "" {
@@ -396,10 +453,22 @@ func (b *Bot) SendYookassaPaymentLink(userID, reqID int64) error {
 		meta,
 	)
 	if err != nil {
-		return err
+		return "", err
 	}
 	if err := b.db.SetPaywallYookassaPaymentID(reqID, paymentID); err != nil {
 		b.logger.Warnf("paywall SetPaywallYookassaPaymentID: %v", err)
+	}
+	return confirmURL, nil
+}
+
+// SendYookassaPaymentLink создаёт платёж в ЮKassa и шлёт пользователю отдельное сообщение
+// с кнопкой-ссылкой. Используется legacy-флоу paywallSendPaymentOffers (resend invoice),
+// где мы шлём ВСЕ доступные способы сразу. В обновлённом per-method-callback'е используем
+// paywallCreateYookassaPayment + edit исходного сообщения (ниже в handlePaywallPayYookassaCallback).
+func (b *Bot) SendYookassaPaymentLink(userID, reqID int64) error {
+	confirmURL, err := b.paywallCreateYookassaPayment(userID, reqID)
+	if err != nil {
+		return err
 	}
 	text := `💳 Оплата доступа картой (ЮKassa).`
 	msg := tgbotapi.NewMessage(userID, text)
@@ -489,8 +558,10 @@ func (b *Bot) handlePaywallPayYookassaCallback(callback *tgbotapi.CallbackQuery)
 		_, _ = b.api.Request(tgbotapi.NewCallbackWithAlert(callback.ID, "Ошибка. Попробуй /start."))
 		return
 	}
-	if err := b.SendYookassaPaymentLink(uid, reqID); err != nil {
-		b.logger.Errorf("paywall yookassa link: %v", err)
+
+	confirmURL, err := b.paywallCreateYookassaPayment(uid, reqID)
+	if err != nil {
+		b.logger.Errorf("paywall yookassa create payment: %v", err)
 		h := paywallYookassaShortHintForUser(err)
 		if len(h) > 180 {
 			h = h[:177] + "…"
@@ -498,7 +569,36 @@ func (b *Bot) handlePaywallPayYookassaCallback(callback *tgbotapi.CallbackQuery)
 		_, _ = b.api.Request(tgbotapi.NewCallbackWithAlert(callback.ID, h))
 		return
 	}
-	_, _ = b.api.Request(tgbotapi.NewCallback(callback.ID, "Ссылка на оплату отправлена — открой сообщение ниже."))
+
+	// Не плодим новое сообщение «вот тебе ещё одна кнопка Оплатить» (см. требование пользователя):
+	// заменяем кнопки выбора способа в исходном сообщении на одну URL-кнопку с готовой ссылкой ЮKassa.
+	// Юзер делает один тап и сразу попадает на страницу оплаты — без промежуточного экрана.
+	payButton := tgbotapi.NewInlineKeyboardMarkup(
+		tgbotapi.NewInlineKeyboardRow(
+			tgbotapi.NewInlineKeyboardButtonURL("💳 Перейти к оплате (ЮKassa)", confirmURL),
+		),
+	)
+	edited := false
+	if callback.Message != nil {
+		newText := "💳 Оплата картой через ЮKassa.\n\nЖми кнопку ниже — откроется страница оплаты."
+		edit := tgbotapi.NewEditMessageTextAndMarkup(callback.Message.Chat.ID, callback.Message.MessageID, newText, payButton)
+		if _, err := b.api.Send(edit); err != nil {
+			b.logger.Warnf("paywall yk callback edit text+markup: %v", err)
+		} else {
+			edited = true
+		}
+	}
+	if !edited {
+		// Fallback: исходного сообщения нет (resend / reentrancy) — шлём отдельным.
+		fallback := tgbotapi.NewMessage(uid, "💳 Оплата доступа картой (ЮKassa).")
+		fallback.ReplyMarkup = payButton
+		if _, err := b.api.Send(fallback); err != nil {
+			b.logger.Errorf("paywall yk callback fallback send: %v", err)
+			_, _ = b.api.Request(tgbotapi.NewCallbackWithAlert(callback.ID, "Не удалось открыть оплату. Попробуй /start."))
+			return
+		}
+	}
+	_, _ = b.api.Request(tgbotapi.NewCallback(callback.ID, ""))
 }
 
 func (b *Bot) handlePaywallPayProviderCallback(callback *tgbotapi.CallbackQuery) {
@@ -556,11 +656,7 @@ func (b *Bot) handlePaywallReturnToPackCallback(callback *tgbotapi.CallbackQuery
 		return
 	}
 
-	price := "210 ₽"
-	if b.config.PaywallUsesStars() {
-		price = fmt.Sprintf("210 ₽ или %d ⭐", b.config.PaywallStarsInvoiceAmount())
-	}
-	msg := tgbotapi.NewMessage(callback.From.ID, paywallReturnPromptText(price))
+	msg := tgbotapi.NewMessage(callback.From.ID, paywallReturnPromptText(""))
 	msg.ReplyMarkup = b.paywallReturnInlineKeyboard()
 	if msg.ReplyMarkup == nil {
 		msg.Text = "⚠️ Оплата временно недоступна в твоём регионе. Попробуй позже."
@@ -757,6 +853,10 @@ func (b *Bot) paywallDeliverAccessAfterPayment(userID int64) error {
 		b.logger.Errorf("paywall send done msg: %v", err)
 		return err
 	}
+	// Показываем синюю кнопку LeopardMiniApp в ЛС только paid+не кикнутым.
+	// После успешной оплаты статус «paid» точно действителен — сбрасываем кеш и применяем.
+	invalidateMiniappMenuButtonCache(userID)
+	b.applyMiniappMenuButtonForUser(userID)
 	return nil
 }
 

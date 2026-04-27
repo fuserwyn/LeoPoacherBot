@@ -625,6 +625,34 @@ var Migrations = []Migration{
 			DROP TABLE IF EXISTS miniapp_user_profile;
 		`,
 	},
+	{
+		Version: 31,
+		// Серверное хранение личного чата юзера с Лео (приходит из мини-аппа и из ЛС с ботом).
+		// Раньше история жила в localStorage браузера/устройства — между Telegram Desktop и iPhone
+		// синхронизация ломалась (см. требование пользователя «история чата должна быть общая на
+		// всех устройствах у одного юзера»). Теперь источник правды — БД.
+		// role: 'user' — юзер пишет Лео; 'leo' — Лео отвечает (включая push-уведомления о warning'ах).
+		Description: "Personal Leo chat history (cross-device sync)",
+		UpSQL: `
+			CREATE TABLE IF NOT EXISTS miniapp_personal_chat (
+				id BIGSERIAL PRIMARY KEY,
+				user_id BIGINT NOT NULL,
+				pack_chat_id BIGINT NOT NULL,
+				role TEXT NOT NULL CHECK (role IN ('user','leo')),
+				message_text TEXT NOT NULL,
+				created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW()
+			);
+			CREATE INDEX IF NOT EXISTS idx_miniapp_personal_chat_user_pack_id
+				ON miniapp_personal_chat (user_id, pack_chat_id, id DESC);
+			CREATE INDEX IF NOT EXISTS idx_miniapp_personal_chat_user_pack_created
+				ON miniapp_personal_chat (user_id, pack_chat_id, created_at DESC);
+		`,
+		DownSQL: `
+			DROP INDEX IF EXISTS idx_miniapp_personal_chat_user_pack_created;
+			DROP INDEX IF EXISTS idx_miniapp_personal_chat_user_pack_id;
+			DROP TABLE IF EXISTS miniapp_personal_chat;
+		`,
+	},
 }
 
 // MigrationRecord представляет запись о выполненной миграции

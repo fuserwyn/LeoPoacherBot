@@ -118,8 +118,8 @@ func Load() (*Config, error) {
 		PaymentProviderToken:            getEnv("PAYMENT_PROVIDER_TOKEN", ""),
 		PaymentCurrency:                 currency,
 		PaymentAmountMinorUnits:         amountMinor,
-		PaymentInvoiceTitle:             getEnv("PAYMENT_INVOICE_TITLE", "Доступ в группу"),
-		PaymentInvoiceDesc:              getEnv("PAYMENT_INVOICE_DESCRIPTION", "Доступ в группу после оплаты; вход подтверждается автоматически."),
+		PaymentInvoiceTitle:             getEnv("PAYMENT_INVOICE_TITLE", "Доступ к Fat Leopard MiniApp"),
+		PaymentInvoiceDesc:              getEnv("PAYMENT_INVOICE_DESCRIPTION", "Доступ к мини-приложению Fat Leopard после оплаты; открытие — автоматическое."),
 		PaymentStarsEnabled:             starsAddonEnabled,
 		PaymentStarsAmount:              starsAddonAmount,
 

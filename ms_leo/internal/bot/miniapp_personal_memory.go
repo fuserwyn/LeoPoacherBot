@@ -2,8 +2,16 @@ package bot
 
 // Очередь ответов Лео для poll мини-аппа хранится в памяти процесса (без Redis/БД).
 // Один инстанс бота — типичный деплой. Несколько реплик: нужен общий кэш (Redis) или снова БД.
+//
+// Дополнительно сохраняем все ответы Лео в `miniapp_personal_chat` (см. БД-методы),
+// чтобы история чата с Лео была общей у одного юзера на всех устройствах
+// (см. требование пользователя про синхронизацию между Telegram Desktop и iPhone).
 
-import "strings"
+import (
+	"strings"
+
+	"leo-bot/internal/domain"
+)
 
 func (b *Bot) miniappPersonalClear(userID int64) {
 	if b == nil || userID == 0 {
@@ -25,11 +33,49 @@ func (b *Bot) miniappPersonalPush(userID int64, text string) {
 		return
 	}
 	b.miniappPersonalMu.Lock()
-	defer b.miniappPersonalMu.Unlock()
 	if b.miniappPersonalQueue == nil {
 		b.miniappPersonalQueue = make(map[int64][]string)
 	}
 	b.miniappPersonalQueue[userID] = append(b.miniappPersonalQueue[userID], t)
+	b.miniappPersonalMu.Unlock()
+	// История чата сохраняется отдельно, чтобы доехать на новые устройства
+	// одного юзера. Очередь — короткоживущий буфер для poll'а.
+	b.savePersonalChatMessage(userID, "leo", t)
+}
+
+// savePersonalChatMessage — пишет одну строку в miniapp_personal_chat (silent fail).
+// Используется и для ответов Лео (push), и для входящих юзер-сообщений из мини-аппа.
+// Если paywall не настроен (MonetizedChatID == 0) — не сохраняем (нет логического pack).
+func (b *Bot) savePersonalChatMessage(userID int64, role, text string) {
+	if b == nil || b.db == nil || userID == 0 {
+		return
+	}
+	if b.config == nil || b.config.MonetizedChatID == 0 {
+		return
+	}
+	t := strings.TrimSpace(text)
+	if t == "" {
+		return
+	}
+	if role != "user" && role != "leo" {
+		return
+	}
+	if _, err := b.db.InsertMiniappPersonalChatMessage(userID, b.config.MonetizedChatID, role, t); err != nil {
+		b.logger.Warnf("save personal chat user=%d role=%s: %v", userID, role, err)
+	}
+}
+
+// MiniappPersonalChatHistory — последние N сообщений приватного чата юзера с Лео.
+// sinceID > 0 — только записи новее (для инкрементальной подгрузки на фронте).
+// Используется HTTP-эндпоинтом /api/miniapp/personal-chat/feed.
+func (b *Bot) MiniappPersonalChatHistory(userID int64, sinceID int64) ([]*domain.MiniappPersonalChatMessage, error) {
+	if b == nil || b.db == nil || userID == 0 {
+		return []*domain.MiniappPersonalChatMessage{}, nil
+	}
+	if b.config == nil || b.config.MonetizedChatID == 0 {
+		return []*domain.MiniappPersonalChatMessage{}, nil
+	}
+	return b.db.ListMiniappPersonalChat(userID, b.config.MonetizedChatID, 200, sinceID)
 }
 
 // MiniappPersonalQueueLen — сколько фрагментов ещё не забрали poll'ом (для бейджа в мини-аппе).
