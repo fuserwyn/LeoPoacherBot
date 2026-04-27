@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { drainLeoPersonalInbox } from "../lib/leoPersonalInbox";
+import { type Msg, loadLeoChat, saveLeoChat, getTelegramUserId } from "../lib/leoChatStorage";
 import "./ChatScreen.css";
 
 const envApi = (import.meta.env.VITE_MINIAPP_API_URL as string | undefined)?.replace(/\/$/, "") ?? "";

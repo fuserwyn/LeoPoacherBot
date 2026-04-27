@@ -24,7 +24,6 @@ type MessageLog struct {
 	SickLeaveStartTime    *string    `json:"sick_leave_start_time" db:"sick_leave_start_time"`
 	SickLeaveEndTime      *string    `json:"sick_leave_end_time" db:"sick_leave_end_time"`
 	SickTime              *string    `json:"sick_time" db:"sick_time"`
-	RestTimeTillDel       *string    `json:"rest_time_till_del" db:"rest_time_till_del"`
 	Gender                string     `json:"gender" db:"gender"` // "m" (male), "f" (female), or empty
 	TimezoneOffsetFromMoscow int     `json:"timezone_offset_from_moscow" db:"timezone_offset_from_moscow"` // смещение пользователя относительно МСК (часы)
 	SickApprovalPending   bool       `json:"sick_approval_pending" db:"sick_approval_pending"`
@@ -38,16 +37,6 @@ type MessageLog struct {
 	LastAchievementStreakLevel int       `json:"last_achievement_streak_level" db:"last_achievement_streak_level"` // 0,7,14,21,28 — последний уровень, за который выдали ачивку
 	CreatedAt             time.Time  `json:"created_at" db:"created_at"`
 	UpdatedAt             time.Time  `json:"updated_at" db:"updated_at"`
-}
-
-// TrainingLog представляет отчет о тренировке
-type TrainingLog struct {
-	UserID     int64     `json:"user_id" db:"user_id"`
-	ChatID     int64     `json:"chat_id" db:"chat_id"`
-	Username   string    `json:"username" db:"username"`
-	LastReport string    `json:"last_report" db:"last_report"`
-	CreatedAt  time.Time `json:"created_at" db:"created_at"`
-	UpdatedAt  time.Time `json:"updated_at" db:"updated_at"`
 }
 
 // ChatMember представляет участника чата

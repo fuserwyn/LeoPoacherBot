@@ -8,7 +8,6 @@ import (
 	"leo-bot/internal/ai"
 	"leo-bot/internal/domain"
 	"leo-bot/internal/game/leopardmoney"
-	"leo-bot/internal/utils"
 
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 )
@@ -177,17 +176,7 @@ func (b *Bot) handleLeopardMoneyTrainingDone(msg *tgbotapi.Message, personalRepl
 		username = fmt.Sprintf("User%d", msg.From.ID)
 	}
 
-	b.startTimer(msg.From.ID, msg.Chat.ID, username)
-
-	trainingLog := &domain.TrainingLog{
-		UserID:     msg.From.ID,
-		ChatID:     msg.Chat.ID,
-		Username:   username,
-		LastReport: utils.FormatMoscowTime(utils.GetMoscowTime()),
-	}
-	if err := b.db.SaveTrainingLog(trainingLog); err != nil {
-		b.logger.Errorf("Failed to save training log: %v", err)
-	}
+	b.startTimer(msg.From.ID, b.kickChatIDForMessage(msg), username)
 
 	messageLog, err := b.db.GetMessageLog(msg.From.ID, msg.Chat.ID)
 	if err != nil {

@@ -32,6 +32,20 @@ func removalDMReplyMarkup() *tgbotapi.InlineKeyboardMarkup {
 	}
 }
 
+// kickChatIDForMessage — chat_id строки в training_state, на которой стоит таймер кика.
+// В мини-апп-архитектуре всегда работаем по pack-row (pair: user, MonetizedChatID), независимо от того,
+// откуда пришло сообщение — из приватного чата с ботом или из (легаси) группы стаи.
+// Если MonetizedChatID не настроен — fallback к msg.Chat.ID, чтобы не сломать локальные тесты/окружения без оплаты.
+func (b *Bot) kickChatIDForMessage(msg *tgbotapi.Message) int64 {
+	if b != nil && b.config != nil && b.config.MonetizedChatID != 0 {
+		return b.config.MonetizedChatID
+	}
+	if msg != nil && msg.Chat != nil {
+		return msg.Chat.ID
+	}
+	return 0
+}
+
 // normalizeUserDisplayName убирает лишние ведущие '@' и оставляет одно упоминание для @username.
 func normalizeUserDisplayName(username string) string {
 	clean := strings.TrimLeft(username, "@")

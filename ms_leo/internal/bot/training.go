@@ -7,7 +7,6 @@ import (
 
 	"leo-bot/internal/ai"
 	"leo-bot/internal/domain"
-	"leo-bot/internal/utils"
 
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 )
@@ -23,17 +22,6 @@ func (b *Bot) processTrainingDone(msg *tgbotapi.Message) {
 		}
 	} else {
 		username = fmt.Sprintf("User%d", msg.From.ID)
-	}
-
-	trainingLog := &domain.TrainingLog{
-		UserID:     msg.From.ID,
-		ChatID:     msg.Chat.ID,
-		Username:   username,
-		LastReport: utils.FormatMoscowTime(utils.GetMoscowTime()),
-	}
-
-	if err := b.db.SaveTrainingLog(trainingLog); err != nil {
-		b.logger.Errorf("Failed to save training log: %v", err)
 	}
 
 	messageLog, err := b.db.GetMessageLog(msg.From.ID, msg.Chat.ID)

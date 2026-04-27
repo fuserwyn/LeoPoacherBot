@@ -8,16 +8,14 @@ import (
 )
 
 // InsertMiniappPackGroupMessage — одно сообщение в общем чате мини-аппа.
-// Параметр telegramMessageID оставлен для обратной совместимости со схемой таблицы (миграции),
-// но в текущей архитектуре всегда передаём nil: миграция на мини-апп, TG-группы как сущности нет.
-func (d *Database) InsertMiniappPackGroupMessage(packChatID, fromUserID int64, username string, isLeo bool, messageText string, telegramMessageID *int64) (int64, error) {
+func (d *Database) InsertMiniappPackGroupMessage(packChatID, fromUserID int64, username string, isLeo bool, messageText string) (int64, error) {
 	const q = `
-		INSERT INTO miniapp_pack_group_chat (pack_chat_id, from_user_id, username, is_leo, message_text, telegram_message_id)
-		VALUES ($1, $2, $3, $4, $5, $6)
+		INSERT INTO miniapp_pack_group_chat (pack_chat_id, from_user_id, username, is_leo, message_text)
+		VALUES ($1, $2, $3, $4, $5)
 		RETURNING id
 	`
 	var id int64
-	err := d.db.QueryRow(q, packChatID, fromUserID, username, isLeo, messageText, telegramMessageID).Scan(&id)
+	err := d.db.QueryRow(q, packChatID, fromUserID, username, isLeo, messageText).Scan(&id)
 	if err != nil {
 		return 0, fmt.Errorf("insert miniapp pack group: %w", err)
 	}

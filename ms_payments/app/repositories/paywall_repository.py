@@ -71,7 +71,6 @@ class PaywallRepository:
             """
             UPDATE training_state
             SET is_deleted = FALSE,
-                lifecycle_status = 'active',
                 xp = 42,
                 achievement_count = 0,
                 has_training_done = FALSE,
@@ -99,12 +98,12 @@ class PaywallRepository:
                     user_id, username, chat_id, xp, streak_days, calorie_streak_days, cups_earned,
                     last_message, has_training_done, has_sick_leave, has_healthy, is_deleted,
                     timer_start_time, timezone_offset_from_moscow, achievement_count, return_count,
-                    returned_at, lifecycle_status, created_at, updated_at
+                    returned_at, created_at, updated_at
                 ) VALUES (
                     $1, NULLIF($2, ''), $3, 42, 0, 0, 0,
                     $4, FALSE, FALSE, FALSE, FALSE,
                     NULL, 0, 0, 1,
-                    (NOW() AT TIME ZONE 'Europe/Moscow'), 'active', $5, $5
+                    (NOW() AT TIME ZONE 'Europe/Moscow'), $5, $5
                 )
                 """,
                 user_id,

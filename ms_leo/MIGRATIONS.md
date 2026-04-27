@@ -17,9 +17,8 @@
 **Описание**: Обновляет поля `created_at` и `updated_at` для использования московского времени
 
 **Изменения**:
-- `training_state` (легаси: `message_log`) — `created_at` / `updated_at` → `TIMESTAMP WITH TIME ZONE` с московским временем  
-- `training_log.created_at` → `TIMESTAMP WITH TIME ZONE` с московским временем
-- `training_log.updated_at` → `TIMESTAMP WITH TIME ZONE` с московским временем
+- `training_state` (легаси: `message_log`) — `created_at` / `updated_at` → `TIMESTAMP WITH TIME ZONE` с московским временем
+- `training_log.*` (таблица позже удалена в миграции 31) — те же приведения к МСК
 
 ### Миграция 14: `training_sessions.session_date`
 
@@ -27,7 +26,15 @@
 
 ### Миграция 15: `training_log` и несколько чатов
 
-Добавляется **`chat_id`**, первичный ключ **`(user_id, chat_id)`**. Уже существующие строки получают `chat_id = 0` (наследие «один глобальный отчёт на пользователя»).
+Добавляется **`chat_id`**, первичный ключ **`(user_id, chat_id)`**. Уже существующие строки получают `chat_id = 0` (наследие «один глобальный отчёт на пользователя»). Таблица позже удалена в миграции 31.
+
+### Миграция 31: чистка мёртвой схемы
+
+Удаляются неиспользуемые поля и таблицы, оставшиеся после перехода на mini-app-only архитектуру:
+- `training_state.rest_time_till_del` — больше не пишется/не читается, кик считается по `timer_start_time`.
+- `training_state.lifecycle_status` — раньше писалось значением `'active'` и в `ms_leo`, и в `ms_payments`, но никогда не читалось.
+- `miniapp_pack_group_chat.telegram_message_id` (и уникальный индекс `uq_miniapp_pack_group_telegram_msg`) — общий чат полностью свой в мини-аппе, в TG-группу не зеркалим.
+- Таблица `training_log` целиком — последний отчёт о тренировке хранится в `training_state.last_training_date` / `last_message`.
 
 ## Ручной запуск миграций
 

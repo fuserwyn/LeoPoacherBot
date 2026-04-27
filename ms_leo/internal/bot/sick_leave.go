@@ -120,12 +120,6 @@ func (b *Bot) activateSickLeave(msg *tgbotapi.Message, messageLog *domain.Messag
 		}
 		return "nil"
 	}())
-	b.logger.Infof("  RestTimeTillDel: %s", func() string {
-		if messageLog.RestTimeTillDel != nil {
-			return *messageLog.RestTimeTillDel
-		}
-		return "nil"
-	}())
 
 	if err := b.db.SaveMessageLog(messageLog); err != nil {
 		b.logger.Errorf("Failed to update message log: %v", err)
@@ -505,13 +499,13 @@ func (b *Bot) handleHealthy(msg *tgbotapi.Message) {
 		reply := tgbotapi.NewMessage(msg.Chat.ID, replyText)
 		b.api.Send(reply)
 
-		// Удаляем пользователя
-		b.removeUser(msg.From.ID, msg.Chat.ID, username)
+		// Удаляем пользователя — кик идёт по pack-row, чтобы корректно сработали ExpirePaywallAccessForUser и pack_removed в ленте мини-аппа.
+		b.removeUser(msg.From.ID, b.kickChatIDForMessage(msg), username)
 		return
 	}
 
-	// Запускаем таймер с оставшимся временем
-	b.startTimerWithDuration(msg.From.ID, msg.Chat.ID, messageLog.Username, remainingTime)
+	// Запускаем таймер с оставшимся временем — на pack-row (для приват/мини-аппа). Только так таймер кика остаётся источником правды.
+	b.startTimerWithDuration(msg.From.ID, b.kickChatIDForMessage(msg), messageLog.Username, remainingTime)
 
 	// Форматируем оставшееся время
 	remainingTimeFormatted := b.formatDurationToDays(remainingTime)
