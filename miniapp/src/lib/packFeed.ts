@@ -20,6 +20,10 @@ function typeMeta(t: string): { emoji: string; activity: string; details: string
       return { emoji: "🏥", activity: "Больничный", details: "Заявка #sick_leave" };
     case "healthy":
       return { emoji: "💚", activity: "Выздоровление", details: "#healthy" };
+    case "pack_join":
+      return { emoji: "🐆", activity: "Лео · приветствие", details: "Новый участник" };
+    case "pack_rejoin":
+      return { emoji: "🐆", activity: "Лео · приветствие", details: "Вернулся в стаю" };
     default:
       return { emoji: "📝", activity: t, details: "Сообщение" };
   }
@@ -36,7 +40,23 @@ function avatarFor(name: string) {
 
 export function dtoToCard(d: PackFeedItemDTO): ActivityCardProps {
   const m = typeMeta(d.type);
-  const comment = d.text.length > 280 ? d.text.slice(0, 277) + "…" : d.text;
+  const isLeoNotice = d.type === "pack_join" || d.type === "pack_rejoin";
+  const newcomer = (d.username || "").trim() || `Участник ${d.user_id}`;
+  const commentRaw = d.text.trim();
+  const comment = commentRaw.length > 280 ? commentRaw.slice(0, 277) + "…" : commentRaw;
+  if (isLeoNotice) {
+    return {
+      avatar: "🐆",
+      name: "Лео",
+      streak: 0,
+      hideStreak: true,
+      timeAgo: timeAgoFromISO(d.created_at),
+      emoji: m.emoji,
+      activity: m.activity,
+      details: newcomer,
+      comment,
+    };
+  }
   return {
     avatar: avatarFor(d.username),
     name: d.is_you ? "Ты" : d.username || `Участник ${d.user_id}`,

@@ -6,6 +6,11 @@
   margin-bottom: 14px;
 }
 
+.act-card--leo {
+  border-color: rgba(255, 90, 31, 0.35);
+  background: linear-gradient(160deg, var(--card) 0%, rgba(255, 90, 31, 0.07) 100%);
+}
+
 .act-card__head {
   display: flex;
   align-items: flex-start;

@@ -480,6 +480,7 @@ func (b *Bot) handleNewChatMembers(msg *tgbotapi.Message) {
 		if b.paywallActive() && msg.Chat.ID == b.config.MonetizedChatID {
 			if returnCount, err := b.db.GetUserReturnCount(newMember.ID, msg.Chat.ID); err == nil && returnCount > 0 {
 				b.sendReturnedMemberWelcome(newMember.ID)
+				b.savePackJoinMiniappFeed(msg.Chat.ID, newMember.ID, username, userMessageTypePackRejoin, packRejoinMiniappWelcomeText(username))
 				b.startTimer(newMember.ID, msg.Chat.ID, username)
 				continue
 			}
@@ -525,6 +526,7 @@ func (b *Bot) sendWelcomeMessage(chatID int64, username string, userID int64) {
 		b.logger.Errorf("Failed to save new user to database: %v", err)
 	} else {
 		b.logger.Infof("Successfully saved new user %s (ID: %d) to database with timer start time", username, userID)
+		b.savePackJoinMiniappFeed(chatID, userID, username, userMessageTypePackJoin, packJoinMiniappWelcomeText(username))
 	}
 
 	welcomeText := fmt.Sprintf("%s\n\n%s", username, leopardOnboardingBody())

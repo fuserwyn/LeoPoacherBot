@@ -31,7 +31,7 @@ func (d *Database) ListPackActivityFeed(chatID int64, limit int, sinceUTC *time.
 		LEFT JOIN training_state ml
 			ON ml.user_id = um.user_id AND ml.chat_id = um.chat_id AND ml.is_deleted = FALSE
 		WHERE um.chat_id = $1
-		  AND um.message_type IN ('training_done', 'sick_leave', 'healthy')
+		  AND um.message_type IN ('training_done', 'sick_leave', 'healthy', 'pack_join', 'pack_rejoin')
 		  ` + whereSince + `
 		ORDER BY um.created_at DESC
 		LIMIT $2

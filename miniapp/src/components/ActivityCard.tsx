@@ -4,6 +4,8 @@ export type ActivityCardProps = {
   avatar: string;
   name: string;
   streak: number;
+  /** Для системных карточек (приветствие Лео) — не показывать стрик. */
+  hideStreak?: boolean;
   timeAgo: string;
   emoji: string;
   activity: string;
@@ -17,6 +19,7 @@ export function ActivityCard({
   avatar,
   name,
   streak,
+  hideStreak = false,
   timeAgo,
   emoji,
   activity,
@@ -26,7 +29,7 @@ export function ActivityCard({
   reactions = [],
 }: ActivityCardProps) {
   return (
-    <article className="act-card">
+    <article className={`act-card${hideStreak ? " act-card--leo" : ""}`}>
       <header className="act-card__head">
         <div className="act-card__avatar" aria-hidden>
           {avatar}
@@ -34,9 +37,11 @@ export function ActivityCard({
         <div className="act-card__meta">
           <div className="act-card__row">
             <span className="act-card__name">{name}</span>
-            <span className="pill" aria-label={`Серия ${streak} дней`}>
-              <span>🔥</span> {streak}
-            </span>
+            {!hideStreak && (
+              <span className="pill" aria-label={`Серия ${streak} дней`}>
+                <span>🔥</span> {streak}
+              </span>
+            )}
           </div>
           <p className="act-card__time">{timeAgo}</p>
         </div>

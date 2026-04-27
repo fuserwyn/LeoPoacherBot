@@ -175,6 +175,10 @@ func (b *Bot) sendInactiveWarning(userID, chatID int64, username string, day int
 		}
 	}
 
+	if day == 5 || day == 6 {
+		b.miniappPersonalPush(userID, messageText)
+	}
+
 	if chatID == userID {
 		b.api.Send(tgbotapi.NewMessage(userID, messageText))
 		return
@@ -203,6 +207,8 @@ func (b *Bot) sendInactiveDay7ZeroXP(userID, chatID int64, username string) {
 			}
 		}
 	}
+
+	b.miniappPersonalPush(userID, txt)
 
 	if _, dmErr := b.api.Send(tgbotapi.NewMessage(userID, txt)); dmErr != nil {
 		b.logger.Warnf("send inactive day7 DM user=%d: %v", userID, dmErr)

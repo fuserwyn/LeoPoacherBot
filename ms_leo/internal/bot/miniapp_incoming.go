@@ -9,20 +9,6 @@ import (
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 )
 
-// mirrorMiniAppToPrivateChat — дублирует в личку с ботом текст из мини-аппа, чтобы переписка в Telegram совпадала по смыслу.
-// От имени пользователя в DM из API писать нельзя, только от бота с меткой.
-func (b *Bot) mirrorMiniAppToPrivateChat(userID int64, text string) {
-	if b == nil || b.api == nil || userID == 0 || text == "" {
-		return
-	}
-	line := "💬 Мини-апп\n\n" + text
-	m := tgbotapi.NewMessage(userID, line)
-	m.DisableWebPagePreview = true
-	if _, err := b.api.Send(m); err != nil {
-		b.logger.Warnf("miniapp mirror to private chat: %v", err)
-	}
-}
-
 // PrivateTextMessageFromInitUser — синтетическое входящее сообщение, как в личке.
 func PrivateTextMessageFromInitUser(d initdata.InitData, text string) *tgbotapi.Message {
 	u := d.User
@@ -86,7 +72,8 @@ func (b *Bot) ProcessMiniAppPrivateText(d initdata.InitData, text string) MiniAp
 		return out
 	}
 	b.miniappPersonalClear(d.User.ID)
-	go b.mirrorMiniAppToPrivateChat(d.User.ID, text)
+	// В личку Telegram из мини-аппа не дублируем (ответы Лео по-прежнему в апп через poll).
+	// Исключение по смыслу: предупреждения дней 5–7 без отчёта — шлём в апп из timer_leopard (как дубль к DM).
 	go b.runMiniAppPrivateTextWorker(d, text)
 	out.Pending = true
 	return out
