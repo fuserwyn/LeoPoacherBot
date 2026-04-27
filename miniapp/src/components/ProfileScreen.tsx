@@ -7,6 +7,15 @@ export type ProfileData = {
   gender: "m" | "f" | "";
   displayName: string;
   age: string;
+  timezoneOffset: number;
+};
+
+const TZ_OPTIONS: number[] = Array.from({ length: 25 }, (_, i) => i - 12);
+
+const formatTzLabel = (offset: number): string => {
+  if (offset === 0) return "МСК (Москва, +0)";
+  const sign = offset > 0 ? "+" : "−";
+  return `МСК ${sign}${Math.abs(offset)} ч`;
 };
 
 type Props = {
@@ -23,7 +32,7 @@ const LEVELS = [200];
 export function ProfileScreen({ name, streak, workouts, initData, inTelegram, showAlert }: Props) {
   const xp = 25;
   const [burn, setBurn] = useState<3 | 5 | 7>(5);
-  const [profile, setProfile] = useState<ProfileData>({ gender: "", displayName: "", age: "" });
+  const [profile, setProfile] = useState<ProfileData>({ gender: "", displayName: "", age: "", timezoneOffset: 0 });
   const [initialAgeSet, setInitialAgeSet] = useState(false);
   const [profileLoading, setProfileLoading] = useState(true);
   const [profileSaving, setProfileSaving] = useState(false);
@@ -51,6 +60,7 @@ export function ProfileScreen({ name, streak, workouts, initData, inTelegram, sh
         gender?: string;
         display_name?: string;
         age?: number | null;
+        timezone_offset?: number;
       };
       if (!res.ok) {
         showAlert(j.error ?? `Профиль: ошибка ${res.status}`);
@@ -59,10 +69,15 @@ export function ProfileScreen({ name, streak, workouts, initData, inTelegram, sh
       if (!j.ok) return;
       const g = j.gender === "m" || j.gender === "f" ? j.gender : "";
       const dn = (j.display_name ?? "").trim() || (name && name !== "друг" ? name : "");
+      const tz =
+        typeof j.timezone_offset === "number" && Number.isFinite(j.timezone_offset)
+          ? Math.max(-12, Math.min(12, Math.trunc(j.timezone_offset)))
+          : 0;
       setProfile({
         gender: g,
         displayName: dn,
         age: j.age != null && j.age > 0 ? String(j.age) : "",
+        timezoneOffset: tz,
       });
       setInitialAgeSet(j.age != null && j.age > 0);
     } catch (e) {
@@ -166,6 +181,7 @@ export function ProfileScreen({ name, streak, workouts, initData, inTelegram, sh
         init_data: initData,
         gender: profile.gender,
         display_name: profile.displayName.trim(),
+        timezone_offset: profile.timezoneOffset,
       };
       const a = profile.age.trim();
       if (a === "") {
@@ -265,6 +281,29 @@ export function ProfileScreen({ name, streak, workouts, initData, inTelegram, sh
             disabled={profileLoading}
           />
         </label>
+        <label className="profile__field">
+          <span>Часовой пояс</span>
+          <select
+            className="profile__input"
+            value={String(profile.timezoneOffset)}
+            onChange={(e) =>
+              setProfile((p) => ({
+                ...p,
+                timezoneOffset: Math.max(-12, Math.min(12, parseInt(e.target.value, 10) || 0)),
+              }))
+            }
+            disabled={profileLoading}
+          >
+            {TZ_OPTIONS.map((o) => (
+              <option key={o} value={String(o)}>
+                {formatTzLabel(o)}
+              </option>
+            ))}
+          </select>
+        </label>
+        <p className="profile__form-hint muted">
+          По нему считаются «сегодня/вчера» для тренировок и стрика. Если живёшь в Москве — оставь «МСК (+0)».
+        </p>
         <button
           type="button"
           className="profile__save"

@@ -10,8 +10,10 @@ import (
 
 // Лимиты полей мини-апп — профиль.
 const (
-	miniappProfileNameMax = 64
-	miniappProfileAgeMax  = 120
+	miniappProfileNameMax     = 64
+	miniappProfileAgeMax      = 120
+	miniappProfileTzOffsetMin = -12
+	miniappProfileTzOffsetMax = 12
 )
 
 // LeoUserGenderForTrainingFeed — m/f/пусто: сначала явный мини-апп, затем training_state, без догадок по имени.
@@ -106,6 +108,35 @@ func (b *Bot) SaveMiniappUserProfileFromMiniapp(userID, packChatID int64, gender
 	}
 	_ = b.db.PatchTrainingStateGenderIfExists(userID, packChatID, g)
 	return nil
+}
+
+// GetTimezoneOffsetForAPI — текущий TZ-offset (часы относительно МСК) пользователя из training_state.
+// 0 если строки нет — соответствует «по умолчанию МСК».
+func (b *Bot) GetTimezoneOffsetForAPI(userID, packChatID int64) int {
+	if b == nil || b.db == nil || packChatID == 0 {
+		return 0
+	}
+	off, err := b.db.GetTimezoneOffsetFromTrainingState(userID, packChatID)
+	if err != nil {
+		b.logger.Errorf("miniapp tz offset load user=%d pack=%d: %v", userID, packChatID, err)
+		return 0
+	}
+	if off < miniappProfileTzOffsetMin || off > miniappProfileTzOffsetMax {
+		return 0
+	}
+	return off
+}
+
+// SaveTimezoneOffsetFromMiniapp — сохраняет смещение часового пояса (-12..+12) в training_state.
+// Если онбординга ещё не было — UPDATE просто ничего не сделает; пользователь увидит выбор «МСК+0» по умолчанию.
+func (b *Bot) SaveTimezoneOffsetFromMiniapp(userID, packChatID int64, offset int) error {
+	if b == nil || b.db == nil {
+		return nil
+	}
+	if offset < miniappProfileTzOffsetMin || offset > miniappProfileTzOffsetMax {
+		return errors.New("invalid timezone offset")
+	}
+	return b.db.PatchTrainingStateTimezoneOffsetIfExists(userID, packChatID, offset)
 }
 
 // GetMiniappUserProfileJSONForAPI — DTO GET (мини-апп, иначе gender из training_state).

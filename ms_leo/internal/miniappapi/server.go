@@ -755,11 +755,13 @@ func (s *Server) handlePostProfileLoad(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	g, d, a := s.bot.GetMiniappUserProfileJSONForAPI(parsed.User.ID, packID)
+	tz := s.bot.GetTimezoneOffsetForAPI(parsed.User.ID, packID)
 	w.Header().Set("Content-Type", "application/json; charset=utf-8")
 	out := map[string]any{
-		"ok":           true,
-		"gender":       g,
-		"display_name": d,
+		"ok":              true,
+		"gender":          g,
+		"display_name":    d,
+		"timezone_offset": tz,
 	}
 	if a != nil {
 		out["age"] = *a
@@ -776,10 +778,11 @@ func (s *Server) handlePostProfileSave(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	var body struct {
-		InitData    string  `json:"init_data"`
-		Gender      *string `json:"gender"`
-		DisplayName *string `json:"display_name"`
-		Age         *int    `json:"age"`
+		InitData       string  `json:"init_data"`
+		Gender         *string `json:"gender"`
+		DisplayName    *string `json:"display_name"`
+		Age            *int    `json:"age"`
+		TimezoneOffset *int    `json:"timezone_offset"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
 		s.jsonErr(w, http.StatusBadRequest, "invalid_json")
@@ -828,12 +831,21 @@ func (s *Server) handlePostProfileSave(w http.ResponseWriter, r *http.Request) {
 		s.jsonErr(w, http.StatusInternalServerError, "save_failed")
 		return
 	}
+	if body.TimezoneOffset != nil {
+		if err := s.bot.SaveTimezoneOffsetFromMiniapp(parsed.User.ID, packID, *body.TimezoneOffset); err != nil {
+			s.logger.Errorf("miniapp tz save: %v", err)
+			s.jsonErr(w, http.StatusBadRequest, "invalid_timezone_offset")
+			return
+		}
+	}
 	g, d, a := s.bot.GetMiniappUserProfileJSONForAPI(parsed.User.ID, packID)
+	tz := s.bot.GetTimezoneOffsetForAPI(parsed.User.ID, packID)
 	w.Header().Set("Content-Type", "application/json; charset=utf-8")
 	out := map[string]any{
-		"ok":           true,
-		"gender":       g,
-		"display_name": d,
+		"ok":              true,
+		"gender":          g,
+		"display_name":    d,
+		"timezone_offset": tz,
 	}
 	if a != nil {
 		out["age"] = *a
