@@ -110,23 +110,30 @@ export function FeedScreen({ name, streak, userId, initData, inTelegram, showAle
 
   const postTrainingThread = useCallback(
     async (userMessageId: number, text: string) => {
+      const t = text.trim();
+      if (!t) {
+        showAlert("Введи текст комментария.");
+        return;
+      }
       if (!apiBase || !initData) return;
       setThreadPosting((p) => ({ ...p, [userMessageId]: true }));
       try {
         const res = await fetch(`${apiBase}/api/miniapp/feed/training/thread`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ init_data: initData, user_message_id: userMessageId, text }),
+          body: JSON.stringify({ init_data: initData, user_message_id: userMessageId, text: t }),
         });
         const j = (await res.json().catch(() => ({}))) as { error?: string };
         if (!res.ok) {
-          showAlert(
-            j.error === "empty_text"
-              ? "Пустой комментарий"
-              : j.error === "text_too_long"
-                ? "Слишком длинно"
-                : j.error ?? `Ошибка ${res.status}`,
-          );
+          const errMap: Record<string, string> = {
+            empty_text: "Пустой комментарий",
+            text_too_long: "Слишком длинно",
+            not_found: "Запись не найдена (обнови ленту)",
+            forbidden: "Нет доступа",
+            chat_mismatch: "Открой мини-апп из чата стаи",
+            thread_error: "Сервер не сохранил комментарий (таблица миграции или БД)",
+          };
+          showAlert(errMap[j.error ?? ""] ?? j.error ?? `Ошибка ${res.status}`);
           return;
         }
         setThreadDrafts((d) => ({ ...d, [userMessageId]: "" }));
@@ -210,6 +217,7 @@ export function FeedScreen({ name, streak, userId, initData, inTelegram, showAle
                   text: tr.text,
                   timeAgo: timeAgoFromISO(tr.created_at),
                   isYou: tr.is_you,
+                  isLeo: Boolean(tr.is_leo),
                 }));
                 return (
                   <ActivityCard
@@ -221,7 +229,7 @@ export function FeedScreen({ name, streak, userId, initData, inTelegram, showAle
                     threadComposer={{
                       draft: threadDrafts[it.id] ?? "",
                       onDraftChange: (v) => setThreadDrafts((d) => ({ ...d, [it.id]: v })),
-                      onSubmit: () => void postTrainingThread(it.id, threadDrafts[it.id] ?? ""),
+                      onSubmit: (text) => void postTrainingThread(it.id, text),
                       posting: threadPosting[it.id] ?? false,
                     }}
                   />

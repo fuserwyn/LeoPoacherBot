@@ -24,6 +24,23 @@ func (d *Database) SaveUserMessage(msg *domain.UserMessage) error {
 	return err
 }
 
+// SaveUserMessageReturningID — как SaveUserMessage, возвращает id строки (для треда ленты под #training_done).
+func (d *Database) SaveUserMessageReturningID(msg *domain.UserMessage) (int64, error) {
+	query := `
+		INSERT INTO user_messages (user_id, chat_id, username, message_text, message_type, created_at)
+		VALUES ($1, $2, $3, $4, $5, $6)
+		RETURNING id
+	`
+	moscowTime := utils.FormatMoscowTime(utils.GetMoscowTime())
+	createdAt, parseErr := time.Parse("2006-01-02 15:04:05", moscowTime)
+	if parseErr != nil {
+		createdAt = time.Now()
+	}
+	var id int64
+	err := d.db.QueryRow(query, msg.UserID, msg.ChatID, msg.Username, msg.MessageText, msg.MessageType, createdAt).Scan(&id)
+	return id, err
+}
+
 // GetUserMessages получает сообщения пользователя за указанный период
 func (d *Database) GetUserMessages(userID, chatID int64, startTime, endTime time.Time) ([]*domain.UserMessage, error) {
 	query := `

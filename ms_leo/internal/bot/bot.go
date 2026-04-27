@@ -585,6 +585,7 @@ func (b *Bot) handleMessage(msg *tgbotapi.Message, personalReplyCh chan<- string
 		}
 
 		// Сохраняем сообщение в БД для RAG контекста
+		var trainingDoneFeedMsgID int64
 		if text != "" {
 			messageType := "general"
 			if hasTrainingDone {
@@ -604,8 +605,17 @@ func (b *Bot) handleMessage(msg *tgbotapi.Message, personalReplyCh chan<- string
 				MessageText: text,
 				MessageType: messageType,
 			}
-			if err := b.db.SaveUserMessage(userMsg); err != nil {
-				b.logger.Errorf("Failed to save user message: %v", err)
+			if hasTrainingDone {
+				id, err := b.db.SaveUserMessageReturningID(userMsg)
+				if err != nil {
+					b.logger.Errorf("Failed to save user message: %v", err)
+				} else {
+					trainingDoneFeedMsgID = id
+				}
+			} else {
+				if err := b.db.SaveUserMessage(userMsg); err != nil {
+					b.logger.Errorf("Failed to save user message: %v", err)
+				}
 			}
 		}
 
@@ -652,7 +662,7 @@ func (b *Bot) handleMessage(msg *tgbotapi.Message, personalReplyCh chan<- string
 		if hasTimeZone {
 			b.handleTimezoneCommand(msg, text)
 		} else if hasTrainingDone {
-			b.handleTrainingDone(msg, personalReplyCh)
+			b.handleTrainingDone(msg, personalReplyCh, trainingDoneFeedMsgID)
 		} else if hasSickLeave {
 			b.handleSickLeave(msg)
 		} else if hasHealthy {
@@ -780,8 +790,8 @@ func (b *Bot) handleMessage(msg *tgbotapi.Message, personalReplyCh chan<- string
 	}
 }
 
-func (b *Bot) handleTrainingDone(msg *tgbotapi.Message, personalReplyCh chan<- string) {
-	b.handleLeopardMoneyTrainingDone(msg, personalReplyCh)
+func (b *Bot) handleTrainingDone(msg *tgbotapi.Message, personalReplyCh chan<- string, trainingUserMessageID int64) {
+	b.handleLeopardMoneyTrainingDone(msg, personalReplyCh, trainingUserMessageID)
 }
 
 

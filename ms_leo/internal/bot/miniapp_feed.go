@@ -25,6 +25,7 @@ type PackFeedThreadReply struct {
 	Text      string `json:"text"`
 	CreatedAt string `json:"created_at"`
 	IsYou     bool   `json:"is_you"`
+	IsLeo     bool   `json:"is_leo"`
 }
 
 // PackFeedItem — JSON для мини-апpa.

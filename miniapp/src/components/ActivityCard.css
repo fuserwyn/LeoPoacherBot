@@ -144,18 +144,38 @@
   border-top: 1px solid var(--border-subtle);
 }
 
-.act-card__thread-label {
-  font-size: 12px;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-  color: var(--text-muted);
-  margin-bottom: 8px;
+.act-card__thread-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  gap: 10px;
+  padding: 10px 12px;
+  margin-bottom: 0;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-sm);
+  background: var(--card-inner);
+  color: var(--text);
+  font: inherit;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  text-align: left;
+}
+
+.act-card__thread-toggle:hover {
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.act-card__thread-chevron {
+  flex-shrink: 0;
+  font-size: 10px;
+  opacity: 0.65;
 }
 
 .act-card__thread-list {
   list-style: none;
-  margin: 0 0 10px;
+  margin: 10px 0;
   padding: 0;
 }
 
@@ -171,6 +191,22 @@
 
 .act-card__thread-item--you .act-card__thread-author {
   color: var(--accent);
+}
+
+.act-card__thread-item--leo .act-card__thread-author {
+  color: #ff8a50;
+}
+
+.act-card__thread-item--leo {
+  background: rgba(255, 90, 31, 0.06);
+  margin: 0 -4px;
+  padding: 10px 8px;
+  border-radius: var(--radius-sm);
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.act-card__thread-item--leo:last-child {
+  border-bottom: none;
 }
 
 .act-card__thread-author {

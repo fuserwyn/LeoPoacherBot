@@ -530,11 +530,7 @@ func (b *Bot) SendYookassaPaymentLink(userID, reqID int64) error {
 	if err := b.db.SetPaywallYookassaPaymentID(reqID, paymentID); err != nil {
 		b.logger.Warnf("paywall SetPaywallYookassaPaymentID: %v", err)
 	}
-	text := `💳 Оплата доступа картой (ЮKassa).
-
-Если оплатил(а), а доступ не открылся в течение пары минут — нажми /start: бот проверит платёж в ЮKassa напрямую (если вебхук не сработал).
-
-Нажми кнопку «Оплатить», заверши оплату на сайте. После успешного списания доступ откроется автоматически (до 1–2 минут) — затем зайди в группу по ссылке от бота (это вход после оплаты, не «анонимный запрос»).`
+	text := `💳 Оплата доступа картой (ЮKassa).`
 	msg := tgbotapi.NewMessage(userID, text)
 	msg.ReplyMarkup = &tgbotapi.InlineKeyboardMarkup{
 		InlineKeyboard: [][]tgbotapi.InlineKeyboardButton{

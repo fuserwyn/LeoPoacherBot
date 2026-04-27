@@ -1,3 +1,4 @@
+import { useRef, useState } from "react";
 import "./ActivityCard.css";
 
 export type ActivityCardThreadReply = {
@@ -6,12 +7,15 @@ export type ActivityCardThreadReply = {
   text: string;
   timeAgo: string;
   isYou: boolean;
+  /** Ответ Лео из треда ленты (тот же текст, что персонально в ЛС). */
+  isLeo?: boolean;
 };
 
 export type ActivityCardThreadComposer = {
   draft: string;
   onDraftChange: (v: string) => void;
-  onSubmit: () => void;
+  /** Текст берём из поля ввода в момент отправки (надёжнее в Telegram WebView, чем только React state). */
+  onSubmit: (text: string) => void;
   posting: boolean;
 };
 
@@ -51,7 +55,11 @@ export function ActivityCard({
   threadReplies = [],
   threadComposer,
 }: ActivityCardProps) {
+  const threadInputRef = useRef<HTMLTextAreaElement>(null);
+  const [threadOpen, setThreadOpen] = useState(false);
   const showReact = reactions.length > 0 || onReactionClick != null;
+  const hasThread = threadReplies.length > 0 || threadComposer != null;
+  const threadCount = threadReplies.length;
   return (
     <article className={`act-card${hideStreak ? " act-card--leo" : ""}`}>
       <header className="act-card__head">
@@ -98,39 +106,77 @@ export function ActivityCard({
             ))}
           </div>
         )}
-        {(threadReplies.length > 0 || threadComposer) && (
+        {hasThread && (
           <div className="act-card__thread">
-            <div className="act-card__thread-label">Комментарии</div>
-            {threadReplies.length > 0 && (
-              <ul className="act-card__thread-list">
-                {threadReplies.map((tr) => (
-                  <li key={tr.id} className={`act-card__thread-item${tr.isYou ? " act-card__thread-item--you" : ""}`}>
-                    <span className="act-card__thread-author">{tr.isYou ? "Ты" : tr.author}</span>
-                    <span className="act-card__thread-time muted">{tr.timeAgo}</span>
-                    <p className="act-card__thread-text">{tr.text}</p>
-                  </li>
-                ))}
-              </ul>
-            )}
-            {threadComposer && (
-              <div className="act-card__thread-compose">
-                <textarea
-                  className="act-card__thread-input"
-                  rows={2}
-                  placeholder="Написать комментарий…"
-                  value={threadComposer.draft}
-                  onChange={(e) => threadComposer.onDraftChange(e.target.value)}
-                  maxLength={2000}
-                />
-                <button
-                  type="button"
-                  className="act-card__thread-send"
-                  disabled={threadComposer.posting || threadComposer.draft.trim() === ""}
-                  onClick={() => threadComposer.onSubmit()}
-                >
-                  {threadComposer.posting ? "…" : "Отправить"}
-                </button>
-              </div>
+            <button
+              type="button"
+              className="act-card__thread-toggle"
+              aria-expanded={threadOpen}
+              onClick={() => setThreadOpen((v) => !v)}
+            >
+              <span>
+                {threadOpen
+                  ? "Свернуть комментарии"
+                  : threadCount > 0
+                    ? `Комментарии · ${threadCount}`
+                    : "Комментарии"}
+              </span>
+              <span className="act-card__thread-chevron" aria-hidden>
+                {threadOpen ? "▲" : "▼"}
+              </span>
+            </button>
+            {threadOpen && (
+              <>
+                {threadReplies.length > 0 && (
+                  <ul className="act-card__thread-list">
+                    {threadReplies.map((tr) => {
+                      const leo = Boolean(tr.isLeo);
+                      const displayAuthor = leo ? "Лео" : tr.isYou ? "Ты" : tr.author;
+                      return (
+                        <li
+                          key={tr.id}
+                          className={`act-card__thread-item${tr.isYou ? " act-card__thread-item--you" : ""}${leo ? " act-card__thread-item--leo" : ""}`}
+                        >
+                          <span className="act-card__thread-author">{displayAuthor}</span>
+                          <span className="act-card__thread-time muted">{tr.timeAgo}</span>
+                          <p className="act-card__thread-text">{tr.text}</p>
+                        </li>
+                      );
+                    })}
+                  </ul>
+                )}
+                {threadComposer && (
+                  <div className="act-card__thread-compose">
+                    <textarea
+                      ref={threadInputRef}
+                      className="act-card__thread-input"
+                      rows={2}
+                      placeholder="Написать комментарий…"
+                      value={threadComposer.draft}
+                      onChange={(e) => threadComposer.onDraftChange(e.target.value)}
+                      maxLength={2000}
+                      onKeyDown={(e) => {
+                        if (e.key !== "Enter" || (!e.ctrlKey && !e.metaKey)) return;
+                        e.preventDefault();
+                        const raw = threadInputRef.current?.value ?? threadComposer.draft;
+                        if (threadComposer.posting || raw.trim() === "") return;
+                        threadComposer.onSubmit(raw);
+                      }}
+                    />
+                    <button
+                      type="button"
+                      className="act-card__thread-send"
+                      disabled={threadComposer.posting}
+                      onClick={() => {
+                        const raw = threadInputRef.current?.value ?? threadComposer.draft;
+                        threadComposer.onSubmit(raw);
+                      }}
+                    >
+                      {threadComposer.posting ? "…" : "Отправить"}
+                    </button>
+                  </div>
+                )}
+              </>
             )}
           </div>
         )}

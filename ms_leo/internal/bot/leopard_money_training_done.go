@@ -55,7 +55,8 @@ func (b *Bot) generateShortLeopardChatAck(username, text string, streak, totalXP
 
 // handleLeopardMoneyTrainingDone — отчёт #training_done по модели Leopard Money (XP, ачивки, таймер 8 дней).
 // personalReplyCh, если задан, получает тот же текст, что и личка с итогом (для Mini App).
-func (b *Bot) handleLeopardMoneyTrainingDone(msg *tgbotapi.Message, personalReplyCh chan<- string) {
+// trainingUserMessageID — id строки user_messages с этим отчётом; для ленты мини-аппа подтягиваем ответ Лео в тред (только отчёт из чата стаи).
+func (b *Bot) handleLeopardMoneyTrainingDone(msg *tgbotapi.Message, personalReplyCh chan<- string, trainingUserMessageID int64) {
 	username := ""
 	if msg.From.UserName != "" {
 		username = "@" + msg.From.UserName
@@ -225,6 +226,12 @@ func (b *Bot) handleLeopardMoneyTrainingDone(msg *tgbotapi.Message, personalRepl
 	privateReply := tgbotapi.NewMessage(msg.From.ID, messageText)
 	if _, err := b.api.Send(privateReply); err != nil {
 		b.logger.Warnf("send training private summary: %v", err)
+	}
+
+	if trainingUserMessageID > 0 && b.config.MonetizedChatID != 0 && msg.Chat != nil && msg.Chat.ID == b.config.MonetizedChatID {
+		if _, err := b.db.InsertTrainingFeedThreadReply(b.config.MonetizedChatID, trainingUserMessageID, 0, "Лео", messageText); err != nil {
+			b.logger.Warnf("training feed leo thread reply: %v", err)
+		}
 	}
 
 	_ = wasOnSickLeave

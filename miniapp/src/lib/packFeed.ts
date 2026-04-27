@@ -13,6 +13,7 @@ export type PackFeedThreadReplyDTO = {
   text: string;
   created_at: string;
   is_you: boolean;
+  is_leo?: boolean;
 };
 
 export type PackFeedItemDTO = {

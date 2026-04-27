@@ -153,7 +153,8 @@ func (b *Bot) enrichPackFeedTrainingSocial(items []PackFeedItem, viewerUserID in
 					Username:  t.Username,
 					Text:      t.MessageText,
 					CreatedAt: t.CreatedAt.UTC().Format("2006-01-02T15:04:05Z07:00"),
-					IsYou:     t.FromUserID == viewerUserID,
+					IsYou:     t.FromUserID != 0 && t.FromUserID == viewerUserID,
+					IsLeo:     t.FromUserID == 0,
 				})
 			}
 		}
