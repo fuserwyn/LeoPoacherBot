@@ -1,7 +1,6 @@
 package bot
 
 import (
-	"encoding/json"
 	"errors"
 	"fmt"
 	"strconv"
@@ -19,12 +18,9 @@ const paywallCallbackResendInvoice = "paywall_resend_invoice" // совмест�
 const paywallCallbackPayStars = "paywall_pay_stars"
 const paywallCallbackPayYookassa = "paywall_pay_yookassa"
 const paywallCallbackPayProvider = "paywall_pay_provider"
-const paywallCallbackRefreshInvite = "paywall_refresh_invite"
 const paywallCallbackReturnToPack = "paywall_return_to_pack"
 
-const paywallInviteCacheTTL = 25 * time.Minute
-
-// Несколько попыток: вебхук ЮKassa может закрыть заявку в БД чуть позже события «вступил в группу».
+// Несколько попыток: вебхук ЮKassa может закрыть заявку в БД чуть позже события успешной оплаты.
 const paywallAccessRecheckAttempts = 5
 const paywallAccessRecheckDelay = 800 * time.Millisecond
 
@@ -112,131 +108,6 @@ func paywallYookassaShortHintForUser(err error) string {
 	}
 }
 
-// paywallFreshInviteLinkConfigs — два шага createChatInviteLink для «свежей» ссылки (см. paywallCreateInviteLink).
-// Сначала прямое вступление (без экрана «запрос на вступление» в клиенте), затем ссылка с заявкой — запасной вариант.
-func paywallFreshInviteLinkConfigs(chatID int64, now time.Time) []tgbotapi.CreateChatInviteLinkConfig {
-	exp := int(now.Add(24 * time.Hour).Unix())
-	return []tgbotapi.CreateChatInviteLinkConfig{
-		{
-			ChatConfig:         tgbotapi.ChatConfig{ChatID: chatID},
-			CreatesJoinRequest: false,
-			ExpireDate:         exp,
-		},
-		{
-			ChatConfig:         tgbotapi.ChatConfig{ChatID: chatID},
-			CreatesJoinRequest: true,
-			ExpireDate:         exp,
-		},
-	}
-}
-
-// paywallCreateInviteLink вызывает Telegram API; бот должен быть админом с правом приглашений.
-// oneTime24h=true — ссылка с истечением через 24 ч. Раньше использовали member_limit=1 + прямой вход:
-// в клиентах часто «This invite link has expired» уже после одного открытия. Сначала прямой вход (без UI «запрос»),
-// при отказе API — ссылка с заявкой (handlePaywallChatJoinRequest одобряет оплативших).
-func (b *Bot) paywallCreateInviteLink(createsJoinRequest bool, oneTime24h bool) (string, error) {
-	if oneTime24h {
-		var lastErr error
-		for _, cfg := range paywallFreshInviteLinkConfigs(b.config.MonetizedChatID, time.Now()) {
-			u, err := b.createChatInviteLinkParsed(cfg)
-			if err == nil && u != "" {
-				return u, nil
-			}
-			lastErr = err
-		}
-		return "", lastErr
-	}
-	return b.createChatInviteLinkParsed(tgbotapi.CreateChatInviteLinkConfig{
-		ChatConfig:         tgbotapi.ChatConfig{ChatID: b.config.MonetizedChatID},
-		CreatesJoinRequest: createsJoinRequest,
-	})
-}
-
-func (b *Bot) createChatInviteLinkParsed(cfg tgbotapi.CreateChatInviteLinkConfig) (string, error) {
-	resp, err := b.api.Request(cfg)
-	if err != nil {
-		return "", err
-	}
-	var link tgbotapi.ChatInviteLink
-	if err := json.Unmarshal(resp.Result, &link); err != nil {
-		return "", err
-	}
-	if link.InviteLink == "" {
-		return "", fmt.Errorf("empty invite_link in API response")
-	}
-	return link.InviteLink, nil
-}
-
-// paywallGroupInviteURL — актуальная ссылка в группу: свежая через API (кэш) или MONETIZED_CHAT_INVITE_URL.
-// Статические t.me/+... часто протухают; API даёт новую дополнительную ссылку.
-func (b *Bot) paywallGroupInviteURL() string {
-	if !b.paywallActive() || b.config.MonetizedChatID == 0 {
-		return ""
-	}
-	b.paywallInviteMu.Lock()
-	defer b.paywallInviteMu.Unlock()
-
-	if b.paywallInviteFromAPI && b.paywallInviteURL != "" && time.Since(b.paywallInviteCached) < paywallInviteCacheTTL {
-		return b.paywallInviteURL
-	}
-	b.paywallInviteFromAPI = false
-	b.paywallInviteURL = ""
-
-	primary := b.config.PaywallInviteCreatesJoinRequest
-	for _, createsJR := range []bool{primary, !primary} {
-		u, err := b.paywallCreateInviteLink(createsJR, false)
-		if err == nil && u != "" {
-			b.paywallInviteURL = u
-			b.paywallInviteCached = time.Now()
-			b.paywallInviteFromAPI = true
-			return u
-		}
-		b.logger.Warnf("paywall createChatInviteLink (creates_join_request=%v): %v", createsJR, err)
-	}
-	if u := strings.TrimSpace(b.config.MonetizedChatInviteURL); u != "" {
-		return u
-	}
-	return ""
-}
-
-// paywallFreshGroupInviteURL — новая ссылка после оплаты /rejoin (кэш сбрасываем, чтобы не отдать старую ссылку).
-// Сначала без expire_date (в Telegram такая ссылка не «протухает» по времени); если API не даст — запасной вариант на 24 ч.
-func (b *Bot) paywallFreshGroupInviteURL() string {
-	if !b.paywallActive() || b.config.MonetizedChatID == 0 {
-		return ""
-	}
-	b.paywallInviteMu.Lock()
-	defer b.paywallInviteMu.Unlock()
-
-	b.paywallInviteFromAPI = false
-	b.paywallInviteURL = ""
-	b.paywallInviteCached = time.Time{}
-
-	// Сначала прямое вступление — в Telegram нет экрана «requested to join»; если чат не принимает такой тип ссылки — fallback с заявкой.
-	for _, createsJR := range []bool{false, true} {
-		u, err := b.paywallCreateInviteLink(createsJR, false)
-		if err == nil && u != "" {
-			b.paywallInviteURL = u
-			b.paywallInviteCached = time.Now()
-			b.paywallInviteFromAPI = true
-			return u
-		}
-		b.logger.Warnf("paywall fresh createChatInviteLink (no expiry, creates_join_request=%v): %v", createsJR, err)
-	}
-	u, err := b.paywallCreateInviteLink(false, true)
-	if err == nil && u != "" {
-		b.paywallInviteURL = u
-		b.paywallInviteCached = time.Now()
-		b.paywallInviteFromAPI = true
-		return u
-	}
-	b.logger.Warnf("paywall fresh createChatInviteLink (24h fallback): %v", err)
-	if u := strings.TrimSpace(b.config.MonetizedChatInviteURL); u != "" {
-		return u
-	}
-	return ""
-}
-
 // paywallActive — платный вход включён и задана целевая группа.
 func (b *Bot) paywallActive() bool {
 	return b.config.PaywallEnabled && b.config.MonetizedChatID != 0
@@ -277,7 +148,7 @@ func (b *Bot) paywallPrivateUnpaidUserText() string {
 	}
 
 	if !b.config.PaywallPaymentReady() {
-		return `💳 Платный вход в закрытую группу
+		return `💳 Платный вход в стаю Fat Leopard
 
 ⚠️ Оплата у бота ещё не настроена. Напиши администратору.
 
@@ -286,11 +157,11 @@ func (b *Bot) paywallPrivateUnpaidUserText() string {
 Доступ после оплаты — 30 дней.`
 	}
 
-	return `💳 Платный вход в закрытую группу
+	return `💳 Платный вход в стаю Fat Leopard
 
 Нажми кнопку нужного способа — пришлю счёт или ссылку на оплату. Достаточно **одного** успешного платежа.
 
-После оплаты откроется мини-приложение бота и кнопка входа в группу. Полную справку бота — тоже после оплаты. Доступ 30 дней.` + priceRub + `
+После оплаты откроется мини-приложение бота — там лента, чат стаи, тренировки и больничные. Полную справку бота — тоже после оплаты. Доступ 30 дней.` + priceRub + `
 
 Пока без оплаты длинную справку не показываю.
 
@@ -668,27 +539,7 @@ func (b *Bot) paywallPrivatePaidFooter() string {
 	}
 	return `
 
-💳 Доступ оплачен. Мини-приложение — кнопка внизу в чате с ботом. Если ссылка в группу не открывается — /rejoin или /start.`
-}
-
-func (b *Bot) handlePaywallRefreshInviteCallback(callback *tgbotapi.CallbackQuery) {
-	if callback == nil || callback.From == nil {
-		return
-	}
-	if !b.paywallActive() {
-		_, _ = b.api.Request(tgbotapi.NewCallbackWithAlert(callback.ID, "Сейчас платный доступ отключён."))
-		return
-	}
-	if b.paywallPrivateNeedsPayFirst(callback.From.ID) {
-		_, _ = b.api.Request(tgbotapi.NewCallbackWithAlert(callback.ID, "Сначала оплати доступ. Нажми /start в личке с ботом."))
-		return
-	}
-	if err := b.sendFreshRejoinLink(callback.From.ID); err != nil {
-		b.logger.Errorf("paywall refresh invite callback: %v", err)
-		_, _ = b.api.Request(tgbotapi.NewCallbackWithAlert(callback.ID, "Не удалось создать новую ссылку. Попробуй /rejoin."))
-		return
-	}
-	_, _ = b.api.Request(tgbotapi.NewCallback(callback.ID, "Отправил новую ссылку в чат."))
+💳 Доступ оплачен. Открывай мини-приложение бота — кнопка внизу в этом чате (или через меню ⋮). Там вся стая.`
 }
 
 func (b *Bot) handlePaywallReturnToPackCallback(callback *tgbotapi.CallbackQuery) {
@@ -701,12 +552,7 @@ func (b *Bot) handlePaywallReturnToPackCallback(callback *tgbotapi.CallbackQuery
 	}
 
 	if !b.paywallPrivateNeedsPayFirst(callback.From.ID) {
-		if err := b.sendFreshRejoinLink(callback.From.ID); err != nil {
-			b.logger.Errorf("paywall return callback sendFreshRejoinLink: %v", err)
-			_, _ = b.api.Request(tgbotapi.NewCallbackWithAlert(callback.ID, "Не удалось создать ссылку. Нажми /rejoin."))
-			return
-		}
-		_, _ = b.api.Request(tgbotapi.NewCallback(callback.ID, "Доступ уже активен. Отправил свежую ссылку."))
+		_, _ = b.api.Request(tgbotapi.NewCallback(callback.ID, "Доступ уже активен — открой мини-приложение."))
 		return
 	}
 
@@ -885,31 +731,19 @@ func (b *Bot) handlePaywallPreCheckout(q *tgbotapi.PreCheckoutQuery) {
 	_, _ = b.api.Request(tgbotapi.PreCheckoutConfig{PreCheckoutQueryID: q.ID, OK: true})
 }
 
-func paywallGroupInviteInlineKeyboard(inviteURL string) *tgbotapi.InlineKeyboardMarkup {
-	if strings.TrimSpace(inviteURL) == "" {
-		return nil
-	}
-	return &tgbotapi.InlineKeyboardMarkup{
-		InlineKeyboard: [][]tgbotapi.InlineKeyboardButton{
-			tgbotapi.NewInlineKeyboardRow(
-				tgbotapi.NewInlineKeyboardButtonURL("📩 Войти в группу", inviteURL),
-			),
-		},
-	}
+// paywallPostPaymentUserText — после успешной оплаты: мини-приложение и приглашение зайти.
+// TG-группы как сущности больше нет: вся механика стаи живёт в мини-аппе.
+func paywallPostPaymentUserText() string {
+	return `✅ Оплата принята, доступ открыт на 30 дней.
+
+📱 Открой мини-приложение бота — кнопка внизу в этом чате (или через меню ⋮). Там лента стаи, общий чат, тренировки и больничные. При первом открытии бот автоматически добавит тебя в стаю и запустит таймер активности.
+
+ℹ️ Тренировки можно отмечать кнопкой «+» в мини-аппе, либо просто отправить в личку боту сообщение с тегом #training_done.`
 }
 
-// paywallPostPaymentUserText — после успешной оплаты: мини-приложение + вход в группу (approveJoinOK = бот уже подтвердил вход в API, если была активная заявка).
-func paywallPostPaymentUserText(approveJoinOK bool) string {
-	mini := "У бота должна появиться кнопка мини-приложения (внизу экрана в этом чате или через меню ⋮) — зайди туда: так удобнее общий чат стаи и материалы."
-	invite := "В группу зайди кнопкой ниже — ты вступаешь после успешной оплаты, доступ с нашей стороны уже открыт. Ссылку по возможности даём без срока по времени; если Telegram пишет, что она недействительна — /rejoin или /start, пришлём новую."
-	base := "✅ Оплата принята, доступ открыт на 30 дней.\n\n" + mini + "\n\n"
-	if approveJoinOK {
-		return base + "Если ты ещё не внутри чата — нажми кнопку ниже и заверши вход: для оплативших подтверждение выполняется автоматически.\n\n" + invite
-	}
-	return base + "Нажми кнопку ниже и заверши вход в группу — оплата засчитана, бот подтвердит тебя автоматически.\n\n" + invite
-}
-
-// paywallDeliverAccessAfterPayment — приглашение в группу и приветствие после зачёта оплаты (Telegram Payments / ЮKassa / sync API).
+// paywallDeliverAccessAfterPayment — DM-приветствие после зачёта оплаты (Telegram Payments / ЮKassa / sync API).
+// Запись в training_state создаётся здесь; стартовать таймер и писать pack_join/pack_rejoin в ленту будем
+// при первом открытии мини-аппа (см. EnsureMiniAppOnboarding) — мы не знаем, когда юзер реально зайдёт.
 func (b *Bot) paywallDeliverAccessAfterPayment(userID int64) error {
 	reactivated, err := b.db.ReactivateReturnedUser(userID, b.config.MonetizedChatID, "")
 	if err != nil {
@@ -919,32 +753,7 @@ func (b *Bot) paywallDeliverAccessAfterPayment(userID int64) error {
 	if !reactivated {
 		return fmt.Errorf("paywall inconsistency: no profile for paid return user=%d chat=%d", userID, b.config.MonetizedChatID)
 	}
-
-	b.paywallUnbanUserFromMonetizedGroup(userID)
-	inviteURL := b.paywallFreshGroupInviteURL()
-
-	_, err = b.api.Request(tgbotapi.ApproveChatJoinRequestConfig{
-		ChatConfig: tgbotapi.ChatConfig{ChatID: b.config.MonetizedChatID},
-		UserID:     userID,
-	})
-	if err != nil {
-		b.logger.Errorf("paywall approve join request failed: %v", err)
-		pm := tgbotapi.NewMessage(userID, paywallPostPaymentUserText(false))
-		pm.ReplyMarkup = paywallGroupInviteInlineKeyboard(inviteURL)
-		if inviteURL == "" {
-			pm.Text += "\n\nНе удалось создать ссылку автоматически — попроси ссылку у администратора."
-		}
-		if _, sendErr := b.api.Send(pm); sendErr != nil {
-			return sendErr
-		}
-		return nil
-	}
-	done := tgbotapi.NewMessage(userID, paywallPostPaymentUserText(true))
-	done.ReplyMarkup = paywallGroupInviteInlineKeyboard(inviteURL)
-	if inviteURL == "" {
-		done.Text += "\n\nНе удалось создать ссылку автоматически — попроси ссылку у администратора."
-	}
-	if _, err := b.api.Send(done); err != nil {
+	if _, err := b.api.Send(tgbotapi.NewMessage(userID, paywallPostPaymentUserText())); err != nil {
 		b.logger.Errorf("paywall send done msg: %v", err)
 		return err
 	}
@@ -998,190 +807,3 @@ func (b *Bot) handlePaywallSuccessfulPayment(msg *tgbotapi.Message) {
 	}
 }
 
-// paywallShouldKickDirectJoinWithoutPayment — человек уже в группе (добавили вручную / публичный вход без заявки), а оплаты в БД нет.
-func (b *Bot) paywallShouldKickDirectJoinWithoutPayment(chatID, userID int64) bool {
-	if !b.paywallActive() || chatID != b.config.MonetizedChatID || userID == 0 {
-		return false
-	}
-	if b.config.OwnerID != 0 && userID == b.config.OwnerID {
-		return false
-	}
-	member, err := b.api.GetChatMember(tgbotapi.GetChatMemberConfig{
-		ChatConfigWithUser: tgbotapi.ChatConfigWithUser{ChatID: chatID, UserID: userID},
-	})
-	if err == nil && (member.IsCreator() || member.IsAdministrator()) {
-		return false
-	}
-	paid, err := b.userHasActivePaywallAccessResilient(userID, chatID)
-	if err != nil {
-		b.logger.Errorf("paywall direct join paid check: %v", err)
-		return false
-	}
-	if paid {
-		return false
-	}
-	b.logger.Warnf(
-		"paywall: kick direct join user=%d chat=%d — нет активной записи completed+access_expires; последние заявки: %s",
-		userID, chatID, b.db.PaywallAccessDebugSnapshot(userID, chatID),
-	)
-	return true
-}
-
-// paywallUnbanUserFromMonetizedGroup — снимает ограничение на вход в платную группу (после kick за неоплату, после таймера и т.д.).
-func (b *Bot) paywallUnbanUserFromMonetizedGroup(userID int64) {
-	if userID == 0 || !b.paywallActive() || b.config.MonetizedChatID == 0 {
-		return
-	}
-	if _, err := b.api.Request(tgbotapi.UnbanChatMemberConfig{
-		ChatMemberConfig: tgbotapi.ChatMemberConfig{ChatID: b.config.MonetizedChatID, UserID: userID},
-		OnlyIfBanned:     false,
-	}); err != nil {
-		b.logger.Warnf("paywall unban user=%d from monetized chat: %v", userID, err)
-	}
-}
-
-func (b *Bot) paywallKickFromMonetizedChatAndExplain(userID int64) {
-	chatID := b.config.MonetizedChatID
-	// Вышибаем из группы через ограниченный ban (требование API), иначе клиент Telegram долго
-	// показывает «забанен админом». Сразу после — unban: пользователь не в чате, но не числится
-	// в чёрном списке и может снова зайти по ссылке после появления строки доступа в БД.
-	until := time.Now().Add(40 * time.Second).Unix()
-	if _, err := b.api.Request(tgbotapi.BanChatMemberConfig{
-		ChatMemberConfig: tgbotapi.ChatMemberConfig{ChatID: chatID, UserID: userID},
-		UntilDate:        until,
-		RevokeMessages:   false,
-	}); err != nil {
-		b.logger.Errorf("paywall remove unpaid direct join user=%d: %v", userID, err)
-		return
-	}
-	b.paywallUnbanUserFromMonetizedGroup(userID)
-	txt := `Вход в эту группу только после оплаты через бота.
-
-Нажми /start в личке с ботом — пришлю счёт. После оплаты бот пришлёт ссылку для входа в группу.`
-	pm := tgbotapi.NewMessage(userID, txt)
-	if _, err := b.api.Send(pm); err != nil {
-		b.logger.Warnf("paywall DM after kick user=%d: %v", userID, err)
-	}
-}
-
-// enforcePaywallForMonetizedChatMessage — если пользователь пишет в платном чате без активной оплаты,
-// удаляем его из чата и отправляем инструкцию в ЛС.
-// Возвращает true, если дальнейшую обработку сообщения нужно прекратить.
-func (b *Bot) enforcePaywallForMonetizedChatMessage(msg *tgbotapi.Message) bool {
-	if msg == nil || msg.From == nil || msg.From.IsBot {
-		return false
-	}
-	if !b.paywallActive() || msg.Chat.ID != b.config.MonetizedChatID {
-		return false
-	}
-	if b.config.OwnerID != 0 && msg.From.ID == b.config.OwnerID {
-		return false
-	}
-	ok, err := b.userHasActivePaywallAccessResilient(msg.From.ID, b.config.MonetizedChatID)
-	if err != nil {
-		b.logger.Errorf("paywall message gate check: %v", err)
-		return false
-	}
-	if ok {
-		return false
-	}
-	b.logger.Warnf(
-		"paywall: kick on message user=%d chat=%d — нет активной записи completed+access_expires; заявки: %s",
-		msg.From.ID, msg.Chat.ID, b.db.PaywallAccessDebugSnapshot(msg.From.ID, b.config.MonetizedChatID),
-	)
-	b.paywallKickFromMonetizedChatAndExplain(msg.From.ID)
-	return true
-}
-
-func (b *Bot) paywallDeclineJoinRequest(userID int64) {
-	if userID == 0 || b.config.MonetizedChatID == 0 {
-		return
-	}
-	if _, err := b.api.Request(tgbotapi.DeclineChatJoinRequest{
-		ChatConfig: tgbotapi.ChatConfig{ChatID: b.config.MonetizedChatID},
-		UserID:     userID,
-	}); err != nil {
-		b.logger.Warnf("paywall decline join request user=%d: %v", userID, err)
-	}
-}
-
-// paywallJoinRequestDisplayName — как в handleNewChatMembers для startTimer.
-func paywallJoinRequestDisplayName(u tgbotapi.User) string {
-	if u.IsBot {
-		return ""
-	}
-	if u.UserName != "" {
-		return "@" + u.UserName
-	}
-	if u.FirstName != "" {
-		s := u.FirstName
-		if u.LastName != "" {
-			s += " " + u.LastName
-		}
-		return s
-	}
-	return fmt.Sprintf("User%d", u.ID)
-}
-
-func (b *Bot) handlePaywallChatJoinRequest(j *tgbotapi.ChatJoinRequest) {
-	if !b.paywallActive() {
-		return
-	}
-	if j.Chat.ID != b.config.MonetizedChatID {
-		return
-	}
-	userID := j.From.ID
-	if userID == 0 {
-		return
-	}
-
-	if b.config.OwnerID != 0 && userID == b.config.OwnerID {
-		b.paywallUnbanUserFromMonetizedGroup(userID)
-		if _, err := b.api.Request(tgbotapi.ApproveChatJoinRequestConfig{
-			ChatConfig: tgbotapi.ChatConfig{ChatID: b.config.MonetizedChatID},
-			UserID:     userID,
-		}); err != nil {
-			b.logger.Errorf("paywall approve owner join request: %v", err)
-			return
-		}
-		b.startTimer(userID, b.config.MonetizedChatID, paywallJoinRequestDisplayName(j.From))
-		return
-	}
-
-	paid, err := b.userHasActivePaywallAccessResilient(userID, b.config.MonetizedChatID)
-	if err != nil {
-		b.logger.Errorf("paywall join request paid check: %v", err)
-		return
-	}
-	if paid {
-		b.paywallUnbanUserFromMonetizedGroup(userID)
-		_, err := b.api.Request(tgbotapi.ApproveChatJoinRequestConfig{
-			ChatConfig: tgbotapi.ChatConfig{ChatID: b.config.MonetizedChatID},
-			UserID:     userID,
-		})
-		if err != nil {
-			b.logger.Errorf("paywall approve (already paid): %v", err)
-			return
-		}
-		// Сервисное сообщение NewChatMembers в супергруппе боту часто не приходит — таймер с момента одобрения заявки.
-		b.startTimer(userID, b.config.MonetizedChatID, paywallJoinRequestDisplayName(j.From))
-		return
-	}
-
-	if !b.config.PaywallPaymentReady() {
-		b.logger.Error("PAYWALL_ENABLED but payment not configured: PAYMENT_STARS_ENABLED, XTR, PAYMENT_PROVIDER_TOKEN, or YooKassa+RUB")
-		b.paywallDeclineJoinRequest(userID)
-		b.paywallNotifyUser(userID, "⚠️ Вход в группу только после оплаты через бота, но оплата у бота не настроена. Напиши администратору.")
-		return
-	}
-
-	if _, err := b.paywallGetOrCreatePendingReqID(userID); err != nil {
-		b.logger.Errorf("paywall join request pending: %v", err)
-		b.paywallDeclineJoinRequest(userID)
-		return
-	}
-	b.paywallNotifyUser(userID, "Вход в группу после оплаты. Открой этого бота в личке, нажми /start и выбери способ: звёзды или карта (ЮKassa).")
-	// Без записи об активной оплате в БД в группу не пускаем — отклоняем «висящую» заявку;
-	// после оплаты бот пришлёт ссылку / одобрит вступление.
-	b.paywallDeclineJoinRequest(userID)
-}

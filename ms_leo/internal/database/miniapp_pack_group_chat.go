@@ -1,14 +1,15 @@
 package database
 
 import (
-	"database/sql"
 	"fmt"
 	"time"
 
 	"leo-bot/internal/domain"
 )
 
-// InsertMiniappPackGroupMessage — одно сообщение в общем чате мини-аппа (telegram_message_id опционально).
+// InsertMiniappPackGroupMessage — одно сообщение в общем чате мини-аппа.
+// Параметр telegramMessageID оставлен для обратной совместимости со схемой таблицы (миграции),
+// но в текущей архитектуре всегда передаём nil: миграция на мини-апп, TG-группы как сущности нет.
 func (d *Database) InsertMiniappPackGroupMessage(packChatID, fromUserID int64, username string, isLeo bool, messageText string, telegramMessageID *int64) (int64, error) {
 	const q = `
 		INSERT INTO miniapp_pack_group_chat (pack_chat_id, from_user_id, username, is_leo, message_text, telegram_message_id)
@@ -21,28 +22,6 @@ func (d *Database) InsertMiniappPackGroupMessage(packChatID, fromUserID int64, u
 		return 0, fmt.Errorf("insert miniapp pack group: %w", err)
 	}
 	return id, nil
-}
-
-// InsertMiniappPackGroupFromTelegramDedup — вставка из TG с дедупликацией по (pack_chat_id, telegram_message_id).
-func (d *Database) InsertMiniappPackGroupFromTelegramDedup(packChatID, fromUserID int64, username string, isLeo bool, messageText string, telegramMessageID int64) (inserted bool, err error) {
-	const q = `
-		INSERT INTO miniapp_pack_group_chat (pack_chat_id, from_user_id, username, is_leo, message_text, telegram_message_id)
-		SELECT $1, $2, $3, $4, $5, $6
-		WHERE NOT EXISTS (
-			SELECT 1 FROM miniapp_pack_group_chat
-			WHERE pack_chat_id = $1 AND telegram_message_id = $6
-		)
-		RETURNING id
-	`
-	var id sql.NullInt64
-	err = d.db.QueryRow(q, packChatID, fromUserID, username, isLeo, messageText, telegramMessageID).Scan(&id)
-	if err == sql.ErrNoRows {
-		return false, nil
-	}
-	if err != nil {
-		return false, fmt.Errorf("insert miniapp pack group dedup: %w", err)
-	}
-	return id.Valid, nil
 }
 
 // ListMiniappPackGroupChat — последние сообщения общего чата.

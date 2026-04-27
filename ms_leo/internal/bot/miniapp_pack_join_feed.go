@@ -11,6 +11,7 @@ const (
 	userMessageTypePackJoin     = "pack_join"
 	userMessageTypePackRejoin   = "pack_rejoin"
 	userMessageTypeDailyWisdom  = "daily_wisdom"
+	userMessageTypePackRemoved  = "pack_removed"
 )
 
 func packJoinMiniappWelcomeText(displayName string) string {
@@ -77,5 +78,37 @@ func (b *Bot) saveDailyWisdomPackFeed(wisdom string) {
 	}
 	if err := b.db.SaveUserMessage(um); err != nil {
 		b.logger.Warnf("miniapp pack feed daily_wisdom: %v", err)
+	}
+}
+
+func packRemovedMiniappText(displayName string) string {
+	d := strings.TrimSpace(displayName)
+	if d == "" {
+		d = "участник"
+	}
+	return fmt.Sprintf(
+		"%s покинул стаю — 7 дней без движения. XP сгорел, доступ закрыт. Двери всегда открыты — возвращайся, когда будешь готов. 🐆",
+		d,
+	)
+}
+
+// savePackRemovedMiniappFeed — карточка в ленте мини-аппа: Лео объявляет, что участник выбыл за неактивность.
+// userID/username — выбывший участник; запись пишется в чат стаи.
+func (b *Bot) savePackRemovedMiniappFeed(chatID, userID int64, username string) {
+	if b == nil || b.db == nil || userID == 0 {
+		return
+	}
+	if b.config.MonetizedChatID == 0 || chatID != b.config.MonetizedChatID {
+		return
+	}
+	um := &domain.UserMessage{
+		UserID:      userID,
+		ChatID:      chatID,
+		Username:    strings.TrimSpace(username),
+		MessageText: packRemovedMiniappText(username),
+		MessageType: userMessageTypePackRemoved,
+	}
+	if err := b.db.SaveUserMessage(um); err != nil {
+		b.logger.Warnf("miniapp pack feed pack_removed user=%d: %v", userID, err)
 	}
 }

@@ -105,18 +105,3 @@ func TestStory2ReturnPromptTextIncludesPrice(t *testing.T) {
 	}
 }
 
-func TestStory3ReturnedMemberWelcomeText(t *testing.T) {
-	txt := returnedMemberWelcomeText()
-	checks := []string{
-		"Ты снова в стае",
-		"42 XP",
-		"Ачивок нет",
-		"Семь дней подряд — ачивка",
-	}
-	for _, c := range checks {
-		if !strings.Contains(txt, c) {
-			t.Fatalf("returned welcome text missing %q in %q", c, txt)
-		}
-	}
-}
-

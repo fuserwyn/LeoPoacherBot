@@ -28,6 +28,11 @@ export function ProfileScreen({ name, streak, workouts, initData, inTelegram, sh
   const [profileLoading, setProfileLoading] = useState(true);
   const [profileSaving, setProfileSaving] = useState(false);
 
+  const [onSick, setOnSick] = useState<boolean | null>(null);
+  const [sickFormOpen, setSickFormOpen] = useState(false);
+  const [sickReason, setSickReason] = useState("");
+  const [healthBusy, setHealthBusy] = useState(false);
+
   const load = useCallback(async () => {
     if (!api || !inTelegram || !initData?.trim()) {
       setProfileLoading(false);
@@ -70,6 +75,85 @@ export function ProfileScreen({ name, streak, workouts, initData, inTelegram, sh
   useEffect(() => {
     void load();
   }, [load]);
+
+  const loadHealth = useCallback(async () => {
+    if (!api || !inTelegram || !initData?.trim()) {
+      setOnSick(false);
+      return;
+    }
+    try {
+      const res = await fetch(`${api}/api/miniapp/health/status`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ init_data: initData }),
+      });
+      const j = (await res.json().catch(() => ({}))) as { ok?: boolean; on_sick?: boolean };
+      if (res.ok && j.ok) {
+        setOnSick(Boolean(j.on_sick));
+      }
+    } catch {
+      // тихо: не критично, ниже UI просто не блокируется
+    }
+  }, [inTelegram, initData]);
+
+  useEffect(() => {
+    void loadHealth();
+  }, [loadHealth]);
+
+  const sendHealthMessage = useCallback(
+    async (text: string) => {
+      if (!api || !inTelegram || !initData?.trim()) {
+        showAlert("Открой мини-апп из Telegram (нужен initData).");
+        return false;
+      }
+      try {
+        const res = await fetch(`${api}/api/miniapp/messages`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ init_data: initData, text }),
+        });
+        const j = (await res.json().catch(() => ({}))) as { ok?: boolean; error?: string };
+        if (!res.ok || !j.ok) {
+          showAlert(j.error ?? `Ошибка ${res.status}`);
+          return false;
+        }
+        return true;
+      } catch (e) {
+        showAlert(e instanceof Error ? e.message : "Сеть");
+        return false;
+      }
+    },
+    [inTelegram, initData, showAlert],
+  );
+
+  const submitSickLeave = useCallback(async () => {
+    const reason = sickReason.trim();
+    if (reason.length < 3) {
+      showAlert("Опиши, что случилось — пара слов минимум.");
+      return;
+    }
+    setHealthBusy(true);
+    const ok = await sendHealthMessage(`#sick_leave ${reason}`);
+    setHealthBusy(false);
+    if (ok) {
+      void window.Telegram?.WebApp?.HapticFeedback?.notificationOccurred?.("success");
+      setSickFormOpen(false);
+      setSickReason("");
+      showAlert("Заявка отправлена. Ответ Лео — во вкладке Чат.");
+      setTimeout(() => void loadHealth(), 1200);
+    }
+  }, [sickReason, sendHealthMessage, loadHealth, showAlert]);
+
+  const submitHealthy = useCallback(async () => {
+    setHealthBusy(true);
+    const ok = await sendHealthMessage("#healthy");
+    setHealthBusy(false);
+    if (ok) {
+      void window.Telegram?.WebApp?.HapticFeedback?.notificationOccurred?.("success");
+      showAlert("Отправлено. Лео подтвердит во вкладке Чат.");
+      setTimeout(() => void loadHealth(), 1200);
+    }
+  }, [sendHealthMessage, loadHealth, showAlert]);
 
   const saveProfile = useCallback(async () => {
     if (!api || !inTelegram || !initData?.trim()) {
@@ -222,6 +306,68 @@ export function ProfileScreen({ name, streak, workouts, initData, inTelegram, sh
 
       <h2 className="section-title">Достижения</h2>
       <div className="profile__empty">Пока нет — тренируйся, и они появятся</div>
+
+      <h2 className="section-title">Здоровье</h2>
+      {onSick === null ? (
+        <p className="profile__hint muted">Загрузка статуса…</p>
+      ) : onSick ? (
+        <div className="profile__health">
+          <p className="profile__hint">🏥 Ты на больничном — таймер остановлен. Возвращайся, когда поправишься.</p>
+          <button
+            type="button"
+            className="profile__save profile__health-btn"
+            onClick={() => void submitHealthy()}
+            disabled={healthBusy}
+          >
+            {healthBusy ? "Отправляю…" : "Я выздоровел — возобновить таймер"}
+          </button>
+        </div>
+      ) : sickFormOpen ? (
+        <div className="profile__health">
+          <p className="profile__hint muted">Опиши, что случилось — Лео решит, принимать ли больничный.</p>
+          <textarea
+            className="profile__input profile__health-textarea"
+            value={sickReason}
+            onChange={(e) => setSickReason(e.target.value.slice(0, 500))}
+            placeholder="Например: температура 38, кашель"
+            rows={3}
+            maxLength={500}
+            disabled={healthBusy}
+          />
+          <div className="profile__health-actions">
+            <button
+              type="button"
+              className="profile__save profile__health-btn"
+              onClick={() => void submitSickLeave()}
+              disabled={healthBusy || sickReason.trim().length < 3}
+            >
+              {healthBusy ? "Отправляю…" : "Отправить заявку"}
+            </button>
+            <button
+              type="button"
+              className="profile__health-cancel"
+              onClick={() => {
+                setSickFormOpen(false);
+                setSickReason("");
+              }}
+              disabled={healthBusy}
+            >
+              Отмена
+            </button>
+          </div>
+        </div>
+      ) : (
+        <div className="profile__health">
+          <p className="profile__hint muted">Заболел — таймер остановится до выздоровления.</p>
+          <button
+            type="button"
+            className="profile__save profile__health-btn profile__health-btn--secondary"
+            onClick={() => setSickFormOpen(true)}
+          >
+            Взять больничный
+          </button>
+        </div>
+      )}
 
       <h2 className="section-title">Порог сгорания</h2>
       <p className="profile__hint muted">Текущий: {burn} дн. без тренировки — и стрик сгорает</p>

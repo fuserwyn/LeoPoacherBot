@@ -15,7 +15,6 @@ func parseLastMessageTime(lastMessage string) (time.Time, error) {
 	if ts, err := utils.ParseMoscowTime(lastMessage); err == nil {
 		return ts, nil
 	}
-	// Backward compatibility for legacy rows stored without timezone.
 	return time.ParseInLocation("2006-01-02 15:04:05", lastMessage, utils.GetMoscowTime().Location())
 }
 
@@ -33,26 +32,6 @@ func removalDMReplyMarkup() *tgbotapi.InlineKeyboardMarkup {
 	}
 }
 
-// paywallPermanentKickBanConfig — постоянный бан в платной группе после кика за неактивность.
-// Снимаем сами в paywallDeliverAccessAfterPayment / handleStart / sendFreshRejoinLink — после новой оплаты.
-// Регрессия: ранее использовали 40-секундный временный бан + сразу unban, и старая инвайт-ссылка
-// у Telegram оставалась рабочей: человек заходил в группу до того, как срабатывали paywall-проверки.
-func paywallPermanentKickBanConfig(chatID, userID int64) tgbotapi.BanChatMemberConfig {
-	return tgbotapi.BanChatMemberConfig{
-		ChatMemberConfig: tgbotapi.ChatMemberConfig{ChatID: chatID, UserID: userID},
-		UntilDate:        0, // 0 = forever; Telegram трактует пустое until_date как бессрочный бан
-		RevokeMessages:   false,
-	}
-}
-
-// legacyKick30dBanConfig — обычный 30-дневный бан для бесплатных чатов.
-func legacyKick30dBanConfig(chatID, userID int64, now time.Time) tgbotapi.BanChatMemberConfig {
-	return tgbotapi.BanChatMemberConfig{
-		ChatMemberConfig: tgbotapi.ChatMemberConfig{ChatID: chatID, UserID: userID},
-		UntilDate:        now.Add(30 * 24 * time.Hour).Unix(),
-	}
-}
-
 // normalizeUserDisplayName убирает лишние ведущие '@' и оставляет одно упоминание для @username.
 func normalizeUserDisplayName(username string) string {
 	clean := strings.TrimLeft(username, "@")
@@ -65,38 +44,31 @@ func normalizeUserDisplayName(username string) string {
 	return "@" + clean
 }
 
+// removeUser — «кик» из стаи после 7 дней без движения. Физически из TG-группы никого не выкидываем
+// (TG-группы как сущности нет, миграция на мини-апп):
+//  1. шлём DM с предложением вернуться;
+//  2. аннулируем купленный paywall-доступ — повторный вход только через новую оплату;
+//  3. кладём карточку pack_removed в ленту мини-аппа;
+//  4. помечаем training_state.is_deleted = true.
 func (b *Bot) removeUser(userID, chatID int64, username string) {
 	b.logger.Infof("Attempting to remove user %d (%s) from chat %d", userID, username, chatID)
-	who := normalizeUserDisplayName(username)
 
-	// КРИТИЧЕСКИ ВАЖНО: Проверяем, не был ли только что отправлен #training_done
-	// Если пользователь отправил #training_done, таймер должен был быть перезапущен
-	// и этот вызов removeUser не должен был произойти
+	// Защита от гонки: если #training_done только что был — отменяем удаление.
 	messageLog, err := b.db.GetMessageLog(userID, chatID)
-	if err == nil {
-		// Проверяем, был ли недавно отправлен #training_done
-		// Если HasTrainingDone = true и LastMessage недавно обновлен, не удаляем
-		if messageLog.HasTrainingDone {
-			lastMessageTime, parseErr := parseLastMessageTime(messageLog.LastMessage)
-			if parseErr == nil {
-				timeSinceLastMessage := utils.GetMoscowTime().Sub(lastMessageTime)
-				// Если последнее сообщение было менее 1 минуты назад и содержит #training_done, не удаляем
-				if timeSinceLastMessage < 1*time.Minute {
-					b.logger.Infof("User %d (%s) just sent #training_done (%v ago), cancelling removal", userID, username, timeSinceLastMessage)
-					// Отменяем таймер, если он еще существует
-					b.cancelTimer(userID)
-					return
-				}
+	if err == nil && messageLog.HasTrainingDone {
+		if lastMessageTime, parseErr := parseLastMessageTime(messageLog.LastMessage); parseErr == nil {
+			if utils.GetMoscowTime().Sub(lastMessageTime) < 1*time.Minute {
+				b.logger.Infof("User %d (%s) just sent #training_done, cancelling removal", userID, username)
+				b.cancelTimer(userID)
+				return
 			}
 		}
 	}
 
-	dmText := removalDMText()
-	dmDelivered := chatID == userID
 	dmStatus := "dm_skipped"
 	dmErrorText := ""
 	if chatID != userID {
-		dmMsg := tgbotapi.NewMessage(userID, dmText)
+		dmMsg := tgbotapi.NewMessage(userID, removalDMText())
 		dmMsg.ReplyMarkup = removalDMReplyMarkup()
 		if _, err := b.api.Send(dmMsg); err != nil {
 			b.logger.Warnf("send removal DM user=%d: %v", userID, err)
@@ -107,7 +79,6 @@ func (b *Bot) removeUser(userID, chatID int64, username string) {
 				dmStatus = "dm_blocked"
 			}
 		} else {
-			dmDelivered = true
 			dmStatus = "dm_sent"
 		}
 	} else {
@@ -117,48 +88,22 @@ func (b *Bot) removeUser(userID, chatID int64, username string) {
 		b.logger.Errorf("log deletion event user=%d chat=%d: %v", userID, chatID, err)
 	}
 
-	// Удаляем из чата через ban. В платной группе — бессрочно (см. paywallPermanentKickBanConfig);
-	// разбан произойдёт после новой оплаты в paywallDeliverAccessAfterPayment.
-	if b.paywallActive() && chatID == b.config.MonetizedChatID {
-		_, err = b.api.Request(paywallPermanentKickBanConfig(chatID, userID))
-		// Кик за неактивность аннулирует купленный доступ: повторный вход возможен только
-		// после новой оплаты, иначе /start и «Вернуться в стаю» молча отдают инвайт без paywall.
+	if chatID == b.config.MonetizedChatID {
 		if expErr := b.db.ExpirePaywallAccessForUser(userID, chatID); expErr != nil {
 			b.logger.Errorf("Failed to expire paywall access for inactive user %d: %v", userID, expErr)
 		}
+		b.savePackRemovedMiniappFeed(chatID, userID, username)
+		b.logger.Infof("Removed user %d (%s) from pack: paywall access expired, miniapp feed updated", userID, username)
 	} else {
-		_, err = b.api.Request(legacyKick30dBanConfig(chatID, userID, time.Now()))
+		// chatID != MonetizedChatID — это приватный «message_log в личке» (chatID == userID).
+		// Никаких физических действий, только пометка is_deleted (см. ниже) — таймер выключен в DM выше.
+		b.logger.Infof("Removed user %d (%s) from non-pack chat %d (private flow only)", userID, username, chatID)
 	}
 
-	if err != nil {
-		b.logger.Errorf("Failed to remove user %d: %v", userID, err)
-		// Отправляем сообщение об ошибке
-		errorMsg := tgbotapi.NewMessage(chatID, fmt.Sprintf("❌ Не удалось удалить пользователя %s из чата", normalizeUserDisplayName(username)))
-		b.api.Send(errorMsg)
-	} else {
-		// Отправляем сообщение об удалении в группу.
-		message := fmt.Sprintf("🚫 %s удалён из чата за неактивность.\n\n🦁 Ням-ням, вкусненько!\n\n💪 Ты ведь не хочешь стать как я?\n\nТогда тренируйся и отправляй отчёты!", who)
-		if chatID != userID && !dmDelivered {
-			message += "\n\nℹ️ Уведомление в личные сообщения доставить не удалось. Открой диалог с ботом через /start, чтобы получать личные предупреждения и уведомления."
-		}
-		msg := tgbotapi.NewMessage(chatID, message)
-		b.logger.Infof("Sending removal message for user %d (%s)", userID, username)
-		_, sendErr := b.api.Send(msg)
-		if sendErr != nil {
-			b.logger.Errorf("Failed to send removal message: %v", sendErr)
-		} else {
-			b.logger.Infof("Successfully sent removal message for user %d (%s)", userID, username)
-		}
-
-		b.logger.Infof("Removed user %d (%s) from chat", userID, username)
-	}
-
-	// Помечаем пользователя как удаленного в базе данных
 	if err := b.db.MarkUserAsDeleted(userID, chatID); err != nil {
 		b.logger.Errorf("Failed to mark user as deleted: %v", err)
 	}
 
-	// Удаляем таймер
 	delete(b.timers, userID)
 	b.logger.Infof("Timer removed for user %d", userID)
 }

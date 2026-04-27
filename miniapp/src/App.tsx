@@ -8,6 +8,7 @@ import { NewWorkoutScreen } from "./components/NewWorkoutScreen";
 import { RulesScreen } from "./components/RulesScreen";
 import { sendMiniappPrivateText } from "./lib/miniappPrivateSend";
 import { fetchLeoPendingCount } from "./lib/leoPersonalInbox";
+import { ensureMiniappOnboarding } from "./lib/miniappOnboarding";
 import "./App.css";
 
 type Tab = "chat" | "feed" | "rules" | "profile";
@@ -45,6 +46,11 @@ export function App() {
       document.removeEventListener("visibilitychange", onVis);
     };
   }, [refreshLeoPending]);
+
+  useEffect(() => {
+    if (!inTelegram || !initData?.trim()) return;
+    void ensureMiniappOnboarding(initData);
+  }, [inTelegram, initData]);
 
   const onLeoInboxDrained = useCallback(() => {
     void refreshLeoPending();

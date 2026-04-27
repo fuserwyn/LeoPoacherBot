@@ -67,10 +67,7 @@ func (b *Bot) ProcessMiniAppPrivateText(d initdata.InitData, text string) MiniAp
 	if err := b.AssertMiniAppPackChatAligns(d); err != nil {
 		return out
 	}
-	msg := PrivateTextMessageFromInitUser(d, text)
-	if b.enforcePaywallForMonetizedChatMessage(msg) {
-		return out
-	}
+	_ = PrivateTextMessageFromInitUser(d, text) // для будущих чек-ов; сейчас сообщение всегда private, отдельный paywall-гейт не нужен
 	b.miniappPersonalClear(d.User.ID)
 	// В личку Telegram из мини-аппа не дублируем (ответы Лео по-прежнему в апп через poll).
 	// Исключение по смыслу: предупреждения дней 5–7 без отчёта — шлём в апп из timer_leopard (как дубль к DM).

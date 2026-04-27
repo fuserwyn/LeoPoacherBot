@@ -55,6 +55,10 @@ func (s *Server) serve(w http.ResponseWriter, r *http.Request) {
 		s.handlePostProfileLoad(w, r)
 	case path == "/api/miniapp/profile/save" && r.Method == http.MethodPost:
 		s.handlePostProfileSave(w, r)
+	case path == "/api/miniapp/health/status" && r.Method == http.MethodPost:
+		s.handlePostHealthStatus(w, r)
+	case path == "/api/miniapp/onboarding/ensure" && r.Method == http.MethodPost:
+		s.handlePostOnboardingEnsure(w, r)
 	case path == "/" && r.Method == http.MethodGet:
 		s.handleRoot(w, r)
 	default:
@@ -605,6 +609,106 @@ func (s *Server) handlePostPackGroupMessage(w http.ResponseWriter, r *http.Reque
 		out["reply_text"] = miniRes.ReplyText
 	}
 	_ = json.NewEncoder(w).Encode(out)
+}
+
+func (s *Server) handlePostHealthStatus(w http.ResponseWriter, r *http.Request) {
+	corsWriteHeaders(w, r)
+	if s.bot == nil || s.token == "" {
+		s.jsonErr(w, http.StatusServiceUnavailable, "server_unavailable")
+		return
+	}
+	var body struct {
+		InitData string `json:"init_data"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		s.jsonErr(w, http.StatusBadRequest, "invalid_json")
+		return
+	}
+	if body.InitData == "" {
+		s.jsonErr(w, http.StatusBadRequest, "missing_init_data")
+		return
+	}
+	if err := initdata.Validate(body.InitData, s.token, 24*time.Hour); err != nil {
+		s.jsonErr(w, http.StatusUnauthorized, "invalid_init_data")
+		return
+	}
+	parsed, err := initdata.Parse(body.InitData)
+	if err != nil {
+		s.jsonErr(w, http.StatusBadRequest, "parse_init_data")
+		return
+	}
+	if parsed.User.ID == 0 {
+		s.jsonErr(w, http.StatusBadRequest, "user_missing")
+		return
+	}
+	if err := s.bot.AssertMiniAppPackChatAligns(parsed); err != nil {
+		if errors.Is(err, bot.ErrMiniAppChatMismatch) {
+			s.jsonErr(w, http.StatusConflict, "chat_mismatch")
+			return
+		}
+		s.jsonErr(w, http.StatusInternalServerError, "assert_chat_error")
+		return
+	}
+	w.Header().Set("Content-Type", "application/json; charset=utf-8")
+	_ = json.NewEncoder(w).Encode(map[string]any{
+		"ok":      true,
+		"on_sick": s.bot.MiniappHealthStatus(parsed.User.ID),
+	})
+}
+
+// handlePostOnboardingEnsure — идемпотентный хендшейк мини-аппа: на первом открытии
+// после оплаты стартуем таймер неактивности и пишем pack_join/pack_rejoin в ленту стаи.
+func (s *Server) handlePostOnboardingEnsure(w http.ResponseWriter, r *http.Request) {
+	corsWriteHeaders(w, r)
+	if s.bot == nil || s.token == "" {
+		s.jsonErr(w, http.StatusServiceUnavailable, "server_unavailable")
+		return
+	}
+	var body struct {
+		InitData string `json:"init_data"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		s.jsonErr(w, http.StatusBadRequest, "invalid_json")
+		return
+	}
+	if body.InitData == "" {
+		s.jsonErr(w, http.StatusBadRequest, "missing_init_data")
+		return
+	}
+	if err := initdata.Validate(body.InitData, s.token, 24*time.Hour); err != nil {
+		s.jsonErr(w, http.StatusUnauthorized, "invalid_init_data")
+		return
+	}
+	parsed, err := initdata.Parse(body.InitData)
+	if err != nil {
+		s.jsonErr(w, http.StatusBadRequest, "parse_init_data")
+		return
+	}
+	if parsed.User.ID == 0 {
+		s.jsonErr(w, http.StatusBadRequest, "user_missing")
+		return
+	}
+	if err := s.bot.AssertMiniAppPackChatAligns(parsed); err != nil {
+		if errors.Is(err, bot.ErrMiniAppChatMismatch) {
+			s.jsonErr(w, http.StatusConflict, "chat_mismatch")
+			return
+		}
+		s.jsonErr(w, http.StatusInternalServerError, "assert_chat_error")
+		return
+	}
+	res, err := s.bot.EnsureMiniAppOnboarding(parsed)
+	if err != nil {
+		s.logger.Errorf("miniapp onboarding ensure user=%d: %v", parsed.User.ID, err)
+		s.jsonErr(w, http.StatusInternalServerError, "onboarding_failed")
+		return
+	}
+	w.Header().Set("Content-Type", "application/json; charset=utf-8")
+	_ = json.NewEncoder(w).Encode(map[string]any{
+		"ok":             true,
+		"in_pack":        res.InPack,
+		"just_onboarded": res.JustOnboarded,
+		"is_rejoin":      res.IsRejoin,
+	})
 }
 
 func (s *Server) handlePostProfileLoad(w http.ResponseWriter, r *http.Request) {

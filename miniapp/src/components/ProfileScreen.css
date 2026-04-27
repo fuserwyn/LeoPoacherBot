@@ -233,3 +233,54 @@
   opacity: 0.55;
   cursor: not-allowed;
 }
+
+.profile__health {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-bottom: 8px;
+}
+
+.profile__health-textarea {
+  resize: vertical;
+  min-height: 72px;
+  font-size: 14px;
+  line-height: 1.4;
+}
+
+.profile__health-btn {
+  width: 100%;
+}
+
+.profile__health-btn--secondary {
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--text);
+  border: 1.5px solid var(--border-subtle);
+}
+
+.profile__health-actions {
+  display: flex;
+  gap: 10px;
+  align-items: stretch;
+}
+
+.profile__health-actions .profile__health-btn {
+  flex: 1;
+}
+
+.profile__health-cancel {
+  padding: 14px 18px;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--text-muted);
+  border: 1.5px solid var(--border-subtle);
+  font-size: 14px;
+  font-weight: 600;
+  font-family: inherit;
+  cursor: pointer;
+}
+
+.profile__health-cancel:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}

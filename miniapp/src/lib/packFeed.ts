@@ -57,6 +57,8 @@ function typeMeta(t: string): { emoji: string; activity: string; details: string
       return { emoji: "🐆", activity: "Лео · приветствие", details: "Вернулся в стаю" };
     case "daily_wisdom":
       return { emoji: "🌅", activity: "Мудрость дня", details: "Мудрость дня" };
+    case "pack_removed":
+      return { emoji: "🐆", activity: "Лео · стая", details: "Выбыл за неактивность" };
     default:
       return { emoji: "📝", activity: t, details: "Сообщение" };
   }
@@ -74,14 +76,19 @@ function avatarFor(name: string) {
 export function dtoToCard(d: PackFeedItemDTO): ActivityCardProps {
   const m = typeMeta(d.type);
   const isLeoNotice =
-    d.type === "pack_join" || d.type === "pack_rejoin" || d.type === "daily_wisdom";
+    d.type === "pack_join" ||
+    d.type === "pack_rejoin" ||
+    d.type === "daily_wisdom" ||
+    d.type === "pack_removed";
   const newcomer = (d.username || "").trim() || `Участник ${d.user_id}`;
   const commentRaw = d.text.trim();
   const maxComment =
     d.type === "training_done" || d.type === "daily_wisdom" ? 2000 : 280;
   const comment = commentRaw.length > maxComment ? commentRaw.slice(0, maxComment - 1) + "…" : commentRaw;
   if (isLeoNotice) {
-    const leoDetails = d.type === "daily_wisdom" ? "Мудрость дня" : newcomer;
+    let leoDetails = newcomer;
+    if (d.type === "daily_wisdom") leoDetails = "Мудрость дня";
+    else if (d.type === "pack_removed") leoDetails = newcomer;
     return {
       avatar: "🐆",
       name: "Лео",

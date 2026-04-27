@@ -30,10 +30,6 @@ type Bot struct {
 	sickApprovalMutex    sync.Mutex
 	adminSessions        map[int64]*adminSession
 	adminSessionsMutex   sync.Mutex
-	paywallInviteMu      sync.Mutex
-	paywallInviteURL     string
-	paywallInviteCached  time.Time
-	paywallInviteFromAPI bool
 	// Очередь ответов Лео для мини-аппа (личка): poll без БД. Несколько реплик бота — один процесс.
 	miniappPersonalMu    sync.Mutex
 	miniappPersonalQueue map[int64][]string
@@ -131,13 +127,9 @@ func (b *Bot) Start(ctx context.Context) error {
 		if !b.config.PaywallPaymentReady() {
 			b.logger.Warn("PAYWALL_ENABLED=true but payment is not configured: PAYMENT_STARS_ENABLED + сумма, или PAYMENT_CURRENCY=XTR, или PAYMENT_PROVIDER_TOKEN, или YOOKASSA_* с RUB/суммой")
 		}
-		if b.config.MonetizedChatID != 0 {
-			if strings.TrimSpace(b.config.MonetizedChatInviteURL) == "" {
-				b.logger.Info("Paywall: MONETIZED_CHAT_INVITE_URL пуст — ссылка «в группу» будет создаваться через createChatInviteLink (бот как админ с правом приглашений)")
-			} else {
-				b.logger.Info("Paywall: задана MONETIZED_CHAT_INVITE_URL — используется как запас, если API не создаст новую ссылку")
-			}
-		}
+		// MONETIZED_CHAT_INVITE_URL / PAYWALL_INVITE_CREATES_JOIN_REQUEST — устаревшие опции:
+		// после миграции на мини-апп TG-группа как сущности нет, ссылки в группу не создаём.
+		// Оставлены в config.Config для обратной совместимости со старыми .env, но не используются.
 		if b.config.PaywallPaymentReady() {
 			if b.config.PaywallUsesStars() {
 				b.logger.Infof("Paywall: Telegram Stars (%d ⭐), provider_token пустой", b.config.PaywallStarsInvoiceAmount())
@@ -319,22 +311,12 @@ func (b *Bot) handleUpdate(update tgbotapi.Update) {
 		return
 	}
 
-	if update.ChatJoinRequest != nil {
-		b.handlePaywallChatJoinRequest(update.ChatJoinRequest)
-		return
-	}
-
-	// Обрабатываем реакции на сообщения (смайлики)
-	// Примечание: telegram-bot-api v5.5.1 пока не поддерживает MessageReaction в Update
-	// Если библиотека обновится с поддержкой реакций, можно будет обработать здесь
-	// if update.MessageReaction != nil {
-	// 	b.handleMessageReaction(update.MessageReaction)
-	// 	return
-	// }
-
-	// Обрабатываем добавление новых участников
-	if update.Message != nil && len(update.Message.NewChatMembers) > 0 {
-		b.handleNewChatMembers(update.Message)
+	// Миграция на мини-апп: бот молчит во всех групповых TG-чатах.
+	// Вся механика (отчёты, sick/healthy, лента, чат стаи, онбординг) живёт в мини-аппе и личке с ботом.
+	// Личка (private) и платёжные апдейты (CallbackQuery / PreCheckout / SuccessfulPayment) обрабатываются как раньше.
+	// ChatJoinRequest / NewChatMembers больше не используются: TG-группа как сущность убрана.
+	if update.Message != nil && update.Message.Chat != nil &&
+		(update.Message.Chat.Type == "group" || update.Message.Chat.Type == "supergroup") {
 		return
 	}
 
@@ -345,9 +327,6 @@ func (b *Bot) handleUpdate(update tgbotapi.Update) {
 	msg := update.Message
 	if msg.SuccessfulPayment != nil {
 		b.handlePaywallSuccessfulPayment(msg)
-		return
-	}
-	if b.enforcePaywallForMonetizedChatMessage(msg) {
 		return
 	}
 
@@ -451,112 +430,12 @@ func (b *Bot) handleCommand(msg *tgbotapi.Message) {
 	}
 }
 
-func (b *Bot) handleNewChatMembers(msg *tgbotapi.Message) {
-	// Отправляем приветственное сообщение для каждого нового участника
-	for _, newMember := range msg.NewChatMembers {
-		// Пропускаем ботов
-		if newMember.IsBot {
-			continue
-		}
-
-		if b.paywallShouldKickDirectJoinWithoutPayment(msg.Chat.ID, newMember.ID) {
-			b.paywallKickFromMonetizedChatAndExplain(newMember.ID)
-			continue
-		}
-
-		// Получаем никнейм пользователя
-		username := ""
-		if newMember.UserName != "" {
-			username = "@" + newMember.UserName
-		} else if newMember.FirstName != "" {
-			username = newMember.FirstName
-			if newMember.LastName != "" {
-				username += " " + newMember.LastName
-			}
-		} else {
-			username = fmt.Sprintf("User%d", newMember.ID)
-		}
-
-		if b.paywallActive() && msg.Chat.ID == b.config.MonetizedChatID {
-			if returnCount, err := b.db.GetUserReturnCount(newMember.ID, msg.Chat.ID); err == nil && returnCount > 0 {
-				b.sendReturnedMemberWelcome(newMember.ID)
-				b.savePackJoinMiniappFeed(msg.Chat.ID, newMember.ID, username, userMessageTypePackRejoin, packRejoinMiniappWelcomeText(username))
-				b.startTimer(newMember.ID, msg.Chat.ID, username)
-				continue
-			}
-		}
-
-		// Отправляем приветственное сообщение
-		b.sendWelcomeMessage(msg.Chat.ID, username, newMember.ID)
-	}
-}
-
-func (b *Bot) sendReturnedMemberWelcome(userID int64) {
-	if _, err := b.api.Send(tgbotapi.NewMessage(userID, returnedMemberWelcomeText())); err != nil {
-		b.logger.Warnf("send returned welcome DM user=%d: %v", userID, err)
-	}
-}
-
-func returnedMemberWelcomeText() string {
-	return `Ты снова в стае.
-На счету — 42 XP. Ачивок нет, их придётся заработать заново.
-Правила те же: активный день даёт +42 XP, пропущенный забирает -6. Семь дней подряд — ачивка.
-Первую тренировку можно запостить прямо сейчас.`
-}
-
-func (b *Bot) sendWelcomeMessage(chatID int64, username string, userID int64) {
-	// Создаем запись пользователя в БД с запущенным таймером
-	timerStartTime := utils.FormatMoscowTime(utils.GetMoscowTime())
-	messageLog := &domain.MessageLog{
-		UserID:          userID,
-		ChatID:          chatID,
-		Username:        username,
-		XP:              0,
-		StreakDays:      0,
-		CupsEarned:      0,
-		LastMessage:     timerStartTime,
-		HasTrainingDone: false,
-		HasSickLeave:    false,
-		HasHealthy:      false,
-		IsDeleted:       false,
-		TimerStartTime:  &timerStartTime, // Сразу устанавливаем время начала таймера
-	}
-
-	if err := b.db.SaveMessageLog(messageLog); err != nil {
-		b.logger.Errorf("Failed to save new user to database: %v", err)
-	} else {
-		b.logger.Infof("Successfully saved new user %s (ID: %d) to database with timer start time", username, userID)
-		b.savePackJoinMiniappFeed(chatID, userID, username, userMessageTypePackJoin, packJoinMiniappWelcomeText(username))
-	}
-
-	welcomeText := fmt.Sprintf("%s\n\n%s", username, leopardOnboardingBody())
-
-	// Сначала пытаемся отправить онбординг в личные сообщения.
-	privateReply := tgbotapi.NewMessage(userID, welcomeText)
-	b.logger.Infof("Sending onboarding to private chat for user %s (ID: %d) from chat %d", username, userID, chatID)
-	_, errSend := b.api.Send(privateReply)
-	if errSend != nil {
-		b.logger.Errorf("Failed to send onboarding to private chat for user %s (ID: %d): %v", username, userID, errSend)
-		fallbackText := fmt.Sprintf("%s, не могу отправить онбординг в личку. Напиши боту в личные сообщения (/start), и я пришлю инструкцию.", username)
-		if _, errFallback := b.api.Send(tgbotapi.NewMessage(chatID, fallbackText)); errFallback != nil {
-			b.logger.Errorf("Failed to send private-chat fallback message in chat %d: %v", chatID, errFallback)
-		}
-	} else {
-		b.logger.Infof("Successfully sent onboarding to private chat for user %s (ID: %d)", username, userID)
-	}
-
-	// Запускаем таймер для нового пользователя
-	b.startTimer(userID, chatID, username)
-}
-
 func (b *Bot) handleMessage(msg *tgbotapi.Message, personalReplyCh chan<- string) {
 	// Проверяем наличие хештегов в тексте или подписи
 	text := msg.Text
 	if text == "" && msg.Caption != "" {
 		text = msg.Caption
 	}
-
-	b.maybeSyncPackGroupChatFromTelegram(msg, text)
 
 	b.tryHandleSickApprovalReply(msg, text)
 
@@ -632,6 +511,18 @@ func (b *Bot) handleMessage(msg *tgbotapi.Message, personalReplyCh chan<- string
 			} else {
 				if err := b.db.SaveUserMessage(userMsg); err != nil {
 					b.logger.Errorf("Failed to save user message: %v", err)
+				} else if (hasSickLeave || hasHealthy) && b.config.MonetizedChatID != 0 && msg.Chat != nil && msg.Chat.Type == "private" {
+					// Аналогично training_done: sick_leave / healthy из лички и мини-аппа дублируем в ленту стаи.
+					mirror := &domain.UserMessage{
+						UserID:      userMsg.UserID,
+						ChatID:      b.config.MonetizedChatID,
+						Username:    userMsg.Username,
+						MessageText: userMsg.MessageText,
+						MessageType: userMsg.MessageType,
+					}
+					if err := b.db.SaveUserMessage(mirror); err != nil {
+						b.logger.Warnf("mirror %s to pack feed user_messages: %v", userMsg.MessageType, err)
+					}
 				}
 			}
 		}
@@ -1041,7 +932,7 @@ func (b *Bot) handleStartTimer(msg *tgbotapi.Message) {
 }
 
 // leopardOnboardingBody — основной текст онбординга (Leopard Money / Fat Leopard).
-// Используется в /start (welcomeStartText) и при входе нового участника в стаю (sendWelcomeMessage).
+// Используется в /start (welcomeStartText) и в DM после оплаты (см. paywallPostPaymentUserText).
 func leopardOnboardingBody() string {
 	return leopardOnboardingBodyText
 }
@@ -1145,16 +1036,9 @@ func (b *Bot) handleStart(msg *tgbotapi.Message) {
 	welcomeText := welcomeStartText()
 	if msg.Chat.IsPrivate() && b.paywallActive() && msg.From != nil && !b.paywallPrivateNeedsPayFirst(msg.From.ID) {
 		welcomeText += b.paywallPrivatePaidFooter()
-		welcomeText += paidPrivateRetryEntryHintLine()
 	}
 
 	reply := tgbotapi.NewMessage(msg.Chat.ID, welcomeText)
-	if msg.Chat.IsPrivate() && b.paywallActive() && msg.From != nil && !b.paywallPrivateNeedsPayFirst(msg.From.ID) {
-		b.paywallUnbanUserFromMonetizedGroup(msg.From.ID)
-		if inviteURL := b.paywallFreshGroupInviteURL(); inviteURL != "" {
-			reply.ReplyMarkup = freshRejoinInviteKeyboard(inviteURL)
-		}
-	}
 
 	b.logger.Infof("Sending start message to chat %d", msg.Chat.ID)
 	_, errSend := b.api.Send(reply)
@@ -1165,6 +1049,7 @@ func (b *Bot) handleStart(msg *tgbotapi.Message) {
 	}
 }
 
+// handleRejoin — после миграции на мини-апп TG-группа выпилена; /rejoin превратили в напоминание открыть мини-апп.
 func (b *Bot) handleRejoin(msg *tgbotapi.Message) {
 	if !msg.Chat.IsPrivate() {
 		_, _ = b.api.Send(tgbotapi.NewMessage(msg.Chat.ID, "ℹ️ Команда /rejoin работает в личке с ботом."))
@@ -1180,32 +1065,7 @@ func (b *Bot) handleRejoin(msg *tgbotapi.Message) {
 		_, _ = b.api.Send(reply)
 		return
 	}
-	if err := b.sendFreshRejoinLink(msg.Chat.ID); err != nil {
-		b.logger.Errorf("Failed to send fresh join link after /rejoin: %v", err)
-	}
-}
-
-// paidPrivateRetryEntryHintLine — подсказка в /start для оплатившего: вход кнопками + новая ссылка при каждом /start.
-func paidPrivateRetryEntryHintLine() string {
-	return "\n\n📱 Мини-приложение — кнопка внизу в этом чате. В группу — кнопка ниже; свежая ссылка при каждом /start или /rejoin."
-}
-
-func freshRejoinInviteKeyboard(inviteURL string) *tgbotapi.InlineKeyboardMarkup {
-	return paywallGroupInviteInlineKeyboard(inviteURL)
-}
-
-func (b *Bot) sendFreshRejoinLink(chatID int64) error {
-	// В личке chatID == userID; снимаем возможный бан из платной группы (в т.ч. после старого 30-дневного removeUser).
-	b.paywallUnbanUserFromMonetizedGroup(chatID)
-	inviteURL := b.paywallFreshGroupInviteURL()
-	joinMsg := tgbotapi.NewMessage(chatID, "🔁 Нужен повторный вход в группу? Нажми кнопку ниже — это новая ссылка.")
-	if inviteURL != "" {
-		joinMsg.ReplyMarkup = freshRejoinInviteKeyboard(inviteURL)
-	} else {
-		joinMsg.Text = "🔁 Не удалось сгенерировать новую ссылку входа. Попробуй /start позже или попроси администратора выдать приглашение."
-	}
-	_, err := b.api.Send(joinMsg)
-	return err
+	_, _ = b.api.Send(tgbotapi.NewMessage(msg.Chat.ID, "✅ Доступ активен. Открой мини-приложение бота — внизу экрана в этом чате (или через меню ⋮)."))
 }
 
 func (b *Bot) handleDB(msg *tgbotapi.Message) {
@@ -3065,9 +2925,6 @@ func (b *Bot) handleCallbackQuery(callback *tgbotapi.CallbackQuery) {
 		return
 	case paywallCallbackReturnToPack:
 		b.handlePaywallReturnToPackCallback(callback)
-		return
-	case paywallCallbackRefreshInvite:
-		b.handlePaywallRefreshInviteCallback(callback)
 		return
 	case paywallCallbackPayStars:
 		b.handlePaywallPayStarsCallback(callback)
