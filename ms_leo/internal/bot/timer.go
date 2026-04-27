@@ -6,6 +6,7 @@ import (
 	"strings"
 	"time"
 
+	"leo-bot/internal/domain"
 	"leo-bot/internal/utils"
 
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
@@ -16,6 +17,32 @@ func parseLastMessageTime(lastMessage string) (time.Time, error) {
 		return ts, nil
 	}
 	return time.ParseInLocation("2006-01-02 15:04:05", lastMessage, utils.GetMoscowTime().Location())
+}
+
+// recentlyReported — true, если хотя бы по одной из строк training_state у юзера
+// зафиксирован #training_done с last_message моложе минуты. Проверяем pack-row (chatID
+// из триггера, обычно MonetizedChatID) и private-row (userID, userID) — last_message в
+// мини-апп архитектуре пишется именно во вторую (см. handleMessage).
+func recentlyReported(b *Bot, userID, chatID int64) bool {
+	check := func(ml *domain.MessageLog) bool {
+		if ml == nil || !ml.HasTrainingDone || strings.TrimSpace(ml.LastMessage) == "" {
+			return false
+		}
+		ts, err := parseLastMessageTime(ml.LastMessage)
+		if err != nil {
+			return false
+		}
+		return utils.GetMoscowTime().Sub(ts) < 1*time.Minute
+	}
+	if ml, err := b.db.GetMessageLog(userID, chatID); err == nil && check(ml) {
+		return true
+	}
+	if chatID != userID {
+		if ml, err := b.db.GetMessageLog(userID, userID); err == nil && check(ml) {
+			return true
+		}
+	}
+	return false
 }
 
 func removalDMText() string {
@@ -68,15 +95,14 @@ func (b *Bot) removeUser(userID, chatID int64, username string) {
 	b.logger.Infof("Attempting to remove user %d (%s) from chat %d", userID, username, chatID)
 
 	// Защита от гонки: если #training_done только что был — отменяем удаление.
-	messageLog, err := b.db.GetMessageLog(userID, chatID)
-	if err == nil && messageLog.HasTrainingDone {
-		if lastMessageTime, parseErr := parseLastMessageTime(messageLog.LastMessage); parseErr == nil {
-			if utils.GetMoscowTime().Sub(lastMessageTime) < 1*time.Minute {
-				b.logger.Infof("User %d (%s) just sent #training_done, cancelling removal", userID, username)
-				b.cancelTimer(userID)
-				return
-			}
-		}
+	// Проверяем обе строки: pack-row (на ней живёт таймер) и private-row (туда пишет
+	// last_message handleMessage из мини-аппа/лички). Без второй проверки anti-trigger
+	// никогда не ловит гонку: в pack-row last_message обновлялся только сообщениями
+	// из группы стаи, а группы мы теперь игнорируем.
+	if recentlyReported(b, userID, chatID) {
+		b.logger.Infof("User %d (%s) just sent #training_done, cancelling removal", userID, username)
+		b.cancelTimer(userID)
+		return
 	}
 
 	dmStatus := "dm_skipped"
@@ -137,6 +163,16 @@ func (b *Bot) recoverTimersFromDatabase() error {
 		// Дополнительное логирование для диагностики проблем с короткими ID
 		b.logger.Infof("Processing user: ID=%d, Username='%s', ChatID=%d, HasSickLeave=%t, HasHealthy=%t, IsDeleted=%t, IsExemptFromDeletion=%t",
 			user.UserID, user.Username, user.ChatID, user.HasSickLeave, user.HasHealthy, user.IsDeleted, user.IsExemptFromDeletion)
+
+		// В paywall-режиме источник правды для кика — pack-row (chat_id = MonetizedChatID).
+		// Private-row (chat_id = userID) хранит только bookkeeping (last_message, XP, streak)
+		// и не должна порождать рантайм-таймер кика: иначе она перетирает b.timers[userID]
+		// (мапа без учёта chatID) и слепо рассылает «тебя кикнули» DM активным платящим юзерам,
+		// у которых private-row.timer_start_time протух с момента первого открытия мини-аппа.
+		if b.config != nil && b.config.MonetizedChatID != 0 && user.ChatID != b.config.MonetizedChatID {
+			b.logger.Infof("Skipping user %d (%s) - non-pack row chat_id=%d (kick lives only on pack-row)", user.UserID, user.Username, user.ChatID)
+			continue
+		}
 
 		// Пропускаем пользователей на больничном
 		if user.HasSickLeave && !user.HasHealthy {

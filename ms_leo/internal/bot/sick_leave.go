@@ -15,7 +15,10 @@ import (
 func (b *Bot) handleSickLeave(msg *tgbotapi.Message) {
 	justification := extractSickLeaveJustification(msg)
 
-	messageLog, err := b.db.GetMessageLog(msg.From.ID, msg.Chat.ID)
+	// Стейт больничного (HasSickLeave / SickLeaveStartTime / approval-флаги) ведём на pack-row,
+	// чтобы recoverTimersFromDatabase при рестарте видел активный больничный по той же строке,
+	// на которой стоит таймер кика. Иначе pack-row не знает о больничном и кикает спящего юзера.
+	messageLog, err := b.db.GetMessageLog(msg.From.ID, b.kickChatIDForMessage(msg))
 	if err != nil {
 		b.logger.Errorf("Failed to get message log: %v", err)
 		return
@@ -345,7 +348,8 @@ func (b *Bot) tryHandleSickApprovalReply(msg *tgbotapi.Message, text string) {
 		return
 	}
 
-	messageLog, err := b.db.GetMessageLog(msg.From.ID, msg.Chat.ID)
+	// Approval-стейт лежит на pack-row (см. handleSickLeave) — грузим оттуда же.
+	messageLog, err := b.db.GetMessageLog(msg.From.ID, b.kickChatIDForMessage(msg))
 	if err != nil {
 		b.logger.Errorf("Failed to get message log for sick approval reply: %v", err)
 		return
@@ -403,8 +407,8 @@ func (b *Bot) forceCancelSickLeave(userID, chatID int64) {
 }
 
 func (b *Bot) handleHealthy(msg *tgbotapi.Message) {
-	// Получаем данные о времени таймера и больничного
-	messageLog, err := b.db.GetMessageLog(msg.From.ID, msg.Chat.ID)
+	// Стейт больничного и таймер живут на pack-row — выздоровление сбрасываем там же.
+	messageLog, err := b.db.GetMessageLog(msg.From.ID, b.kickChatIDForMessage(msg))
 	if err != nil {
 		b.logger.Errorf("Failed to get message log: %v", err)
 		return

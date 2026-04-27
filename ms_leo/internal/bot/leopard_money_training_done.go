@@ -184,6 +184,20 @@ func (b *Bot) handleLeopardMoneyTrainingDone(msg *tgbotapi.Message, personalRepl
 		return
 	}
 
+	// Approval-стейт больничного теперь живёт на pack-row (см. handleSickLeave),
+	// поэтому отменяем его именно там — иначе watcher продержится до дедлайна и потом
+	// принудительно «отменит» уже неактуальный запрос лишним сообщением.
+	packChatID := b.kickChatIDForMessage(msg)
+	if packLog, packErr := b.db.GetMessageLog(msg.From.ID, packChatID); packErr == nil && packLog != nil && packLog.SickApprovalPending {
+		b.cancelSickApprovalWatcher(msg.From.ID)
+		packLog.SickApprovalPending = false
+		packLog.SickApprovalDeadline = nil
+		packLog.SickApprovalMessageID = nil
+		if err := b.db.SaveMessageLog(packLog); err != nil {
+			b.logger.Errorf("Failed to clear pack-row sick approval flags after training: %v", err)
+		}
+	}
+
 	if messageLog.SickApprovalPending {
 		b.cancelSickApprovalWatcher(msg.From.ID)
 		messageLog.SickApprovalPending = false
