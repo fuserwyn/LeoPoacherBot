@@ -3,6 +3,7 @@ package bot
 import (
 	"fmt"
 	"strings"
+	"time"
 
 	"leo-bot/internal/ai"
 	"leo-bot/internal/domain"
@@ -51,6 +52,91 @@ func (b *Bot) generateShortLeopardChatAck(username, text string, streak, totalXP
 		return fallback
 	}
 	return ack
+}
+
+// leoFeedEncouragementPol — как обращаться в финале «Держи ритм, …».
+func leoFeedEncouragementPol(g string) string {
+	g = strings.TrimSpace(strings.ToLower(g))
+	if g == "f" {
+		return "хищница"
+	}
+	if g == "m" {
+		return "хищник"
+	}
+	return "" // нейтрально, без муж/жен форм
+}
+
+// collapseSpacesKeepParagraphs сжимает пробелы внутри строк, сохраняет один \n\n между абзацами.
+func collapseSpacesKeepParagraphs(s string) string {
+	s = strings.TrimSpace(s)
+	for strings.Contains(s, "\n\n\n") {
+		s = strings.ReplaceAll(s, "\n\n\n", "\n\n")
+	}
+	lines := strings.Split(s, "\n")
+	for i, line := range lines {
+		lines[i] = strings.Join(strings.Fields(line), " ")
+	}
+	return strings.TrimSpace(strings.Join(lines, "\n"))
+}
+
+// generateLeoTrainingFeedEncouragement — «живой» комментарий Лео для треда ленты (как в тестовом тоне: забота, ирония, «завтрак», «держи ритм»).
+// gapEmptyDays — полных дней «тишины» между прошлой датой тренировки и сегодня (без цифр в тексте, только настроение).
+func (b *Bot) generateLeoTrainingFeedEncouragement(username, reportText string, newStreak, totalXP, ach, gapEmptyDays int, userGender string, wasOnSickLeave bool) string {
+	if b.aiClient == nil {
+		return ""
+	}
+	pol := leoFeedEncouragementPol(userGender)
+	polHint := "используй нейтральное окончание вроде «Держи ритм!» или «в атаку!»"
+	if pol != "" {
+		polHint = fmt.Sprintf("в последней фразе можно обернуться: «хищница»/«хищник» — для этого пользователя: «%s» (если нейтрален — без этих слов, нейтрально).", pol)
+	}
+	gapHint := "перерыв короткий или подряд идёшь — не разгоняйся про 'пропал', шути мягко про дисциплину, не фиксируй дни числом."
+	if gapEmptyDays >= 2 {
+		gapHint = "был ощутимый перерыв — можно слабую заботу о 'форме', лёгкую нотку, что 'уже волновался', осторожно пошутить про 'завтрак' / перепутать с пропитанием (как в стиле Fat Leopard), без жести и токсичности. Без конкретной цифры дней."
+	}
+	sickHint := ""
+	if wasOnSickLeave {
+		sickHint = "пользователь недавно снимал #sick_leave — можно тёплую нотку 'рад что снова в строю', без морали."
+	}
+
+	question := `Ты Лео — Fat Leopard, голос ленты стаи. Напиши лаконичный, ЖИВОЙ ответ (не сухой отчёт).
+
+СТРУКТУРА:
+1) Блок 1–4 предложений: отреагируй на суть тренировки (из отчёта) + (если уместно по подсказке про перерыв/болезнь) — тёплая ирония, «я волновался за твою форму», осторожная шутка про «завтрак»/перепутать с едой — по желанию, не в каждом ответе.
+2) Пустая строка.
+3) Короткий финал отдельной строкой, с энергией: например «Держи ритм, хищница!» с правильной формой (см. подсказку по полу) или нейтрально.
+
+ЗАПРЕТЫ: не пиши цифры XP, серий, ачивок, таймер; не *рычит*; без Markdown, без нумерованных списков, без кавычек вокруг всего текста. Русский язык. Можно 0–2 эмодзи (не больше).`
+
+	var ctxBuilder strings.Builder
+	ctxBuilder.WriteString("Контекст.\n")
+	ctxBuilder.WriteString(fmt.Sprintf("Пользователь: %s\n", username))
+	ctxBuilder.WriteString(fmt.Sprintf("Настроение по данным: серия сейчас %d, XP всего %d, ачивок %d — в тексте НЕ произноси и не обсуждай числа (ниже в приложении дубль статов).\n", newStreak, totalXP, ach))
+	ctxBuilder.WriteString(fmt.Sprintf("Полных дней без тренировок между прошлой датой отчёта и сегодня (только логика; в ответе числом дни НЕ пиши): %d\n", gapEmptyDays))
+	ctxBuilder.WriteString(gapHint + "\n")
+	ctxBuilder.WriteString(sickHint + "\n")
+	ctxBuilder.WriteString(polHint + "\n")
+	ctxBuilder.WriteString(fmt.Sprintf("Текст отчёта: %s\n", reportText))
+
+	enc, err := b.aiClient.AnswerUserQuestion(question, ctxBuilder.String())
+	if err != nil {
+		b.logger.Warnf("generate leo feed encouragement: %v", err)
+		return ""
+	}
+	enc = ai.SanitizeTextForUser(enc)
+	enc = strings.Trim(enc, `"'«»“”„`)
+	enc = collapseSpacesKeepParagraphs(enc)
+	if enc == "" {
+		return ""
+	}
+	words := len(strings.Fields(enc))
+	if words < 10 || words > 110 {
+		return ""
+	}
+	if len([]rune(enc)) > 620 {
+		enc = string([]rune(enc)[:620]) + "…"
+	}
+	return enc
 }
 
 // handleLeopardMoneyTrainingDone — отчёт #training_done по модели Leopard Money (XP, ачивки, таймер 8 дней).
@@ -114,6 +200,20 @@ func (b *Bot) handleLeopardMoneyTrainingDone(msg *tgbotapi.Message, personalRepl
 
 	localNow := b.getUserLocalNow(messageLog.TimezoneOffsetFromMoscow)
 	today := localNow.Format("2006-01-02")
+
+	gapEmptyDays := 0
+	if messageLog.LastTrainingDate != nil && *messageLog.LastTrainingDate != today {
+		lastD, err := time.Parse("2006-01-02", *messageLog.LastTrainingDate)
+		if err == nil {
+			todayD, err2 := time.Parse("2006-01-02", today)
+			if err2 == nil {
+				d := int(todayD.Sub(lastD) / (24 * time.Hour))
+				if d > 1 {
+					gapEmptyDays = d - 1
+				}
+			}
+		}
+	}
 
 	sessionsToday, err := b.db.CountTrainingSessionsInDateRange(msg.From.ID, msg.Chat.ID, today, today)
 	if err != nil {
@@ -229,11 +329,13 @@ func (b *Bot) handleLeopardMoneyTrainingDone(msg *tgbotapi.Message, personalRepl
 	}
 
 	if trainingUserMessageID > 0 && b.config.MonetizedChatID != 0 {
-		if _, err := b.db.InsertTrainingFeedThreadReply(b.config.MonetizedChatID, trainingUserMessageID, 0, "Лео", messageText); err != nil {
+		threadText := messageText
+		if extra := b.generateLeoTrainingFeedEncouragement(username, text, newStreak, totalXP, ach, gapEmptyDays, userGender, wasOnSickLeave); extra != "" {
+			threadText = extra + "\n\n" + messageText
+		}
+		if _, err := b.db.InsertTrainingFeedThreadReply(b.config.MonetizedChatID, trainingUserMessageID, 0, "Лео", threadText); err != nil {
 			b.logger.Warnf("training feed leo thread reply: %v", err)
 		}
 	}
 
-	_ = wasOnSickLeave
-	_ = userGender
 }
