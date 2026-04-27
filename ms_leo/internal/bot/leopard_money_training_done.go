@@ -228,7 +228,7 @@ func (b *Bot) handleLeopardMoneyTrainingDone(msg *tgbotapi.Message, personalRepl
 		b.logger.Warnf("send training private summary: %v", err)
 	}
 
-	if trainingUserMessageID > 0 && b.config.MonetizedChatID != 0 && msg.Chat != nil && msg.Chat.ID == b.config.MonetizedChatID {
+	if trainingUserMessageID > 0 && b.config.MonetizedChatID != 0 {
 		if _, err := b.db.InsertTrainingFeedThreadReply(b.config.MonetizedChatID, trainingUserMessageID, 0, "Лео", messageText); err != nil {
 			b.logger.Warnf("training feed leo thread reply: %v", err)
 		}

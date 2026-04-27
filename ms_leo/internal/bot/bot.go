@@ -611,6 +611,23 @@ func (b *Bot) handleMessage(msg *tgbotapi.Message, personalReplyCh chan<- string
 					b.logger.Errorf("Failed to save user message: %v", err)
 				} else {
 					trainingDoneFeedMsgID = id
+					// Лента мини-аппа и реакции/треды читают user_messages с chat_id = стая.
+					// Отчёт из лички / мини-аппа пишется с chat_id = private (как у Telegram); дублируем строку для ленты.
+					if b.config.MonetizedChatID != 0 && msg.Chat != nil && msg.Chat.Type == "private" {
+						mirror := &domain.UserMessage{
+							UserID:      userMsg.UserID,
+							ChatID:      b.config.MonetizedChatID,
+							Username:    userMsg.Username,
+							MessageText: userMsg.MessageText,
+							MessageType: userMsg.MessageType,
+						}
+						feedID, errM := b.db.SaveUserMessageReturningID(mirror)
+						if errM != nil {
+							b.logger.Warnf("mirror training_done to pack feed user_messages: %v", errM)
+						} else {
+							trainingDoneFeedMsgID = feedID
+						}
+					}
 				}
 			} else {
 				if err := b.db.SaveUserMessage(userMsg); err != nil {
