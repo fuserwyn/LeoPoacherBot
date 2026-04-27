@@ -78,13 +78,13 @@ func paywallInvoiceShortHintForUser(err error) string {
 	case strings.Contains(m, "currency_invalid"), strings.Contains(m, "currency_total_amount_invalid"):
 		return "Платёж не прошёл проверку. Нажми /start и запроси счёт снова."
 	case strings.Contains(m, "invoice_payload_invalid"), strings.Contains(m, "invoice_invalid"):
-		return "Счёт отклонён Telegram. Обнови приложение или попробуй оплату картой (вторая кнопка)."
+		return "Счёт отклонён Telegram. Обнови приложение или выбери оплату картой другой кнопкой."
 	case tgErr.Code == 403 || strings.Contains(m, "blocked"):
 		return "Разблокируй бота: ⋮ в чате → Разблокировать."
 	case strings.Contains(m, "chat not found") || strings.Contains(m, "user is deactivated"):
 		return "Напиши боту любое сообщение в личке и снова нажми кнопку."
 	default:
-		return "Не вышло отправить счёт. Попробуй оплату картой (вторая кнопка) или /start позже."
+		return "Не вышло отправить счёт. Попробуй оплату картой другой кнопкой или /start позже."
 	}
 }
 
@@ -113,17 +113,18 @@ func paywallYookassaShortHintForUser(err error) string {
 }
 
 // paywallFreshInviteLinkConfigs — два шага createChatInviteLink для «свежей» ссылки (см. paywallCreateInviteLink).
+// Сначала прямое вступление (без экрана «запрос на вступление» в клиенте), затем ссылка с заявкой — запасной вариант.
 func paywallFreshInviteLinkConfigs(chatID int64, now time.Time) []tgbotapi.CreateChatInviteLinkConfig {
 	exp := int(now.Add(24 * time.Hour).Unix())
 	return []tgbotapi.CreateChatInviteLinkConfig{
 		{
 			ChatConfig:         tgbotapi.ChatConfig{ChatID: chatID},
-			CreatesJoinRequest: true,
+			CreatesJoinRequest: false,
 			ExpireDate:         exp,
 		},
 		{
 			ChatConfig:         tgbotapi.ChatConfig{ChatID: chatID},
-			CreatesJoinRequest: false,
+			CreatesJoinRequest: true,
 			ExpireDate:         exp,
 		},
 	}
@@ -131,8 +132,8 @@ func paywallFreshInviteLinkConfigs(chatID int64, now time.Time) []tgbotapi.Creat
 
 // paywallCreateInviteLink вызывает Telegram API; бот должен быть админом с правом приглашений.
 // oneTime24h=true — ссылка с истечением через 24 ч. Раньше использовали member_limit=1 + прямой вход:
-// в клиентах часто «This invite link has expired» уже после одного открытия. Сначала заявка на вступление
-// (одобрение оплативших — handlePaywallChatJoinRequest), при отказе API — прямой вход без лимита, только срок.
+// в клиентах часто «This invite link has expired» уже после одного открытия. Сначала прямой вход (без UI «запрос»),
+// при отказе API — ссылка с заявкой (handlePaywallChatJoinRequest одобряет оплативших).
 func (b *Bot) paywallCreateInviteLink(createsJoinRequest bool, oneTime24h bool) (string, error) {
 	if oneTime24h {
 		var lastErr error
@@ -199,6 +200,7 @@ func (b *Bot) paywallGroupInviteURL() string {
 }
 
 // paywallFreshGroupInviteURL — новая ссылка после оплаты /rejoin (кэш сбрасываем, чтобы не отдать старую ссылку).
+// Сначала без expire_date (в Telegram такая ссылка не «протухает» по времени); если API не даст — запасной вариант на 24 ч.
 func (b *Bot) paywallFreshGroupInviteURL() string {
 	if !b.paywallActive() || b.config.MonetizedChatID == 0 {
 		return ""
@@ -210,6 +212,17 @@ func (b *Bot) paywallFreshGroupInviteURL() string {
 	b.paywallInviteURL = ""
 	b.paywallInviteCached = time.Time{}
 
+	// Сначала прямое вступление — в Telegram нет экрана «requested to join»; если чат не принимает такой тип ссылки — fallback с заявкой.
+	for _, createsJR := range []bool{false, true} {
+		u, err := b.paywallCreateInviteLink(createsJR, false)
+		if err == nil && u != "" {
+			b.paywallInviteURL = u
+			b.paywallInviteCached = time.Now()
+			b.paywallInviteFromAPI = true
+			return u
+		}
+		b.logger.Warnf("paywall fresh createChatInviteLink (no expiry, creates_join_request=%v): %v", createsJR, err)
+	}
 	u, err := b.paywallCreateInviteLink(false, true)
 	if err == nil && u != "" {
 		b.paywallInviteURL = u
@@ -217,7 +230,7 @@ func (b *Bot) paywallFreshGroupInviteURL() string {
 		b.paywallInviteFromAPI = true
 		return u
 	}
-	b.logger.Warnf("paywall fresh createChatInviteLink: %v", err)
+	b.logger.Warnf("paywall fresh createChatInviteLink (24h fallback): %v", err)
 	if u := strings.TrimSpace(b.config.MonetizedChatInviteURL); u != "" {
 		return u
 	}
@@ -277,7 +290,7 @@ func (b *Bot) paywallPrivateUnpaidUserText() string {
 
 Нажми кнопку нужного способа — пришлю счёт или ссылку на оплату. Достаточно **одного** успешного платежа.
 
-После оплаты пришлю кнопку входа в группу. Полную справку бота — тоже после оплаты. Доступ 30 дней.` + priceRub + `
+После оплаты откроется мини-приложение бота и кнопка входа в группу. Полную справку бота — тоже после оплаты. Доступ 30 дней.` + priceRub + `
 
 Пока без оплаты длинную справку не показываю.
 
@@ -289,19 +302,19 @@ _Кнопки работают только в этом чате с ботом �
 // paywallUnpaidInlineKeyboard — отдельные кнопки под каждый способ оплаты.
 func (b *Bot) paywallUnpaidInlineKeyboard() *tgbotapi.InlineKeyboardMarkup {
 	var rows [][]tgbotapi.InlineKeyboardButton
-	if b.config.PaywallUsesStars() {
-		rows = append(rows, tgbotapi.NewInlineKeyboardRow(
-			tgbotapi.NewInlineKeyboardButtonData("⭐ Счёт на звёзды", paywallCallbackPayStars),
-		))
-	}
 	if b.config.PaywallYookassaReady() {
 		rows = append(rows, tgbotapi.NewInlineKeyboardRow(
-			tgbotapi.NewInlineKeyboardButtonData("💳 Карта — ссылка ЮKassa", paywallCallbackPayYookassa),
+			tgbotapi.NewInlineKeyboardButtonData("💳 Банковская карта (ЮKassa)", paywallCallbackPayYookassa),
 		))
 	}
 	if b.config.PaywallUsesTelegramProviderInvoice() {
 		rows = append(rows, tgbotapi.NewInlineKeyboardRow(
-			tgbotapi.NewInlineKeyboardButtonData("💳 Счёт в Telegram (карта)", paywallCallbackPayProvider),
+			tgbotapi.NewInlineKeyboardButtonData("💳 Банковская карта (в Telegram)", paywallCallbackPayProvider),
+		))
+	}
+	if b.config.PaywallUsesStars() {
+		rows = append(rows, tgbotapi.NewInlineKeyboardRow(
+			tgbotapi.NewInlineKeyboardButtonData("⭐ Telegram Stars", paywallCallbackPayStars),
 		))
 	}
 	if len(rows) == 0 {
@@ -312,18 +325,19 @@ func (b *Bot) paywallUnpaidInlineKeyboard() *tgbotapi.InlineKeyboardMarkup {
 
 func (b *Bot) paywallReturnInlineKeyboard() *tgbotapi.InlineKeyboardMarkup {
 	var rows [][]tgbotapi.InlineKeyboardButton
-	if b.config.PaywallUsesStars() {
+	if b.config.PaywallYookassaReady() {
 		rows = append(rows, tgbotapi.NewInlineKeyboardRow(
-			tgbotapi.NewInlineKeyboardButtonData("⭐ Оплатить Stars", paywallCallbackPayStars),
+			tgbotapi.NewInlineKeyboardButtonData("💳 Оплатить картой (ЮKassa)", paywallCallbackPayYookassa),
 		))
 	}
 	if b.config.PaywallUsesTelegramProviderInvoice() {
 		rows = append(rows, tgbotapi.NewInlineKeyboardRow(
-			tgbotapi.NewInlineKeyboardButtonData("💳 Оплатить картой", paywallCallbackPayProvider),
+			tgbotapi.NewInlineKeyboardButtonData("💳 Оплатить картой (Telegram)", paywallCallbackPayProvider),
 		))
-	} else if b.config.PaywallYookassaReady() {
+	}
+	if b.config.PaywallUsesStars() {
 		rows = append(rows, tgbotapi.NewInlineKeyboardRow(
-			tgbotapi.NewInlineKeyboardButtonData("💳 Оплатить картой", paywallCallbackPayYookassa),
+			tgbotapi.NewInlineKeyboardButtonData("⭐ Оплатить Stars", paywallCallbackPayStars),
 		))
 	}
 	if len(rows) == 0 {
@@ -333,7 +347,7 @@ func (b *Bot) paywallReturnInlineKeyboard() *tgbotapi.InlineKeyboardMarkup {
 }
 
 func paywallReturnPromptText(price string) string {
-	return "Возвращение в стаю.\n\nВыбери способ оплаты:\n• Оплатить Stars\n• Оплатить картой\n\nЦена: " + price
+	return "Возвращение в стаю.\n\nВыбери способ оплаты:\n• Карта (ЮKassa или Telegram)\n• Telegram Stars\n\nЦена: " + price
 }
 
 func (b *Bot) paywallNotifyUser(userID int64, text string) {
@@ -392,10 +406,10 @@ func (b *Bot) paywallGetOrCreatePendingReqID(userID int64) (int64, error) {
 
 // paywallSendPaymentOffers — всё сразу (старые кнопки «выслать снова»); ошибки пользователю короткие, детали в логах.
 func (b *Bot) paywallSendPaymentOffers(userID, reqID int64) {
-	if b.config.PaywallUsesStars() {
-		if err := b.SendPaywallStarsInvoice(userID, reqID); err != nil {
-			b.logger.Errorf("paywall stars invoice: %s", paywallInvoiceErrLog(err))
-			b.paywallNotifyUser(userID, "⚠️ "+paywallInvoiceShortHintForUser(err))
+	if b.config.PaywallYookassaReady() {
+		if err := b.SendYookassaPaymentLink(userID, reqID); err != nil {
+			b.logger.Errorf("paywall yookassa link: %v", err)
+			b.paywallNotifyUser(userID, "⚠️ "+paywallYookassaShortHintForUser(err))
 		}
 	}
 	if b.config.PaywallUsesTelegramProviderInvoice() {
@@ -404,10 +418,10 @@ func (b *Bot) paywallSendPaymentOffers(userID, reqID int64) {
 			b.paywallNotifyUser(userID, "⚠️ "+paywallInvoiceShortHintForUser(err))
 		}
 	}
-	if b.config.PaywallYookassaReady() {
-		if err := b.SendYookassaPaymentLink(userID, reqID); err != nil {
-			b.logger.Errorf("paywall yookassa link: %v", err)
-			b.paywallNotifyUser(userID, "⚠️ "+paywallYookassaShortHintForUser(err))
+	if b.config.PaywallUsesStars() {
+		if err := b.SendPaywallStarsInvoice(userID, reqID); err != nil {
+			b.logger.Errorf("paywall stars invoice: %s", paywallInvoiceErrLog(err))
+			b.paywallNotifyUser(userID, "⚠️ "+paywallInvoiceShortHintForUser(err))
 		}
 	}
 }
@@ -520,7 +534,7 @@ func (b *Bot) SendYookassaPaymentLink(userID, reqID int64) error {
 
 Если оплатил(а), а доступ не открылся в течение пары минут — нажми /start: бот проверит платёж в ЮKassa напрямую (если вебхук не сработал).
 
-Нажми кнопку «Оплатить», заверши оплату на сайте. После успешного списания доступ откроется автоматически (до 1–2 минут) — затем подай заявку в группу или открой приглашение ещё раз.`
+Нажми кнопку «Оплатить», заверши оплату на сайте. После успешного списания доступ откроется автоматически (до 1–2 минут) — затем зайди в группу по ссылке от бота (это вход после оплаты, не «анонимный запрос»).`
 	msg := tgbotapi.NewMessage(userID, text)
 	msg.ReplyMarkup = &tgbotapi.InlineKeyboardMarkup{
 		InlineKeyboard: [][]tgbotapi.InlineKeyboardButton{
@@ -658,7 +672,7 @@ func (b *Bot) paywallPrivatePaidFooter() string {
 	}
 	return `
 
-💳 Доступ к платной группе оплачен. Если ссылка входа устарела, нажми /rejoin — пришлю новую.`
+💳 Доступ оплачен. Мини-приложение — кнопка внизу в чате с ботом. Если ссылка в группу не открывается — /rejoin или /start.`
 }
 
 func (b *Bot) handlePaywallRefreshInviteCallback(callback *tgbotapi.CallbackQuery) {
@@ -875,6 +889,30 @@ func (b *Bot) handlePaywallPreCheckout(q *tgbotapi.PreCheckoutQuery) {
 	_, _ = b.api.Request(tgbotapi.PreCheckoutConfig{PreCheckoutQueryID: q.ID, OK: true})
 }
 
+func paywallGroupInviteInlineKeyboard(inviteURL string) *tgbotapi.InlineKeyboardMarkup {
+	if strings.TrimSpace(inviteURL) == "" {
+		return nil
+	}
+	return &tgbotapi.InlineKeyboardMarkup{
+		InlineKeyboard: [][]tgbotapi.InlineKeyboardButton{
+			tgbotapi.NewInlineKeyboardRow(
+				tgbotapi.NewInlineKeyboardButtonURL("📩 Войти в группу", inviteURL),
+			),
+		},
+	}
+}
+
+// paywallPostPaymentUserText — после успешной оплаты: мини-приложение + вход в группу (approveJoinOK = бот уже подтвердил вход в API, если была активная заявка).
+func paywallPostPaymentUserText(approveJoinOK bool) string {
+	mini := "У бота должна появиться кнопка мини-приложения (внизу экрана в этом чате или через меню ⋮) — зайди туда: так удобнее общий чат стаи и материалы."
+	invite := "В группу зайди кнопкой ниже — ты вступаешь после успешной оплаты, доступ с нашей стороны уже открыт. Ссылку по возможности даём без срока по времени; если Telegram пишет, что она недействительна — /rejoin или /start, пришлём новую."
+	base := "✅ Оплата принята, доступ открыт на 30 дней.\n\n" + mini + "\n\n"
+	if approveJoinOK {
+		return base + "Если ты ещё не внутри чата — нажми кнопку ниже и заверши вход: для оплативших подтверждение выполняется автоматически.\n\n" + invite
+	}
+	return base + "Нажми кнопку ниже и заверши вход в группу — оплата засчитана, бот подтвердит тебя автоматически.\n\n" + invite
+}
+
 // paywallDeliverAccessAfterPayment — приглашение в группу и приветствие после зачёта оплаты (Telegram Payments / ЮKassa / sync API).
 func (b *Bot) paywallDeliverAccessAfterPayment(userID int64) error {
 	reactivated, err := b.db.ReactivateReturnedUser(userID, b.config.MonetizedChatID, "")
@@ -895,20 +933,9 @@ func (b *Bot) paywallDeliverAccessAfterPayment(userID int64) error {
 	})
 	if err != nil {
 		b.logger.Errorf("paywall approve join request failed: %v", err)
-		follow := "✅ Оплата принята, доступ открыт на 30 дней.\n\nЕсли ты ещё не в группе — нажми кнопку ниже и отправь заявку на вступление."
-		pm := tgbotapi.NewMessage(userID, follow)
-		if inviteURL != "" {
-			pm.ReplyMarkup = &tgbotapi.InlineKeyboardMarkup{
-				InlineKeyboard: [][]tgbotapi.InlineKeyboardButton{
-					tgbotapi.NewInlineKeyboardRow(
-						tgbotapi.NewInlineKeyboardButtonURL("📩 Войти в группу", inviteURL),
-					),
-					tgbotapi.NewInlineKeyboardRow(
-						tgbotapi.NewInlineKeyboardButtonData("🔁 Новая ссылка", paywallCallbackRefreshInvite),
-					),
-				},
-			}
-		} else {
+		pm := tgbotapi.NewMessage(userID, paywallPostPaymentUserText(false))
+		pm.ReplyMarkup = paywallGroupInviteInlineKeyboard(inviteURL)
+		if inviteURL == "" {
 			pm.Text += "\n\nНе удалось создать ссылку автоматически — попроси ссылку у администратора."
 		}
 		if _, sendErr := b.api.Send(pm); sendErr != nil {
@@ -916,18 +943,10 @@ func (b *Bot) paywallDeliverAccessAfterPayment(userID int64) error {
 		}
 		return nil
 	}
-	done := tgbotapi.NewMessage(userID, "✅ Оплата принята, доступ к группе открыт на 30 дней. Если ты ещё не в группе — нажми кнопку ниже.")
-	if inviteURL != "" {
-		done.ReplyMarkup = &tgbotapi.InlineKeyboardMarkup{
-			InlineKeyboard: [][]tgbotapi.InlineKeyboardButton{
-				tgbotapi.NewInlineKeyboardRow(
-					tgbotapi.NewInlineKeyboardButtonURL("📩 Войти в группу", inviteURL),
-				),
-				tgbotapi.NewInlineKeyboardRow(
-					tgbotapi.NewInlineKeyboardButtonData("🔁 Новая ссылка", paywallCallbackRefreshInvite),
-				),
-			},
-		}
+	done := tgbotapi.NewMessage(userID, paywallPostPaymentUserText(true))
+	done.ReplyMarkup = paywallGroupInviteInlineKeyboard(inviteURL)
+	if inviteURL == "" {
+		done.Text += "\n\nНе удалось создать ссылку автоматически — попроси ссылку у администратора."
 	}
 	if _, err := b.api.Send(done); err != nil {
 		b.logger.Errorf("paywall send done msg: %v", err)
@@ -1042,7 +1061,7 @@ func (b *Bot) paywallKickFromMonetizedChatAndExplain(userID int64) {
 	b.paywallUnbanUserFromMonetizedGroup(userID)
 	txt := `Вход в эту группу только после оплаты через бота.
 
-Нажми /start в личке с ботом — пришлю счёт. После оплаты бот пришлёт свежую ссылку на группу (или одобрит заявку, если включены заявки).`
+Нажми /start в личке с ботом — пришлю счёт. После оплаты бот пришлёт ссылку для входа в группу.`
 	pm := tgbotapi.NewMessage(userID, txt)
 	if _, err := b.api.Send(pm); err != nil {
 		b.logger.Warnf("paywall DM after kick user=%d: %v", userID, err)

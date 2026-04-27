@@ -1158,20 +1158,11 @@ func (b *Bot) handleRejoin(msg *tgbotapi.Message) {
 
 // paidPrivateRetryEntryHintLine — подсказка в /start для оплатившего: вход кнопками + новая ссылка при каждом /start.
 func paidPrivateRetryEntryHintLine() string {
-	return "\n\n🔁 Вход в группу — кнопки ниже (новая ссылка при каждом /start)."
+	return "\n\n📱 Мини-приложение — кнопка внизу в этом чате. В группу — кнопка ниже; свежая ссылка при каждом /start или /rejoin."
 }
 
 func freshRejoinInviteKeyboard(inviteURL string) *tgbotapi.InlineKeyboardMarkup {
-	return &tgbotapi.InlineKeyboardMarkup{
-		InlineKeyboard: [][]tgbotapi.InlineKeyboardButton{
-			tgbotapi.NewInlineKeyboardRow(
-				tgbotapi.NewInlineKeyboardButtonURL("📩 Войти в группу", inviteURL),
-			),
-			tgbotapi.NewInlineKeyboardRow(
-				tgbotapi.NewInlineKeyboardButtonData("🔁 Новая ссылка", paywallCallbackRefreshInvite),
-			),
-		},
-	}
+	return paywallGroupInviteInlineKeyboard(inviteURL)
 }
 
 func (b *Bot) sendFreshRejoinLink(chatID int64) error {

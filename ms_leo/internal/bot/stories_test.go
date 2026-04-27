@@ -44,7 +44,7 @@ func TestStory2ReturnKeyboardVariants(t *testing.T) {
 				PaymentCurrency:       "RUB",
 				PaymentAmountMinorUnits: 21000,
 			},
-			wantButtonsByText: []string{"⭐ Оплатить Stars", "💳 Оплатить картой"},
+			wantButtonsByText: []string{"💳 Оплатить картой (Telegram)", "⭐ Оплатить Stars"},
 		},
 		{
 			name: "stars only",
@@ -63,7 +63,7 @@ func TestStory2ReturnKeyboardVariants(t *testing.T) {
 				YookassaCurrency:    "RUB",
 				PaymentCurrency:     "RUB",
 			},
-			wantButtonsByText: []string{"💳 Оплатить картой"},
+			wantButtonsByText: []string{"💳 Оплатить картой (ЮKassa)"},
 		},
 	}
 
@@ -97,7 +97,7 @@ func TestStory2ReturnPromptTextIncludesPrice(t *testing.T) {
 	if !strings.Contains(txt, "Возвращение в стаю") {
 		t.Fatalf("unexpected prompt text: %q", txt)
 	}
-	if !strings.Contains(txt, "Оплатить Stars") || !strings.Contains(txt, "Оплатить картой") {
+	if !strings.Contains(txt, "Stars") || !strings.Contains(txt, "Карта") {
 		t.Fatalf("prompt does not include both methods: %q", txt)
 	}
 	if !strings.Contains(txt, "210 ₽ или 210 ⭐") {

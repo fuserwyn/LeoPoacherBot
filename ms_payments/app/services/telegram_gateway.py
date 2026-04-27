@@ -30,7 +30,7 @@ class TelegramGateway:
         *,
         creates_join_request: bool,
     ) -> str | None:
-        """Один вызов createChatInviteLink. Без заявок — member_limit=1 (одно вступление по ссылке)."""
+        """Один вызов createChatInviteLink. Без member_limit — как в ms_leo (раньше member_limit=1 ломал ссылки)."""
         if not self._token:
             logger.error("bot token empty, cannot create invite link")
             return None
@@ -38,8 +38,6 @@ class TelegramGateway:
             "chat_id": chat_id,
             "creates_join_request": creates_join_request,
         }
-        if not creates_join_request:
-            body["member_limit"] = 1
         data = await self._post("createChatInviteLink", body)
         if not data.get("ok"):
             logger.warning("createChatInviteLink failed: %s", data)
@@ -54,14 +52,15 @@ class TelegramGateway:
         *,
         primary_creates_join_request: bool,
     ) -> tuple[str | None, bool]:
-        """Подбор рабочей ссылки: как в ms_leo — сначала MONETIZED_INVITE_CREATES_JOIN_REQUEST, затем наоборот."""
-        for creates_jr in (primary_creates_join_request, not primary_creates_join_request):
+        """Сначала прямое вступление (без экрана «запрос» в Telegram), затем ссылка с заявкой — как в ms_leo paywallFreshGroupInviteURL."""
+        _ = primary_creates_join_request  # сохранён для совместимости вызова; порядок фиксирован
+        for creates_jr in (False, True):
             link = await self._create_chat_invite_link_once(
                 chat_id, creates_join_request=creates_jr
             )
             if link:
                 return link, creates_jr
-        return None, primary_creates_join_request
+        return None, True
 
     async def unban_chat_member(self, chat_id: int, user_id: int) -> None:
         """Снимает бан на вход (после кика за неактивность ms_leo ставит постоянный бан). Как paywallUnbanUserFromMonetizedGroup."""

@@ -62,7 +62,7 @@ SCAN_HISTORY_ON_START=false
 # PAYWALL_ENABLED=true
 # MONETIZED_CHAT_ID=-100xxxxxxxxxx
 # MONETIZED_CHAT_INVITE_URL=   # опционально: запасная ссылка, если createChatInviteLink недоступен (иначе ссылка создаётся ботом и не протухает)
-# MONETIZED_INVITE_CREATES_JOIN_REQUEST=true   # false — если в группе обычный вход без заявок (по умолчанию true = ссылка «на заявку»)
+# MONETIZED_INVITE_CREATES_JOIN_REQUEST=true   # приоритет для кэш-ссылок; после оплаты /rejoin ms_leo сначала создаёт прямую ссылку (без экрана «запрос»), затем запасной вариант с заявкой
 #
 # Способы оплаты (можно комбинировать): пользователю хватит оплатить ОДНИМ из включённых.
 #

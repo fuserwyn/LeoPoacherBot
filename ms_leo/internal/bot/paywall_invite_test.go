@@ -6,8 +6,8 @@ import (
 )
 
 // Регрессия: member_limit=1 + прямой вход давали «invite link expired» после одного открытия.
-// «Свежая» ссылка: без member_limit, сначала заявка (creates_join_request), затем запасной прямой вход — оба с expire 24h.
-func TestPaywallFreshInviteLinkConfigs_NoMemberLimitJoinRequestFirst(t *testing.T) {
+// «Свежая» ссылка: без member_limit, сначала прямой вход, затем с заявкой — оба с expire 24h.
+func TestPaywallFreshInviteLinkConfigs_DirectJoinFirstNoMemberLimit(t *testing.T) {
 	chatID := int64(-1001234567890)
 	now := time.Date(2026, 4, 1, 15, 30, 0, 0, time.UTC)
 	cfgs := paywallFreshInviteLinkConfigs(chatID, now)
@@ -26,10 +26,10 @@ func TestPaywallFreshInviteLinkConfigs_NoMemberLimitJoinRequestFirst(t *testing.
 			t.Fatalf("cfg %d: ExpireDate=%d want %d", i, c.ExpireDate, wantExp)
 		}
 	}
-	if !cfgs[0].CreatesJoinRequest {
-		t.Fatal("first config must use CreatesJoinRequest=true")
+	if cfgs[0].CreatesJoinRequest {
+		t.Fatal("first config must use CreatesJoinRequest=false (direct join)")
 	}
-	if cfgs[1].CreatesJoinRequest {
-		t.Fatal("fallback config must use CreatesJoinRequest=false")
+	if !cfgs[1].CreatesJoinRequest {
+		t.Fatal("fallback config must use CreatesJoinRequest=true")
 	}
 }

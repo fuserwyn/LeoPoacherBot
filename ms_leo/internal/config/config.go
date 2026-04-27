@@ -119,7 +119,7 @@ func Load() (*Config, error) {
 		PaymentCurrency:                 currency,
 		PaymentAmountMinorUnits:         amountMinor,
 		PaymentInvoiceTitle:             getEnv("PAYMENT_INVOICE_TITLE", "Доступ в группу"),
-		PaymentInvoiceDesc:              getEnv("PAYMENT_INVOICE_DESCRIPTION", "Разовый доступ после оплаты заявка будет одобрена автоматически."),
+		PaymentInvoiceDesc:              getEnv("PAYMENT_INVOICE_DESCRIPTION", "Доступ в группу после оплаты; вход подтверждается автоматически."),
 		PaymentStarsEnabled:             starsAddonEnabled,
 		PaymentStarsAmount:              starsAddonAmount,
 
