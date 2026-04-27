@@ -84,6 +84,11 @@ func (b *Bot) runMiniAppPrivateTextWorker(d initdata.InitData, text string) {
 	}()
 	msg := PrivateTextMessageFromInitUser(d, text)
 	ch := make(chan string, 32)
+	// Пометка mini-app origin позволяет helper'ам notifyUserText / sendChatActionIfTG
+	// (sick_leave, healthy, change, timezone, AI-fallback) НЕ дублировать ответ Лео в TG-личку.
+	// Снимается строго после drain канала, чтобы handler не успел уйти в TG раньше нас.
+	b.markMiniappOrigin(d.User.ID, ch)
+	defer b.unmarkMiniappOrigin(d.User.ID)
 	b.dispatchTextMessageFromUser(msg, ch)
 	for {
 		select {

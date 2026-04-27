@@ -33,6 +33,12 @@ type Bot struct {
 	// Очередь ответов Лео для мини-аппа (личка): poll без БД. Несколько реплик бота — один процесс.
 	miniappPersonalMu    sync.Mutex
 	miniappPersonalQueue map[int64][]string
+	// miniappReplyOrigin — пока активна обработка сообщения из мини-аппа,
+	// ключ userID → канал ответов в очередь мини-аппа. Используется в helper-ах
+	// notify*, чтобы НЕ дублировать сообщения Лео в TG-личку (см. требование:
+	// «не дублировать в ТГ из мини-аппа, кроме предупреждений 5/6/7 дней»).
+	// Маркер ставит/снимает runMiniAppPrivateTextWorker.
+	miniappReplyOrigin sync.Map
 }
 
 var (
@@ -271,21 +277,21 @@ func (b *Bot) handleTimezoneCommand(msg *tgbotapi.Message, text string) {
 	offset, err := parseTimezoneOffsetFromCommand(text)
 	if err != nil {
 		usage := "⚠️ Неверный формат #timezone.\n\nИспользуй: #timezone +4, #timezone -2 или #timezone 0\n(смещение относительно Москвы, диапазон: -12..+12)"
-		b.api.Send(tgbotapi.NewMessage(msg.Chat.ID, usage))
+		b.notifyUserText(msg, usage, "", 0)
 		return
 	}
 
 	log, err := b.db.GetMessageLog(msg.From.ID, msg.Chat.ID)
 	if err != nil {
 		b.logger.Errorf("Failed to get message log for timezone command: %v", err)
-		b.api.Send(tgbotapi.NewMessage(msg.Chat.ID, "❌ Не удалось сохранить часовой пояс, попробуй еще раз."))
+		b.notifyUserText(msg, "❌ Не удалось сохранить часовой пояс, попробуй еще раз.", "", 0)
 		return
 	}
 
 	log.TimezoneOffsetFromMoscow = offset
 	if err := b.db.SaveMessageLog(log); err != nil {
 		b.logger.Errorf("Failed to save timezone offset: %v", err)
-		b.api.Send(tgbotapi.NewMessage(msg.Chat.ID, "❌ Не удалось сохранить часовой пояс, попробуй еще раз."))
+		b.notifyUserText(msg, "❌ Не удалось сохранить часовой пояс, попробуй еще раз.", "", 0)
 		return
 	}
 
@@ -296,7 +302,7 @@ func (b *Bot) handleTimezoneCommand(msg *tgbotapi.Message, text string) {
 	localNow := b.getUserLocalNow(offset)
 	reply := fmt.Sprintf("✅ Часовой пояс сохранен: МСК%s%d\n🕒 Твое локальное время: %s\n\nТеперь логика по времени будет считаться по твоему локальному часу.",
 		sign, offset, localNow.Format("02.01 15:04"))
-	b.api.Send(tgbotapi.NewMessage(msg.Chat.ID, reply))
+	b.notifyUserText(msg, reply, "", 0)
 }
 
 func (b *Bot) handleUpdate(update tgbotapi.Update) {
@@ -655,7 +661,7 @@ func (b *Bot) handleMessage(msg *tgbotapi.Message, personalReplyCh chan<- string
 			b.logger.Errorf("Failed to save user question: %v", err)
 		}
 
-		b.handleAIQuestion(msg, text, personalReplyCh, false, personalReplyCh != nil)
+		b.handleAIQuestion(msg, text, personalReplyCh, personalReplyCh != nil, personalReplyCh != nil)
 		return
 	}
 
@@ -816,8 +822,7 @@ func (b *Bot) handleChange(msg *tgbotapi.Message) {
 	messageLog, err := b.db.GetMessageLog(msg.From.ID, msg.Chat.ID)
 	if err != nil {
 		b.logger.Errorf("Failed to get message log: %v", err)
-		reply := tgbotapi.NewMessage(msg.Chat.ID, "❌ Ошибка получения данных пользователя")
-		b.api.Send(reply)
+		b.notifyUserText(msg, "❌ Ошибка получения данных пользователя", "", 0)
 		return
 	}
 
@@ -836,14 +841,7 @@ func (b *Bot) handleChange(msg *tgbotapi.Message) {
 
 	if exchangesCanMake == 0 {
 		replyText := fmt.Sprintf("💪 %s, у тебя %d калорий\n\n🔄 Для обмена нужно минимум %d калорий\n🏆 За %d калорий можно получить %d кубков\n\n⏰ Пока рано! Еще потренируйся!\n\n🎯 Продолжай тренироваться и накапливай калории!", username, currentCalories, exchangeRate, exchangeRate, cupsPerExchange)
-		reply := tgbotapi.NewMessage(msg.Chat.ID, replyText)
-		b.logger.Infof("Sending insufficient calories message to chat %d", msg.Chat.ID)
-		_, err = b.api.Send(reply)
-		if err != nil {
-			b.logger.Errorf("Failed to send insufficient calories message: %v", err)
-		} else {
-			b.logger.Infof("Successfully sent insufficient calories message to chat %d", msg.Chat.ID)
-		}
+		b.notifyUserText(msg, replyText, "", 0)
 		return
 	}
 
@@ -853,16 +851,14 @@ func (b *Bot) handleChange(msg *tgbotapi.Message) {
 
 	if err := b.db.AddXP(msg.From.ID, msg.Chat.ID, -caloriesToSpend); err != nil {
 		b.logger.Errorf("Failed to spend calories/words: %v", err)
-		reply := tgbotapi.NewMessage(msg.Chat.ID, "❌ Ошибка при списании калорий")
-		b.api.Send(reply)
+		b.notifyUserText(msg, "❌ Ошибка при списании калорий", "", 0)
 		return
 	}
 
 	// Добавляем кубки
 	if err := b.db.AddCups(msg.From.ID, msg.Chat.ID, cupsToAdd); err != nil {
 		b.logger.Errorf("Failed to add cups: %v", err)
-		reply := tgbotapi.NewMessage(msg.Chat.ID, "❌ Ошибка при добавлении кубков")
-		b.api.Send(reply)
+		b.notifyUserText(msg, "❌ Ошибка при добавлении кубков", "", 0)
 		return
 	}
 
@@ -882,15 +878,8 @@ func (b *Bot) handleChange(msg *tgbotapi.Message) {
 	newCups := currentCups + cupsToAdd
 
 	replyText := fmt.Sprintf("🔄 Обмен выполнен! 💪\n\n%s сожжено 🔥 %d калорий → 🏆 %d кубка\n\n📊 Твой баланс:\n🔥 Калории: %d\n🏆 Кубки: %d\n\n💡 Курс: %d калорий = %d кубка", username, caloriesToSpend, cupsToAdd, newCalories, newCups, exchangeRate, cupsPerExchange)
-	reply := tgbotapi.NewMessage(msg.Chat.ID, replyText)
-
-	b.logger.Infof("Sending exchange success message to chat %d", msg.Chat.ID)
-	_, err = b.api.Send(reply)
-	if err != nil {
-		b.logger.Errorf("Failed to send exchange success message: %v", err)
-	} else {
-		b.logger.Infof("Successfully sent exchange success message to chat %d", msg.Chat.ID)
-	}
+	b.logger.Infof("Sending exchange success message to chat %d (mini-app origin: %v)", msg.Chat.ID, b.isMiniappOriginActive(msg.From.ID))
+	b.notifyUserText(msg, replyText, "", 0)
 }
 
 func (b *Bot) handleStartTimer(msg *tgbotapi.Message) {

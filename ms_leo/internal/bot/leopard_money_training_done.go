@@ -324,25 +324,31 @@ func (b *Bot) handleLeopardMoneyTrainingDone(msg *tgbotapi.Message, personalRepl
 			tagPrefix = fmt.Sprintf("[%s](tg://user?id=%d), ", displayName, msg.From.ID)
 		}
 	}
-	chatAckText := tagPrefix + b.generateShortLeopardChatAck(username, text, newStreak, totalXP, ach)
-	chatAck := tgbotapi.NewMessage(msg.Chat.ID, chatAckText)
-	chatAck.ParseMode = "Markdown"
-	if _, err := b.api.Send(chatAck); err != nil {
-		b.logger.Errorf("send training chat ack: %v", err)
+	// chatAck — короткая «съем/не съем» реплика. В mini-app-флоу её показывать в TG не нужно
+	// (юзер видит подтверждение в мини-аппе через messageText ниже), иначе получится дубль
+	// в TG-личке: «Не дублировать в ТГ из мини-аппа» (см. требование пользователя).
+	if personalReplyCh == nil {
+		chatAckText := tagPrefix + b.generateShortLeopardChatAck(username, text, newStreak, totalXP, ach)
+		chatAck := tgbotapi.NewMessage(msg.Chat.ID, chatAckText)
+		chatAck.ParseMode = "Markdown"
+		if _, err := b.api.Send(chatAck); err != nil {
+			b.logger.Errorf("send training chat ack: %v", err)
+		}
 	}
 
 	messageText := fmt.Sprintf("✅ Отчёт принят! 💪\n\n🦁 Серия: %d дн.\n⚡ +%d XP (всего XP: %d)\n🏆 Ачивок: %d/%d\n\n⏰ Таймер неактивности: %d дней (день 8 — удаление)\n\n🎯 Отчёт с %s", newStreak, xpAdd, totalXP, ach, leopardmoney.MaxAchievements, leopardmoney.InactiveRemovalDays, tag)
 
 	if personalReplyCh != nil {
+		// Mini-app: только в очередь приложения, в TG-личку НЕ дублируем.
 		select {
 		case personalReplyCh <- messageText:
 		default:
 		}
-	}
-
-	privateReply := tgbotapi.NewMessage(msg.From.ID, messageText)
-	if _, err := b.api.Send(privateReply); err != nil {
-		b.logger.Warnf("send training private summary: %v", err)
+	} else {
+		privateReply := tgbotapi.NewMessage(msg.From.ID, messageText)
+		if _, err := b.api.Send(privateReply); err != nil {
+			b.logger.Warnf("send training private summary: %v", err)
+		}
 	}
 
 	if trainingUserMessageID > 0 && b.config.MonetizedChatID != 0 {

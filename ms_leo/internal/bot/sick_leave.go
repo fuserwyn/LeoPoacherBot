@@ -26,13 +26,7 @@ func (b *Bot) handleSickLeave(msg *tgbotapi.Message) {
 
 	if messageLog.HasSickLeave {
 		infoText := "✅ У тебя уже активен больничный. Отдыхай и возвращайся, когда восстановишься."
-		response := tgbotapi.NewMessage(msg.Chat.ID, infoText)
-		if msg.MessageID != 0 {
-			response.ReplyToMessageID = msg.MessageID
-		}
-		if _, sendErr := b.api.Send(response); sendErr != nil {
-			b.logger.Errorf("Failed to send already sick leave info: %v", sendErr)
-		}
+		b.notifyUserText(msg, infoText, "", msg.MessageID)
 		return
 	}
 
@@ -141,7 +135,7 @@ func (b *Bot) activateSickLeave(msg *tgbotapi.Message, messageLog *domain.Messag
 	// ИИ‑приписка: пожелание выздоровления (5 предложений)
 	if b.aiClient != nil {
 		action := tgbotapi.NewChatAction(msg.Chat.ID, tgbotapi.ChatTyping)
-		b.api.Send(action)
+		b.sendChatActionIfTG(msg, action)
 		stopTyping := make(chan struct{})
 		defer close(stopTyping)
 		go func() {
@@ -150,7 +144,7 @@ func (b *Bot) activateSickLeave(msg *tgbotapi.Message, messageLog *domain.Messag
 			for {
 				select {
 				case <-ticker.C:
-					b.api.Send(action)
+					b.sendChatActionIfTG(msg, action)
 				case <-stopTyping:
 					return
 				}
@@ -189,14 +183,8 @@ func (b *Bot) activateSickLeave(msg *tgbotapi.Message, messageLog *domain.Messag
 		}
 	}
 
-	reply := tgbotapi.NewMessage(msg.Chat.ID, messageText)
-
-	b.logger.Infof("Sending sick leave message to chat %d", msg.Chat.ID)
-	if _, err := b.api.Send(reply); err != nil {
-		b.logger.Errorf("Failed to send sick leave message: %v", err)
-	} else {
-		b.logger.Infof("Successfully sent sick leave message to chat %d", msg.Chat.ID)
-	}
+	b.logger.Infof("Sending sick leave message to chat %d (mini-app origin: %v)", msg.Chat.ID, b.isMiniappOriginActive(msg.From.ID))
+	b.notifyUserText(msg, messageText, "", 0)
 }
 
 func extractSickLeaveJustification(msg *tgbotapi.Message) string {
@@ -269,17 +257,14 @@ func (b *Bot) sendSickApprovalWarning(chatID int64, replyTo int, messageLog *dom
 	}
 	warningText += "Если проигнорируешь — отменю больничный и запущу таймер."
 
-	msg := tgbotapi.NewMessage(chatID, warningText)
-	if replyTo != 0 {
-		msg.ReplyToMessageID = replyTo
-	}
-	sent, err := b.api.Send(msg)
-	if err != nil {
-		b.logger.Errorf("Failed to send sick approval warning: %v", err)
+	// В мини-апп-флоу пушим только в очередь приложения (TG-message не создаётся → SickApprovalMessageID не пишем).
+	// reply-логика на TG-MessageID в мини-аппе не работает (синтетические сообщения без reply_to).
+	sentMsgID := b.notifyUserTextByID(messageLog.UserID, chatID, warningText, "", replyTo)
+	if sentMsgID == 0 {
 		return
 	}
 
-	messageID := int64(sent.MessageID)
+	messageID := int64(sentMsgID)
 	messageLog.SickApprovalMessageID = &messageID
 	if err := b.db.SaveMessageLog(messageLog); err != nil {
 		b.logger.Errorf("Failed to update sick approval message id: %v", err)
@@ -295,25 +280,13 @@ func (b *Bot) sendSickApprovalPendingInfo(chatID int64, replyTo int, messageLog 
 		replyText += " Ответь быстрее, иначе отменю запрос."
 	}
 
-	msg := tgbotapi.NewMessage(chatID, replyText)
-	if replyTo != 0 {
-		msg.ReplyToMessageID = replyTo
-	}
-	if _, err := b.api.Send(msg); err != nil {
-		b.logger.Errorf("Failed to send pending sick leave message: %v", err)
-	}
+	b.notifyUserTextByID(messageLog.UserID, chatID, replyText, "", replyTo)
 }
 
-func (b *Bot) sendSickLeaveRejection(chatID int64, replyTo int) {
+func (b *Bot) sendSickLeaveRejection(msg *tgbotapi.Message, replyTo int) {
 	text := "❌ Больничный не принят.\n\nНе вижу признаков болезни. Если это работа или другие дела — тренируйся честно. " +
 		"Когда действительно заболеешь, дай знать, и я приостановлю таймер."
-	msg := tgbotapi.NewMessage(chatID, text)
-	if replyTo != 0 {
-		msg.ReplyToMessageID = replyTo
-	}
-	if _, err := b.api.Send(msg); err != nil {
-		b.logger.Errorf("Failed to send sick leave rejection message: %v", err)
-	}
+	b.notifyUserText(msg, text, "", replyTo)
 }
 
 func (b *Bot) rejectSickLeave(msg *tgbotapi.Message, messageLog *domain.MessageLog, replyTo int) {
@@ -324,7 +297,7 @@ func (b *Bot) rejectSickLeave(msg *tgbotapi.Message, messageLog *domain.MessageL
 	if err := b.db.SaveMessageLog(messageLog); err != nil {
 		b.logger.Errorf("Failed to clear sick approval flags after rejection: %v", err)
 	}
-	b.sendSickLeaveRejection(msg.Chat.ID, replyTo)
+	b.sendSickLeaveRejection(msg, replyTo)
 }
 
 func (b *Bot) restoreSickApprovalWatchers() {
@@ -397,13 +370,11 @@ func (b *Bot) forceCancelSickLeave(userID, chatID int64) {
 
 	text := "⛔️ Я не получил подтверждений болезни и отменил больничный. Таймер продолжает тикать. " +
 		"Если действительно болен — предоставь доказательства и попроси снова."
-	alert := tgbotapi.NewMessage(chatID, text)
+	replyTo := 0
 	if replyMessageID != nil {
-		alert.ReplyToMessageID = int(*replyMessageID)
+		replyTo = int(*replyMessageID)
 	}
-	if _, err := b.api.Send(alert); err != nil {
-		b.logger.Errorf("Failed to send force cancel message: %v", err)
-	}
+	b.notifyUserTextByID(userID, chatID, text, "", replyTo)
 }
 
 func (b *Bot) handleHealthy(msg *tgbotapi.Message) {
@@ -500,8 +471,7 @@ func (b *Bot) handleHealthy(msg *tgbotapi.Message) {
 		}
 
 		replyText := "⏰ Время истекло! 🚫\n\n💪 Выздоровление принято, но время таймера уже истекло.\n\n🦁 Ням-ням, вкусненько! Я питаюсь ленивыми леопардами и становлюсь жирнее!\n\n💪 Ты ведь не хочешь стать как я?\n\nТогда тренируйся и отправляй отчёты!"
-		reply := tgbotapi.NewMessage(msg.Chat.ID, replyText)
-		b.api.Send(reply)
+		b.notifyUserText(msg, replyText, "", 0)
 
 		// Удаляем пользователя — кик идёт по pack-row, чтобы корректно сработали ExpirePaywallAccessForUser и pack_removed в ленте мини-аппа.
 		b.removeUser(msg.From.ID, b.kickChatIDForMessage(msg), username)
@@ -520,7 +490,7 @@ func (b *Bot) handleHealthy(msg *tgbotapi.Message) {
 	// ИИ‑приписка: поздравление с выздоровлением (5 предложений)
 	if b.aiClient != nil {
 		action := tgbotapi.NewChatAction(msg.Chat.ID, tgbotapi.ChatTyping)
-		b.api.Send(action)
+		b.sendChatActionIfTG(msg, action)
 		stopTyping := make(chan struct{})
 		defer close(stopTyping)
 		go func() {
@@ -529,7 +499,7 @@ func (b *Bot) handleHealthy(msg *tgbotapi.Message) {
 			for {
 				select {
 				case <-ticker.C:
-					b.api.Send(action)
+					b.sendChatActionIfTG(msg, action)
 				case <-stopTyping:
 					return
 				}
@@ -566,12 +536,6 @@ func (b *Bot) handleHealthy(msg *tgbotapi.Message) {
 		}
 	}
 
-	reply := tgbotapi.NewMessage(msg.Chat.ID, messageText)
-
-	b.logger.Infof("Sending healthy confirmation message to chat %d", msg.Chat.ID)
-	if _, err := b.api.Send(reply); err != nil {
-		b.logger.Errorf("Failed to send healthy confirmation message: %v", err)
-	} else {
-		b.logger.Infof("Successfully sent healthy confirmation message to chat %d", msg.Chat.ID)
-	}
+	b.logger.Infof("Sending healthy confirmation message to chat %d (mini-app origin: %v)", msg.Chat.ID, b.isMiniappOriginActive(msg.From.ID))
+	b.notifyUserText(msg, messageText, "", 0)
 }
