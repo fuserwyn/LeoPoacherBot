@@ -2,6 +2,7 @@ package bot
 
 import (
 	"errors"
+	"time"
 
 	initdata "github.com/telegram-mini-apps/init-data-golang"
 )
@@ -49,7 +50,11 @@ func (b *Bot) PackFeedForViewer(viewerUserID int64, initD initdata.InitData) ([]
 			return nil, ErrPackFeedForbidden
 		}
 	}
-	rows, err := b.db.ListPackActivityFeed(chatID, 50)
+	since, err := b.packMiniappHistorySinceForViewer(viewerUserID)
+	if err != nil {
+		return nil, err
+	}
+	rows, err := b.db.ListPackActivityFeed(chatID, 50, since)
 	if err != nil {
 		return nil, err
 	}
@@ -69,4 +74,19 @@ func (b *Bot) PackFeedForViewer(viewerUserID int64, initD initdata.InitData) ([]
 		})
 	}
 	return out, nil
+}
+
+// packMiniappHistorySinceForViewer — граница общей истории в мини-аппе; nil = без отсечения (владелец).
+func (b *Bot) packMiniappHistorySinceForViewer(viewerUserID int64) (*time.Time, error) {
+	if b == nil {
+		return nil, nil
+	}
+	if b.config.OwnerID != 0 && viewerUserID == b.config.OwnerID {
+		return nil, nil
+	}
+	t, err := b.db.PackMiniappHistorySinceUTC(viewerUserID, b.config.MonetizedChatID, b.config.PaywallEnabled)
+	if err != nil {
+		return nil, err
+	}
+	return &t, nil
 }

@@ -9,14 +9,21 @@ import (
 
 // ListPackActivityFeed — последние «отчёты» в чате стаи: #training_done, #sick_leave, #healthy.
 // streak берётся из training_state на момент выборки.
-func (d *Database) ListPackActivityFeed(chatID int64, limit int) ([]*domain.PackActivityRow, error) {
+// sinceUTC — если не nil, только сообщения не раньше этого момента (личная граница истории в мини-аппе).
+func (d *Database) ListPackActivityFeed(chatID int64, limit int, sinceUTC *time.Time) ([]*domain.PackActivityRow, error) {
 	if limit <= 0 {
 		limit = 50
 	}
 	if limit > 100 {
 		limit = 100
 	}
-	const q = `
+	whereSince := ""
+	args := []interface{}{chatID, limit}
+	if sinceUTC != nil {
+		whereSince = " AND um.created_at >= $3"
+		args = append(args, *sinceUTC)
+	}
+	q := `
 		SELECT
 			um.id, um.user_id, um.chat_id, um.username, um.message_text, um.message_type, um.created_at,
 			COALESCE(ml.streak_days, 0)::int
@@ -25,10 +32,11 @@ func (d *Database) ListPackActivityFeed(chatID int64, limit int) ([]*domain.Pack
 			ON ml.user_id = um.user_id AND ml.chat_id = um.chat_id AND ml.is_deleted = FALSE
 		WHERE um.chat_id = $1
 		  AND um.message_type IN ('training_done', 'sick_leave', 'healthy')
+		  ` + whereSince + `
 		ORDER BY um.created_at DESC
 		LIMIT $2
 	`
-	rows, err := d.db.Query(q, chatID, limit)
+	rows, err := d.db.Query(q, args...)
 	if err != nil {
 		return nil, fmt.Errorf("pack activity feed: %w", err)
 	}

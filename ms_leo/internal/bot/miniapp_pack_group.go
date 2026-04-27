@@ -67,7 +67,11 @@ func (b *Bot) PackGroupChatForViewer(viewerUserID int64, initD initdata.InitData
 			return nil, ErrPackFeedForbidden
 		}
 	}
-	return b.db.ListMiniappPackGroupChat(chatID, 100)
+	since, err := b.packMiniappHistorySinceForViewer(viewerUserID)
+	if err != nil {
+		return nil, err
+	}
+	return b.db.ListMiniappPackGroupChat(chatID, 100, since)
 }
 
 // ProcessMiniAppPackGroupMessage — сохраняет реплику; при @leo / @бот вызывает ИИ, без отправки в Telegram.

@@ -46,21 +46,29 @@ func (d *Database) InsertMiniappPackGroupFromTelegramDedup(packChatID, fromUserI
 }
 
 // ListMiniappPackGroupChat — последние сообщения общего чата.
-func (d *Database) ListMiniappPackGroupChat(packChatID int64, limit int) ([]*domain.PackGroupChatMessage, error) {
+// sinceUTC — если не nil, только сообщения не раньше этого момента (личная граница истории в мини-аппе).
+func (d *Database) ListMiniappPackGroupChat(packChatID int64, limit int, sinceUTC *time.Time) ([]*domain.PackGroupChatMessage, error) {
 	if limit <= 0 {
 		limit = 100
 	}
 	if limit > 200 {
 		limit = 200
 	}
-	const q = `
+	whereSince := ""
+	args := []interface{}{packChatID, limit}
+	if sinceUTC != nil {
+		whereSince = " AND created_at >= $3"
+		args = append(args, *sinceUTC)
+	}
+	q := `
 		SELECT id, from_user_id, COALESCE(username, ''), is_leo, message_text, created_at
 		FROM miniapp_pack_group_chat
 		WHERE pack_chat_id = $1
+		` + whereSince + `
 		ORDER BY created_at DESC
 		LIMIT $2
 	`
-	rows, err := d.db.Query(q, packChatID, limit)
+	rows, err := d.db.Query(q, args...)
 	if err != nil {
 		return nil, fmt.Errorf("list miniapp pack group: %w", err)
 	}

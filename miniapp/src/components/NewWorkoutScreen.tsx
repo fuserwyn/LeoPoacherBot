@@ -20,12 +20,17 @@ const INTENSITIES: { v: 1 | 2 | 3 | 4 | 5; label: string }[] = [
 
 const PRESET_MIN = [5, 15, 30, 45, 60] as const;
 
-type Props = { onClose: () => void; onSave: (payload: { type: string; min: number; intensity: 1 | 2 | 3 | 4 | 5 }) => void };
+type Props = {
+  onClose: () => void;
+  /** Сохранение отчёта: верни false, чтобы не закрывать шторку (например, при ошибке сети). */
+  onSave: (payload: { type: string; min: number; intensity: 1 | 2 | 3 | 4 | 5 }) => void | boolean | Promise<void | boolean>;
+};
 
 export function NewWorkoutScreen({ onClose, onSave }: Props) {
   const [type, setType] = useState("strength");
   const [min, setMin] = useState(15);
   const [intensity, setIntensity] = useState<1 | 2 | 3 | 4 | 5>(3);
+  const [busy, setBusy] = useState(false);
 
   const dec = (d: number) => setMin((m) => Math.max(1, m + d));
   return (
@@ -34,7 +39,7 @@ export function NewWorkoutScreen({ onClose, onSave }: Props) {
         <button type="button" className="nwo__close" onClick={onClose} aria-label="Закрыть">
           ✕
         </button>
-        <h1 className="nwo__title">Новая тренировка</h1>
+        <h1 className="nwo__title">#training_done</h1>
         <span className="nwo__spacer" aria-hidden />
       </header>
 
@@ -108,12 +113,19 @@ export function NewWorkoutScreen({ onClose, onSave }: Props) {
         <button
           type="button"
           className="nwo__save"
-          onClick={() => {
-            onSave({ type, min, intensity });
-            onClose();
+          disabled={busy}
+          onClick={async () => {
+            if (busy) return;
+            setBusy(true);
+            try {
+              const r = await onSave({ type, min, intensity });
+              if (r !== false) onClose();
+            } finally {
+              setBusy(false);
+            }
           }}
         >
-          Сохранить
+          {busy ? "Отправка…" : "Отправить отчёт"}
         </button>
       </footer>
     </div>
