@@ -81,7 +81,14 @@ func collapseSpacesKeepParagraphs(s string) string {
 
 // generateLeoTrainingFeedEncouragement — «живой» комментарий Лео для треда ленты (как в тестовом тоне: забота, ирония, «завтрак», «держи ритм»).
 // gapEmptyDays — полных дней «тишины» между прошлой датой тренировки и сегодня (без цифр в тексте, только настроение).
-func (b *Bot) generateLeoTrainingFeedEncouragement(username, reportText string, newStreak, totalXP, ach, gapEmptyDays int, userGender string, wasOnSickLeave bool) string {
+func (b *Bot) generateLeoTrainingFeedEncouragement(
+	username, reportText string,
+	newStreak, totalXP, ach, gapEmptyDays int,
+	userGender string,
+	wasOnSickLeave bool,
+	profileName string,
+	profileAge *int,
+) string {
 	if b.aiClient == nil {
 		return ""
 	}
@@ -89,6 +96,12 @@ func (b *Bot) generateLeoTrainingFeedEncouragement(username, reportText string, 
 	polHint := "используй нейтральное окончание вроде «Держи ритм!» или «в атаку!»"
 	if pol != "" {
 		polHint = fmt.Sprintf("в последней фразе можно обернуться: «хищница»/«хищник» — для этого пользователя: «%s» (если нейтрален — без этих слов, нейтрально).", pol)
+	}
+	verbHint := "Пол не задан: избегай глаголов в прошедшем времени с окончаниями м/ж (лучше нейтральные фразы: «серьёзная сессия», «тренировка прошла здорово») или обращайся нейтрально к «ты»."
+	if userGender == "m" {
+		verbHint = "Пол в профиле: мужской — прошедшее время / причастия: качал, сделал, доволен (не «качала»)."
+	} else if userGender == "f" {
+		verbHint = "Пол в профиле: женский — прошедшее время: качала, сделала (не «качал»)."
 	}
 	gapHint := "перерыв короткий или подряд идёшь — не разгоняйся про 'пропал', шути мягко про дисциплину, не фиксируй дни числом."
 	if gapEmptyDays >= 2 {
@@ -106,11 +119,20 @@ func (b *Bot) generateLeoTrainingFeedEncouragement(username, reportText string, 
 2) Пустая строка.
 3) Короткий финал отдельной строкой, с энергией: например «Держи ритм, хищница!» с правильной формой (см. подсказку по полу) или нейтрально.
 
+СОГЛАСОВАНИЕ: строго следуй подсказке про глаголы (м/ж/нейтрально) из контекста.
+
 ЗАПРЕТЫ: не пиши цифры XP, серий, ачивок, таймер; не *рычит*; без Markdown, без нумерованных списков, без кавычек вокруг всего текста. Русский язык. Можно 0–2 эмодзи (не больше).`
 
 	var ctxBuilder strings.Builder
 	ctxBuilder.WriteString("Контекст.\n")
 	ctxBuilder.WriteString(fmt.Sprintf("Пользователь: %s\n", username))
+	if strings.TrimSpace(profileName) != "" {
+		ctxBuilder.WriteString(fmt.Sprintf("Имя в мини-аппе: %s\n", strings.TrimSpace(profileName)))
+	}
+	if profileAge != nil && *profileAge > 0 {
+		ctxBuilder.WriteString(fmt.Sprintf("Возраст (для нюанса, не произноси числом, если неловко): %d\n", *profileAge))
+	}
+	ctxBuilder.WriteString(verbHint + "\n")
 	ctxBuilder.WriteString(fmt.Sprintf("Настроение по данным: серия сейчас %d, XP всего %d, ачивок %d — в тексте НЕ произноси и не обсуждай числа (ниже в приложении дубль статов).\n", newStreak, totalXP, ach))
 	ctxBuilder.WriteString(fmt.Sprintf("Полных дней без тренировок между прошлой датой отчёта и сегодня (только логика; в ответе числом дни НЕ пиши): %d\n", gapEmptyDays))
 	ctxBuilder.WriteString(gapHint + "\n")
@@ -183,15 +205,7 @@ func (b *Bot) handleLeopardMoneyTrainingDone(msg *tgbotapi.Message, personalRepl
 		}
 	}
 
-	userGender := strings.TrimSpace(strings.ToLower(messageLog.Gender))
-	if userGender == "" {
-		userGender = b.detectGenderFromName(msg.From.FirstName)
-		if userGender != "" {
-			if err := b.updateUserGender(msg.From.ID, msg.Chat.ID, userGender); err != nil {
-				b.logger.Warnf("Failed to update user gender: %v", err)
-			}
-		}
-	}
+	userGender := b.LeoUserGenderForTrainingFeed(msg.From.ID, messageLog.Gender)
 
 	text := msg.Text
 	if text == "" && msg.Caption != "" {
@@ -330,7 +344,10 @@ func (b *Bot) handleLeopardMoneyTrainingDone(msg *tgbotapi.Message, personalRepl
 
 	if trainingUserMessageID > 0 && b.config.MonetizedChatID != 0 {
 		threadText := messageText
-		if extra := b.generateLeoTrainingFeedEncouragement(username, text, newStreak, totalXP, ach, gapEmptyDays, userGender, wasOnSickLeave); extra != "" {
+		profName, profAge := b.LeoUserProfileForFeedPrompt(msg.From.ID)
+		if extra := b.generateLeoTrainingFeedEncouragement(
+			username, text, newStreak, totalXP, ach, gapEmptyDays, userGender, wasOnSickLeave, profName, profAge,
+		); extra != "" {
 			threadText = extra + "\n\n" + messageText
 		}
 		if _, err := b.db.InsertTrainingFeedThreadReply(b.config.MonetizedChatID, trainingUserMessageID, 0, "Лео", threadText); err != nil {

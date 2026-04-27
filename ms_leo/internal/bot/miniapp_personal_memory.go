@@ -32,6 +32,19 @@ func (b *Bot) miniappPersonalPush(userID int64, text string) {
 	b.miniappPersonalQueue[userID] = append(b.miniappPersonalQueue[userID], t)
 }
 
+// MiniappPersonalQueueLen — сколько фрагментов ещё не забрали poll'ом (для бейджа в мини-аппе).
+func (b *Bot) MiniappPersonalQueueLen(userID int64) int {
+	if b == nil || userID == 0 {
+		return 0
+	}
+	b.miniappPersonalMu.Lock()
+	defer b.miniappPersonalMu.Unlock()
+	if b.miniappPersonalQueue == nil {
+		return 0
+	}
+	return len(b.miniappPersonalQueue[userID])
+}
+
 // PopMiniappPersonalReply — один фрагмент ответа для poll API (FIFO в памяти процесса).
 func (b *Bot) PopMiniappPersonalReply(userID int64) (text string, ok bool) {
 	if b == nil || userID == 0 {

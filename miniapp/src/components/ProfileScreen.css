@@ -178,3 +178,58 @@
   color: var(--accent);
   box-shadow: 0 0 0 1px rgba(255, 90, 31, 0.2);
 }
+
+.profile__form-hint {
+  font-size: 13px;
+  line-height: 1.4;
+  margin: 0 0 12px;
+}
+
+.profile__form {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  margin-bottom: 24px;
+}
+
+.profile__field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-label, var(--text-muted));
+}
+
+.profile__input {
+  padding: 12px 14px;
+  border-radius: var(--radius-sm);
+  border: 1.5px solid var(--border-subtle);
+  background: rgba(255, 255, 255, 0.05);
+  color: var(--text);
+  font-size: 15px;
+  font-family: inherit;
+}
+
+.profile__input:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 1px var(--accent);
+}
+
+.profile__save {
+  margin-top: 4px;
+  padding: 14px 20px;
+  border-radius: 999px;
+  background: linear-gradient(180deg, #ff6a35, #e54a15);
+  color: #fff;
+  font-size: 15px;
+  font-weight: 700;
+  border: none;
+  cursor: pointer;
+}
+
+.profile__save:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}

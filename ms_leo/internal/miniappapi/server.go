@@ -35,6 +35,8 @@ func (s *Server) serve(w http.ResponseWriter, r *http.Request) {
 		s.handleHealthz(w, r)
 	case path == "/api/miniapp/messages" && r.Method == http.MethodPost:
 		s.handlePostMessage(w, r)
+	case path == "/api/miniapp/personal-reply/pending-count" && r.Method == http.MethodPost:
+		s.handlePostPersonalPendingCount(w, r)
 	case path == "/api/miniapp/personal-reply/poll" && r.Method == http.MethodPost:
 		s.handlePostPersonalReplyPoll(w, r)
 	case path == "/api/miniapp/feed" && r.Method == http.MethodPost:
@@ -49,6 +51,10 @@ func (s *Server) serve(w http.ResponseWriter, r *http.Request) {
 		s.handlePostPackGroupFeed(w, r)
 	case path == "/api/miniapp/pack-group/messages" && r.Method == http.MethodPost:
 		s.handlePostPackGroupMessage(w, r)
+	case path == "/api/miniapp/profile/load" && r.Method == http.MethodPost:
+		s.handlePostProfileLoad(w, r)
+	case path == "/api/miniapp/profile/save" && r.Method == http.MethodPost:
+		s.handlePostProfileSave(w, r)
 	case path == "/" && r.Method == http.MethodGet:
 		s.handleRoot(w, r)
 	default:
@@ -180,6 +186,54 @@ func (s *Server) handlePostPersonalReplyPoll(w http.ResponseWriter, r *http.Requ
 		out["reply_text"] = txt
 	}
 	_ = json.NewEncoder(w).Encode(out)
+}
+
+func (s *Server) handlePostPersonalPendingCount(w http.ResponseWriter, r *http.Request) {
+	corsWriteHeaders(w, r)
+	if s.bot == nil || s.token == "" {
+		s.jsonErr(w, http.StatusServiceUnavailable, "server_unavailable")
+		return
+	}
+	var body struct {
+		InitData string `json:"init_data"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		s.jsonErr(w, http.StatusBadRequest, "invalid_json")
+		return
+	}
+	if body.InitData == "" {
+		s.jsonErr(w, http.StatusBadRequest, "missing_init_data")
+		return
+	}
+	if err := initdata.Validate(body.InitData, s.token, 24*time.Hour); err != nil {
+		s.logger.Warnf("miniapp pending count: invalid init: %v", err)
+		s.jsonErr(w, http.StatusUnauthorized, "invalid_init_data")
+		return
+	}
+	parsed, err := initdata.Parse(body.InitData)
+	if err != nil {
+		s.jsonErr(w, http.StatusBadRequest, "parse_init_data")
+		return
+	}
+	if parsed.User.ID == 0 {
+		s.jsonErr(w, http.StatusBadRequest, "user_missing")
+		return
+	}
+	if err := s.bot.AssertMiniAppPackChatAligns(parsed); err != nil {
+		if errors.Is(err, bot.ErrMiniAppChatMismatch) {
+			s.jsonErr(w, http.StatusConflict, "chat_mismatch")
+			return
+		}
+		s.logger.Errorf("miniapp pending count assert chat: %v", err)
+		s.jsonErr(w, http.StatusInternalServerError, "assert_chat_error")
+		return
+	}
+	n := s.bot.MiniappPersonalQueueLen(parsed.User.ID)
+	w.Header().Set("Content-Type", "application/json; charset=utf-8")
+	_ = json.NewEncoder(w).Encode(map[string]any{
+		"ok":    true,
+		"count": n,
+	})
 }
 
 func (s *Server) handlePostFeed(w http.ResponseWriter, r *http.Request) {
@@ -549,6 +603,138 @@ func (s *Server) handlePostPackGroupMessage(w http.ResponseWriter, r *http.Reque
 	out := map[string]any{"ok": true}
 	if miniRes.ReplyText != "" {
 		out["reply_text"] = miniRes.ReplyText
+	}
+	_ = json.NewEncoder(w).Encode(out)
+}
+
+func (s *Server) handlePostProfileLoad(w http.ResponseWriter, r *http.Request) {
+	corsWriteHeaders(w, r)
+	if s.bot == nil || s.token == "" {
+		s.jsonErr(w, http.StatusServiceUnavailable, "server_unavailable")
+		return
+	}
+	var body struct {
+		InitData string `json:"init_data"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		s.jsonErr(w, http.StatusBadRequest, "invalid_json")
+		return
+	}
+	if body.InitData == "" {
+		s.jsonErr(w, http.StatusBadRequest, "missing_init_data")
+		return
+	}
+	if err := initdata.Validate(body.InitData, s.token, 24*time.Hour); err != nil {
+		s.jsonErr(w, http.StatusUnauthorized, "invalid_init_data")
+		return
+	}
+	parsed, err := initdata.Parse(body.InitData)
+	if err != nil {
+		s.jsonErr(w, http.StatusBadRequest, "parse_init_data")
+		return
+	}
+	if parsed.User.ID == 0 {
+		s.jsonErr(w, http.StatusBadRequest, "user_missing")
+		return
+	}
+	if err := s.bot.AssertMiniAppPackChatAligns(parsed); err != nil {
+		if errors.Is(err, bot.ErrMiniAppChatMismatch) {
+			s.jsonErr(w, http.StatusConflict, "chat_mismatch")
+			return
+		}
+		s.jsonErr(w, http.StatusInternalServerError, "assert_chat_error")
+		return
+	}
+	packID := s.bot.MonetizedChatID()
+	if packID == 0 {
+		s.jsonErr(w, http.StatusServiceUnavailable, "pack_not_configured")
+		return
+	}
+	g, d, a := s.bot.GetMiniappUserProfileJSONForAPI(parsed.User.ID, packID)
+	w.Header().Set("Content-Type", "application/json; charset=utf-8")
+	out := map[string]any{
+		"ok":           true,
+		"gender":       g,
+		"display_name": d,
+	}
+	if a != nil {
+		out["age"] = *a
+	} else {
+		out["age"] = nil
+	}
+	_ = json.NewEncoder(w).Encode(out)
+}
+
+func (s *Server) handlePostProfileSave(w http.ResponseWriter, r *http.Request) {
+	corsWriteHeaders(w, r)
+	if s.bot == nil || s.token == "" {
+		s.jsonErr(w, http.StatusServiceUnavailable, "server_unavailable")
+		return
+	}
+	var body struct {
+		InitData    string  `json:"init_data"`
+		Gender      *string `json:"gender"`
+		DisplayName *string `json:"display_name"`
+		Age         *int    `json:"age"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		s.jsonErr(w, http.StatusBadRequest, "invalid_json")
+		return
+	}
+	if body.InitData == "" {
+		s.jsonErr(w, http.StatusBadRequest, "missing_init_data")
+		return
+	}
+	if err := initdata.Validate(body.InitData, s.token, 24*time.Hour); err != nil {
+		s.jsonErr(w, http.StatusUnauthorized, "invalid_init_data")
+		return
+	}
+	parsed, err := initdata.Parse(body.InitData)
+	if err != nil {
+		s.jsonErr(w, http.StatusBadRequest, "parse_init_data")
+		return
+	}
+	if parsed.User.ID == 0 {
+		s.jsonErr(w, http.StatusBadRequest, "user_missing")
+		return
+	}
+	if err := s.bot.AssertMiniAppPackChatAligns(parsed); err != nil {
+		if errors.Is(err, bot.ErrMiniAppChatMismatch) {
+			s.jsonErr(w, http.StatusConflict, "chat_mismatch")
+			return
+		}
+		s.jsonErr(w, http.StatusInternalServerError, "assert_chat_error")
+		return
+	}
+	packID := s.bot.MonetizedChatID()
+	if packID == 0 {
+		s.jsonErr(w, http.StatusServiceUnavailable, "pack_not_configured")
+		return
+	}
+	gv := ""
+	if body.Gender != nil {
+		gv = *body.Gender
+	}
+	dn := ""
+	if body.DisplayName != nil {
+		dn = *body.DisplayName
+	}
+	if err := s.bot.SaveMiniappUserProfileFromMiniapp(parsed.User.ID, packID, gv, dn, body.Age); err != nil {
+		s.logger.Errorf("miniapp profile save: %v", err)
+		s.jsonErr(w, http.StatusInternalServerError, "save_failed")
+		return
+	}
+	g, d, a := s.bot.GetMiniappUserProfileJSONForAPI(parsed.User.ID, packID)
+	w.Header().Set("Content-Type", "application/json; charset=utf-8")
+	out := map[string]any{
+		"ok":           true,
+		"gender":       g,
+		"display_name": d,
+	}
+	if a != nil {
+		out["age"] = *a
+	} else {
+		out["age"] = nil
 	}
 	_ = json.NewEncoder(w).Encode(out)
 }

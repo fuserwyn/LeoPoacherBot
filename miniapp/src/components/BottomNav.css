@@ -35,10 +35,28 @@
   color: var(--accent);
 }
 
-.bottom-nav__icon {
-  font-size: 20px;
+.bottom-nav__icon-wrap {
+  position: relative;
+  display: inline-block;
   line-height: 1;
-  filter: grayscale(0.2);
+}
+
+.bottom-nav__badge {
+  position: absolute;
+  top: -5px;
+  right: -9px;
+  min-width: 16px;
+  height: 16px;
+  padding: 0 4px;
+  border-radius: 8px;
+  background: #e23b12;
+  color: #fff;
+  font-size: 9px;
+  font-weight: 800;
+  line-height: 16px;
+  text-align: center;
+  box-shadow: 0 0 0 1.5px var(--nav-bg, #0f0f0f);
+  pointer-events: none;
 }
 
 .bottom-nav__item.is-active .bottom-nav__icon {

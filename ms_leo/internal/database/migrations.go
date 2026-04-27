@@ -604,6 +604,27 @@ var Migrations = []Migration{
 			DROP TABLE IF EXISTS miniapp_training_feed_reactions;
 		`,
 	},
+	{
+		Version:     30,
+		Description: "Miniapp user profile: gender, display name, age (optional)",
+		UpSQL: `
+			CREATE TABLE IF NOT EXISTS miniapp_user_profile (
+				user_id BIGINT NOT NULL,
+				pack_chat_id BIGINT NOT NULL,
+				gender TEXT NOT NULL DEFAULT '',
+				display_name TEXT NOT NULL DEFAULT '',
+				age_years INT NULL,
+				updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
+				PRIMARY KEY (user_id, pack_chat_id)
+			);
+			CREATE INDEX IF NOT EXISTS idx_miniapp_user_profile_user
+				ON miniapp_user_profile (user_id);
+		`,
+		DownSQL: `
+			DROP INDEX IF EXISTS idx_miniapp_user_profile_user;
+			DROP TABLE IF EXISTS miniapp_user_profile;
+		`,
+	},
 }
 
 // MigrationRecord представляет запись о выполненной миграции

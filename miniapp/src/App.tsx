@@ -1,4 +1,4 @@
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useTelegramWebApp } from "./hooks/useTelegramWebApp";
 import { BottomNav } from "./components/BottomNav";
 import { ChatScreen } from "./components/ChatScreen";
@@ -7,6 +7,7 @@ import { ProfileScreen } from "./components/ProfileScreen";
 import { NewWorkoutScreen } from "./components/NewWorkoutScreen";
 import { RulesScreen } from "./components/RulesScreen";
 import { sendMiniappPrivateText } from "./lib/miniappPrivateSend";
+import { fetchLeoPendingCount } from "./lib/leoPersonalInbox";
 import "./App.css";
 
 type Tab = "chat" | "feed" | "rules" | "profile";
@@ -20,10 +21,46 @@ export function App() {
   const [tab, setTab] = useState<Tab>("feed");
   const [workoutOpen, setWorkoutOpen] = useState(false);
   const [workouts, setWorkouts] = useState(1);
+  const [leoPending, setLeoPending] = useState(0);
+
+  const refreshLeoPending = useCallback(async () => {
+    if (!inTelegram || !initData?.trim()) {
+      setLeoPending(0);
+      return;
+    }
+    setLeoPending(await fetchLeoPendingCount(initData));
+  }, [inTelegram, initData]);
+
+  useEffect(() => {
+    void refreshLeoPending();
+    const t = window.setInterval(() => {
+      void refreshLeoPending();
+    }, 30_000);
+    const onVis = () => {
+      if (document.visibilityState === "visible") void refreshLeoPending();
+    };
+    document.addEventListener("visibilitychange", onVis);
+    return () => {
+      window.clearInterval(t);
+      document.removeEventListener("visibilitychange", onVis);
+    };
+  }, [refreshLeoPending]);
+
+  const onLeoInboxDrained = useCallback(() => {
+    void refreshLeoPending();
+  }, [refreshLeoPending]);
 
   return (
     <div className="app">
-      {tab === "chat" && <ChatScreen name={name} initData={initData} inTelegram={inTelegram} showAlert={showAlert} />}
+      {tab === "chat" && (
+        <ChatScreen
+          name={name}
+          initData={initData}
+          inTelegram={inTelegram}
+          showAlert={showAlert}
+          onInboxDrained={onLeoInboxDrained}
+        />
+      )}
       {tab === "feed" && (
         <FeedScreen
           name={name}
@@ -35,10 +72,20 @@ export function App() {
         />
       )}
       {tab === "rules" && <RulesScreen />}
-      {tab === "profile" && <ProfileScreen name={name} streak={streak} workouts={workouts} />}
+      {tab === "profile" && (
+        <ProfileScreen
+          name={name}
+          streak={streak}
+          workouts={workouts}
+          initData={initData}
+          inTelegram={inTelegram}
+          showAlert={showAlert}
+        />
+      )}
 
       <BottomNav
         active={tab}
+        leoBadgeCount={leoPending}
         onChat={() => setTab("chat")}
         onFeed={() => setTab("feed")}
         onRules={() => setTab("rules")}
@@ -71,6 +118,7 @@ export function App() {
               showAlert(result.error);
               return false;
             }
+            void refreshLeoPending();
             setWorkouts((c) => c + 1);
             setStreak((s) => s + 1);
             const msg = result.replyParts.filter(Boolean).join("\n\n").trim() || "Отчёт отправлен.";

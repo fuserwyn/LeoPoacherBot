@@ -4,6 +4,8 @@ type Tab = "chat" | "feed" | "rules" | "profile";
 
 type Props = {
   active: Tab;
+  /** Непрочитанные фрагменты из очереди лички Лео (предупреждения, ответы). */
+  leoBadgeCount?: number;
   onChat: () => void;
   onFeed: () => void;
   onRules: () => void;
@@ -11,7 +13,8 @@ type Props = {
   onProfile: () => void;
 };
 
-export function BottomNav({ active, onChat, onFeed, onRules, onWorkout, onProfile }: Props) {
+export function BottomNav({ active, leoBadgeCount = 0, onChat, onFeed, onRules, onWorkout, onProfile }: Props) {
+  const badge = leoBadgeCount > 0 ? (leoBadgeCount > 9 ? "9+" : String(leoBadgeCount)) : null;
   return (
     <nav className="bottom-nav" role="navigation" aria-label="Основное меню">
       <button
@@ -30,9 +33,15 @@ export function BottomNav({ active, onChat, onFeed, onRules, onWorkout, onProfil
         className={`bottom-nav__item ${active === "chat" ? "is-active" : ""}`}
         onClick={onChat}
         aria-current={active === "chat" ? "page" : undefined}
+        aria-label={badge ? `Лео, непрочитанных: ${leoBadgeCount}` : "Лео"}
       >
-        <span className="bottom-nav__icon" aria-hidden>
-          💬
+        <span className="bottom-nav__icon-wrap" aria-hidden>
+          <span className="bottom-nav__icon">💬</span>
+          {badge && (
+            <span className="bottom-nav__badge" title="Новое от Лео">
+              {badge}
+            </span>
+          )}
         </span>
         <span className="bottom-nav__label">Лео</span>
       </button>

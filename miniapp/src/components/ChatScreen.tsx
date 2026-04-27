@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { getTelegramUserId, loadLeoChat, saveLeoChat, type Msg } from "../lib/leoChatStorage";
+import { drainLeoPersonalInbox } from "../lib/leoPersonalInbox";
 import "./ChatScreen.css";
 
 const envApi = (import.meta.env.VITE_MINIAPP_API_URL as string | undefined)?.replace(/\/$/, "") ?? "";
@@ -11,13 +11,15 @@ type Props = {
   initData: string;
   inTelegram: boolean;
   showAlert: (m: string) => void;
+  /** После забора очереди лички с сервера (для сброса бейджа). */
+  onInboxDrained?: () => void;
 };
 
 function nowId() {
   return `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
 }
 
-export function ChatScreen({ name, initData, inTelegram, showAlert }: Props) {
+export function ChatScreen({ name, initData, inTelegram, showAlert, onInboxDrained }: Props) {
   const [text, setText] = useState("");
   const [sending, setSending] = useState(false);
   const [items, setItems] = useState<Msg[]>(() => loadLeoChat(getTelegramUserId()));
@@ -30,6 +32,26 @@ export function ChatScreen({ name, initData, inTelegram, showAlert }: Props) {
   useEffect(() => {
     saveLeoChat(getTelegramUserId(), items);
   }, [items]);
+
+  /** Предупреждения и ответы из очереди miniappPersonal — показать в чате и снять бейдж. */
+  useEffect(() => {
+    if (!envApi || !inTelegram || !initData?.trim()) return;
+    let cancelled = false;
+    (async () => {
+      const parts = await drainLeoPersonalInbox(initData);
+      if (cancelled) return;
+      if (parts.length > 0) {
+        setItems((prev) => [
+          ...prev,
+          ...parts.map((text) => ({ id: nowId(), role: "system" as const, time: Date.now(), text })),
+        ]);
+      }
+      onInboxDrained?.();
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [inTelegram, initData, onInboxDrained]);
 
   const send = useCallback(async () => {
     const t = text.trim();

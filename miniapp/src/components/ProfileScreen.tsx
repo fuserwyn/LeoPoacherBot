@@ -1,13 +1,120 @@
-import { useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import "./ProfileScreen.css";
 
-type Props = { name: string; streak: number; workouts: number };
+const api = (import.meta.env.VITE_MINIAPP_API_URL as string | undefined)?.replace(/\/$/, "") ?? "";
+
+export type ProfileData = {
+  gender: "m" | "f" | "";
+  displayName: string;
+  age: string;
+};
+
+type Props = {
+  name: string;
+  streak: number;
+  workouts: number;
+  initData: string;
+  inTelegram: boolean;
+  showAlert: (m: string) => void;
+};
 
 const LEVELS = [200];
 
-export function ProfileScreen({ name, streak, workouts }: Props) {
+export function ProfileScreen({ name, streak, workouts, initData, inTelegram, showAlert }: Props) {
   const xp = 25;
   const [burn, setBurn] = useState<3 | 5 | 7>(5);
+  const [profile, setProfile] = useState<ProfileData>({ gender: "", displayName: "", age: "" });
+  const [initialAgeSet, setInitialAgeSet] = useState(false);
+  const [profileLoading, setProfileLoading] = useState(true);
+  const [profileSaving, setProfileSaving] = useState(false);
+
+  const load = useCallback(async () => {
+    if (!api || !inTelegram || !initData?.trim()) {
+      setProfileLoading(false);
+      return;
+    }
+    setProfileLoading(true);
+    try {
+      const res = await fetch(`${api}/api/miniapp/profile/load`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ init_data: initData }),
+      });
+      const j = (await res.json().catch(() => ({}))) as {
+        ok?: boolean;
+        error?: string;
+        gender?: string;
+        display_name?: string;
+        age?: number | null;
+      };
+      if (!res.ok) {
+        showAlert(j.error ?? `Профиль: ошибка ${res.status}`);
+        return;
+      }
+      if (!j.ok) return;
+      const g = j.gender === "m" || j.gender === "f" ? j.gender : "";
+      const dn = (j.display_name ?? "").trim() || (name && name !== "друг" ? name : "");
+      setProfile({
+        gender: g,
+        displayName: dn,
+        age: j.age != null && j.age > 0 ? String(j.age) : "",
+      });
+      setInitialAgeSet(j.age != null && j.age > 0);
+    } catch (e) {
+      showAlert(e instanceof Error ? e.message : "Сеть");
+    } finally {
+      setProfileLoading(false);
+    }
+  }, [inTelegram, initData, name, showAlert]);
+
+  useEffect(() => {
+    void load();
+  }, [load]);
+
+  const saveProfile = useCallback(async () => {
+    if (!api || !inTelegram || !initData?.trim()) {
+      showAlert("Открой мини-апп из Telegram (нужен initData).");
+      return;
+    }
+    setProfileSaving(true);
+    try {
+      const body: Record<string, unknown> = {
+        init_data: initData,
+        gender: profile.gender,
+        display_name: profile.displayName.trim(),
+      };
+      const a = profile.age.trim();
+      if (a === "") {
+        if (initialAgeSet) {
+          body.age = 0;
+        }
+      } else {
+        const n = parseInt(a, 10);
+        if (Number.isFinite(n) && n > 0) {
+          body.age = n;
+        }
+      }
+      const res = await fetch(`${api}/api/miniapp/profile/save`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      const j = (await res.json().catch(() => ({}))) as { ok?: boolean; error?: string; age?: number | null };
+      if (!res.ok) {
+        showAlert(j.error ?? `Сохранение: ${res.status}`);
+        return;
+      }
+      if (j.ok) {
+        setInitialAgeSet(j.age != null && j.age > 0);
+        void window.Telegram?.WebApp?.HapticFeedback?.notificationOccurred?.("success");
+        showAlert("Сохранено. Лео подстроит обращения.");
+      }
+    } catch (e) {
+      showAlert(e instanceof Error ? e.message : "Сеть");
+    } finally {
+      setProfileSaving(false);
+    }
+  }, [inTelegram, initData, profile, initialAgeSet, showAlert]);
 
   return (
     <div className="profile">
@@ -15,7 +122,7 @@ export function ProfileScreen({ name, streak, workouts }: Props) {
         <div className="profile__avatar" aria-hidden>
           🐆
         </div>
-        <h1 className="profile__name">{name}</h1>
+        <h1 className="profile__name">{(profile.displayName || name).trim() || "Стая"}</h1>
         <p className="profile__level muted">Уровень 1 · Новичок</p>
         <div className="profile__xp">
           <div className="profile__xp-bar">
@@ -29,6 +136,60 @@ export function ProfileScreen({ name, streak, workouts }: Props) {
           </span>
         </div>
       </header>
+
+      <h2 className="section-title">Профиль (для Лео)</h2>
+      <p className="profile__form-hint muted">Всё по желанию. Пол помогает говорить «качал/качала» и т.п. без путаницы.</p>
+      {profileLoading && <p className="muted">Загрузка профиля…</p>}
+      <div className="profile__form">
+        <label className="profile__field">
+          <span>Имя (как обращаться)</span>
+          <input
+            type="text"
+            className="profile__input"
+            value={profile.displayName}
+            onChange={(e) => setProfile((p) => ({ ...p, displayName: e.target.value.slice(0, 64) }))}
+            placeholder="Например, Саша"
+            maxLength={64}
+            autoComplete="name"
+            disabled={profileLoading}
+          />
+        </label>
+        <label className="profile__field">
+          <span>Пол</span>
+          <select
+            className="profile__input"
+            value={profile.gender}
+            onChange={(e) => setProfile((p) => ({ ...p, gender: e.target.value as "m" | "f" | "" }))}
+            disabled={profileLoading}
+          >
+            <option value="">Не указывать</option>
+            <option value="m">Мужской</option>
+            <option value="f">Женский</option>
+          </select>
+        </label>
+        <label className="profile__field">
+          <span>Возраст</span>
+          <input
+            type="number"
+            className="profile__input"
+            inputMode="numeric"
+            min={1}
+            max={120}
+            value={profile.age}
+            onChange={(e) => setProfile((p) => ({ ...p, age: e.target.value.replace(/\D/g, "").slice(0, 3) }))}
+            placeholder="—"
+            disabled={profileLoading}
+          />
+        </label>
+        <button
+          type="button"
+          className="profile__save"
+          onClick={() => void saveProfile()}
+          disabled={profileLoading || profileSaving}
+        >
+          {profileSaving ? "Сохраняю…" : "Сохранить"}
+        </button>
+      </div>
 
       <div className="profile__grid3">
         <div className="stat-card">
