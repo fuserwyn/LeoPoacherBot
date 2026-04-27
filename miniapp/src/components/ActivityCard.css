@@ -189,6 +189,41 @@
   border-bottom: none;
 }
 
+.act-card__thread-item-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.act-card__thread-item-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 6px 8px;
+  min-width: 0;
+}
+
+.act-card__thread-del {
+  flex-shrink: 0;
+  padding: 2px 8px;
+  font-size: 12px;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.act-card__thread-del:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  text-decoration: none;
+}
+
 .act-card__thread-item--you .act-card__thread-author {
   color: var(--accent);
 }

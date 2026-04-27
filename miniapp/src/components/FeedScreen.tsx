@@ -48,6 +48,7 @@ export function FeedScreen({ name, streak, userId, initData, inTelegram, showAle
   const [err, setErr] = useState<string | null>(null);
   const [threadDrafts, setThreadDrafts] = useState<Record<number, string>>({});
   const [threadPosting, setThreadPosting] = useState<Record<number, boolean>>({});
+  const [threadReplyDeleting, setThreadReplyDeleting] = useState<Record<number, boolean>>({});
 
   const load = useCallback(async () => {
     if (!apiBase || !inTelegram || !initData) {
@@ -142,7 +143,7 @@ export function FeedScreen({ name, streak, userId, initData, inTelegram, showAle
         const postedThread = j.thread;
         setThreadDrafts((d) => ({ ...d, [userMessageId]: "" }));
         await load();
-        if (postedThread && postedThread.length > 0) {
+        if (Array.isArray(postedThread)) {
           setFeedItems((prev) =>
             prev.map((it) => (it.id === userMessageId ? { ...it, thread: postedThread } : it)),
           );
@@ -151,6 +152,46 @@ export function FeedScreen({ name, streak, userId, initData, inTelegram, showAle
         showAlert(e instanceof Error ? e.message : "Сеть");
       } finally {
         setThreadPosting((p) => ({ ...p, [userMessageId]: false }));
+      }
+    },
+    [apiBase, initData, load, showAlert],
+  );
+
+  const deleteTrainingThreadReply = useCallback(
+    async (trainingUserMessageId: number, threadReplyId: number) => {
+      if (!apiBase || !initData) return;
+      setThreadReplyDeleting((p) => ({ ...p, [threadReplyId]: true }));
+      try {
+        const res = await fetch(`${apiBase}/api/miniapp/feed/training/thread/delete`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ init_data: initData, thread_reply_id: threadReplyId }),
+        });
+        const j = (await res.json().catch(() => ({}))) as {
+          error?: string;
+          thread?: PackFeedThreadReplyDTO[];
+        };
+        if (!res.ok) {
+          const errMap: Record<string, string> = {
+            not_found: "Комментарий не найден или уже удалён",
+            forbidden: "Нет доступа",
+            chat_mismatch: "Открой мини-апп из чата стаи",
+            thread_delete_error: "Не удалось удалить",
+          };
+          showAlert(errMap[j.error ?? ""] ?? j.error ?? `Ошибка ${res.status}`);
+          return;
+        }
+        const updated = j.thread;
+        await load();
+        if (Array.isArray(updated)) {
+          setFeedItems((prev) =>
+            prev.map((it) => (it.id === trainingUserMessageId ? { ...it, thread: updated } : it)),
+          );
+        }
+      } catch (e) {
+        showAlert(e instanceof Error ? e.message : "Сеть");
+      } finally {
+        setThreadReplyDeleting((p) => ({ ...p, [threadReplyId]: false }));
       }
     },
     [apiBase, initData, load, showAlert],
@@ -235,6 +276,8 @@ export function FeedScreen({ name, streak, userId, initData, inTelegram, showAle
                     reactions={mergeTrainingFeedReactions(it.reactions)}
                     onReactionClick={(emoji) => void postTrainingReact(it.id, emoji)}
                     threadReplies={threadReplies}
+                    onThreadReplyDelete={(replyId) => void deleteTrainingThreadReply(it.id, replyId)}
+                    threadReplyDeleting={threadReplyDeleting}
                     threadComposer={{
                       draft: threadDrafts[it.id] ?? "",
                       onDraftChange: (v) => setThreadDrafts((d) => ({ ...d, [it.id]: v })),
