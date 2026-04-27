@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useState } from "react";
 import { ActivityCard, type ActivityCardProps } from "./ActivityCard";
 import { PackGroupChatPanel } from "./PackGroupChatPanel";
-import { dtoToCard, type PackFeedItemDTO } from "../lib/packFeed";
+import { dtoToCard, mergeTrainingFeedReactions, type PackFeedItemDTO } from "../lib/packFeed";
+import { timeAgoFromISO } from "../lib/timeAgo";
 import "./FeedScreen.css";
 
 const apiBase = (import.meta.env.VITE_MINIAPP_API_URL as string | undefined)?.replace(/\/$/, "") ?? "";
@@ -41,19 +42,24 @@ export function FeedScreen({ name, streak, userId, initData, inTelegram, showAle
         ? "Лента отчётов и комната стаи: Лео отвечает только с @leo"
         : "Стая: кто тренировался, и чат с упоминанием бота.";
 
-  const [cards, setCards] = useState<ActivityCardProps[]>([]);
+  const [feedItems, setFeedItems] = useState<PackFeedItemDTO[]>([]);
+  const [useMockFeed, setUseMockFeed] = useState(false);
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState<string | null>(null);
+  const [threadDrafts, setThreadDrafts] = useState<Record<number, string>>({});
+  const [threadPosting, setThreadPosting] = useState<Record<number, boolean>>({});
 
   const load = useCallback(async () => {
     if (!apiBase || !inTelegram || !initData) {
       setLoading(false);
-      setCards(mockFallback(name, streak));
+      setUseMockFeed(true);
+      setFeedItems([]);
       setErr(null);
       return;
     }
     setErr(null);
     setLoading(true);
+    setUseMockFeed(false);
     try {
       const res = await fetch(`${apiBase}/api/miniapp/feed`, {
         method: "POST",
@@ -64,22 +70,75 @@ export function FeedScreen({ name, streak, userId, initData, inTelegram, showAle
       if (!res.ok) {
         if (res.status === 403) {
           setErr("Нет доступа к ленте стаи: нужна подписка/участие в группе, как в боте.");
-          setCards([]);
+          setFeedItems([]);
           return;
         }
         setErr(j.error ?? `Ошибка ${res.status}`);
-        setCards([]);
+        setFeedItems([]);
         return;
       }
-      const items = j.items ?? [];
-      setCards(items.map((it) => dtoToCard(it)));
+      setFeedItems(j.items ?? []);
     } catch (e) {
       setErr(e instanceof Error ? e.message : "Сеть");
-      setCards([]);
+      setFeedItems([]);
     } finally {
       setLoading(false);
     }
   }, [inTelegram, initData, name, streak]);
+
+  const postTrainingReact = useCallback(
+    async (userMessageId: number, emoji: string) => {
+      if (!apiBase || !initData) return;
+      try {
+        const res = await fetch(`${apiBase}/api/miniapp/feed/training/react`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ init_data: initData, user_message_id: userMessageId, emoji }),
+        });
+        const j = (await res.json().catch(() => ({}))) as { error?: string };
+        if (!res.ok) {
+          showAlert(j.error === "invalid_emoji" ? "Такую реакцию нельзя" : j.error ?? `Ошибка ${res.status}`);
+          return;
+        }
+        await load();
+      } catch (e) {
+        showAlert(e instanceof Error ? e.message : "Сеть");
+      }
+    },
+    [apiBase, initData, load, showAlert],
+  );
+
+  const postTrainingThread = useCallback(
+    async (userMessageId: number, text: string) => {
+      if (!apiBase || !initData) return;
+      setThreadPosting((p) => ({ ...p, [userMessageId]: true }));
+      try {
+        const res = await fetch(`${apiBase}/api/miniapp/feed/training/thread`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ init_data: initData, user_message_id: userMessageId, text }),
+        });
+        const j = (await res.json().catch(() => ({}))) as { error?: string };
+        if (!res.ok) {
+          showAlert(
+            j.error === "empty_text"
+              ? "Пустой комментарий"
+              : j.error === "text_too_long"
+                ? "Слишком длинно"
+                : j.error ?? `Ошибка ${res.status}`,
+          );
+          return;
+        }
+        setThreadDrafts((d) => ({ ...d, [userMessageId]: "" }));
+        await load();
+      } catch (e) {
+        showAlert(e instanceof Error ? e.message : "Сеть");
+      } finally {
+        setThreadPosting((p) => ({ ...p, [userMessageId]: false }));
+      }
+    },
+    [apiBase, initData, load, showAlert],
+  );
 
   useEffect(() => {
     void load();
@@ -134,12 +193,40 @@ export function FeedScreen({ name, streak, userId, initData, inTelegram, showAle
           {err && <p className="feed__err">{err}</p>}
           {loading && <p className="feed__load muted">Загрузка…</p>}
           <div className="feed__list">
-            {!loading && cards.length === 0 && !err && (
+            {!loading && !useMockFeed && feedItems.length === 0 && !err && (
               <p className="feed__empty muted">Пока нет отчётов в базе (или нет MONETIZED_CHAT_ID).</p>
             )}
-            {cards.map((c, i) => (
-              <ActivityCard key={i} {...c} />
-            ))}
+            {useMockFeed &&
+              mockFallback(name, streak).map((c, i) => <ActivityCard key={`mock-${i}`} {...c} />)}
+            {!useMockFeed &&
+              feedItems.map((it) => {
+                const base = dtoToCard(it);
+                if (it.type !== "training_done") {
+                  return <ActivityCard key={it.id} {...base} />;
+                }
+                const threadReplies = (it.thread ?? []).map((tr) => ({
+                  id: tr.id,
+                  author: (tr.username || "").trim() || `Участник ${tr.user_id}`,
+                  text: tr.text,
+                  timeAgo: timeAgoFromISO(tr.created_at),
+                  isYou: tr.is_you,
+                }));
+                return (
+                  <ActivityCard
+                    key={it.id}
+                    {...base}
+                    reactions={mergeTrainingFeedReactions(it.reactions)}
+                    onReactionClick={(emoji) => void postTrainingReact(it.id, emoji)}
+                    threadReplies={threadReplies}
+                    threadComposer={{
+                      draft: threadDrafts[it.id] ?? "",
+                      onDraftChange: (v) => setThreadDrafts((d) => ({ ...d, [it.id]: v })),
+                      onSubmit: () => void postTrainingThread(it.id, threadDrafts[it.id] ?? ""),
+                      posting: threadPosting[it.id] ?? false,
+                    }}
+                  />
+                );
+              })}
           </div>
           {!loading && !err && apiBase && inTelegram && initData && (
             <div className="feed__actions">

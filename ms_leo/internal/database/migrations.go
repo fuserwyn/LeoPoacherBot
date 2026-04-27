@@ -564,6 +564,46 @@ var Migrations = []Migration{
 				ALTER COLUMN updated_at SET DEFAULT (NOW() AT TIME ZONE 'Europe/Moscow');
 		`,
 	},
+	{
+		Version:     29,
+		Description: "Mini app feed: reactions and thread replies on training_done",
+		UpSQL: `
+			CREATE TABLE IF NOT EXISTS miniapp_training_feed_reactions (
+				id BIGSERIAL PRIMARY KEY,
+				pack_chat_id BIGINT NOT NULL,
+				user_message_id BIGINT NOT NULL,
+				user_id BIGINT NOT NULL,
+				username TEXT NOT NULL DEFAULT '',
+				emoji TEXT NOT NULL,
+				created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
+				updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
+				UNIQUE (user_message_id, user_id)
+			);
+			CREATE INDEX IF NOT EXISTS idx_miniapp_tr_feed_react_msg
+				ON miniapp_training_feed_reactions (user_message_id);
+			CREATE INDEX IF NOT EXISTS idx_miniapp_tr_feed_react_pack
+				ON miniapp_training_feed_reactions (pack_chat_id);
+
+			CREATE TABLE IF NOT EXISTS miniapp_training_feed_thread (
+				id BIGSERIAL PRIMARY KEY,
+				pack_chat_id BIGINT NOT NULL,
+				user_message_id BIGINT NOT NULL,
+				from_user_id BIGINT NOT NULL,
+				username TEXT NOT NULL DEFAULT '',
+				message_text TEXT NOT NULL,
+				created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW()
+			);
+			CREATE INDEX IF NOT EXISTS idx_miniapp_tr_feed_thr_msg_created
+				ON miniapp_training_feed_thread (user_message_id, created_at ASC);
+		`,
+		DownSQL: `
+			DROP INDEX IF EXISTS idx_miniapp_tr_feed_thr_msg_created;
+			DROP TABLE IF EXISTS miniapp_training_feed_thread;
+			DROP INDEX IF EXISTS idx_miniapp_tr_feed_react_pack;
+			DROP INDEX IF EXISTS idx_miniapp_tr_feed_react_msg;
+			DROP TABLE IF EXISTS miniapp_training_feed_reactions;
+		`,
+	},
 }
 
 // MigrationRecord представляет запись о выполненной миграции

@@ -118,6 +118,19 @@
   padding: 6px 8px;
   border-radius: 999px;
   background: rgba(255, 255, 255, 0.05);
+  border: 1px solid transparent;
+  color: inherit;
+  cursor: pointer;
+}
+
+.act-card__react-btn:disabled {
+  cursor: default;
+  opacity: 0.85;
+}
+
+.act-card__react-btn--mine {
+  border-color: rgba(255, 90, 31, 0.55);
+  background: rgba(255, 90, 31, 0.12);
 }
 
 .act-card__react-cnt {
@@ -125,9 +138,88 @@
   color: var(--text-muted);
 }
 
-.act-card__sync {
-  margin-left: auto;
-  font-size: 16px;
-  opacity: 0.5;
-  padding: 4px;
+.act-card__thread {
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid var(--border-subtle);
+}
+
+.act-card__thread-label {
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-muted);
+  margin-bottom: 8px;
+}
+
+.act-card__thread-list {
+  list-style: none;
+  margin: 0 0 10px;
+  padding: 0;
+}
+
+.act-card__thread-item {
+  padding: 8px 0;
+  border-bottom: 1px solid var(--border-subtle);
+  font-size: 14px;
+}
+
+.act-card__thread-item:last-child {
+  border-bottom: none;
+}
+
+.act-card__thread-item--you .act-card__thread-author {
+  color: var(--accent);
+}
+
+.act-card__thread-author {
+  font-weight: 600;
+  margin-right: 8px;
+}
+
+.act-card__thread-time {
+  font-size: 12px;
+}
+
+.act-card__thread-text {
+  margin: 4px 0 0;
+  line-height: 1.4;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.act-card__thread-compose {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.act-card__thread-input {
+  width: 100%;
+  box-sizing: border-box;
+  resize: vertical;
+  min-height: 48px;
+  padding: 10px 12px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border-subtle);
+  background: var(--card-inner);
+  color: var(--text);
+  font: inherit;
+}
+
+.act-card__thread-send {
+  align-self: flex-end;
+  padding: 8px 16px;
+  border-radius: 999px;
+  border: none;
+  background: var(--accent);
+  color: #111;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.act-card__thread-send:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
 }

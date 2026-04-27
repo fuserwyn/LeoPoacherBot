@@ -1,6 +1,20 @@
 import { timeAgoFromISO } from "./timeAgo";
 import type { ActivityCardProps } from "../components/ActivityCard";
 
+/** Совпадает с ms_leo trainingFeedAllowedEmojis (порядок отображения). */
+export const TRAINING_FEED_EMOJIS = ["🔥", "💪", "👏", "❤️", "🎉", "🦁", "⭐", "👍"] as const;
+
+export type PackFeedReactionDTO = { emoji: string; count: number; me: boolean };
+
+export type PackFeedThreadReplyDTO = {
+  id: number;
+  user_id: number;
+  username: string;
+  text: string;
+  created_at: string;
+  is_you: boolean;
+};
+
 export type PackFeedItemDTO = {
   id: number;
   user_id: number;
@@ -10,7 +24,23 @@ export type PackFeedItemDTO = {
   created_at: string;
   streak_days: number;
   is_you: boolean;
+  pack_chat_id?: number;
+  pack_title?: string;
+  reactions?: PackFeedReactionDTO[];
+  thread?: PackFeedThreadReplyDTO[];
 };
+
+/** Полная строка эмодзи для кнопок реакций (с нулевыми счётчиками). */
+export function mergeTrainingFeedReactions(fromServer?: PackFeedReactionDTO[]): { emoji: string; count: number; me: boolean }[] {
+  const byEmoji = new Map<string, PackFeedReactionDTO>();
+  for (const r of fromServer ?? []) {
+    byEmoji.set(r.emoji, r);
+  }
+  return TRAINING_FEED_EMOJIS.map((emoji) => {
+    const r = byEmoji.get(emoji);
+    return { emoji, count: r?.count ?? 0, me: r?.me ?? false };
+  });
+}
 
 function typeMeta(t: string): { emoji: string; activity: string; details: string } {
   switch (t) {

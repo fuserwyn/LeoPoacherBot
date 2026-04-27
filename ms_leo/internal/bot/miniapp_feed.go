@@ -10,6 +10,23 @@ import (
 // ErrPackFeedForbidden — смотрящему нельзя видеть ленту (нет в стае / не оплачено).
 var ErrPackFeedForbidden = errors.New("pack feed forbidden")
 
+// PackFeedReaction — агрегат реакций на отчёт в мини-аппе.
+type PackFeedReaction struct {
+	Emoji string `json:"emoji"`
+	Count int    `json:"count"`
+	Me    bool   `json:"me"`
+}
+
+// PackFeedThreadReply — реплика в треде под training_done.
+type PackFeedThreadReply struct {
+	ID        int64  `json:"id"`
+	UserID    int64  `json:"user_id"`
+	Username  string `json:"username"`
+	Text      string `json:"text"`
+	CreatedAt string `json:"created_at"`
+	IsYou     bool   `json:"is_you"`
+}
+
 // PackFeedItem — JSON для мини-апpa.
 type PackFeedItem struct {
 	ID         int64  `json:"id"`
@@ -23,6 +40,8 @@ type PackFeedItem struct {
 	// PackChatID — id группы «Стая» (MONETIZED_CHAT_ID), с которой синхронизирована лента.
 	PackChatID int64  `json:"pack_chat_id"`
 	PackTitle  string `json:"pack_title,omitempty"`
+	Reactions  []PackFeedReaction   `json:"reactions,omitempty"`
+	Thread     []PackFeedThreadReply `json:"thread,omitempty"`
 }
 
 // PackFeedForViewer — лента «стаи» из user_messages (отчёты) для участника/оплатившего.
@@ -73,6 +92,7 @@ func (b *Bot) PackFeedForViewer(viewerUserID int64, initD initdata.InitData) ([]
 			PackTitle:  packTitle,
 		})
 	}
+	out = b.enrichPackFeedTrainingSocial(out, viewerUserID, chatID)
 	return out, nil
 }
 

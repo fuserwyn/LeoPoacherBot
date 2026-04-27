@@ -39,6 +39,10 @@ func (s *Server) serve(w http.ResponseWriter, r *http.Request) {
 		s.handlePostPersonalReplyPoll(w, r)
 	case path == "/api/miniapp/feed" && r.Method == http.MethodPost:
 		s.handlePostFeed(w, r)
+	case path == "/api/miniapp/feed/training/react" && r.Method == http.MethodPost:
+		s.handlePostFeedTrainingReact(w, r)
+	case path == "/api/miniapp/feed/training/thread" && r.Method == http.MethodPost:
+		s.handlePostFeedTrainingThread(w, r)
 	case path == "/api/miniapp/pack-group/feed" && r.Method == http.MethodPost:
 		s.handlePostPackGroupFeed(w, r)
 	case path == "/api/miniapp/pack-group/messages" && r.Method == http.MethodPost:
@@ -223,6 +227,134 @@ func (s *Server) handlePostFeed(w http.ResponseWriter, r *http.Request) {
 	}
 	w.Header().Set("Content-Type", "application/json; charset=utf-8")
 	_ = json.NewEncoder(w).Encode(map[string]any{"ok": true, "items": items})
+}
+
+func (s *Server) handlePostFeedTrainingReact(w http.ResponseWriter, r *http.Request) {
+	corsWriteHeaders(w, r)
+	if s.bot == nil || s.token == "" {
+		s.jsonErr(w, http.StatusServiceUnavailable, "server_unavailable")
+		return
+	}
+	var body struct {
+		InitData      string `json:"init_data"`
+		UserMessageID int64  `json:"user_message_id"`
+		Emoji         string `json:"emoji"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		s.jsonErr(w, http.StatusBadRequest, "invalid_json")
+		return
+	}
+	if body.InitData == "" {
+		s.jsonErr(w, http.StatusBadRequest, "missing_init_data")
+		return
+	}
+	if body.UserMessageID == 0 {
+		s.jsonErr(w, http.StatusBadRequest, "missing_user_message_id")
+		return
+	}
+	if err := initdata.Validate(body.InitData, s.token, 24*time.Hour); err != nil {
+		s.logger.Warnf("miniapp feed training react: invalid init: %v", err)
+		s.jsonErr(w, http.StatusUnauthorized, "invalid_init_data")
+		return
+	}
+	parsed, err := initdata.Parse(body.InitData)
+	if err != nil {
+		s.jsonErr(w, http.StatusBadRequest, "parse_init_data")
+		return
+	}
+	if parsed.User.ID == 0 {
+		s.jsonErr(w, http.StatusBadRequest, "user_missing")
+		return
+	}
+	if err := s.bot.PackTrainingFeedReact(parsed.User.ID, parsed, body.UserMessageID, body.Emoji); err != nil {
+		if errors.Is(err, bot.ErrMiniAppChatMismatch) {
+			s.jsonErr(w, http.StatusConflict, "chat_mismatch")
+			return
+		}
+		if errors.Is(err, bot.ErrTrainingFeedSocialForbidden) {
+			s.jsonErr(w, http.StatusForbidden, "forbidden")
+			return
+		}
+		if errors.Is(err, bot.ErrTrainingFeedInvalidEmoji) {
+			s.jsonErr(w, http.StatusBadRequest, "invalid_emoji")
+			return
+		}
+		if errors.Is(err, bot.ErrTrainingFeedParentNotFound) {
+			s.jsonErr(w, http.StatusNotFound, "not_found")
+			return
+		}
+		s.logger.Errorf("feed training react: %v", err)
+		s.jsonErr(w, http.StatusInternalServerError, "react_error")
+		return
+	}
+	w.Header().Set("Content-Type", "application/json; charset=utf-8")
+	_ = json.NewEncoder(w).Encode(map[string]any{"ok": true})
+}
+
+func (s *Server) handlePostFeedTrainingThread(w http.ResponseWriter, r *http.Request) {
+	corsWriteHeaders(w, r)
+	if s.bot == nil || s.token == "" {
+		s.jsonErr(w, http.StatusServiceUnavailable, "server_unavailable")
+		return
+	}
+	var body struct {
+		InitData      string `json:"init_data"`
+		UserMessageID int64  `json:"user_message_id"`
+		Text          string `json:"text"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		s.jsonErr(w, http.StatusBadRequest, "invalid_json")
+		return
+	}
+	if body.InitData == "" {
+		s.jsonErr(w, http.StatusBadRequest, "missing_init_data")
+		return
+	}
+	if body.UserMessageID == 0 {
+		s.jsonErr(w, http.StatusBadRequest, "missing_user_message_id")
+		return
+	}
+	if err := initdata.Validate(body.InitData, s.token, 24*time.Hour); err != nil {
+		s.logger.Warnf("miniapp feed training thread: invalid init: %v", err)
+		s.jsonErr(w, http.StatusUnauthorized, "invalid_init_data")
+		return
+	}
+	parsed, err := initdata.Parse(body.InitData)
+	if err != nil {
+		s.jsonErr(w, http.StatusBadRequest, "parse_init_data")
+		return
+	}
+	if parsed.User.ID == 0 {
+		s.jsonErr(w, http.StatusBadRequest, "user_missing")
+		return
+	}
+	if err := s.bot.PackTrainingFeedThreadPost(parsed.User.ID, parsed, body.UserMessageID, body.Text); err != nil {
+		if errors.Is(err, bot.ErrMiniAppChatMismatch) {
+			s.jsonErr(w, http.StatusConflict, "chat_mismatch")
+			return
+		}
+		if errors.Is(err, bot.ErrTrainingFeedSocialForbidden) {
+			s.jsonErr(w, http.StatusForbidden, "forbidden")
+			return
+		}
+		if errors.Is(err, bot.ErrTrainingFeedThreadEmpty) {
+			s.jsonErr(w, http.StatusBadRequest, "empty_text")
+			return
+		}
+		if errors.Is(err, bot.ErrTrainingFeedThreadTooLong) {
+			s.jsonErr(w, http.StatusBadRequest, "text_too_long")
+			return
+		}
+		if errors.Is(err, bot.ErrTrainingFeedParentNotFound) {
+			s.jsonErr(w, http.StatusNotFound, "not_found")
+			return
+		}
+		s.logger.Errorf("feed training thread: %v", err)
+		s.jsonErr(w, http.StatusInternalServerError, "thread_error")
+		return
+	}
+	w.Header().Set("Content-Type", "application/json; charset=utf-8")
+	_ = json.NewEncoder(w).Encode(map[string]any{"ok": true})
 }
 
 func (s *Server) handlePostPackGroupFeed(w http.ResponseWriter, r *http.Request) {
