@@ -353,8 +353,16 @@ func (s *Server) handlePostFeedTrainingThread(w http.ResponseWriter, r *http.Req
 		s.jsonErr(w, http.StatusInternalServerError, "thread_error")
 		return
 	}
+	replies, rerr := s.bot.PackFeedThreadRepliesForViewer(parsed.User.ID, body.UserMessageID)
+	if rerr != nil {
+		s.logger.Warnf("feed training thread: list after insert: %v", rerr)
+	}
 	w.Header().Set("Content-Type", "application/json; charset=utf-8")
-	_ = json.NewEncoder(w).Encode(map[string]any{"ok": true})
+	out := map[string]any{"ok": true}
+	if rerr == nil {
+		out["thread"] = replies
+	}
+	_ = json.NewEncoder(w).Encode(out)
 }
 
 func (s *Server) handlePostPackGroupFeed(w http.ResponseWriter, r *http.Request) {

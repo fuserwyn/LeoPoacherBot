@@ -6,6 +6,8 @@ import (
 	"sort"
 	"strings"
 	"time"
+
+	"github.com/lib/pq"
 )
 
 // GetUserMessageTypeByIDForChat — проверка, что строка user_messages принадлежит чату.
@@ -43,7 +45,7 @@ func (d *Database) ListTrainingFeedReactionAggs(packChatID int64, userMessageIDs
 		GROUP BY user_message_id, emoji
 		ORDER BY user_message_id, emoji
 	`
-	rows, err := d.db.Query(q, packChatID, userMessageIDs)
+	rows, err := d.db.Query(q, packChatID, pq.Array(userMessageIDs))
 	if err != nil {
 		return nil, nil, fmt.Errorf("training feed reaction aggs: %w", err)
 	}
@@ -64,7 +66,7 @@ func (d *Database) ListTrainingFeedReactionAggs(packChatID int64, userMessageIDs
 		SELECT user_message_id, emoji FROM miniapp_training_feed_reactions
 		WHERE pack_chat_id = $1 AND user_message_id = ANY($2) AND user_id = $3
 	`
-	r2, err := d.db.Query(qMe, packChatID, userMessageIDs, viewerUserID)
+	r2, err := d.db.Query(qMe, packChatID, pq.Array(userMessageIDs), viewerUserID)
 	if err != nil {
 		return nil, nil, fmt.Errorf("training feed reaction me: %w", err)
 	}
@@ -147,7 +149,7 @@ func (d *Database) ListTrainingFeedThreadByMessages(userMessageIDs []int64) (map
 		WHERE user_message_id = ANY($1)
 		ORDER BY user_message_id, created_at ASC
 	`
-	rows, err := d.db.Query(q, userMessageIDs)
+	rows, err := d.db.Query(q, pq.Array(userMessageIDs))
 	if err != nil {
 		return nil, fmt.Errorf("list training thread: %w", err)
 	}

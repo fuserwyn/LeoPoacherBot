@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { ActivityCard, type ActivityCardProps } from "./ActivityCard";
 import { PackGroupChatPanel } from "./PackGroupChatPanel";
-import { dtoToCard, mergeTrainingFeedReactions, type PackFeedItemDTO } from "../lib/packFeed";
+import { dtoToCard, mergeTrainingFeedReactions, type PackFeedItemDTO, type PackFeedThreadReplyDTO } from "../lib/packFeed";
 import { timeAgoFromISO } from "../lib/timeAgo";
 import "./FeedScreen.css";
 
@@ -123,7 +123,10 @@ export function FeedScreen({ name, streak, userId, initData, inTelegram, showAle
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ init_data: initData, user_message_id: userMessageId, text: t }),
         });
-        const j = (await res.json().catch(() => ({}))) as { error?: string };
+        const j = (await res.json().catch(() => ({}))) as {
+          error?: string;
+          thread?: PackFeedThreadReplyDTO[];
+        };
         if (!res.ok) {
           const errMap: Record<string, string> = {
             empty_text: "Пустой комментарий",
@@ -136,8 +139,14 @@ export function FeedScreen({ name, streak, userId, initData, inTelegram, showAle
           showAlert(errMap[j.error ?? ""] ?? j.error ?? `Ошибка ${res.status}`);
           return;
         }
+        const postedThread = j.thread;
         setThreadDrafts((d) => ({ ...d, [userMessageId]: "" }));
         await load();
+        if (postedThread && postedThread.length > 0) {
+          setFeedItems((prev) =>
+            prev.map((it) => (it.id === userMessageId ? { ...it, thread: postedThread } : it)),
+          );
+        }
       } catch (e) {
         showAlert(e instanceof Error ? e.message : "Сеть");
       } finally {

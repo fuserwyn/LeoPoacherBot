@@ -2,6 +2,7 @@ package bot
 
 import (
 	"errors"
+	"fmt"
 	"strings"
 	"unicode/utf8"
 
@@ -109,6 +110,34 @@ func (b *Bot) PackTrainingFeedThreadPost(viewerUserID int64, initD initdata.Init
 	return err
 }
 
+func threadDBRowsToPackReplies(rows []database.TrainingFeedThreadRow, viewerUserID int64) []PackFeedThreadReply {
+	out := make([]PackFeedThreadReply, 0, len(rows))
+	for _, t := range rows {
+		out = append(out, PackFeedThreadReply{
+			ID:        t.ID,
+			UserID:    t.FromUserID,
+			Username:  t.Username,
+			Text:      t.MessageText,
+			CreatedAt: t.CreatedAt.UTC().Format("2006-01-02T15:04:05Z07:00"),
+			IsYou:     t.FromUserID != 0 && t.FromUserID == viewerUserID,
+			IsLeo:     t.FromUserID == 0,
+		})
+	}
+	return out
+}
+
+// PackFeedThreadRepliesForViewer — полный тред под одним отчётом (после POST комментария и для согласованности с лентой).
+func (b *Bot) PackFeedThreadRepliesForViewer(viewerUserID, userMessageID int64) ([]PackFeedThreadReply, error) {
+	if b == nil || b.db == nil {
+		return nil, fmt.Errorf("bot unavailable")
+	}
+	m, err := b.db.ListTrainingFeedThreadByMessages([]int64{userMessageID})
+	if err != nil {
+		return nil, err
+	}
+	return threadDBRowsToPackReplies(m[userMessageID], viewerUserID), nil
+}
+
 // enrichPackFeedTrainingSocial — реакции и треды для карточек training_done.
 func (b *Bot) enrichPackFeedTrainingSocial(items []PackFeedItem, viewerUserID int64, chatID int64) []PackFeedItem {
 	trainingIDs := make([]int64, 0)
@@ -146,17 +175,7 @@ func (b *Bot) enrichPackFeedTrainingSocial(items []PackFeedItem, viewerUserID in
 			}
 		}
 		if thr, ok := threadMap[id]; ok {
-			for _, t := range thr {
-				items[i].Thread = append(items[i].Thread, PackFeedThreadReply{
-					ID:        t.ID,
-					UserID:    t.FromUserID,
-					Username:  t.Username,
-					Text:      t.MessageText,
-					CreatedAt: t.CreatedAt.UTC().Format("2006-01-02T15:04:05Z07:00"),
-					IsYou:     t.FromUserID != 0 && t.FromUserID == viewerUserID,
-					IsLeo:     t.FromUserID == 0,
-				})
-			}
+			items[i].Thread = threadDBRowsToPackReplies(thr, viewerUserID)
 		}
 	}
 	return items

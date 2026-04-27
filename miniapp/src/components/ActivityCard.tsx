@@ -1,4 +1,4 @@
-import { useRef, useState } from "react";
+import { useRef, useState, useEffect } from "react";
 import "./ActivityCard.css";
 
 export type ActivityCardThreadReply = {
@@ -57,6 +57,13 @@ export function ActivityCard({
 }: ActivityCardProps) {
   const threadInputRef = useRef<HTMLTextAreaElement>(null);
   const [threadOpen, setThreadOpen] = useState(false);
+  const prevThreadLen = useRef(threadReplies.length);
+  useEffect(() => {
+    if (threadReplies.length > prevThreadLen.current) {
+      setThreadOpen(true);
+    }
+    prevThreadLen.current = threadReplies.length;
+  }, [threadReplies.length]);
   const showReact = reactions.length > 0 || onReactionClick != null;
   const hasThread = threadReplies.length > 0 || threadComposer != null;
   const threadCount = threadReplies.length;
