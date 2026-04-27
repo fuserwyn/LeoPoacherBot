@@ -37,6 +37,10 @@ export type ActivityCardProps = {
   /** Тред под отчётом о тренировке. */
   threadReplies?: ActivityCardThreadReply[];
   threadComposer?: ActivityCardThreadComposer;
+  /** Удалить свою реплику в треде (id строки miniapp_training_feed_thread). */
+  onThreadReplyDelete?: (threadReplyId: number) => void;
+  /** Пока идёт DELETE для id реплики. */
+  threadReplyDeleting?: Record<number, boolean>;
 };
 
 export function ActivityCard({
@@ -54,6 +58,8 @@ export function ActivityCard({
   onReactionClick,
   threadReplies = [],
   threadComposer,
+  onThreadReplyDelete,
+  threadReplyDeleting = {},
 }: ActivityCardProps) {
   const threadInputRef = useRef<HTMLTextAreaElement>(null);
   const [threadOpen, setThreadOpen] = useState(false);
@@ -144,8 +150,22 @@ export function ActivityCard({
                           key={tr.id}
                           className={`act-card__thread-item${tr.isYou ? " act-card__thread-item--you" : ""}${leo ? " act-card__thread-item--leo" : ""}`}
                         >
-                          <span className="act-card__thread-author">{displayAuthor}</span>
-                          <span className="act-card__thread-time muted">{tr.timeAgo}</span>
+                          <div className="act-card__thread-item-head">
+                            <div className="act-card__thread-item-meta">
+                              <span className="act-card__thread-author">{displayAuthor}</span>
+                              <span className="act-card__thread-time muted">{tr.timeAgo}</span>
+                            </div>
+                            {tr.isYou && !leo && onThreadReplyDelete != null && (
+                              <button
+                                type="button"
+                                className="act-card__thread-del"
+                                disabled={Boolean(threadReplyDeleting[tr.id])}
+                                onClick={() => onThreadReplyDelete(tr.id)}
+                              >
+                                {threadReplyDeleting[tr.id] ? "…" : "Удалить"}
+                              </button>
+                            )}
+                          </div>
                           <p className="act-card__thread-text">{tr.text}</p>
                         </li>
                       );

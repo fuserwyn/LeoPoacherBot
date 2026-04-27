@@ -25,6 +25,8 @@ var (
 	ErrTrainingFeedThreadEmpty = errors.New("thread text empty")
 	// ErrTrainingFeedThreadTooLong — слишком длинный комментарий.
 	ErrTrainingFeedThreadTooLong = errors.New("thread text too long")
+	// ErrTrainingFeedThreadDeleteNotFound — не найден комментарий или чужой / Лео.
+	ErrTrainingFeedThreadDeleteNotFound = errors.New("training thread reply not found or forbidden")
 )
 
 func allowedTrainingFeedEmoji(s string) (string, bool) {
@@ -108,6 +110,28 @@ func (b *Bot) PackTrainingFeedThreadPost(viewerUserID int64, initD initdata.Init
 	uname := displayNameFromInitData(initD)
 	_, err = b.db.InsertTrainingFeedThreadReply(chatID, userMessageID, viewerUserID, uname, text)
 	return err
+}
+
+// PackTrainingFeedThreadDelete — удалить свою реплику в треде (ответы Лео не удаляются).
+func (b *Bot) PackTrainingFeedThreadDelete(viewerUserID int64, initD initdata.InitData, threadReplyID int64) (parentUserMessageID int64, err error) {
+	if err := b.AssertMiniAppPackChatAligns(initD); err != nil {
+		return 0, err
+	}
+	if err := b.assertPackFeedSocialViewer(viewerUserID); err != nil {
+		return 0, err
+	}
+	if threadReplyID == 0 {
+		return 0, ErrTrainingFeedThreadDeleteNotFound
+	}
+	chatID := b.config.MonetizedChatID
+	parentID, deleted, err := b.db.DeleteTrainingFeedThreadReply(chatID, threadReplyID, viewerUserID)
+	if err != nil {
+		return 0, err
+	}
+	if !deleted {
+		return 0, ErrTrainingFeedThreadDeleteNotFound
+	}
+	return parentID, nil
 }
 
 func threadDBRowsToPackReplies(rows []database.TrainingFeedThreadRow, viewerUserID int64) []PackFeedThreadReply {

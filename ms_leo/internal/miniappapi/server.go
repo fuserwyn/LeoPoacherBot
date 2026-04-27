@@ -43,6 +43,8 @@ func (s *Server) serve(w http.ResponseWriter, r *http.Request) {
 		s.handlePostFeedTrainingReact(w, r)
 	case path == "/api/miniapp/feed/training/thread" && r.Method == http.MethodPost:
 		s.handlePostFeedTrainingThread(w, r)
+	case path == "/api/miniapp/feed/training/thread/delete" && r.Method == http.MethodPost:
+		s.handlePostFeedTrainingThreadDelete(w, r)
 	case path == "/api/miniapp/pack-group/feed" && r.Method == http.MethodPost:
 		s.handlePostPackGroupFeed(w, r)
 	case path == "/api/miniapp/pack-group/messages" && r.Method == http.MethodPost:
@@ -356,6 +358,72 @@ func (s *Server) handlePostFeedTrainingThread(w http.ResponseWriter, r *http.Req
 	replies, rerr := s.bot.PackFeedThreadRepliesForViewer(parsed.User.ID, body.UserMessageID)
 	if rerr != nil {
 		s.logger.Warnf("feed training thread: list after insert: %v", rerr)
+	}
+	w.Header().Set("Content-Type", "application/json; charset=utf-8")
+	out := map[string]any{"ok": true}
+	if rerr == nil {
+		out["thread"] = replies
+	}
+	_ = json.NewEncoder(w).Encode(out)
+}
+
+func (s *Server) handlePostFeedTrainingThreadDelete(w http.ResponseWriter, r *http.Request) {
+	corsWriteHeaders(w, r)
+	if s.bot == nil || s.token == "" {
+		s.jsonErr(w, http.StatusServiceUnavailable, "server_unavailable")
+		return
+	}
+	var body struct {
+		InitData       string `json:"init_data"`
+		ThreadReplyID  int64  `json:"thread_reply_id"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		s.jsonErr(w, http.StatusBadRequest, "invalid_json")
+		return
+	}
+	if body.InitData == "" {
+		s.jsonErr(w, http.StatusBadRequest, "missing_init_data")
+		return
+	}
+	if body.ThreadReplyID == 0 {
+		s.jsonErr(w, http.StatusBadRequest, "missing_thread_reply_id")
+		return
+	}
+	if err := initdata.Validate(body.InitData, s.token, 24*time.Hour); err != nil {
+		s.logger.Warnf("miniapp feed training thread delete: invalid init: %v", err)
+		s.jsonErr(w, http.StatusUnauthorized, "invalid_init_data")
+		return
+	}
+	parsed, err := initdata.Parse(body.InitData)
+	if err != nil {
+		s.jsonErr(w, http.StatusBadRequest, "parse_init_data")
+		return
+	}
+	if parsed.User.ID == 0 {
+		s.jsonErr(w, http.StatusBadRequest, "user_missing")
+		return
+	}
+	parentID, err := s.bot.PackTrainingFeedThreadDelete(parsed.User.ID, parsed, body.ThreadReplyID)
+	if err != nil {
+		if errors.Is(err, bot.ErrMiniAppChatMismatch) {
+			s.jsonErr(w, http.StatusConflict, "chat_mismatch")
+			return
+		}
+		if errors.Is(err, bot.ErrTrainingFeedSocialForbidden) {
+			s.jsonErr(w, http.StatusForbidden, "forbidden")
+			return
+		}
+		if errors.Is(err, bot.ErrTrainingFeedThreadDeleteNotFound) {
+			s.jsonErr(w, http.StatusNotFound, "not_found")
+			return
+		}
+		s.logger.Errorf("feed training thread delete: %v", err)
+		s.jsonErr(w, http.StatusInternalServerError, "thread_delete_error")
+		return
+	}
+	replies, rerr := s.bot.PackFeedThreadRepliesForViewer(parsed.User.ID, parentID)
+	if rerr != nil {
+		s.logger.Warnf("feed training thread delete: list after delete: %v", rerr)
 	}
 	w.Header().Set("Content-Type", "application/json; charset=utf-8")
 	out := map[string]any{"ok": true}

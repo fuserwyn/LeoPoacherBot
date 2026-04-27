@@ -137,6 +137,26 @@ func (d *Database) InsertTrainingFeedThreadReply(packChatID, userMessageID, from
 	return id, nil
 }
 
+// DeleteTrainingFeedThreadReply — удалить реплику; только автор (from_user_id), не ответы Лео (from_user_id = 0).
+func (d *Database) DeleteTrainingFeedThreadReply(packChatID, threadReplyID, actorUserID int64) (userMessageID int64, deleted bool, err error) {
+	if threadReplyID == 0 || actorUserID == 0 {
+		return 0, false, nil
+	}
+	err = d.db.QueryRow(
+		`DELETE FROM miniapp_training_feed_thread
+		 WHERE id = $1 AND pack_chat_id = $2 AND from_user_id = $3 AND from_user_id != 0
+		 RETURNING user_message_id`,
+		threadReplyID, packChatID, actorUserID,
+	).Scan(&userMessageID)
+	if err == sql.ErrNoRows {
+		return 0, false, nil
+	}
+	if err != nil {
+		return 0, false, err
+	}
+	return userMessageID, true, nil
+}
+
 // ListTrainingFeedThreadByMessages — все реплики для данных parent id, по времени по возрастанию.
 func (d *Database) ListTrainingFeedThreadByMessages(userMessageIDs []int64) (map[int64][]TrainingFeedThreadRow, error) {
 	res := make(map[int64][]TrainingFeedThreadRow)
