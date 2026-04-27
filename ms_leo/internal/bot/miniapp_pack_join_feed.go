@@ -8,8 +8,9 @@ import (
 )
 
 const (
-	userMessageTypePackJoin   = "pack_join"
-	userMessageTypePackRejoin = "pack_rejoin"
+	userMessageTypePackJoin     = "pack_join"
+	userMessageTypePackRejoin   = "pack_rejoin"
+	userMessageTypeDailyWisdom  = "daily_wisdom"
 )
 
 func packJoinMiniappWelcomeText(displayName string) string {
@@ -51,5 +52,30 @@ func (b *Bot) savePackJoinMiniappFeed(chatID, userID int64, username, msgType, l
 	}
 	if err := b.db.SaveUserMessage(um); err != nil {
 		b.logger.Warnf("miniapp pack feed %s user=%d: %v", msgType, userID, err)
+	}
+}
+
+// saveDailyWisdomPackFeed — «мудрость дня» в ленту мини-аппа (одна запись в чате стаи, автор Лео).
+func (b *Bot) saveDailyWisdomPackFeed(wisdom string) {
+	if b == nil || b.db == nil {
+		return
+	}
+	chatID := b.config.MonetizedChatID
+	if chatID == 0 {
+		return
+	}
+	t := strings.TrimSpace(wisdom)
+	if t == "" {
+		return
+	}
+	um := &domain.UserMessage{
+		UserID:      0,
+		ChatID:      chatID,
+		Username:    "Лео",
+		MessageText: t,
+		MessageType: userMessageTypeDailyWisdom,
+	}
+	if err := b.db.SaveUserMessage(um); err != nil {
+		b.logger.Warnf("miniapp pack feed daily_wisdom: %v", err)
 	}
 }

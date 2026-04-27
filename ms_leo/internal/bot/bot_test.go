@@ -240,23 +240,21 @@ func TestSickLeaveRecoveryScenario(t *testing.T) {
 		t.Errorf("On sick leave: Expected %v, got %v", expectedTimeOnSick, remainingTimeOnSick)
 	}
 
-	// Пользователь выздоровел
+	// Пользователь выздоровел: sick_end = «сейчас» — в окне 8 дней с учётом паузы на больничный
+	// остаётся ≈6 суток (7 дн. с момента старта таймера сразу 2 дн. до больничного + 5 дн. больничного не считается).
 	messageLogSickLeave.HasHealthy = true
 	sickEndStr := utils.FormatMoscowTime(utils.GetMoscowTime())
 	messageLogSickLeave.SickLeaveEndTime = &sickEndStr
 
-	// Проверяем время после выздоровления
 	remainingTimeAfterRecovery := bot.calculateRemainingTime(messageLogSickLeave)
-	expectedTimeAfterRecovery := 6 * 24 * time.Hour // Должно остаться то же время
+	expectedTimeAfterRecovery := 6 * 24 * time.Hour
 
 	assertDurationApprox(t, remainingTimeAfterRecovery, expectedTimeAfterRecovery)
 
-	// Проверяем форматирование времени
 	formattedTime := bot.formatDurationToDays(remainingTimeAfterRecovery)
-	expectedFormatted := "6 дн."
-
-	if formattedTime != expectedFormatted {
-		t.Errorf("Formatted time: Expected %s, got %s", expectedFormatted, formattedTime)
+	// микросдвиг "сейчас" между шагами даёт 5 дн. 23 ч. вместо 6 дн. — оба варианта ок
+	if formattedTime != "6 дн." && formattedTime != "5 дн. 23 ч." {
+		t.Errorf("Formatted time: unexpected %q (want ~6 дн.)", formattedTime)
 	}
 }
 

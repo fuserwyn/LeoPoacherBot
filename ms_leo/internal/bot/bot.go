@@ -1784,7 +1784,6 @@ func (b *Bot) calculateRemainingTime(messageLog *domain.MessageLog) time.Duratio
 
 	// Если был больничный и пользователь выздоровел (проверяем по наличию SickLeaveStartTime и SickLeaveEndTime)
 	// ВАЖНО: старые sick_* даты не трогаем в БД после новой тренировки — timer_start тогда УЖЕ после конца больничного.
-	// В этом случае «заморозка» неприменима: sickStart.Sub(timerStart) стал бы отрицательным и давал бы ложный огромный остаток.
 	if messageLog.SickLeaveStartTime != nil && messageLog.SickLeaveEndTime != nil && messageLog.HasHealthy {
 		sickLeaveEnd, errEnd := utils.ParseMoscowTime(*messageLog.SickLeaveEndTime)
 		if errEnd != nil {
@@ -1795,31 +1794,31 @@ func (b *Bot) calculateRemainingTime(messageLog *domain.MessageLog) time.Duratio
 			b.logger.Infof("DEBUG: timer_start after sick leave end — new 7d window, using elapsed time from timer_start")
 			// fall through to ordinary case below
 		} else {
-			b.logger.Infof("DEBUG: User recovered from sick leave, calculating remaining time")
 			sickLeaveStart, err := utils.ParseMoscowTime(*messageLog.SickLeaveStartTime)
 			if err != nil {
 				b.logger.Errorf("Failed to parse sick leave start time: %v", err)
 				return fullTimerDuration
 			}
-
-			// Рассчитываем время, которое прошло до больничного
-			timeBeforeSickLeave := sickLeaveStart.Sub(timerStart)
-			b.logger.Infof("DEBUG: Timer start: %v, Sick start: %v, Time before sick: %v", timerStart, sickLeaveStart, timeBeforeSickLeave)
-
-			// Оставшееся время на момент начала больничного
-			remainingTimeAtSickStart := fullTimerDuration - timeBeforeSickLeave
-			b.logger.Infof("DEBUG: Full duration: %v, Remaining at sick start: %v", fullTimerDuration, remainingTimeAtSickStart)
-
-			// Если время истекло до больничного, возвращаем 0
-			if remainingTimeAtSickStart <= 0 {
-				b.logger.Infof("DEBUG: Time expired before sick leave, returning 0")
-				return 0 // Время истекло
+			moscowNow := utils.GetMoscowTime()
+			// Период больничного не должен «съедать» окно 8 дней: вычитаем пересечение [sickStart,sickEnd] с [timerStart, now].
+			overlapStart := sickLeaveStart
+			if timerStart.After(sickLeaveStart) {
+				overlapStart = timerStart
 			}
-
-			// После выздоровления возвращаем то же время, что было на момент больничного
-			// Время больничного не засчитывается в общий таймер
-			b.logger.Infof("User recovered from sick leave. Remaining time at sick start: %v", remainingTimeAtSickStart)
-			return remainingTimeAtSickStart
+			overlapEnd := sickLeaveEnd
+			if moscowNow.Before(sickLeaveEnd) {
+				overlapEnd = moscowNow
+			}
+			var pause time.Duration
+			if overlapEnd.After(overlapStart) {
+				pause = overlapEnd.Sub(overlapStart)
+			}
+			elapsedActive := moscowNow.Sub(timerStart) - pause
+			remainingTime := fullTimerDuration - elapsedActive
+			if remainingTime <= 0 {
+				return 0
+			}
+			return remainingTime
 		}
 	}
 
@@ -1933,7 +1932,13 @@ func (b *Bot) generateAndSendDailyWisdom() {
 		wisdom = strings.ReplaceAll(wisdom, "**", "")
 	}
 
+	b.saveDailyWisdomPackFeed(wisdom)
+
+	packChatID := b.config.MonetizedChatID
 	for _, chatID := range chatIDs {
+		if packChatID != 0 && chatID == packChatID {
+			continue
+		}
 		msg := tgbotapi.NewMessage(chatID, wisdom)
 		b.logger.Infof("Sending daily wisdom to chat %d", chatID)
 		if _, err := b.api.Send(msg); err != nil {
