@@ -49,7 +49,7 @@ export function App() {
       {workoutOpen && (
         <NewWorkoutScreen
           onClose={() => setWorkoutOpen(false)}
-          onSave={async ({ type, min, intensity }) => {
+          onSave={async ({ type, min, intensity, note }) => {
             if (!inTelegram || !initData) {
               showAlert("Открой мини-апп из Telegram (нужен initData).");
               return false;
@@ -63,7 +63,8 @@ export function App() {
               other: "другое",
             };
             const kind = labels[type] ?? type;
-            const line = `#training_done — ${kind}, ${min} мин, инт. ${intensity}/5`;
+            const base = `#training_done — ${kind}, ${min} мин, инт. ${intensity}/5`;
+            const line = note ? `${base}\n\n${note}` : base;
             tg?.HapticFeedback?.impactOccurred?.("medium");
             const result = await sendMiniappPrivateText(initData, line);
             if (!result.ok) {

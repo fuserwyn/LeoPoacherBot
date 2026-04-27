@@ -74,7 +74,9 @@ export function dtoToCard(d: PackFeedItemDTO): ActivityCardProps {
   const isLeoNotice = d.type === "pack_join" || d.type === "pack_rejoin";
   const newcomer = (d.username || "").trim() || `Участник ${d.user_id}`;
   const commentRaw = d.text.trim();
-  const comment = commentRaw.length > 280 ? commentRaw.slice(0, 277) + "…" : commentRaw;
+  const maxComment =
+    d.type === "training_done" ? 2000 : 280;
+  const comment = commentRaw.length > maxComment ? commentRaw.slice(0, maxComment - 1) + "…" : commentRaw;
   if (isLeoNotice) {
     return {
       avatar: "🐆",

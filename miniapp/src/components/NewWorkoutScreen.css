@@ -142,3 +142,40 @@
   text-align: left;
   justify-content: flex-start;
 }
+
+.nwo__note-hint {
+  font-size: 13px;
+  line-height: 1.4;
+  margin: 0 0 10px;
+}
+
+.nwo__note {
+  width: 100%;
+  box-sizing: border-box;
+  min-height: 100px;
+  padding: 12px 14px;
+  border-radius: var(--radius-sm);
+  border: 1.5px solid var(--border-subtle, rgba(255, 255, 255, 0.1));
+  background: rgba(255, 255, 255, 0.05);
+  color: var(--text);
+  font-size: 15px;
+  line-height: 1.45;
+  resize: vertical;
+  font-family: inherit;
+}
+
+.nwo__note::placeholder {
+  color: var(--text-muted, rgba(255, 255, 255, 0.4));
+}
+
+.nwo__note:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 1px var(--accent);
+}
+
+.nwo__note-cnt {
+  font-size: 12px;
+  text-align: right;
+  margin: 6px 0 0;
+}

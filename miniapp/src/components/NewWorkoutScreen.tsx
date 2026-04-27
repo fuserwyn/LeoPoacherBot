@@ -23,13 +23,22 @@ const PRESET_MIN = [5, 15, 30, 45, 60] as const;
 type Props = {
   onClose: () => void;
   /** Сохранение отчёта: верни false, чтобы не закрывать шторку (например, при ошибке сети). */
-  onSave: (payload: { type: string; min: number; intensity: 1 | 2 | 3 | 4 | 5 }) => void | boolean | Promise<void | boolean>;
+  onSave: (payload: {
+    type: string;
+    min: number;
+    intensity: 1 | 2 | 3 | 4 | 5;
+    /** Произвольный текст: упражнения, ощущения — попадает в ленту и в контекст Лео. */
+    note: string;
+  }) => void | boolean | Promise<void | boolean>;
 };
+
+const NOTE_MAX = 1500;
 
 export function NewWorkoutScreen({ onClose, onSave }: Props) {
   const [type, setType] = useState("strength");
   const [min, setMin] = useState(15);
   const [intensity, setIntensity] = useState<1 | 2 | 3 | 4 | 5>(3);
+  const [note, setNote] = useState("");
   const [busy, setBusy] = useState(false);
 
   const dec = (d: number) => setMin((m) => Math.max(1, m + d));
@@ -107,6 +116,23 @@ export function NewWorkoutScreen({ onClose, onSave }: Props) {
             </button>
           ))}
         </div>
+
+        <h2 className="section-title" style={{ marginTop: 22 }}>
+          Что сделал
+        </h2>
+        <p className="nwo__note-hint muted">По желанию. Будет в ленте стаи — Лео сможет отшутиться по сути тренировки.</p>
+        <textarea
+          className="nwo__note"
+          value={note}
+          onChange={(e) => setNote(e.target.value.slice(0, NOTE_MAX))}
+          rows={4}
+          maxLength={NOTE_MAX}
+          placeholder="Например: жим лёжа, тяга верхнего, пресс. Или ощущения — устал плечами…"
+          enterKeyHint="done"
+        />
+        <p className="nwo__note-cnt muted" aria-live="polite">
+          {note.length}/{NOTE_MAX}
+        </p>
       </div>
 
       <footer className="nwo__foot">
@@ -118,7 +144,7 @@ export function NewWorkoutScreen({ onClose, onSave }: Props) {
             if (busy) return;
             setBusy(true);
             try {
-              const r = await onSave({ type, min, intensity });
+              const r = await onSave({ type, min, intensity, note: note.trim() });
               if (r !== false) onClose();
             } finally {
               setBusy(false);
