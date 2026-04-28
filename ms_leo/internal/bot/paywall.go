@@ -844,23 +844,57 @@ func paywallPostPaymentUserText() string {
 }
 
 // paywallDeliverAccessAfterPayment — DM-приветствие после зачёта оплаты (Telegram Payments / ЮKassa / sync API).
-// Запись в training_state создаётся здесь; стартовать таймер и писать pack_join/pack_rejoin в ленту будем
-// при первом открытии мини-аппа (см. EnsureMiniAppOnboarding) — мы не знаем, когда юзер реально зайдёт.
+//
+// По требованию пользователя «при оплате сразу включается таймер timer_start_time»: окно неактивности
+// (5/6/7 дни — предупреждения, 8 день — кик) отсчитываем с момента подтверждения оплаты, а не с первого
+// открытия мини-аппа. Это убирает класс багов, когда оплативший никогда не зашёл в мини-апп и формально
+// «жил вечно» без отчётов; с другой стороны — у новичка есть полные 8 дней, чтобы освоиться.
+//
+// Здесь же пишем карточку «вступил/вернулся» в ленту мини-аппа — раньше это делал EnsureMiniAppOnboarding
+// при первом заходе. Теперь ENtry-stream единый, а EnsureMiniAppOnboarding для оплаченных видит уже
+// активный timer_start_time и просто отдаёт InPack=true.
 func (b *Bot) paywallDeliverAccessAfterPayment(userID int64) error {
-	reactivated, err := b.db.ReactivateReturnedUser(userID, b.config.MonetizedChatID, "")
+	chatID := b.config.MonetizedChatID
+	reactivated, err := b.db.ReactivateReturnedUser(userID, chatID, "")
 	if err != nil {
 		b.logger.Errorf("paywall reactivate returned user=%d: %v", userID, err)
 		return err
 	}
 	if !reactivated {
-		return fmt.Errorf("paywall inconsistency: no profile for paid return user=%d chat=%d", userID, b.config.MonetizedChatID)
+		return fmt.Errorf("paywall inconsistency: no profile for paid return user=%d chat=%d", userID, chatID)
 	}
+
 	if _, err := b.api.Send(tgbotapi.NewMessage(userID, paywallPostPaymentUserText())); err != nil {
 		b.logger.Errorf("paywall send done msg: %v", err)
 		return err
 	}
-	// Показываем синюю кнопку LeopardMiniApp в ЛС только paid+не кикнутым.
-	// После успешной оплаты статус «paid» точно действителен — сбрасываем кеш и применяем.
+
+	// Username для приветственной карточки берём из только что обновлённой записи training_state.
+	// Если пусто — startTimer / savePackJoinMiniappFeed корректно отработают с пустой строкой.
+	username := ""
+	if ml, mlErr := b.db.GetMessageLog(userID, chatID); mlErr == nil && ml != nil {
+		username = strings.TrimSpace(ml.Username)
+	}
+
+	// 1) Стартуем таймер активности немедленно — это пишет timer_start_time = NOW в training_state
+	//    и регистрирует горутины для дней 5/6/7/8. ReactivateReturnedUser выше выставил
+	//    timer_start_time = NULL, поэтому здесь startTimer делает «чистый» старт без cancel.
+	b.startTimer(userID, chatID, username)
+
+	// 2) Карточка ленты мини-аппа: pack_join (первая оплата) либо pack_rejoin (после кика).
+	//    Различаем по return_count — он инкрементируется в ReactivateReturnedUser при возврате.
+	isRejoin := false
+	if rc, rcErr := b.db.GetUserReturnCount(userID, chatID); rcErr == nil && rc > 1 {
+		isRejoin = true
+	}
+	if isRejoin {
+		b.savePackJoinMiniappFeed(chatID, userID, username, userMessageTypePackRejoin, packRejoinMiniappWelcomeText(username))
+	} else {
+		b.savePackJoinMiniappFeed(chatID, userID, username, userMessageTypePackJoin, packJoinMiniappWelcomeText(username))
+	}
+
+	// 3) Синяя кнопка LeopardMiniApp в ЛС только для paid + не кикнутых.
+	//    После успешной оплаты статус «paid» точно действителен — сбрасываем кеш и применяем.
 	invalidateMiniappMenuButtonCache(userID)
 	b.applyMiniappMenuButtonForUser(userID)
 	return nil

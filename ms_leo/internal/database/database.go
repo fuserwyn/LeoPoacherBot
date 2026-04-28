@@ -511,8 +511,12 @@ func (d *Database) LogDeletionEvent(userID, chatID int64, dmStatus, errorText st
 
 // ReactivateReturnedUser переводит удаленного пользователя в активное состояние возврата.
 // Возвращает false, если запись пользователя в чате не найдена (data inconsistency).
-// timer_start_time обнуляем: окно неактивности должно начинаться с фактического входа в стаю
-// (первое открытие мини-аппа после оплаты — см. EnsureMiniAppOnboarding), а не с момента оплаты.
+//
+// timer_start_time здесь обнуляется в NULL — это «чистая» точка перед запуском таймера.
+// Сам старт таймера (запись timer_start_time = NOW + регистрация горутин дней 5/6/7/8) делает
+// paywallDeliverAccessAfterPayment сразу после этого UPDATE: окно неактивности отсчитываем
+// с момента подтверждения оплаты, а не с первого открытия мини-аппа (см. требование пользователя
+// «при оплате сразу включается таймер»).
 func (d *Database) ReactivateReturnedUser(userID, chatID int64, username string) (bool, error) {
 	const q = `
 		UPDATE training_state

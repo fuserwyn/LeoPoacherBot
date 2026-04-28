@@ -25,6 +25,12 @@ type MiniAppOnboardingResult struct {
 //   - если в стае и таймер ещё не стартовал (timer_start_time IS NULL и не is_deleted) — стартуем таймер и пишем карточку приветствия в ленту;
 //   - дополнительно создаём минимальный message_log в private chat, чтобы #sick_leave / #healthy из мини-аппа имели куда писать стейт.
 //
+// Для оплативших таймер и карточка ленты выставляются раньше — в paywallDeliverAccessAfterPayment
+// (как только outbox_worker обработал событие paywall_access_restore_requested). Поэтому в обычном
+// сценарии «оплатил → открыл мини-апп» сюда заходим уже с timer_start_time IS NOT NULL и просто
+// отдаём InPack=true без дублирования. Ветку «стартуем таймер тут» оставляем как fallback для
+// owner и legacy-юзеров, у которых message_log есть, а timer_start_time почему-то пустой.
+//
 // Заменяет sendWelcomeMessage / handleNewChatMembers, которые раньше срабатывали при добавлении в TG-группу.
 func (b *Bot) EnsureMiniAppOnboarding(d initdata.InitData) (MiniAppOnboardingResult, error) {
 	out := MiniAppOnboardingResult{}
