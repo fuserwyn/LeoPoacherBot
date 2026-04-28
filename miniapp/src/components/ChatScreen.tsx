@@ -81,13 +81,33 @@ function maxServerID(items: ChatMsg[]): number {
 export function ChatScreen({ name, initData, inTelegram, showAlert, onInboxDrained }: Props) {
   const [text, setText] = useState("");
   const [sending, setSending] = useState(false);
+  /** После POST /messages: ответ ИИ пишется асинхронно — «печатает» до появления строки Лео в фиде. */
+  const [leoTyping, setLeoTyping] = useState(false);
   const [items, setItems] = useState<ChatMsg[]>([]);
   const [loaded, setLoaded] = useState(false);
   const endRef = useRef<HTMLDivElement | null>(null);
+  /** max(server_id) перед отправкой пользователя — новый ответ Лео с id выше этого. */
+  const baselineMaxForPendingLeoRef = useRef(0);
 
   useEffect(() => {
     endRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [items, sending]);
+  }, [items, sending, leoTyping]);
+
+  useEffect(() => {
+    if (!leoTyping) return;
+    const baseline = baselineMaxForPendingLeoRef.current;
+    const hasNewLeo = items.some(
+      (m) => m.role === "leo" && m.serverID !== undefined && m.serverID > baseline
+    );
+    if (hasNewLeo) setLeoTyping(false);
+  }, [items, leoTyping]);
+
+  /** Если ответ так и не пришёл из БД — не держать «печатает» бесконечно. */
+  useEffect(() => {
+    if (!leoTyping) return;
+    const timer = window.setTimeout(() => setLeoTyping(false), 180_000);
+    return () => window.clearTimeout(timer);
+  }, [leoTyping]);
 
   // Первая загрузка истории + инкрементальный polling каждые 3 секунды.
   // Источник правды — БД на сервере (см. /api/miniapp/personal-chat/feed).
@@ -170,7 +190,7 @@ export function ChatScreen({ name, initData, inTelegram, showAlert, onInboxDrain
     if (!t || sending) return;
     if (!envApi) {
       showAlert(
-        "Сборка без API: в Railway у сервиса мини-аппа задай Build Variable VITE_MINIAPP_API_URL = публичный https URL сервиса с ботом (ms_leo), затем Redeploy."
+        "Сборка без API: в Railway у сервисе мини-аппа задай Build Variable VITE_MINIAPP_API_URL = публичный https URL сервиса с ботом (ms_leo), затем Redeploy."
       );
       return;
     }
@@ -178,11 +198,18 @@ export function ChatScreen({ name, initData, inTelegram, showAlert, onInboxDrain
       showAlert("Открой мини-апп из Telegram (нужен initData).");
       return;
     }
+
+    /** Макс. server id до оптимистичного сообщения — так отличим новый ответ Лео от старых. */
+    let baselineMaxBeforeSend = 0;
+    setItems((prev) => {
+      baselineMaxBeforeSend = maxServerID(prev);
+      return [
+        ...prev,
+        { uiKey: nowId(), role: "user", text: t, createdAt: new Date().toISOString() },
+      ];
+    });
+
     setSending(true);
-    setItems((prev) => [
-      ...prev,
-      { uiKey: nowId(), role: "user", text: t, createdAt: new Date().toISOString() },
-    ]);
     setText("");
     try {
       const w = window.Telegram?.WebApp;
@@ -200,16 +227,21 @@ export function ChatScreen({ name, initData, inTelegram, showAlert, onInboxDrain
       };
       if (!res.ok) {
         showAlert(j.error ?? `Ошибка ${res.status}`);
+        setLeoTyping(false);
         return;
       }
-      // reply_text/pending больше не нужны для UI — основной поллер фида
-      // подхватит и юзер-сообщение (с серверным id) и ответ Лео из БД.
+      baselineMaxForPendingLeoRef.current = baselineMaxBeforeSend;
+      setLeoTyping(true);
+      // Основной поллер фида подхватит юзер-сообщение (с серверным id) и ответ Лео из БД — тогда items → useEffect выше снимает leoTyping.
     } catch (e) {
       showAlert(e instanceof Error ? e.message : "Сеть");
+      setLeoTyping(false);
     } finally {
       setSending(false);
     }
   }, [text, sending, inTelegram, initData, showAlert]);
+
+  const showTypingCue = sending || leoTyping;
 
   return (
     <div className="chat">
@@ -223,7 +255,7 @@ export function ChatScreen({ name, initData, inTelegram, showAlert, onInboxDrain
       <header className="chat__head">
         <div className="chat__head-avatarwrap">
           <img className="chat__head-avatar" src={LEO_AVATAR_URL} width={52} height={52} alt="Лео" loading="eager" />
-          {sending && (
+          {showTypingCue && (
             <span className="chat__head-typing" aria-hidden="true">
               <span className="chat__head-typing-dots">
                 <span className="chat__dot" />
@@ -235,7 +267,7 @@ export function ChatScreen({ name, initData, inTelegram, showAlert, onInboxDrain
         </div>
         <div className="chat__head-text">
           <h1 className="chat__title">Лео</h1>
-          <p className="chat__sub">{sending ? "печатает…" : name}</p>
+          <p className="chat__sub">{showTypingCue ? "печатает…" : name}</p>
         </div>
       </header>
       <div className="chat__log" role="log" aria-label="Сообщения с ботом">
@@ -266,7 +298,7 @@ export function ChatScreen({ name, initData, inTelegram, showAlert, onInboxDrain
             </div>
           )
         )}
-        {sending && (
+        {showTypingCue && (
           <div className="chat__row chat__row--sys" role="status" aria-live="polite" aria-label="Лео печатает">
             <img className="chat__bubble-avatar" src={LEO_AVATAR_URL} width={36} height={36} alt="" aria-hidden="true" />
             <div className="chat__bubble chat__bubble--sys chat__bubble--typing" aria-hidden="true">
