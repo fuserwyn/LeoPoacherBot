@@ -1,11 +1,16 @@
 package bot
 
 // MiniappHealthStatus — на больничном ли пользователь сейчас.
-// Состояние больничного хранится в message_log, привязанном к chat_id личной переписки бота с пользователем
-// (так #sick_leave / #healthy отрабатывают как из TG-лички, так и из мини-аппа через dispatchTextMessageFromUser).
+// Источник правды — pack-row (chat_id = PACK_CHAT_ID), т.к. sick_leave.go ведёт стейт именно там.
+// Для старых/переходных данных оставляем fallback на private-row (chat_id = userID).
 func (b *Bot) MiniappHealthStatus(userID int64) bool {
 	if b == nil || b.db == nil || userID == 0 {
 		return false
+	}
+	if b.config != nil && b.config.PackChatID != 0 {
+		if ml, err := b.db.GetMessageLog(userID, b.config.PackChatID); err == nil && ml != nil {
+			return ml.HasSickLeave && !ml.HasHealthy
+		}
 	}
 	ml, err := b.db.GetMessageLog(userID, userID)
 	if err != nil || ml == nil {
