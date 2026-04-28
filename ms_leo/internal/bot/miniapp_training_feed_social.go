@@ -281,6 +281,31 @@ func (b *Bot) PackTrainingFeedThreadDelete(viewerUserID int64, initD initdata.In
 	return parentID, nil
 }
 
+// PackTrainingFeedThreadLikeToggle — лайк комментария в треде training_done.
+func (b *Bot) PackTrainingFeedThreadLikeToggle(viewerUserID int64, initD initdata.InitData, threadReplyID int64) (parentUserMessageID int64, err error) {
+	if err := b.AssertMiniAppPackChatAligns(initD); err != nil {
+		return 0, err
+	}
+	if err := b.assertPackFeedSocialViewer(viewerUserID); err != nil {
+		return 0, err
+	}
+	if threadReplyID == 0 {
+		return 0, ErrTrainingFeedThreadDeleteNotFound
+	}
+	chatID := b.config.MonetizedChatID
+	row, ok, err := b.db.GetTrainingFeedThreadRowInPack(threadReplyID, chatID)
+	if err != nil {
+		return 0, err
+	}
+	if !ok {
+		return 0, ErrTrainingFeedThreadDeleteNotFound
+	}
+	if err := b.db.ToggleTrainingFeedThreadLike(chatID, threadReplyID, viewerUserID); err != nil {
+		return 0, err
+	}
+	return row.UserMessageID, nil
+}
+
 func (b *Bot) threadRowsToPackReplies(rows []database.TrainingFeedThreadRow, viewerUserID, packChatID int64) []PackFeedThreadReply {
 	out := make([]PackFeedThreadReply, 0, len(rows))
 	if len(rows) == 0 {
@@ -304,6 +329,19 @@ func (b *Bot) threadRowsToPackReplies(rows []database.TrainingFeedThreadRow, vie
 			b.logger.Warnf("training thread reply parents: %v", err)
 		} else {
 			parentByID = m
+		}
+	}
+	likeMap := map[int64]database.ThreadLikeAgg{}
+	if len(rows) > 0 && b.db != nil {
+		ids := make([]int64, 0, len(rows))
+		for _, t := range rows {
+			ids = append(ids, t.ID)
+		}
+		m, err := b.db.ListTrainingFeedThreadLikeAggs(packChatID, ids, viewerUserID)
+		if err != nil {
+			b.logger.Warnf("training thread likes list: %v", err)
+		} else {
+			likeMap = m
 		}
 	}
 	for _, t := range rows {
@@ -331,6 +369,10 @@ func (b *Bot) threadRowsToPackReplies(rows []database.TrainingFeedThreadRow, vie
 				}
 				pr.ReplyToText = truncateForDM(p.MessageText, 100)
 			}
+		}
+		if l, ok := likeMap[t.ID]; ok {
+			pr.LikeCount = l.Count
+			pr.LikeMe = l.Me
 		}
 		out = append(out, pr)
 	}
@@ -380,9 +422,10 @@ func (b *Bot) enrichPackFeedTrainingSocial(items []PackFeedItem, viewerUserID in
 		if aggs, ok := aggsMap[id]; ok {
 			for _, a := range database.SortReactionAggsForDisplay(aggs, trainingFeedAllowedEmojis) {
 				items[i].Reactions = append(items[i].Reactions, PackFeedReaction{
-					Emoji: a.Emoji,
-					Count: a.Count,
-					Me:    meEmoji == a.Emoji,
+					Emoji:  a.Emoji,
+					Count:  a.Count,
+					Me:     meEmoji == a.Emoji,
+					Voters: a.Voters,
 				})
 			}
 		}

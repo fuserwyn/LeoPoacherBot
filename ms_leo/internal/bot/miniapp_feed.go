@@ -12,9 +12,10 @@ var ErrPackFeedForbidden = errors.New("pack feed forbidden")
 
 // PackFeedReaction — агрегат реакций на отчёт в мини-аппе.
 type PackFeedReaction struct {
-	Emoji string `json:"emoji"`
-	Count int    `json:"count"`
-	Me    bool   `json:"me"`
+	Emoji  string   `json:"emoji"`
+	Count  int      `json:"count"`
+	Me     bool     `json:"me"`
+	Voters []string `json:"voters,omitempty"`
 }
 
 // PackFeedThreadReply — реплика в треде под training_done.
@@ -31,6 +32,8 @@ type PackFeedThreadReply struct {
 	ReplyToUsername string `json:"reply_to_username,omitempty"`
 	ReplyToText     string `json:"reply_to_text,omitempty"`
 	ReplyToIsLeo    bool   `json:"reply_to_is_leo,omitempty"`
+	LikeCount       int    `json:"like_count,omitempty"`
+	LikeMe          bool   `json:"like_me,omitempty"`
 }
 
 // PackFeedItem — JSON для мини-апpa.
@@ -46,9 +49,9 @@ type PackFeedItem struct {
 	AuthorPhotoURL   string `json:"author_photo_url,omitempty"`
 	TrainingPhotoURL string `json:"training_photo_url,omitempty"`
 	// PackChatID — id группы «Стая» (MONETIZED_CHAT_ID), с которой синхронизирована лента.
-	PackChatID int64  `json:"pack_chat_id"`
-	PackTitle  string `json:"pack_title,omitempty"`
-	Reactions  []PackFeedReaction   `json:"reactions,omitempty"`
+	PackChatID int64                 `json:"pack_chat_id"`
+	PackTitle  string                `json:"pack_title,omitempty"`
+	Reactions  []PackFeedReaction    `json:"reactions,omitempty"`
 	Thread     []PackFeedThreadReply `json:"thread,omitempty"`
 }
 

@@ -21,7 +21,12 @@ const formatTzLabel = (offset: number): string => {
 type Props = {
   name: string;
   streak: number;
+  recordStreak: number;
+  xp: number;
+  achievementCount: number;
+  achievementsMax: number;
   workouts: number;
+  workoutsWeek: number;
   initData: string;
   inTelegram: boolean;
   /** Ссылка на аватар из Telegram WebApp (initDataUnsafe.user.photo_url), если бот открыл мини-апп. */
@@ -30,9 +35,22 @@ type Props = {
 };
 
 const LEVELS = [200];
+const ACHIEVEMENT_MILESTONES = [7, 14, 21, 28];
 
-export function ProfileScreen({ name, streak, workouts, initData, inTelegram, userPhotoUrl, showAlert }: Props) {
-  const xp = 25;
+export function ProfileScreen({
+  name,
+  streak,
+  recordStreak,
+  xp,
+  achievementCount,
+  achievementsMax,
+  workouts,
+  workoutsWeek,
+  initData,
+  inTelegram,
+  userPhotoUrl,
+  showAlert,
+}: Props) {
   const [burn, setBurn] = useState<3 | 5 | 7>(5);
   const [profile, setProfile] = useState<ProfileData>({ gender: "", displayName: "", age: "", timezoneOffset: 0 });
   const [initialAgeSet, setInitialAgeSet] = useState(false);
@@ -227,9 +245,28 @@ export function ProfileScreen({ name, streak, workouts, initData, inTelegram, us
           ) : (
             "🐆"
           )}
+          {onSick ? <span className="profile__avatar-med">🌡️</span> : null}
         </div>
-        <h1 className="profile__name">{(profile.displayName || name).trim() || "Стая"}</h1>
-        <p className="profile__level muted">Уровень 1 · Новичок</p>
+        <button
+          type="button"
+          className="profile__sick-icon-btn"
+          aria-label={onSick ? "Я выздоровел" : "Взять больничный"}
+          onClick={() => {
+            if (onSick) {
+              void submitHealthy();
+              return;
+            }
+            setSickFormOpen(true);
+          }}
+          disabled={healthBusy}
+        >
+          ❌
+        </button>
+        {onSick ? <span className="profile__ambulance" aria-hidden>🚑</span> : null}
+        <div>
+          <h1 className="profile__name">{(profile.displayName || name).trim() || "Стая"}</h1>
+          <p className="profile__level muted">Уровень 1 · Новичок</p>
+        </div>
         <div className="profile__xp">
           <div className="profile__xp-bar">
             <div
@@ -252,7 +289,7 @@ export function ProfileScreen({ name, streak, workouts, initData, inTelegram, us
         </div>
         <div className="stat-card">
           <div className="stat-card__label">РЕКОРД</div>
-          <div className="stat-card__val">{streak} д</div>
+          <div className="stat-card__val">{recordStreak} д</div>
         </div>
         <div className="stat-card">
           <div className="stat-card__label">ТРЕНИРОВОК</div>
@@ -264,7 +301,7 @@ export function ProfileScreen({ name, streak, workouts, initData, inTelegram, us
       <div className="profile__grid2">
         <div className="wide-card">
           <div className="wide-card__label">Тренировок</div>
-          <div className="wide-card__val">{workouts}</div>
+          <div className="wide-card__val">{workoutsWeek}</div>
         </div>
         <div className="wide-card">
           <div className="wide-card__label">Средняя интенсивность</div>
@@ -273,7 +310,17 @@ export function ProfileScreen({ name, streak, workouts, initData, inTelegram, us
       </div>
 
       <h2 className="section-title">Достижения</h2>
-      <div className="profile__empty">Пока нет — тренируйся, и они появятся</div>
+      <div className="profile__empty">
+        🏆 {achievementCount}/{achievementsMax}
+      </div>
+      <div className="profile__grid2">
+        {ACHIEVEMENT_MILESTONES.map((d, i) => (
+          <div key={d} className="wide-card">
+            <div className="wide-card__label">Серия {d} дней</div>
+            <div className="wide-card__val">{i < achievementCount ? "✅" : "⏳"}</div>
+          </div>
+        ))}
+      </div>
 
       <h2 className="section-title">Профиль (для Лео)</h2>
       {profileLoading && <p className="muted">Загрузка профиля…</p>}

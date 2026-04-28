@@ -237,6 +237,25 @@
   text-align: left;
 }
 
+.chat__meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.chat__like {
+  border: none;
+  background: transparent;
+  color: var(--muted, #8b8b9a);
+  padding: 0;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.chat__like--mine {
+  color: #be123c;
+}
+
 .chat__bubble--user {
   background: linear-gradient(135deg, #2a5cff 0%, #5c3ce6 100%);
   color: #f4f4ff;

@@ -49,7 +49,7 @@ export const TRAINING_FEED_EMOJIS = [
   "😱",
 ] as const;
 
-export type PackFeedReactionDTO = { emoji: string; count: number; me: boolean };
+export type PackFeedReactionDTO = { emoji: string; count: number; me: boolean; voters?: string[] };
 
 export type PackFeedThreadReplyDTO = {
   id: number;
@@ -66,6 +66,8 @@ export type PackFeedThreadReplyDTO = {
   reply_to_username?: string;
   reply_to_text?: string;
   reply_to_is_leo?: boolean;
+  like_count?: number;
+  like_me?: boolean;
 };
 
 export type PackFeedItemDTO = {
@@ -87,14 +89,14 @@ export type PackFeedItemDTO = {
 };
 
 /** Полная строка эмодзи для кнопок реакций (с нулевыми счётчиками). Собственная реакция (`me`) показывается первой — в т.ч. если её выбрали в меню «⋯». */
-export function mergeTrainingFeedReactions(fromServer?: PackFeedReactionDTO[]): { emoji: string; count: number; me: boolean }[] {
+export function mergeTrainingFeedReactions(fromServer?: PackFeedReactionDTO[]): { emoji: string; count: number; me: boolean; voters?: string[] }[] {
   const byEmoji = new Map<string, PackFeedReactionDTO>();
   for (const r of fromServer ?? []) {
     byEmoji.set(r.emoji, r);
   }
   const ordered = TRAINING_FEED_EMOJIS.map((emoji) => {
     const r = byEmoji.get(emoji);
-    return { emoji, count: r?.count ?? 0, me: r?.me ?? false };
+    return { emoji, count: r?.count ?? 0, me: r?.me ?? false, voters: r?.voters };
   });
   const myIdx = ordered.findIndex((x) => x.me);
   if (myIdx <= 0) return ordered;

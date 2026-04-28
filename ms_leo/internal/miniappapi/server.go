@@ -50,6 +50,8 @@ func (s *Server) serve(w http.ResponseWriter, r *http.Request) {
 		s.handlePostPersonalReplyPoll(w, r)
 	case path == "/api/miniapp/personal-chat/feed" && r.Method == http.MethodPost:
 		s.handlePostPersonalChatFeed(w, r)
+	case path == "/api/miniapp/personal-chat/like" && r.Method == http.MethodPost:
+		s.handlePostPersonalChatLike(w, r)
 	case path == "/api/miniapp/feed" && r.Method == http.MethodPost:
 		s.handlePostFeed(w, r)
 	case path == "/api/miniapp/feed/training/react" && r.Method == http.MethodPost:
@@ -58,6 +60,8 @@ func (s *Server) serve(w http.ResponseWriter, r *http.Request) {
 		s.handlePostFeedTrainingThread(w, r)
 	case path == "/api/miniapp/feed/training/thread/delete" && r.Method == http.MethodPost:
 		s.handlePostFeedTrainingThreadDelete(w, r)
+	case path == "/api/miniapp/feed/training/thread/like" && r.Method == http.MethodPost:
+		s.handlePostFeedTrainingThreadLike(w, r)
 	case path == "/api/miniapp/feed/training/thread/unread-count" && r.Method == http.MethodPost:
 		s.handlePostFeedTrainingThreadUnreadCount(w, r)
 	case path == "/api/miniapp/feed/training/thread/unread-clear" && r.Method == http.MethodPost:
@@ -543,8 +547,8 @@ func (s *Server) handlePostFeedTrainingThreadDelete(w http.ResponseWriter, r *ht
 		return
 	}
 	var body struct {
-		InitData       string `json:"init_data"`
-		ThreadReplyID  int64  `json:"thread_reply_id"`
+		InitData      string `json:"init_data"`
+		ThreadReplyID int64  `json:"thread_reply_id"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
 		s.jsonErr(w, http.StatusBadRequest, "invalid_json")
@@ -593,6 +597,72 @@ func (s *Server) handlePostFeedTrainingThreadDelete(w http.ResponseWriter, r *ht
 	replies, rerr := s.bot.PackFeedThreadRepliesForViewer(parsed.User.ID, parentID)
 	if rerr != nil {
 		s.logger.Warnf("feed training thread delete: list after delete: %v", rerr)
+	}
+	w.Header().Set("Content-Type", "application/json; charset=utf-8")
+	out := map[string]any{"ok": true}
+	if rerr == nil {
+		out["thread"] = replies
+	}
+	_ = json.NewEncoder(w).Encode(out)
+}
+
+func (s *Server) handlePostFeedTrainingThreadLike(w http.ResponseWriter, r *http.Request) {
+	corsWriteHeaders(w, r)
+	if s.bot == nil || s.token == "" {
+		s.jsonErr(w, http.StatusServiceUnavailable, "server_unavailable")
+		return
+	}
+	var body struct {
+		InitData      string `json:"init_data"`
+		ThreadReplyID int64  `json:"thread_reply_id"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		s.jsonErr(w, http.StatusBadRequest, "invalid_json")
+		return
+	}
+	if body.InitData == "" {
+		s.jsonErr(w, http.StatusBadRequest, "missing_init_data")
+		return
+	}
+	if body.ThreadReplyID == 0 {
+		s.jsonErr(w, http.StatusBadRequest, "missing_thread_reply_id")
+		return
+	}
+	if err := initdata.Validate(body.InitData, s.token, 24*time.Hour); err != nil {
+		s.logger.Warnf("miniapp feed training thread like: invalid init: %v", err)
+		s.jsonErr(w, http.StatusUnauthorized, "invalid_init_data")
+		return
+	}
+	parsed, err := initdata.Parse(body.InitData)
+	if err != nil {
+		s.jsonErr(w, http.StatusBadRequest, "parse_init_data")
+		return
+	}
+	if parsed.User.ID == 0 {
+		s.jsonErr(w, http.StatusBadRequest, "user_missing")
+		return
+	}
+	parentID, err := s.bot.PackTrainingFeedThreadLikeToggle(parsed.User.ID, parsed, body.ThreadReplyID)
+	if err != nil {
+		if errors.Is(err, bot.ErrMiniAppChatMismatch) {
+			s.jsonErr(w, http.StatusConflict, "chat_mismatch")
+			return
+		}
+		if errors.Is(err, bot.ErrTrainingFeedSocialForbidden) {
+			s.jsonErr(w, http.StatusForbidden, "forbidden")
+			return
+		}
+		if errors.Is(err, bot.ErrTrainingFeedThreadDeleteNotFound) {
+			s.jsonErr(w, http.StatusNotFound, "not_found")
+			return
+		}
+		s.logger.Errorf("feed training thread like: %v", err)
+		s.jsonErr(w, http.StatusInternalServerError, "thread_like_error")
+		return
+	}
+	replies, rerr := s.bot.PackFeedThreadRepliesForViewer(parsed.User.ID, parentID)
+	if rerr != nil {
+		s.logger.Warnf("feed training thread like: list after toggle: %v", rerr)
 	}
 	w.Header().Set("Content-Type", "application/json; charset=utf-8")
 	out := map[string]any{"ok": true}
@@ -777,6 +847,60 @@ func (s *Server) handlePostPersonalChatFeed(w http.ResponseWriter, r *http.Reque
 	_ = json.NewEncoder(w).Encode(map[string]any{"ok": true, "messages": items})
 }
 
+func (s *Server) handlePostPersonalChatLike(w http.ResponseWriter, r *http.Request) {
+	corsWriteHeaders(w, r)
+	if s.bot == nil || s.token == "" {
+		s.jsonErr(w, http.StatusServiceUnavailable, "server_unavailable")
+		return
+	}
+	var body struct {
+		InitData  string `json:"init_data"`
+		MessageID int64  `json:"message_id"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		s.jsonErr(w, http.StatusBadRequest, "invalid_json")
+		return
+	}
+	if body.InitData == "" {
+		s.jsonErr(w, http.StatusBadRequest, "missing_init_data")
+		return
+	}
+	if body.MessageID == 0 {
+		s.jsonErr(w, http.StatusBadRequest, "missing_message_id")
+		return
+	}
+	if err := initdata.Validate(body.InitData, s.token, 24*time.Hour); err != nil {
+		s.logger.Warnf("miniapp personal chat like invalid init: %v", err)
+		s.jsonErr(w, http.StatusUnauthorized, "invalid_init_data")
+		return
+	}
+	parsed, err := initdata.Parse(body.InitData)
+	if err != nil {
+		s.jsonErr(w, http.StatusBadRequest, "parse_init_data")
+		return
+	}
+	if parsed.User.ID == 0 {
+		s.jsonErr(w, http.StatusBadRequest, "user_missing")
+		return
+	}
+	if err := s.bot.AssertMiniAppPackChatAligns(parsed); err != nil {
+		if errors.Is(err, bot.ErrMiniAppChatMismatch) {
+			s.jsonErr(w, http.StatusConflict, "chat_mismatch")
+			return
+		}
+		s.logger.Errorf("miniapp personal chat like assert: %v", err)
+		s.jsonErr(w, http.StatusInternalServerError, "assert_chat_error")
+		return
+	}
+	if err := s.bot.MiniappPersonalChatLikeToggle(parsed.User.ID, body.MessageID); err != nil {
+		s.logger.Errorf("miniapp personal chat like: %v", err)
+		s.jsonErr(w, http.StatusInternalServerError, "like_error")
+		return
+	}
+	w.Header().Set("Content-Type", "application/json; charset=utf-8")
+	_ = json.NewEncoder(w).Encode(map[string]any{"ok": true})
+}
+
 func (s *Server) handlePostHealthStatus(w http.ResponseWriter, r *http.Request) {
 	corsWriteHeaders(w, r)
 	if s.bot == nil || s.token == "" {
@@ -922,12 +1046,20 @@ func (s *Server) handlePostProfileLoad(w http.ResponseWriter, r *http.Request) {
 	}
 	g, d, a := s.bot.GetMiniappUserProfileJSONForAPI(parsed.User.ID, packID)
 	tz := s.bot.GetTimezoneOffsetForAPI(parsed.User.ID, packID)
+	stats := s.bot.GetMiniappProfileStatsForAPI(parsed.User.ID, packID)
 	w.Header().Set("Content-Type", "application/json; charset=utf-8")
 	out := map[string]any{
-		"ok":              true,
-		"gender":          g,
-		"display_name":    d,
-		"timezone_offset": tz,
+		"ok":                true,
+		"gender":            g,
+		"display_name":      d,
+		"timezone_offset":   tz,
+		"xp":                stats.XP,
+		"streak_days":       stats.StreakDays,
+		"max_streak_days":   stats.MaxStreakDays,
+		"achievement_count": stats.AchievementCount,
+		"achievements_max":  stats.AchievementsMax,
+		"workouts_total":    stats.WorkoutsTotal,
+		"workouts_week":     stats.WorkoutsWeek,
 	}
 	if a != nil {
 		out["age"] = *a
@@ -1006,12 +1138,20 @@ func (s *Server) handlePostProfileSave(w http.ResponseWriter, r *http.Request) {
 	}
 	g, d, a := s.bot.GetMiniappUserProfileJSONForAPI(parsed.User.ID, packID)
 	tz := s.bot.GetTimezoneOffsetForAPI(parsed.User.ID, packID)
+	stats := s.bot.GetMiniappProfileStatsForAPI(parsed.User.ID, packID)
 	w.Header().Set("Content-Type", "application/json; charset=utf-8")
 	out := map[string]any{
-		"ok":              true,
-		"gender":          g,
-		"display_name":    d,
-		"timezone_offset": tz,
+		"ok":                true,
+		"gender":            g,
+		"display_name":      d,
+		"timezone_offset":   tz,
+		"xp":                stats.XP,
+		"streak_days":       stats.StreakDays,
+		"max_streak_days":   stats.MaxStreakDays,
+		"achievement_count": stats.AchievementCount,
+		"achievements_max":  stats.AchievementsMax,
+		"workouts_total":    stats.WorkoutsTotal,
+		"workouts_week":     stats.WorkoutsWeek,
 	}
 	if a != nil {
 		out["age"] = *a

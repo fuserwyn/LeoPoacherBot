@@ -211,6 +211,34 @@ export function FeedScreen({ name, streak, userId, initData, inTelegram, showAle
     [apiBase, initData, load, showAlert],
   );
 
+  const toggleTrainingThreadLike = useCallback(
+    async (trainingUserMessageId: number, threadReplyId: number) => {
+      if (!apiBase || !initData) return;
+      try {
+        const res = await fetch(`${apiBase}/api/miniapp/feed/training/thread/like`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ init_data: initData, thread_reply_id: threadReplyId }),
+        });
+        const j = (await res.json().catch(() => ({}))) as { error?: string; thread?: PackFeedThreadReplyDTO[] };
+        if (!res.ok) {
+          showAlert(j.error ?? `Ошибка ${res.status}`);
+          return;
+        }
+        const updated = j.thread;
+        await load();
+        if (Array.isArray(updated)) {
+          setFeedItems((prev) =>
+            prev.map((it) => (it.id === trainingUserMessageId ? { ...it, thread: updated } : it)),
+          );
+        }
+      } catch (e) {
+        showAlert(e instanceof Error ? e.message : "Сеть");
+      }
+    },
+    [apiBase, initData, load, showAlert],
+  );
+
   useEffect(() => {
     void load();
   }, [load]);
@@ -297,6 +325,8 @@ export function FeedScreen({ name, streak, userId, initData, inTelegram, showAle
                     isLeo: Boolean(tr.is_leo),
                     authorPhotoUrl: tr.author_photo_url,
                     replyTo: rq,
+                    likeCount: tr.like_count ?? 0,
+                    likeMe: Boolean(tr.like_me),
                   };
                 });
                 return (
@@ -307,6 +337,7 @@ export function FeedScreen({ name, streak, userId, initData, inTelegram, showAle
                     onReactionClick={(emoji) => void postTrainingReact(it.id, emoji)}
                     threadReplies={threadReplies}
                     onThreadReplyDelete={(replyId) => void deleteTrainingThreadReply(it.id, replyId)}
+                    onThreadReplyLike={(replyId) => void toggleTrainingThreadLike(it.id, replyId)}
                     threadReplyDeleting={threadReplyDeleting}
                     threadReplyIntent={threadReplyTargets[it.id] ?? null}
                     onCancelThreadReplyIntent={() =>

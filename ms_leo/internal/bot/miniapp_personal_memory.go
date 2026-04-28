@@ -75,7 +75,25 @@ func (b *Bot) MiniappPersonalChatHistory(userID int64, sinceID int64) ([]*domain
 	if b.config == nil || b.config.MonetizedChatID == 0 {
 		return []*domain.MiniappPersonalChatMessage{}, nil
 	}
-	return b.db.ListMiniappPersonalChat(userID, b.config.MonetizedChatID, 200, sinceID)
+	items, err := b.db.ListMiniappPersonalChat(userID, b.config.MonetizedChatID, 200, sinceID)
+	if err != nil {
+		return nil, err
+	}
+	if err := b.db.EnrichMiniappPersonalChatLikes(userID, b.config.MonetizedChatID, userID, items); err != nil {
+		b.logger.Warnf("personal chat likes enrich user=%d: %v", userID, err)
+	}
+	return items, nil
+}
+
+// MiniappPersonalChatLikeToggle — toggle лайка в личке с Лео.
+func (b *Bot) MiniappPersonalChatLikeToggle(userID, messageID int64) error {
+	if b == nil || b.db == nil || userID == 0 || messageID == 0 {
+		return nil
+	}
+	if b.config == nil || b.config.MonetizedChatID == 0 {
+		return nil
+	}
+	return b.db.ToggleMiniappPersonalChatLike(userID, b.config.MonetizedChatID, userID, messageID)
 }
 
 // MiniappPersonalQueueLen — сколько фрагментов ещё не забрали poll'ом (для бейджа в мини-аппе).

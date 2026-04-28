@@ -353,12 +353,15 @@ func (b *Bot) handleLeopardMoneyTrainingDone(msg *tgbotapi.Message, personalRepl
 	}
 
 	if trainingUserMessageID > 0 && b.config.MonetizedChatID != 0 {
-		threadText := messageText
+		threadText := ""
 		profName, profAge := b.LeoUserProfileForFeedPrompt(msg.From.ID)
 		if extra := b.generateLeoTrainingFeedEncouragement(
 			username, text, newStreak, totalXP, ach, gapEmptyDays, userGender, wasOnSickLeave, profName, profAge,
 		); extra != "" {
-			threadText = extra + "\n\n" + messageText
+			threadText = extra
+		}
+		if strings.TrimSpace(threadText) == "" {
+			threadText = b.generateShortLeopardChatAck(username, text, newStreak, totalXP, ach)
 		}
 		if _, err := b.db.InsertTrainingFeedThreadReply(b.config.MonetizedChatID, trainingUserMessageID, 0, "Лео", threadText, 0); err != nil {
 			b.logger.Warnf("training feed leo thread reply: %v", err)

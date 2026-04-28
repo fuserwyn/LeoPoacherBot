@@ -4,8 +4,10 @@ import (
 	"database/sql"
 	"errors"
 	"strings"
+	"time"
 
 	"leo-bot/internal/database"
+	"leo-bot/internal/game/leopardmoney"
 )
 
 // Лимиты полей мини-апп — профиль.
@@ -165,6 +167,47 @@ func (b *Bot) GetMiniappUserProfileJSONForAPI(userID, packChatID int64) (gender,
 		}
 	}
 	return gender, displayName, age
+}
+
+type MiniappProfileStats struct {
+	XP               int
+	StreakDays       int
+	MaxStreakDays    int
+	AchievementCount int
+	AchievementsMax  int
+	WorkoutsTotal    int
+	WorkoutsWeek     int
+}
+
+// GetMiniappProfileStatsForAPI — срез метрик профиля для мини-аппа (XP/стрик/рекорд/ачивки/тренировки).
+func (b *Bot) GetMiniappProfileStatsForAPI(userID, packChatID int64) MiniappProfileStats {
+	out := MiniappProfileStats{
+		AchievementsMax: leopardmoney.MaxAchievements,
+	}
+	if b == nil || b.db == nil || userID == 0 || packChatID == 0 {
+		return out
+	}
+	ml, err := b.db.GetMessageLog(userID, packChatID)
+	if err == nil && ml != nil {
+		out.XP = ml.XP
+		out.StreakDays = ml.StreakDays
+		out.MaxStreakDays = ml.MaxStreakDays
+		if out.MaxStreakDays < out.StreakDays {
+			out.MaxStreakDays = out.StreakDays
+		}
+		out.AchievementCount = ml.AchievementCount
+	}
+	today := time.Now().UTC()
+	weekAgo := today.AddDate(0, 0, -6)
+	total, err := b.db.CountTrainingSessionsInDateRange(userID, packChatID, "2000-01-01", today.Format("2006-01-02"))
+	if err == nil {
+		out.WorkoutsTotal = total
+	}
+	week, err := b.db.CountTrainingSessionsInDateRange(userID, packChatID, weekAgo.Format("2006-01-02"), today.Format("2006-01-02"))
+	if err == nil {
+		out.WorkoutsWeek = week
+	}
+	return out
 }
 
 // SyncMiniappTelegramPhotoFromInit — сохраняет URL аватарки из WebApp initData (user.photo_url) для ленты/чата.

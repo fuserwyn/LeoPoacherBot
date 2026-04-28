@@ -55,8 +55,9 @@ func (d *Database) GetUserMessageTextByIDForChat(id, chatID int64) (string, erro
 
 // TrainingFeedReactionAgg — агрегат реакций по одному user_message_id.
 type TrainingFeedReactionAgg struct {
-	Emoji string
-	Count int
+	Emoji  string
+	Count  int
+	Voters []string
 }
 
 // ListTrainingFeedReactionAggs — подсчёт реакций по списку parent id; viewerID для флага «моя».
@@ -88,6 +89,35 @@ func (d *Database) ListTrainingFeedReactionAggs(packChatID int64, userMessageIDs
 		out[mid] = append(out[mid], TrainingFeedReactionAgg{Emoji: emoji, Count: cnt})
 	}
 	if err := rows.Err(); err != nil {
+		return nil, nil, err
+	}
+	qVoters := `
+		SELECT user_message_id, emoji, COALESCE(NULLIF(TRIM(username), ''), CONCAT('Участник ', user_id::text)) AS voter
+		FROM miniapp_training_feed_reactions
+		WHERE pack_chat_id = $1 AND user_message_id = ANY($2)
+		ORDER BY user_message_id, emoji, created_at ASC, id ASC
+	`
+	rv, err := d.db.Query(qVoters, packChatID, pq.Array(userMessageIDs))
+	if err != nil {
+		return nil, nil, fmt.Errorf("training feed reaction voters: %w", err)
+	}
+	defer rv.Close()
+	for rv.Next() {
+		var mid int64
+		var emoji, voter string
+		if err := rv.Scan(&mid, &emoji, &voter); err != nil {
+			return nil, nil, err
+		}
+		aggs := out[mid]
+		for i := range aggs {
+			if aggs[i].Emoji == emoji {
+				aggs[i].Voters = append(aggs[i].Voters, voter)
+				break
+			}
+		}
+		out[mid] = aggs
+	}
+	if err := rv.Err(); err != nil {
 		return nil, nil, err
 	}
 	qMe := `
@@ -144,7 +174,7 @@ func (d *Database) SetTrainingFeedReaction(packChatID, userMessageID, userID int
 type TrainingFeedThreadRow struct {
 	ID            int64
 	UserMessageID int64
-	FromUserID   int64
+	FromUserID    int64
 	Username      string
 	MessageText   string
 	CreatedAt     time.Time
@@ -313,6 +343,98 @@ func (d *Database) DeleteTrainingThreadUnreadByReplyID(threadReplyID int64) erro
 		return fmt.Errorf("delete training thread unread by reply: %w", err)
 	}
 	return nil
+}
+
+// ToggleTrainingFeedThreadLike — лайк на комментарий треда (toggle).
+func (d *Database) ToggleTrainingFeedThreadLike(packChatID, threadReplyID, userID int64) error {
+	if packChatID == 0 || threadReplyID == 0 || userID == 0 {
+		return nil
+	}
+	var exists bool
+	err := d.db.QueryRow(
+		`SELECT EXISTS(
+			SELECT 1 FROM miniapp_training_feed_thread_likes
+			WHERE pack_chat_id = $1 AND thread_reply_id = $2 AND user_id = $3
+		)`,
+		packChatID, threadReplyID, userID,
+	).Scan(&exists)
+	if err != nil {
+		return err
+	}
+	if exists {
+		_, err := d.db.Exec(
+			`DELETE FROM miniapp_training_feed_thread_likes
+			 WHERE pack_chat_id = $1 AND thread_reply_id = $2 AND user_id = $3`,
+			packChatID, threadReplyID, userID,
+		)
+		return err
+	}
+	_, err = d.db.Exec(
+		`INSERT INTO miniapp_training_feed_thread_likes (pack_chat_id, thread_reply_id, user_id)
+		 VALUES ($1, $2, $3)
+		 ON CONFLICT (thread_reply_id, user_id) DO NOTHING`,
+		packChatID, threadReplyID, userID,
+	)
+	return err
+}
+
+// ThreadLikeAgg — лайки по id комментария треда.
+type ThreadLikeAgg struct {
+	Count int
+	Me    bool
+}
+
+// ListTrainingFeedThreadLikeAggs — агрегаты лайков для списка thread reply id.
+func (d *Database) ListTrainingFeedThreadLikeAggs(packChatID int64, threadReplyIDs []int64, viewerUserID int64) (map[int64]ThreadLikeAgg, error) {
+	out := make(map[int64]ThreadLikeAgg)
+	if packChatID == 0 || len(threadReplyIDs) == 0 {
+		return out, nil
+	}
+	rows, err := d.db.Query(
+		`SELECT thread_reply_id, COUNT(*)::int
+		 FROM miniapp_training_feed_thread_likes
+		 WHERE pack_chat_id = $1 AND thread_reply_id = ANY($2)
+		 GROUP BY thread_reply_id`,
+		packChatID, pq.Array(threadReplyIDs),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("list training thread like aggs: %w", err)
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var id int64
+		var cnt int
+		if err := rows.Scan(&id, &cnt); err != nil {
+			return nil, err
+		}
+		out[id] = ThreadLikeAgg{Count: cnt}
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	if viewerUserID == 0 {
+		return out, nil
+	}
+	rows2, err := d.db.Query(
+		`SELECT thread_reply_id
+		 FROM miniapp_training_feed_thread_likes
+		 WHERE pack_chat_id = $1 AND thread_reply_id = ANY($2) AND user_id = $3`,
+		packChatID, pq.Array(threadReplyIDs), viewerUserID,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("list training thread my likes: %w", err)
+	}
+	defer rows2.Close()
+	for rows2.Next() {
+		var id int64
+		if err := rows2.Scan(&id); err != nil {
+			return nil, err
+		}
+		agg := out[id]
+		agg.Me = true
+		out[id] = agg
+	}
+	return out, rows2.Err()
 }
 
 // CountTrainingThreadUnread — число непросмотренных комментариев к своим отчётам.

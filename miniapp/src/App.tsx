@@ -15,14 +15,20 @@ import "./App.css";
 type Tab = "chat" | "feed" | "rules" | "profile";
 
 export function App() {
-  const { name, streak, setStreak, initData, userId, photoUrl, inTelegram, tg } = useTelegramWebApp();
+  const { name, streak: hookStreak, initData, userId, photoUrl, inTelegram, tg } = useTelegramWebApp();
   const showAlert = useCallback((m: string) => {
     if (tg?.showAlert) void tg.showAlert(m);
     else window.alert(m);
   }, [tg]);
   const [tab, setTab] = useState<Tab>("feed");
   const [workoutOpen, setWorkoutOpen] = useState(false);
-  const [workouts, setWorkouts] = useState(1);
+  const [streak, setStreak] = useState(hookStreak);
+  const [recordStreak, setRecordStreak] = useState(hookStreak);
+  const [xp, setXP] = useState(0);
+  const [achievementCount, setAchievementCount] = useState(0);
+  const [achievementsMax, setAchievementsMax] = useState(4);
+  const [workouts, setWorkouts] = useState(0);
+  const [workoutsWeek, setWorkoutsWeek] = useState(0);
   const [leoPending, setLeoPending] = useState(0);
   const [feedUnread, setFeedUnread] = useState(0);
 
@@ -35,6 +41,38 @@ export function App() {
     const [leo, feed] = await Promise.all([fetchLeoPendingCount(initData), fetchFeedThreadUnreadCount(initData)]);
     setLeoPending(leo);
     setFeedUnread(feed);
+  }, [inTelegram, initData]);
+
+  const refreshProfileStats = useCallback(async () => {
+    const apiBase = (import.meta.env.VITE_MINIAPP_API_URL as string | undefined)?.replace(/\/$/, "") ?? "";
+    if (!inTelegram || !initData?.trim() || !apiBase) return;
+    try {
+      const res = await fetch(`${apiBase}/api/miniapp/profile/load`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ init_data: initData }),
+      });
+      const j = (await res.json().catch(() => ({}))) as {
+        ok?: boolean;
+        streak_days?: number;
+        max_streak_days?: number;
+        xp?: number;
+        achievement_count?: number;
+        achievements_max?: number;
+        workouts_total?: number;
+        workouts_week?: number;
+      };
+      if (!res.ok || !j.ok) return;
+      setStreak(typeof j.streak_days === "number" ? j.streak_days : 0);
+      setRecordStreak(typeof j.max_streak_days === "number" ? j.max_streak_days : 0);
+      setXP(typeof j.xp === "number" ? j.xp : 0);
+      setAchievementCount(typeof j.achievement_count === "number" ? j.achievement_count : 0);
+      setAchievementsMax(typeof j.achievements_max === "number" ? j.achievements_max : 4);
+      setWorkouts(typeof j.workouts_total === "number" ? j.workouts_total : 0);
+      setWorkoutsWeek(typeof j.workouts_week === "number" ? j.workouts_week : 0);
+    } catch {
+      return;
+    }
   }, [inTelegram, initData]);
 
   useEffect(() => {
@@ -51,6 +89,10 @@ export function App() {
       document.removeEventListener("visibilitychange", onVis);
     };
   }, [refreshTabBadges]);
+
+  useEffect(() => {
+    void refreshProfileStats();
+  }, [refreshProfileStats]);
 
   useEffect(() => {
     if (tab !== "feed" || !inTelegram || !initData?.trim()) return;
@@ -106,6 +148,11 @@ export function App() {
           initData={initData}
           inTelegram={inTelegram}
           userPhotoUrl={photoUrl}
+          xp={xp}
+          recordStreak={recordStreak}
+          achievementCount={achievementCount}
+          achievementsMax={achievementsMax}
+          workoutsWeek={workoutsWeek}
           showAlert={showAlert}
         />
       )}
@@ -161,8 +208,7 @@ export function App() {
               return false;
             }
             void refreshTabBadges();
-            setWorkouts((c) => c + 1);
-            setStreak((s) => s + 1);
+            void refreshProfileStats();
             const msg = result.replyParts.filter(Boolean).join("\n\n").trim() || "Отчёт отправлен.";
             showAlert(msg.length > 350 ? `${msg.slice(0, 347)}…` : msg);
             return true;

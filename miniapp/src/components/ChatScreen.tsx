@@ -26,9 +26,11 @@ type ChatMsg = {
   text: string;
   // ISO-строка от сервера или ISO от Date.now() для оптимистичных.
   createdAt: string;
+  likeCount?: number;
+  likeMe?: boolean;
 };
 
-type ServerMsg = { id: number; role: "user" | "leo"; text: string; created_at: string };
+type ServerMsg = { id: number; role: "user" | "leo"; text: string; created_at: string; like_count?: number; like_me?: boolean };
 
 function nowId() {
   return `local-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
@@ -44,20 +46,42 @@ function mergeFromServer(prev: ChatMsg[], incoming: ServerMsg[]): ChatMsg[] {
     if (m.serverID) haveServerIDs.add(m.serverID);
   }
   const fresh = incoming.filter((m) => !haveServerIDs.has(m.id));
-  if (fresh.length === 0) return prev;
+  const updated = prev.map((p) => {
+    if (!p.serverID) return p;
+    const sm = incoming.find((x) => x.id === p.serverID);
+    if (!sm) return p;
+    return { ...p, likeCount: sm.like_count ?? 0, likeMe: Boolean(sm.like_me) };
+  });
+  if (fresh.length === 0) return updated;
   // Сматчим оптимистичные user-сообщения по тексту (порядок прилёта совпадает).
-  const out = prev.slice();
+  const out = updated.slice();
   for (const sm of fresh) {
     if (sm.role === "user") {
       const idx = out.findIndex(
         (m) => !m.serverID && m.role === "user" && m.text.trim() === sm.text.trim()
       );
       if (idx >= 0) {
-        out[idx] = { uiKey: `s-${sm.id}`, serverID: sm.id, role: "user", text: sm.text, createdAt: sm.created_at };
+        out[idx] = {
+          uiKey: `s-${sm.id}`,
+          serverID: sm.id,
+          role: "user",
+          text: sm.text,
+          createdAt: sm.created_at,
+          likeCount: sm.like_count ?? 0,
+          likeMe: Boolean(sm.like_me),
+        };
         continue;
       }
     }
-    out.push({ uiKey: `s-${sm.id}`, serverID: sm.id, role: sm.role, text: sm.text, createdAt: sm.created_at });
+    out.push({
+      uiKey: `s-${sm.id}`,
+      serverID: sm.id,
+      role: sm.role,
+      text: sm.text,
+      createdAt: sm.created_at,
+      likeCount: sm.like_count ?? 0,
+      likeMe: Boolean(sm.like_me),
+    });
   }
   // Сортировка по серверному id (где есть), потом по времени; локальные без id — в конец.
   out.sort((a, b) => {
@@ -85,13 +109,19 @@ export function ChatScreen({ name, initData, inTelegram, showAlert, onInboxDrain
   const [leoTyping, setLeoTyping] = useState(false);
   const [items, setItems] = useState<ChatMsg[]>([]);
   const [loaded, setLoaded] = useState(false);
+  const logRef = useRef<HTMLDivElement | null>(null);
   const endRef = useRef<HTMLDivElement | null>(null);
   /** max(server_id) перед отправкой пользователя — новый ответ Лео с id выше этого. */
   const baselineMaxForPendingLeoRef = useRef(0);
 
   useEffect(() => {
-    endRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [items, sending, leoTyping]);
+    const el = logRef.current;
+    if (!el) return;
+    const nearBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 120;
+    if (nearBottom || !loaded) {
+      el.scrollTop = el.scrollHeight;
+    }
+  }, [items, sending, leoTyping, loaded]);
 
   useEffect(() => {
     if (!leoTyping) return;
@@ -241,6 +271,34 @@ export function ChatScreen({ name, initData, inTelegram, showAlert, onInboxDrain
     }
   }, [text, sending, inTelegram, initData, showAlert]);
 
+  const toggleLike = useCallback(
+    async (messageID?: number) => {
+      if (!messageID || !envApi || !inTelegram || !initData) return;
+      try {
+        const res = await fetch(`${envApi}/api/miniapp/personal-chat/like`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ init_data: initData, message_id: messageID }),
+        });
+        if (!res.ok) return;
+      } catch {
+        return;
+      }
+      setItems((prev) =>
+        prev.map((m) =>
+          m.serverID === messageID
+            ? {
+                ...m,
+                likeMe: !m.likeMe,
+                likeCount: Math.max(0, (m.likeCount ?? 0) + (m.likeMe ? -1 : 1)),
+              }
+            : m,
+        ),
+      );
+    },
+    [inTelegram, initData],
+  );
+
   const showTypingCue = sending || leoTyping;
 
   return (
@@ -270,7 +328,7 @@ export function ChatScreen({ name, initData, inTelegram, showAlert, onInboxDrain
           <p className="chat__sub">{showTypingCue ? "печатает…" : name}</p>
         </div>
       </header>
-      <div className="chat__log" role="log" aria-label="Сообщения с ботом">
+      <div className="chat__log" role="log" aria-label="Сообщения с ботом" ref={logRef}>
         {loaded && items.length === 0 && (
           <div className="chat__row chat__row--sys">
             <img className="chat__bubble-avatar" src={LEO_AVATAR_URL} width={36} height={36} alt="" aria-hidden="true" />
@@ -293,7 +351,18 @@ export function ChatScreen({ name, initData, inTelegram, showAlert, onInboxDrain
               <img className="chat__bubble-avatar" src={LEO_AVATAR_URL} width={36} height={36} alt="" aria-hidden="true" />
               <div className="chat__bubble-wrap chat__bubble-wrap--sys">
                 <div className="chat__bubble chat__bubble--sys">{m.text}</div>
-                <div className="chat__time chat__time--sys">{formatChatTime(m.createdAt)}</div>
+                <div className="chat__meta">
+                  <div className="chat__time chat__time--sys">{formatChatTime(m.createdAt)}</div>
+                  {m.serverID != null && (
+                    <button
+                      type="button"
+                      className={`chat__like${m.likeMe ? " chat__like--mine" : ""}`}
+                      onClick={() => void toggleLike(m.serverID)}
+                    >
+                      ❤️ {m.likeCount ?? 0}
+                    </button>
+                  )}
+                </div>
               </div>
             </div>
           )

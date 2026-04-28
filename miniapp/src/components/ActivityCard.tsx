@@ -20,6 +20,8 @@ export type ActivityCardThreadReply = {
   authorPhotoUrl?: string;
   /** Цитата родителя (reply). */
   replyTo?: { author: string; text: string; isLeo?: boolean };
+  likeCount?: number;
+  likeMe?: boolean;
 };
 
 export type ActivityCardThreadComposer = {
@@ -51,7 +53,7 @@ function ReactionChip({
   disabled,
   onPick,
 }: {
-  r: { emoji: string; count: number; me?: boolean };
+  r: { emoji: string; count: number; me?: boolean; voters?: string[] };
   disabled?: boolean;
   onPick: (emoji: string) => void;
 }) {
@@ -61,6 +63,7 @@ function ReactionChip({
       className={`act-card__react-btn${r.me ? " act-card__react-btn--mine" : ""}`}
       disabled={disabled}
       onClick={() => onPick(r.emoji)}
+      title={Array.isArray(r.voters) && r.voters.length > 0 ? `Лайкнули: ${r.voters.join(", ")}` : undefined}
     >
       {r.emoji}
       {r.count > 0 && <span className="act-card__react-cnt">{r.count}</span>}
@@ -72,7 +75,7 @@ function TrainingReactionsBar({
   reactions,
   onReactionClick,
 }: {
-  reactions: { emoji: string; count: number; me?: boolean }[];
+  reactions: { emoji: string; count: number; me?: boolean; voters?: string[] }[];
   onReactionClick?: (emoji: string) => void;
 }) {
   const rowRef = useRef<HTMLDivElement>(null);
@@ -168,7 +171,7 @@ export type ActivityCardProps = {
   details: string;
   comment?: string;
   aiText?: string;
-  reactions?: { emoji: string; count: number; me?: boolean }[];
+  reactions?: { emoji: string; count: number; me?: boolean; voters?: string[] }[];
   /** Клик по эмодзи (лента training_done). */
   onReactionClick?: (emoji: string) => void;
   /** Тред под отчётом о тренировке. */
@@ -178,6 +181,7 @@ export type ActivityCardProps = {
   onThreadReplyDelete?: (threadReplyId: number) => void;
   /** Выбрать сообщение для ответа (как Reply в Telegram). */
   onThreadReplyIntent?: (payload: { replyToThreadId: number; authorLabel: string; excerpt: string }) => void;
+  onThreadReplyLike?: (threadReplyId: number) => void;
   /** Режим ответа на сообщение в треде (до отправки). */
   threadReplyIntent?: { replyToThreadId: number; authorLabel: string; excerpt: string } | null;
   onCancelThreadReplyIntent?: () => void;
@@ -204,6 +208,7 @@ export function ActivityCard({
   threadComposer,
   onThreadReplyDelete,
   onThreadReplyIntent,
+  onThreadReplyLike,
   threadReplyIntent,
   onCancelThreadReplyIntent,
   threadReplyDeleting = {},
@@ -348,21 +353,30 @@ export function ActivityCard({
                                 )}
                               <p className="act-card__thread-text">{tr.text}</p>
                               {onThreadReplyIntent != null && (
-                                <button
-                                  type="button"
-                                  className="act-card__thread-answer"
-                                  onClick={() => {
-                                    onThreadReplyIntent({
-                                      replyToThreadId: tr.id,
-                                      authorLabel: displayAuthor,
-                                      excerpt:
-                                        tr.text.length > 100 ? `${tr.text.slice(0, 99).trim()}…` : tr.text.trim(),
-                                    });
-                                    threadInputRef.current?.focus();
-                                  }}
-                                >
-                                  Ответить
-                                </button>
+                                <div className="act-card__thread-actions">
+                                  <button
+                                    type="button"
+                                    className={`act-card__thread-like${tr.likeMe ? " act-card__thread-like--mine" : ""}`}
+                                    onClick={() => onThreadReplyLike?.(tr.id)}
+                                  >
+                                    ❤️ {tr.likeCount ?? 0}
+                                  </button>
+                                  <button
+                                    type="button"
+                                    className="act-card__thread-answer"
+                                    onClick={() => {
+                                      onThreadReplyIntent({
+                                        replyToThreadId: tr.id,
+                                        authorLabel: displayAuthor,
+                                        excerpt:
+                                          tr.text.length > 100 ? `${tr.text.slice(0, 99).trim()}…` : tr.text.trim(),
+                                      });
+                                      threadInputRef.current?.focus();
+                                    }}
+                                  >
+                                    Ответить
+                                  </button>
+                                </div>
                               )}
                             </div>
                           </div>

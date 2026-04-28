@@ -77,8 +77,12 @@ func (s *Server) handlePostWorkoutWithPhoto(w http.ResponseWriter, r *http.Reque
 		return
 	}
 	publicBase := strings.TrimRight(strings.TrimSpace(s.publicMediaBase), "/")
-	if reqBase := absolutePublicBaseFromRequest(r); reqBase != "" {
-		publicBase = strings.TrimRight(reqBase, "/")
+	// Не перетираем явно заданный публичный base (обычно HTTPS),
+	// иначе можно случайно записать внутренний/HTTP host и сломать показ фото в мини-аппе.
+	if publicBase == "" {
+		if reqBase := absolutePublicBaseFromRequest(r); reqBase != "" {
+			publicBase = strings.TrimRight(reqBase, "/")
+		}
 	}
 	if publicBase == "" {
 		s.jsonErr(w, http.StatusBadRequest, "media_not_configured")

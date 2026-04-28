@@ -470,7 +470,7 @@ var Migrations = []Migration{
 		DownSQL: `SELECT 1`,
 	},
 	{
-		Version: 25,
+		Version:     25,
 		Description: "Rename legacy table message_log to training_state (idempotent)",
 		UpSQL: `
 			DO $rename_ml$
@@ -731,6 +731,52 @@ var Migrations = []Migration{
 		DownSQL: `
 			DROP INDEX IF EXISTS idx_miniapp_tr_thread_unread_recipient;
 			DROP TABLE IF EXISTS miniapp_training_thread_unread;
+		`,
+	},
+	{
+		Version:     37,
+		Description: "Likes for thread comments and personal Leo chat",
+		UpSQL: `
+			CREATE TABLE IF NOT EXISTS miniapp_training_feed_thread_likes (
+				id BIGSERIAL PRIMARY KEY,
+				pack_chat_id BIGINT NOT NULL,
+				thread_reply_id BIGINT NOT NULL REFERENCES miniapp_training_feed_thread(id) ON DELETE CASCADE,
+				user_id BIGINT NOT NULL,
+				created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
+				UNIQUE (thread_reply_id, user_id)
+			);
+			CREATE INDEX IF NOT EXISTS idx_miniapp_tr_feed_thread_likes_reply
+				ON miniapp_training_feed_thread_likes (thread_reply_id);
+
+			CREATE TABLE IF NOT EXISTS miniapp_personal_chat_likes (
+				id BIGSERIAL PRIMARY KEY,
+				message_id BIGINT NOT NULL REFERENCES miniapp_personal_chat(id) ON DELETE CASCADE,
+				user_id BIGINT NOT NULL,
+				created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
+				UNIQUE (message_id, user_id)
+			);
+			CREATE INDEX IF NOT EXISTS idx_miniapp_personal_chat_likes_msg
+				ON miniapp_personal_chat_likes (message_id);
+		`,
+		DownSQL: `
+			DROP INDEX IF EXISTS idx_miniapp_personal_chat_likes_msg;
+			DROP TABLE IF EXISTS miniapp_personal_chat_likes;
+			DROP INDEX IF EXISTS idx_miniapp_tr_feed_thread_likes_reply;
+			DROP TABLE IF EXISTS miniapp_training_feed_thread_likes;
+		`,
+	},
+	{
+		Version:     38,
+		Description: "training_state.max_streak_days for personal records",
+		UpSQL: `
+			ALTER TABLE training_state
+			ADD COLUMN IF NOT EXISTS max_streak_days INTEGER NOT NULL DEFAULT 0;
+			UPDATE training_state
+			SET max_streak_days = GREATEST(COALESCE(max_streak_days, 0), COALESCE(streak_days, 0));
+		`,
+		DownSQL: `
+			ALTER TABLE training_state
+			DROP COLUMN IF EXISTS max_streak_days;
 		`,
 	},
 }

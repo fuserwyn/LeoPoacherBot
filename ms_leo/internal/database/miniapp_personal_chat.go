@@ -5,6 +5,8 @@ import (
 	"time"
 
 	"leo-bot/internal/domain"
+
+	"github.com/lib/pq"
 )
 
 // InsertMiniappPersonalChatMessage пишет одно сообщение приватного чата (юзер↔Лео) в БД.
@@ -89,4 +91,113 @@ func (d *Database) queryMiniappPersonalChat(query string, args ...interface{}) (
 		items = []*domain.MiniappPersonalChatMessage{}
 	}
 	return items, nil
+}
+
+// ToggleMiniappPersonalChatLike — toggle лайка на сообщение лички с Лео.
+func (d *Database) ToggleMiniappPersonalChatLike(userID, packChatID, actorUserID, messageID int64) error {
+	if userID == 0 || packChatID == 0 || actorUserID == 0 || messageID == 0 {
+		return nil
+	}
+	var exists bool
+	err := d.db.QueryRow(
+		`SELECT EXISTS(
+			SELECT 1
+			FROM miniapp_personal_chat_likes l
+			JOIN miniapp_personal_chat c ON c.id = l.message_id
+			WHERE l.message_id = $1 AND l.user_id = $2
+			  AND c.user_id = $3 AND c.pack_chat_id = $4
+		)`,
+		messageID, actorUserID, userID, packChatID,
+	).Scan(&exists)
+	if err != nil {
+		return fmt.Errorf("personal chat like exists: %w", err)
+	}
+	if exists {
+		_, err := d.db.Exec(
+			`DELETE FROM miniapp_personal_chat_likes WHERE message_id = $1 AND user_id = $2`,
+			messageID, actorUserID,
+		)
+		return err
+	}
+	_, err = d.db.Exec(
+		`INSERT INTO miniapp_personal_chat_likes (message_id, user_id)
+		 SELECT id, $2 FROM miniapp_personal_chat
+		 WHERE id = $1 AND user_id = $3 AND pack_chat_id = $4
+		 ON CONFLICT (message_id, user_id) DO NOTHING`,
+		messageID, actorUserID, userID, packChatID,
+	)
+	return err
+}
+
+// EnrichMiniappPersonalChatLikes — проставляет like_count/like_me на сообщения.
+func (d *Database) EnrichMiniappPersonalChatLikes(userID, packChatID, viewerUserID int64, items []*domain.MiniappPersonalChatMessage) error {
+	if len(items) == 0 || userID == 0 || packChatID == 0 {
+		return nil
+	}
+	ids := make([]int64, 0, len(items))
+	for _, it := range items {
+		if it != nil && it.ID > 0 {
+			ids = append(ids, it.ID)
+		}
+	}
+	if len(ids) == 0 {
+		return nil
+	}
+	rows, err := d.db.Query(
+		`SELECT l.message_id, COUNT(*)::int
+		 FROM miniapp_personal_chat_likes l
+		 JOIN miniapp_personal_chat c ON c.id = l.message_id
+		 WHERE c.user_id = $1 AND c.pack_chat_id = $2 AND l.message_id = ANY($3)
+		 GROUP BY l.message_id`,
+		userID, packChatID, pq.Array(ids),
+	)
+	if err != nil {
+		return fmt.Errorf("personal chat like aggs: %w", err)
+	}
+	defer rows.Close()
+	cntMap := map[int64]int{}
+	for rows.Next() {
+		var id int64
+		var cnt int
+		if err := rows.Scan(&id, &cnt); err != nil {
+			return err
+		}
+		cntMap[id] = cnt
+	}
+	if err := rows.Err(); err != nil {
+		return err
+	}
+	meMap := map[int64]bool{}
+	if viewerUserID != 0 {
+		rows2, err := d.db.Query(
+			`SELECT l.message_id
+			 FROM miniapp_personal_chat_likes l
+			 JOIN miniapp_personal_chat c ON c.id = l.message_id
+			 WHERE c.user_id = $1 AND c.pack_chat_id = $2
+			   AND l.message_id = ANY($3) AND l.user_id = $4`,
+			userID, packChatID, pq.Array(ids), viewerUserID,
+		)
+		if err != nil {
+			return fmt.Errorf("personal chat like me: %w", err)
+		}
+		defer rows2.Close()
+		for rows2.Next() {
+			var id int64
+			if err := rows2.Scan(&id); err != nil {
+				return err
+			}
+			meMap[id] = true
+		}
+		if err := rows2.Err(); err != nil {
+			return err
+		}
+	}
+	for _, it := range items {
+		if it == nil {
+			continue
+		}
+		it.LikeCount = cntMap[it.ID]
+		it.LikeMe = meMap[it.ID]
+	}
+	return nil
 }

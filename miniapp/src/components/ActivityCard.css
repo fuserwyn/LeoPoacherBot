@@ -392,6 +392,26 @@
   opacity: 0.8;
 }
 
+.act-card__thread-actions {
+  margin-top: 8px;
+  display: flex;
+  gap: 12px;
+  align-items: center;
+}
+
+.act-card__thread-like {
+  border: none;
+  background: transparent;
+  color: #6b7280;
+  font-size: 13px;
+  padding: 0;
+  cursor: pointer;
+}
+
+.act-card__thread-like--mine {
+  color: #be123c;
+}
+
 .act-card__reply-intent {
   padding: 10px 12px;
   border-radius: var(--radius-sm);
