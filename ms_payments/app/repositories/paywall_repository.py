@@ -5,9 +5,7 @@
 from __future__ import annotations
 
 import logging
-from datetime import datetime
 from typing import Any
-from zoneinfo import ZoneInfo
 
 import asyncpg
 
@@ -30,7 +28,7 @@ class PaywallRepository:
         )
         return dict(row) if row else None
 
-    async def complete_if_pending(
+    async def complete_if_pending_and_enqueue_restore(
         self,
         req_id: int,
         user_id: int,
@@ -39,82 +37,56 @@ class PaywallRepository:
         amount_minor: int,
         currency: str,
     ) -> bool:
-        """Атомарно закрывает заявку только если ``status = pending`` (как в Go)."""
-        status = await self._pool.fetchval(
-            """
-            UPDATE paywall_access_requests
-            SET status = 'completed',
-                completed_at = NOW(),
-                access_expires_at = NOW() + INTERVAL '30 days',
-                telegram_payment_charge_id = $4,
-                total_amount_minor = $5,
-                currency = $6
-            WHERE id = $1 AND user_id = $2 AND monetized_chat_id = $3 AND status = 'pending'
-            RETURNING status
-            """,
-            req_id,
-            user_id,
-            monetized_chat_id,
-            charge_id,
-            amount_minor,
-            currency,
-        )
-        return status == "completed"
+        """Атомарно закрывает заявку (status=pending → completed) и кладёт outbox-событие
+        ``paywall_access_restore_requested``, чтобы post-payment-доставку (welcome, menu_button,
+        ReactivateReturnedUser) делал ms_leo через outbox_worker — точно так же, как для оплат
+        Telegram Payments / Stars. До этого ms_payments слал welcome сам, но не мог поставить
+        synthe-кнопку LeopardMiniApp, потому что это in-process кеш Go (см. ms_leo: applyMiniappMenuButtonForUser).
 
-    async def reactivate_returned_user(self, user_id: int, chat_id: int, username: str = "") -> None:
-        """Дублирует ms_leo ReactivateReturnedUser — вебхук ЮKassa не проходит outbox paywall_access_restore_requested."""
-        # asyncpg ожидает datetime для timestamptz, не ISO-строку (иначе DataError на $4).
-        now_dt = datetime.now(ZoneInfo("Europe/Moscow"))
-        last_message = now_dt.isoformat()
-        un = (username or "").strip()
-        row = await self._pool.fetchrow(
-            """
-            UPDATE training_state
-            SET is_deleted = FALSE,
-                xp = 42,
-                achievement_count = 0,
-                has_training_done = FALSE,
-                has_sick_leave = FALSE,
-                has_healthy = FALSE,
-                timer_start_time = NULL,
-                returned_at = (NOW() AT TIME ZONE 'Europe/Moscow'),
-                return_count = COALESCE(return_count, 0) + 1,
-                username = CASE WHEN NULLIF($3, '') IS NULL THEN username ELSE $3 END,
-                updated_at = $4
-            WHERE user_id = $1 AND chat_id = $2
-            RETURNING user_id
-            """,
-            user_id,
-            chat_id,
-            un,
-            now_dt,
-        )
-        if row is not None:
-            return
-        try:
-            await self._pool.execute(
+        Доступ — разовая покупка: ``access_expires_at = 'infinity'::timestamptz``; обнуляется только
+        киком за неактивность через ExpirePaywallAccessForUser в ms_leo.
+        """
+        import json as _json
+
+        async with self._pool.acquire() as conn, conn.transaction():
+            updated = await conn.fetchval(
                 """
-                INSERT INTO training_state (
-                    user_id, username, chat_id, xp, streak_days, calorie_streak_days, cups_earned,
-                    last_message, has_training_done, has_sick_leave, has_healthy, is_deleted,
-                    timer_start_time, timezone_offset_from_moscow, achievement_count, return_count,
-                    returned_at, created_at, updated_at
-                ) VALUES (
-                    $1, NULLIF($2, ''), $3, 42, 0, 0, 0,
-                    $4, FALSE, FALSE, FALSE, FALSE,
-                    NULL, 0, 0, 1,
-                    (NOW() AT TIME ZONE 'Europe/Moscow'), $5, $5
-                )
+                UPDATE paywall_access_requests
+                SET status = 'completed',
+                    completed_at = NOW(),
+                    access_expires_at = 'infinity'::timestamptz,
+                    telegram_payment_charge_id = $4,
+                    total_amount_minor = $5,
+                    currency = $6
+                WHERE id = $1 AND user_id = $2 AND monetized_chat_id = $3 AND status = 'pending'
+                RETURNING id
                 """,
+                req_id,
                 user_id,
-                un,
-                chat_id,
-                last_message,
-                now_dt,
+                monetized_chat_id,
+                charge_id,
+                amount_minor,
+                currency,
             )
-        except Exception:
-            logger.exception(
-                "reactivate_returned_user: insert training_state user=%s chat=%s",
-                user_id,
-                chat_id,
+            if updated is None:
+                return False
+
+            payload_json = _json.dumps(
+                {"request_id": int(req_id), "user_id": int(user_id), "chat_id": int(monetized_chat_id)},
+                ensure_ascii=False,
             )
+            await conn.execute(
+                """
+                INSERT INTO outbox_events (event_type, aggregate_key, payload, status, next_attempt_at)
+                VALUES ($1, $2, $3::jsonb, 'pending', NOW())
+                """,
+                "paywall_access_restore_requested",
+                f"paywall_request:{int(req_id)}",
+                payload_json,
+            )
+            return True
+
+# reactivate_returned_user удалён: после переключения Yookassa-вебхука на outbox-event
+# `paywall_access_restore_requested` это делает ms_leo через outbox_worker, вызывая
+# paywallDeliverAccessAfterPayment → b.db.ReactivateReturnedUser. Дублирование в Python
+# приводило к разъезжанию логики (часовые пояса, INSERT-набор колонок) при изменениях в Go.

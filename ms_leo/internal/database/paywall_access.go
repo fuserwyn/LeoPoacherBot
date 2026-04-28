@@ -172,11 +172,14 @@ func (d *Database) CompletePaywallAccessRequestAndEnqueueRestore(id int64, userI
 	}
 	defer tx.Rollback()
 
+	// Доступ — разовая покупка без подписочного срока: пишем 'infinity'::timestamptz, чтобы
+	// UserHasActivePaywallAccess возвращал true пока кик за неактивность не выставит NOW()
+	// через ExpirePaywallAccessForUser. Никаких «30 дней» (см. требование пользователя).
 	const q = `
 		UPDATE paywall_access_requests
 		SET status = 'completed',
 		    completed_at = NOW(),
-		    access_expires_at = NOW() + INTERVAL '30 days',
+		    access_expires_at = 'infinity'::timestamptz,
 		    telegram_payment_charge_id = $4,
 		    total_amount_minor = $5,
 		    currency = $6

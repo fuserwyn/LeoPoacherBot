@@ -16,18 +16,11 @@ from app.services.telegram_gateway import TelegramGateway
 
 logger = logging.getLogger(__name__)
 
-# Текст после успешной оплаты Yookassa. Архитектура mini-app-only:
-# TG-группы как сущности больше нет (см. ms_leo: paywallPostPaymentUserText), вся
-# механика стаи живёт в мини-аппе. Поэтому никакой «Войти в группу», invite-ссылок,
-# /rejoin-инструкций — только указатель открыть мини-апп.
-_PAYWALL_POST_PAYMENT_TEXT = (
-    "✅ Оплата через ЮKassa принята, вход в Fat Leopard MiniApp открыт на 30 дней.\n\n"
-    "📱 Открой мини-приложение бота — кнопка LeopardMiniApp внизу в этом чате (или через меню ⋮). "
-    "Там лента стаи, общий чат, тренировки и больничные. При первом открытии бот автоматически "
-    "добавит тебя в стаю и запустит таймер активности.\n\n"
-    "ℹ️ Тренировки можно отмечать кнопкой «+» в мини-аппе, либо просто отправить в личку боту "
-    "сообщение с тегом #training_done."
-)
+# Welcome-текст после успешной оплаты теперь шлёт ms_leo (см. paywallPostPaymentUserText)
+# через outbox_worker → paywallDeliverAccessAfterPayment. ms_payments только пишет в БД
+# (UPDATE заявки + INSERT outbox_events) и больше не дублирует welcome — это позволяет
+# ms_leo одновременно с welcome корректно выставить per-user setChatMenuButton (синяя
+# кнопка LeopardMiniApp), потому что кеш менюшки живёт в памяти Go-процесса.
 
 
 @dataclass(frozen=True)
@@ -160,7 +153,7 @@ class PaymentWebhookService:
         if rec["status"] != "pending":
             return WebhookOutcome(409, {"status": f"unexpected status {rec['status']}"})
 
-        updated = await self._paywall.complete_if_pending(
+        updated = await self._paywall.complete_if_pending_and_enqueue_restore(
             req_id,
             user_tid,
             chat_id,
@@ -192,7 +185,8 @@ class PaymentWebhookService:
             return WebhookOutcome(200, {"status": "already processed"})
 
         logger.info(
-            "yookassa webhook: в БД бота заявка закрыта — user=%s req=%s chat=%s, доступ ~30 дней (paywall_access_requests)",
+            "yookassa webhook: заявка закрыта и outbox-событие paywall_access_restore_requested "
+            "поставлено — user=%s req=%s chat=%s. Welcome/menu_button/ReactivateReturnedUser сделает ms_leo.",
             user_tid,
             req_id,
             chat_id,
@@ -201,20 +195,11 @@ class PaymentWebhookService:
         if self._ledger:
             await self._ledger.mark_main_db_synced(payment_id)
 
-        try:
-            await self._paywall.reactivate_returned_user(user_tid, chat_id)
-        except Exception:
-            logger.exception(
-                "yookassa webhook: reactivate_returned_user не удалась user=%s chat=%s",
-                user_tid,
-                chat_id,
-            )
-
-        # Группы больше нет: никаких unban/approve_join/create_invite, никакой кнопки «Войти в группу».
-        # Доступ к мини-аппу открывается строкой в paywall_access_requests (выше),
-        # а кнопка LeopardMiniApp у юзера появляется через setChatMenuButton со стороны ms_leo
-        # после первого /start или ближайшего хука обновления menu button.
-        await self._telegram.send_message(user_tid, _PAYWALL_POST_PAYMENT_TEXT)
+        # Группы больше нет, и ms_payments больше не шлёт welcome / не делает reactivate сам.
+        # Всё post-payment делает ms_leo через outbox_worker (paywallDeliverAccessAfterPayment):
+        # это гарантирует, что синяя кнопка LeopardMiniApp выставится тем же процессом, который
+        # держит in-memory кеш menuButtonState (см. ms_leo/internal/bot/miniapp_menu_button.go).
+        # TelegramGateway сюда больше не вовлечён — он остался для других ms_payments-сценариев.
 
         if not self._ledger:
             logger.info(

@@ -653,6 +653,32 @@ var Migrations = []Migration{
 			DROP TABLE IF EXISTS miniapp_personal_chat;
 		`,
 	},
+	{
+		Version: 32,
+		// Доступ к мини-аппу — разовая покупка без подписочного срока. Раньше completion заявки
+		// ставила access_expires_at = NOW() + INTERVAL '30 days'; пользователи теряли доступ через
+		// 30 дней даже при ежедневных тренировках. Новый код пишет 'infinity'::timestamptz, и
+		// миграция продлевает ВСЕХ уже-completed-юзеров с ещё активной 30-дневкой до infinity,
+		// чтобы они не потеряли доступ при выкатывании. Кикает теперь только ExpirePaywallAccessForUser
+		// (8 дней неактивности) — он по-прежнему ставит access_expires_at = NOW().
+		Description: "Paywall access becomes lifetime (infinity); extend currently active completed rows",
+		UpSQL: `
+			UPDATE paywall_access_requests
+			SET access_expires_at = 'infinity'::timestamptz
+			WHERE status = 'completed'
+			  AND access_expires_at IS NOT NULL
+			  AND access_expires_at > NOW();
+		`,
+		DownSQL: `
+			-- Откат: вернуть expires к NOW()+30d для тех, кому мы только что поставили infinity.
+			-- Безопасно как noop для уже истёкших или pending-записей; это лучшее, что мы можем
+			-- без хранения исходного значения.
+			UPDATE paywall_access_requests
+			SET access_expires_at = NOW() + INTERVAL '30 days'
+			WHERE status = 'completed'
+			  AND access_expires_at = 'infinity'::timestamptz;
+		`,
+	},
 }
 
 // MigrationRecord представляет запись о выполненной миграции
