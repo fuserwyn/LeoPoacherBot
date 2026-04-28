@@ -87,7 +87,8 @@ func (b *Bot) PackTrainingFeedReact(viewerUserID int64, initD initdata.InitData,
 	return b.db.SetTrainingFeedReaction(chatID, userMessageID, viewerUserID, uname, em)
 }
 
-// PackTrainingFeedThreadPost — комментарий в треде под training_done. replyToThreadID — id строки miniapp_training_feed_thread, на которую отвечаем (как Reply в Telegram).
+// PackTrainingFeedThreadPost — комментарий в треде под training_done/sick_leave.
+// replyToThreadID — id строки miniapp_training_feed_thread, на которую отвечаем (как Reply в Telegram).
 func (b *Bot) PackTrainingFeedThreadPost(viewerUserID int64, initD initdata.InitData, userMessageID int64, text string, replyToThreadID int64) error {
 	if err := b.AssertMiniAppPackChatAligns(initD); err != nil {
 		return err
@@ -107,7 +108,7 @@ func (b *Bot) PackTrainingFeedThreadPost(viewerUserID int64, initD initdata.Init
 	if err != nil {
 		return err
 	}
-	if !has || typ != "training_done" {
+	if !has || (typ != "training_done" && typ != "sick_leave") {
 		return ErrTrainingFeedParentNotFound
 	}
 	var leoParentSnapshot string
@@ -130,8 +131,8 @@ func (b *Bot) PackTrainingFeedThreadPost(viewerUserID int64, initD initdata.Init
 	if err != nil {
 		return err
 	}
-	b.afterPackTrainingThreadInserted(chatID, userMessageID, viewerUserID, uname, text, threadID, replyToThreadID)
-	if replyingToLeo && threadID != 0 {
+	b.afterPackTrainingThreadInserted(chatID, userMessageID, viewerUserID, uname, text, threadID, replyToThreadID, typ)
+	if replyingToLeo && threadID != 0 && typ == "training_done" {
 		snap := leoParentSnapshot
 		txt := text
 		uid := viewerUserID
@@ -160,7 +161,7 @@ func truncateForDM(s string, maxRunes int) string {
 }
 
 // Уведомление в личку + бейдж «Стая»: комментарий к отчёту или ответ на конкретное сообщение треда.
-func (b *Bot) afterPackTrainingThreadInserted(packChatID, userMessageID, commenterUserID int64, commenterName, commentText string, threadReplyID, replyToParentThreadID int64) {
+func (b *Bot) afterPackTrainingThreadInserted(packChatID, userMessageID, commenterUserID int64, commenterName, commentText string, threadReplyID, replyToParentThreadID int64, parentType string) {
 	if b == nil || b.db == nil {
 		return
 	}
@@ -216,7 +217,11 @@ func (b *Bot) afterPackTrainingThreadInserted(packChatID, userMessageID, comment
 	if replyToParentThreadID != 0 {
 		body = "↩️ " + cn + " ответил(а) на твой комментарий в стае.\n\n«" + preview + "»\n\nОткрой мини-апп → вкладка «Стая»."
 	} else {
-		body = "💬 " + cn + " прокомментировал(а) твою тренировку в стае.\n\n«" + preview + "»\n\nОткрой мини-апп → вкладка «Стая»."
+		what := "тренировку"
+		if parentType == "sick_leave" {
+			what = "больничный"
+		}
+		body = "💬 " + cn + " прокомментировал(а) твой " + what + " в стае.\n\n«" + preview + "»\n\nОткрой мини-апп → вкладка «Стая»."
 	}
 	b.sendTrainingThreadCommentDM(notifyUserID, body)
 }
@@ -392,41 +397,52 @@ func (b *Bot) PackFeedThreadRepliesForViewer(viewerUserID, userMessageID int64) 
 	return b.threadRowsToPackReplies(m[userMessageID], viewerUserID, chatID), nil
 }
 
-// enrichPackFeedTrainingSocial — реакции и треды для карточек training_done.
+// enrichPackFeedTrainingSocial — реакции и треды для карточек training_done/sick_leave.
 func (b *Bot) enrichPackFeedTrainingSocial(items []PackFeedItem, viewerUserID int64, chatID int64) []PackFeedItem {
-	trainingIDs := make([]int64, 0)
+	socialIDs := make([]int64, 0)
+	reactionIDs := make([]int64, 0)
 	for _, it := range items {
+		if it.Type == "training_done" || it.Type == "sick_leave" {
+			socialIDs = append(socialIDs, it.ID)
+		}
 		if it.Type == "training_done" {
-			trainingIDs = append(trainingIDs, it.ID)
+			reactionIDs = append(reactionIDs, it.ID)
 		}
 	}
-	if len(trainingIDs) == 0 {
+	if len(socialIDs) == 0 {
 		return items
 	}
-	aggsMap, meMap, err := b.db.ListTrainingFeedReactionAggs(chatID, trainingIDs, viewerUserID)
-	if err != nil {
-		b.logger.Warnf("pack feed reaction aggs: %v", err)
-		return items
+	aggsMap := map[int64][]database.TrainingFeedReactionAgg{}
+	meMap := map[int64]string{}
+	if len(reactionIDs) > 0 {
+		var err error
+		aggsMap, meMap, err = b.db.ListTrainingFeedReactionAggs(chatID, reactionIDs, viewerUserID)
+		if err != nil {
+			b.logger.Warnf("pack feed reaction aggs: %v", err)
+			return items
+		}
 	}
-	threadMap, err := b.db.ListTrainingFeedThreadByMessages(trainingIDs)
+	threadMap, err := b.db.ListTrainingFeedThreadByMessages(socialIDs)
 	if err != nil {
 		b.logger.Warnf("pack feed thread list: %v", err)
 		return items
 	}
 	for i := range items {
-		if items[i].Type != "training_done" {
+		if items[i].Type != "training_done" && items[i].Type != "sick_leave" {
 			continue
 		}
 		id := items[i].ID
-		meEmoji := meMap[id]
-		if aggs, ok := aggsMap[id]; ok {
-			for _, a := range database.SortReactionAggsForDisplay(aggs, trainingFeedAllowedEmojis) {
-				items[i].Reactions = append(items[i].Reactions, PackFeedReaction{
-					Emoji:  a.Emoji,
-					Count:  a.Count,
-					Me:     meEmoji == a.Emoji,
-					Voters: a.Voters,
-				})
+		if items[i].Type == "training_done" {
+			meEmoji := meMap[id]
+			if aggs, ok := aggsMap[id]; ok {
+				for _, a := range database.SortReactionAggsForDisplay(aggs, trainingFeedAllowedEmojis) {
+					items[i].Reactions = append(items[i].Reactions, PackFeedReaction{
+						Emoji:  a.Emoji,
+						Count:  a.Count,
+						Me:     meEmoji == a.Emoji,
+						Voters: a.Voters,
+					})
+				}
 			}
 		}
 		if thr, ok := threadMap[id]; ok {

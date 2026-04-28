@@ -464,6 +464,14 @@ func (b *Bot) handleMessage(msg *tgbotapi.Message, personalReplyCh chan<- string
 		}
 
 		var trainingPhotoURL string
+		alreadyOnSickLeave := false
+		if hasSickLeave {
+			// Стейт больничного храним на pack-row; если больничный уже активен —
+			// повторный #sick_leave не пишем в ленту второй раз.
+			if kickLog, kerr := b.db.GetMessageLog(msg.From.ID, b.kickChatIDForMessage(msg)); kerr == nil && kickLog != nil && kickLog.HasSickLeave {
+				alreadyOnSickLeave = true
+			}
+		}
 		if hasTrainingDone {
 			if trainingPhotoURLOverride != "" {
 				trainingPhotoURL = trainingPhotoURLOverride
@@ -472,7 +480,7 @@ func (b *Bot) handleMessage(msg *tgbotapi.Message, personalReplyCh chan<- string
 			}
 		}
 		var trainingDoneFeedMsgID int64
-		if text != "" {
+		if text != "" && !(hasSickLeave && alreadyOnSickLeave) {
 			messageType := "general"
 			if hasTrainingDone {
 				messageType = "training_done"
@@ -485,11 +493,11 @@ func (b *Bot) handleMessage(msg *tgbotapi.Message, personalReplyCh chan<- string
 			}
 
 			userMsg := &domain.UserMessage{
-				UserID:            msg.From.ID,
-				ChatID:            msg.Chat.ID,
-				Username:          username,
-				MessageText:       text,
-				MessageType:       messageType,
+				UserID:           msg.From.ID,
+				ChatID:           msg.Chat.ID,
+				Username:         username,
+				MessageText:      text,
+				MessageType:      messageType,
 				TrainingPhotoURL: trainingPhotoURL,
 			}
 			if hasTrainingDone {
@@ -502,11 +510,11 @@ func (b *Bot) handleMessage(msg *tgbotapi.Message, personalReplyCh chan<- string
 					// Отчёт из лички / мини-аппа пишется с chat_id = private (как у Telegram); дублируем строку для ленты.
 					if b.config.MonetizedChatID != 0 && msg.Chat != nil && msg.Chat.Type == "private" {
 						mirror := &domain.UserMessage{
-							UserID:            userMsg.UserID,
-							ChatID:            b.config.MonetizedChatID,
-							Username:          userMsg.Username,
-							MessageText:       userMsg.MessageText,
-							MessageType:       userMsg.MessageType,
+							UserID:           userMsg.UserID,
+							ChatID:           b.config.MonetizedChatID,
+							Username:         userMsg.Username,
+							MessageText:      userMsg.MessageText,
+							MessageType:      userMsg.MessageType,
 							TrainingPhotoURL: trainingPhotoURL,
 						}
 						feedID, errM := b.db.SaveUserMessageReturningID(mirror)
@@ -726,7 +734,6 @@ func (b *Bot) handleMessage(msg *tgbotapi.Message, personalReplyCh chan<- string
 func (b *Bot) handleTrainingDone(msg *tgbotapi.Message, personalReplyCh chan<- string, trainingUserMessageID int64) {
 	b.handleLeopardMoneyTrainingDone(msg, personalReplyCh, trainingUserMessageID)
 }
-
 
 func (b *Bot) evaluateSickLeaveJustification(text string, messageLog *domain.MessageLog) bool {
 	clean := strings.TrimSpace(strings.ToLower(text))

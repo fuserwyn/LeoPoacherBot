@@ -300,7 +300,7 @@ export function FeedScreen({ name, streak, userId, initData, inTelegram, showAle
             {!useMockFeed &&
               feedItems.map((it) => {
                 const base = dtoToCard(it);
-                if (it.type !== "training_done") {
+                if (it.type !== "training_done" && it.type !== "sick_leave") {
                   return <ActivityCard key={it.id} {...base} />;
                 }
                 const threadReplies = (it.thread ?? []).map((tr) => {
@@ -333,8 +333,8 @@ export function FeedScreen({ name, streak, userId, initData, inTelegram, showAle
                   <ActivityCard
                     key={it.id}
                     {...base}
-                    reactions={mergeTrainingFeedReactions(it.reactions)}
-                    onReactionClick={(emoji) => void postTrainingReact(it.id, emoji)}
+                    reactions={it.type === "training_done" ? mergeTrainingFeedReactions(it.reactions) : []}
+                    onReactionClick={it.type === "training_done" ? (emoji) => void postTrainingReact(it.id, emoji) : undefined}
                     threadReplies={threadReplies}
                     onThreadReplyDelete={(replyId) => void deleteTrainingThreadReply(it.id, replyId)}
                     onThreadReplyLike={(replyId) => void toggleTrainingThreadLike(it.id, replyId)}

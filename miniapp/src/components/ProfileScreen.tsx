@@ -174,6 +174,7 @@ export function ProfileScreen({
       void window.Telegram?.WebApp?.HapticFeedback?.notificationOccurred?.("success");
       setSickFormOpen(false);
       setSickReason("");
+      setOnSick(true);
       showAlert("Заявка отправлена. Ответ Лео — во вкладке Чат.");
       setTimeout(() => void loadHealth(), 1200);
     }
@@ -185,6 +186,7 @@ export function ProfileScreen({
     setHealthBusy(false);
     if (ok) {
       void window.Telegram?.WebApp?.HapticFeedback?.notificationOccurred?.("success");
+      setOnSick(false);
       showAlert("Отправлено. Лео подтвердит во вкладке Чат.");
       setTimeout(() => void loadHealth(), 1200);
     }
@@ -247,22 +249,6 @@ export function ProfileScreen({
           )}
           {onSick ? <span className="profile__avatar-med">🌡️</span> : null}
         </div>
-        <button
-          type="button"
-          className="profile__sick-icon-btn"
-          aria-label={onSick ? "Я выздоровел" : "Взять больничный"}
-          onClick={() => {
-            if (onSick) {
-              void submitHealthy();
-              return;
-            }
-            setSickFormOpen(true);
-          }}
-          disabled={healthBusy}
-        >
-          ✚
-        </button>
-        {onSick ? <span className="profile__ambulance" aria-hidden>🚑</span> : null}
         <div>
           <h1 className="profile__name">{(profile.displayName || name).trim() || "Стая"}</h1>
           <p className="profile__level muted">Уровень 1 · Новичок</p>
