@@ -47,7 +47,6 @@ OPENROUTER_MODEL=deepseek/deepseek-r1-0528
 # PROMPT_DAILY_WISDOM_TRAINING=
 # PROMPT_DAILY_WISDOM_LANG_RULE=
 # PROMPT_DAILY_WISDOM_USER_TEMPLATE=   # два плейсхолдера %s: дата, тема дня
-# PROMPT_WRITING_CHAT_SUFFIX=
 # PROMPT_TRAINING_CHAT_SUFFIX=
 # PROMPT_WARNING_TIMER_QUESTION=      # ИИ-приписка к предупреждению (6 дней без отчёта)
 # PROMPT_CRITICAL_TIMER_QUESTION=     # ИИ-приписка к критическому предупреждению (3 часа до удаления)

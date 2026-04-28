@@ -592,8 +592,10 @@ func (b *Bot) handleMessage(msg *tgbotapi.Message, personalReplyCh chan<- string
 
 	// Если нет команд — вопросы к ИИ: в личке с ботом — любой текст; в группах — @ или ответ на бота.
 	shouldHandleAI := false
-	if msg.Chat != nil && msg.Chat.Type == "private" {
-		shouldHandleAI = text != ""
+	// Личка: Type == "private" или (иногда) пустой Type — в личке chat_id совпадает с id отправителя.
+	if msg.Chat != nil && text != "" && msg.From != nil &&
+		(msg.Chat.IsPrivate() || msg.Chat.ID == msg.From.ID) {
+		shouldHandleAI = true
 	} else {
 		// Проверяем упоминание через @ в тексте
 		if msg.Entities != nil && text != "" {
@@ -664,7 +666,21 @@ func (b *Bot) handleMessage(msg *tgbotapi.Message, personalReplyCh chan<- string
 			b.logger.Errorf("Failed to save user question: %v", err)
 		}
 
-		b.handleAIQuestion(msg, text, personalReplyCh, personalReplyCh != nil, personalReplyCh != nil)
+		// Нативная личка Telegram: дублируем в miniapp_personal_chat, чтобы вкладка «Лео» в мини-аппе
+		// совпадала с перепиской в TG (пишем в БД и при personalReplyCh!=nil — уже сделано в processMiniAppPrivateCore).
+		if personalReplyCh == nil && msg.Chat != nil && msg.From != nil &&
+			(msg.Chat.IsPrivate() || msg.Chat.ID == msg.From.ID) {
+			b.savePersonalChatMessage(msg.From.ID, "user", text)
+		}
+
+		compactCtx := personalReplyCh != nil
+		if !compactCtx && msg.Chat != nil {
+			if msg.Chat.IsPrivate() || (msg.From != nil && msg.Chat.ID == msg.From.ID) {
+				compactCtx = true // личка: меньше контекста — быстрее ответ без потери смысла
+			}
+		}
+
+		b.handleAIQuestion(msg, text, personalReplyCh, personalReplyCh != nil, compactCtx)
 		return
 	}
 
@@ -2628,6 +2644,8 @@ func (b *Bot) handleAIQuestion(msg *tgbotapi.Message, questionText string, perso
 		_, err = b.api.Send(reply)
 		if err != nil {
 			b.logger.Errorf("Failed to send AI answer: %v", err)
+		} else if msg.From != nil && strings.TrimSpace(answer) != "" {
+			b.savePersonalChatMessage(msg.From.ID, "leo", answer)
 		}
 	}
 	if typingDone != nil {

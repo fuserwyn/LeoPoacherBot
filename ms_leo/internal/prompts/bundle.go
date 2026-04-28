@@ -12,13 +12,11 @@ type Bundle struct {
 	MonthlySummary      string
 	AnswerUserQuestion  string
 	DailyWisdomTraining string
-	// DailyWisdomWriting — альтернативное тело системного промпта «мудрости дня» (писательский тон); см. GenerateDailyWisdom.
+	// DailyWisdomWriting — альтернативное тело «мудрости дня» (если задано в env); см. GenerateDailyWisdom.
 	DailyWisdomWriting      string
 	DailyWisdomLangRule     string
 	DailyWisdomUserTemplate string
 	TrainingChatSuffix      string
-	// WritingChatSuffix — то же назначение, что TrainingChatSuffix (алиас для совместимости; см. PROMPT_WRITING_CHAT_SUFFIX).
-	WritingChatSuffix     string
 	CriticalTimerQuestion string
 	WarningTimerQuestion  string // предупреждение за 6 дней без отчёта
 	// PackFeedParticipantRemoved — карточка в ленте мини‑аппа, когда человек уже не видит её: текст для стаи.
@@ -65,7 +63,6 @@ func DefaultBundle() Bundle {
 		DailyWisdomLangRule:        embeddedDailyWisdomLangRule,
 		DailyWisdomUserTemplate:    embeddedDailyWisdomUserTemplate,
 		TrainingChatSuffix:         embeddedTrainingChatSuffix,
-		WritingChatSuffix:          embeddedTrainingChatSuffix,
 		CriticalTimerQuestion:      embeddedCriticalTimerQuestion,
 		WarningTimerQuestion:       embeddedWarningTimerQuestion,
 		PackFeedParticipantRemoved: embeddedPackFeedParticipantRemoved,
@@ -99,11 +96,6 @@ func BundleFromEnv() Bundle {
 	if v := envPrompt("PROMPT_TRAINING_CHAT_SUFFIX"); v != "" {
 		b.TrainingChatSuffix = v
 	}
-	if v := envPrompt("PROMPT_WRITING_CHAT_SUFFIX"); v != "" {
-		b.WritingChatSuffix = v
-	} else {
-		b.WritingChatSuffix = b.TrainingChatSuffix
-	}
 	if v := envPrompt("PROMPT_CRITICAL_TIMER_QUESTION"); v != "" {
 		b.CriticalTimerQuestion = v
 	}
@@ -116,22 +108,13 @@ func BundleFromEnv() Bundle {
 	return b
 }
 
-// CombinedChatInstructionSuffix — суффиксы инструкций для ответа в чате с Лео (тренировочный + писательский, если заданы оба и различаются).
+// CombinedChatInstructionSuffix — добавка из PROMPT_TRAINING_CHAT_SUFFIX / training_chat_suffix.txt для ответа в чате.
 func (b Bundle) CombinedChatInstructionSuffix() string {
 	s := strings.TrimSpace(b.TrainingChatSuffix)
-	w := strings.TrimSpace(b.WritingChatSuffix)
-	switch {
-	case s == "" && w == "":
+	if s == "" {
 		return ""
-	case w == "":
-		return "\n\n" + s
-	case s == "":
-		return "\n\n" + w
-	case s == w:
-		return "\n\n" + s
-	default:
-		return "\n\n" + s + "\n\n" + w
 	}
+	return "\n\n" + s
 }
 
 func envPrompt(key string) string {
