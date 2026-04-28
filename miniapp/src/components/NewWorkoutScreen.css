@@ -132,15 +132,52 @@
 .nwo__intensity {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 5px;
   align-items: stretch;
 }
 
-.nwo__intensity-chip {
+.nwo__intensity .nwo__intensity-chip {
   display: flex;
-  width: 100%;
-  text-align: left;
   justify-content: flex-start;
+  text-align: left;
+  padding: 5px 10px;
+  font-size: 12px;
+  line-height: 1.35;
+  width: 100%;
+  border-radius: 10px;
+  white-space: normal;
+}
+
+.nwo__other-field {
+  margin-top: 12px;
+}
+
+.nwo__other-label {
+  display: block;
+  font-size: 12px;
+  margin-bottom: 6px;
+}
+
+.nwo__other-input {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 10px 12px;
+  border-radius: var(--radius-sm);
+  border: 1.5px solid var(--border-subtle, rgba(255, 255, 255, 0.1));
+  background: rgba(255, 255, 255, 0.05);
+  color: var(--text);
+  font-size: 15px;
+  font-family: inherit;
+}
+
+.nwo__other-input:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 1px var(--accent);
+}
+
+.nwo__other-input::placeholder {
+  color: var(--text-muted, rgba(255, 255, 255, 0.4));
 }
 
 .nwo__note-hint {

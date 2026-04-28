@@ -2571,7 +2571,7 @@ func (b *Bot) handleAIQuestion(msg *tgbotapi.Message, questionText string, perso
 		)
 	}
 
-	finalQuestion += "\n\n" + b.config.Prompts.TrainingChatSuffix
+	finalQuestion += b.config.Prompts.CombinedChatInstructionSuffix()
 
 	answer, err := b.aiClient.AnswerUserQuestion(finalQuestion, contextText.String())
 	if err != nil {

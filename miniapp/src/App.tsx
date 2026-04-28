@@ -102,8 +102,9 @@ export function App() {
 
       {workoutOpen && (
         <NewWorkoutScreen
+          showAlert={showAlert}
           onClose={() => setWorkoutOpen(false)}
-          onSave={async ({ type, min, intensity, note, photo }) => {
+          onSave={async ({ type, min, intensity, note, photo, otherLabel }) => {
             if (!inTelegram || !initData) {
               showAlert("Открой мини-апп из Telegram (нужен initData).");
               return false;
@@ -113,10 +114,21 @@ export function App() {
               walk: "ходьба",
               bike: "велосипед",
               swim: "плавание",
+              yoga: "йога",
+              rowing: "гребля",
+              workout: "воркаут",
+              crossfit: "кроссфит",
+              stretch: "растяжка",
+              dance: "танцы",
+              hiit: "hiit",
+              cardio: "кардио",
               strength: "силовая",
               other: "другое",
             };
-            const kind = labels[type] ?? type;
+            let kind = labels[type] ?? type;
+            if (type === "other" && otherLabel?.trim()) {
+              kind = otherLabel.trim();
+            }
             const base = `#training_done — ${kind}, ${min} мин, инт. ${intensity}/5`;
             const line = note ? `${base}\n\n${note}` : base;
             tg?.HapticFeedback?.impactOccurred?.("medium");

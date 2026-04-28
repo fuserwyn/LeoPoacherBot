@@ -6,6 +6,14 @@ const TYPES: { id: string; label: string; emoji: string }[] = [
   { id: "walk", label: "Ходьба", emoji: "🚶" },
   { id: "bike", label: "Велосипед", emoji: "🚴" },
   { id: "swim", label: "Плавание", emoji: "🏊" },
+  { id: "yoga", label: "Йога", emoji: "🧘" },
+  { id: "rowing", label: "Гребля", emoji: "🚣" },
+  { id: "workout", label: "Воркаут", emoji: "🔥" },
+  { id: "crossfit", label: "Кроссфит", emoji: "🎯" },
+  { id: "stretch", label: "Растяжка", emoji: "🧎" },
+  { id: "dance", label: "Танцы", emoji: "💃" },
+  { id: "hiit", label: "HIIT", emoji: "⚡" },
+  { id: "cardio", label: "Кардио", emoji: "💓" },
   { id: "strength", label: "Силовая", emoji: "🏋️" },
   { id: "other", label: "Другое", emoji: "✨" },
 ];
@@ -22,11 +30,14 @@ const PRESET_MIN = [5, 15, 30, 45, 60] as const;
 
 type Props = {
   onClose: () => void;
+  showAlert?: (message: string) => void;
   /** Сохранение отчёта: верни false, чтобы не закрывать шторку (например, при ошибке сети). */
   onSave: (payload: {
     type: string;
     min: number;
     intensity: 1 | 2 | 3 | 4 | 5;
+    /** Свой вид активности, если выбрано «Другое». */
+    otherLabel?: string;
     /** Произвольный текст: упражнения, ощущения — попадает в ленту и в контекст Лео. */
     note: string;
     /** Снимок с тренировки — уходит только вместе с отчётом через multipart API. */
@@ -35,12 +46,14 @@ type Props = {
 };
 
 const NOTE_MAX = 1500;
+const OTHER_LABEL_MAX = 80;
 
-export function NewWorkoutScreen({ onClose, onSave }: Props) {
+export function NewWorkoutScreen({ onClose, onSave, showAlert }: Props) {
   const [type, setType] = useState("strength");
   const [min, setMin] = useState(15);
   const [intensity, setIntensity] = useState<1 | 2 | 3 | 4 | 5>(3);
   const [note, setNote] = useState("");
+  const [otherLabel, setOtherLabel] = useState("");
   const [busy, setBusy] = useState(false);
   const [photo, setPhoto] = useState<File | null>(null);
 
@@ -56,7 +69,23 @@ export function NewWorkoutScreen({ onClose, onSave }: Props) {
       </header>
 
       <div className="nwo__body">
-        <h2 className="section-title">Тип</h2>
+        <h2 className="section-title">Что сделал</h2>
+        <textarea
+          className="nwo__note"
+          value={note}
+          onChange={(e) => setNote(e.target.value.slice(0, NOTE_MAX))}
+          rows={4}
+          maxLength={NOTE_MAX}
+          placeholder="Например: жим лёжа, тяга верхнего, пресс. Или ощущения — устал плечами…"
+          enterKeyHint="done"
+        />
+        <p className="nwo__note-cnt muted" aria-live="polite">
+          {note.length}/{NOTE_MAX}
+        </p>
+
+        <h2 className="section-title" style={{ marginTop: 22 }}>
+          Тип
+        </h2>
         <div className="chip-group">
           {TYPES.map((t) => (
             <button
@@ -70,6 +99,24 @@ export function NewWorkoutScreen({ onClose, onSave }: Props) {
             </button>
           ))}
         </div>
+        {type === "other" && (
+          <div className="nwo__other-field">
+            <label className="nwo__other-label muted" htmlFor="nwo-other-type">
+              Свой тип активности
+            </label>
+            <input
+              id="nwo-other-type"
+              className="nwo__other-input"
+              type="text"
+              value={otherLabel}
+              onChange={(e) => setOtherLabel(e.target.value.slice(0, OTHER_LABEL_MAX))}
+              maxLength={OTHER_LABEL_MAX}
+              placeholder="Например: пилатес на кольцах…"
+              autoComplete="off"
+              enterKeyHint="done"
+            />
+          </div>
+        )}
 
         <h2 className="section-title" style={{ marginTop: 22 }}>
           Длительность
@@ -121,23 +168,6 @@ export function NewWorkoutScreen({ onClose, onSave }: Props) {
         </div>
 
         <h2 className="section-title" style={{ marginTop: 22 }}>
-          Что сделал
-        </h2>
-        <p className="nwo__note-hint muted">По желанию. Будет в ленте стаи — Лео сможет отшутиться по сути тренировки.</p>
-        <textarea
-          className="nwo__note"
-          value={note}
-          onChange={(e) => setNote(e.target.value.slice(0, NOTE_MAX))}
-          rows={4}
-          maxLength={NOTE_MAX}
-          placeholder="Например: жим лёжа, тяга верхнего, пресс. Или ощущения — устал плечами…"
-          enterKeyHint="done"
-        />
-        <p className="nwo__note-cnt muted" aria-live="polite">
-          {note.length}/{NOTE_MAX}
-        </p>
-
-        <h2 className="section-title" style={{ marginTop: 22 }}>
           Фото с тренировки
         </h2>
         <p className="nwo__note-hint muted">Необязательно. Так стая увидит снимок в ленте.</p>
@@ -161,9 +191,20 @@ export function NewWorkoutScreen({ onClose, onSave }: Props) {
           disabled={busy}
           onClick={async () => {
             if (busy) return;
+            if (type === "other" && !otherLabel.trim()) {
+              (showAlert ?? window.alert)("Укажи свой тип активности или выбери категорию из списка.");
+              return;
+            }
             setBusy(true);
             try {
-              const r = await onSave({ type, min, intensity, note: note.trim(), photo });
+              const r = await onSave({
+                type,
+                min,
+                intensity,
+                otherLabel: type === "other" ? otherLabel.trim() : undefined,
+                note: note.trim(),
+                photo,
+              });
               if (r !== false) onClose();
             } finally {
               setBusy(false);

@@ -8,17 +8,19 @@ import (
 
 // Bundle — промпты персонажа Fat Leopard для OpenRouter и бота.
 type Bundle struct {
-	DailySummary            string
-	MonthlySummary          string
-	AnswerUserQuestion      string
+	DailySummary        string
+	MonthlySummary      string
+	AnswerUserQuestion  string
 	DailyWisdomTraining string
+	// DailyWisdomWriting — альтернативное тело системного промпта «мудрости дня» (писательский тон); см. GenerateDailyWisdom.
+	DailyWisdomWriting      string
 	DailyWisdomLangRule     string
 	DailyWisdomUserTemplate string
 	TrainingChatSuffix      string
 	// WritingChatSuffix — то же назначение, что TrainingChatSuffix (алиас для совместимости; см. PROMPT_WRITING_CHAT_SUFFIX).
 	WritingChatSuffix     string
 	CriticalTimerQuestion string
-	WarningTimerQuestion    string // предупреждение за 6 дней без отчёта
+	WarningTimerQuestion  string // предупреждение за 6 дней без отчёта
 	// PackFeedParticipantRemoved — карточка в ленте мини‑аппа, когда человек уже не видит её: текст для стаи.
 	PackFeedParticipantRemoved string
 }
@@ -56,14 +58,14 @@ var embeddedPackFeedParticipantRemoved string
 // DefaultBundle возвращает встроенные тексты из каталога data/.
 func DefaultBundle() Bundle {
 	return Bundle{
-		DailySummary:            embeddedDailySummary,
-		MonthlySummary:          embeddedMonthlySummary,
-		AnswerUserQuestion:      embeddedAnswerUserQuestion,
-		DailyWisdomTraining:     embeddedDailyWisdomTraining,
-		DailyWisdomLangRule:     embeddedDailyWisdomLangRule,
-		DailyWisdomUserTemplate: embeddedDailyWisdomUserTemplate,
-		TrainingChatSuffix:      embeddedTrainingChatSuffix,
-		WritingChatSuffix:       embeddedTrainingChatSuffix,
+		DailySummary:               embeddedDailySummary,
+		MonthlySummary:             embeddedMonthlySummary,
+		AnswerUserQuestion:         embeddedAnswerUserQuestion,
+		DailyWisdomTraining:        embeddedDailyWisdomTraining,
+		DailyWisdomLangRule:        embeddedDailyWisdomLangRule,
+		DailyWisdomUserTemplate:    embeddedDailyWisdomUserTemplate,
+		TrainingChatSuffix:         embeddedTrainingChatSuffix,
+		WritingChatSuffix:          embeddedTrainingChatSuffix,
 		CriticalTimerQuestion:      embeddedCriticalTimerQuestion,
 		WarningTimerQuestion:       embeddedWarningTimerQuestion,
 		PackFeedParticipantRemoved: embeddedPackFeedParticipantRemoved,
@@ -84,6 +86,9 @@ func BundleFromEnv() Bundle {
 	}
 	if v := envPrompt("PROMPT_DAILY_WISDOM_TRAINING"); v != "" {
 		b.DailyWisdomTraining = v
+	}
+	if v := envPrompt("PROMPT_DAILY_WISDOM_WRITING"); v != "" {
+		b.DailyWisdomWriting = v
 	}
 	if v := envPrompt("PROMPT_DAILY_WISDOM_LANG_RULE"); v != "" {
 		b.DailyWisdomLangRule = v
@@ -109,6 +114,24 @@ func BundleFromEnv() Bundle {
 		b.PackFeedParticipantRemoved = v
 	}
 	return b
+}
+
+// CombinedChatInstructionSuffix — суффиксы инструкций для ответа в чате с Лео (тренировочный + писательский, если заданы оба и различаются).
+func (b Bundle) CombinedChatInstructionSuffix() string {
+	s := strings.TrimSpace(b.TrainingChatSuffix)
+	w := strings.TrimSpace(b.WritingChatSuffix)
+	switch {
+	case s == "" && w == "":
+		return ""
+	case w == "":
+		return "\n\n" + s
+	case s == "":
+		return "\n\n" + w
+	case s == w:
+		return "\n\n" + s
+	default:
+		return "\n\n" + s + "\n\n" + w
+	}
 }
 
 func envPrompt(key string) string {
