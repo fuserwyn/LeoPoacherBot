@@ -111,12 +111,18 @@ export function ChatScreen({ name, initData, inTelegram, showAlert, onInboxDrain
   const [loaded, setLoaded] = useState(false);
   const logRef = useRef<HTMLDivElement | null>(null);
   const endRef = useRef<HTMLDivElement | null>(null);
+  const didInitialScrollRef = useRef(false);
   /** max(server_id) перед отправкой пользователя — новый ответ Лео с id выше этого. */
   const baselineMaxForPendingLeoRef = useRef(0);
 
   useEffect(() => {
     const el = logRef.current;
     if (!el) return;
+    if (loaded && items.length > 0 && !didInitialScrollRef.current) {
+      el.scrollTop = el.scrollHeight;
+      didInitialScrollRef.current = true;
+      return;
+    }
     const nearBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 120;
     if (nearBottom || !loaded) {
       el.scrollTop = el.scrollHeight;

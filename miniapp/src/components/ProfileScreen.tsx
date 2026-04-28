@@ -398,7 +398,15 @@ export function ProfileScreen({
         <p className="profile__hint muted">Загрузка статуса…</p>
       ) : onSick ? (
         <div className="profile__health">
-          <p className="profile__hint">🏥 Ты на больничном — таймер остановлен. Кнопка выхода доступна в шапке профиля.</p>
+          <p className="profile__hint">🏥 Ты на больничном — таймер остановлен. Возвращайся, когда поправишься.</p>
+          <button
+            type="button"
+            className="profile__save profile__health-btn"
+            onClick={() => void submitHealthy()}
+            disabled={healthBusy}
+          >
+            {healthBusy ? "Отправляю…" : "Выйти с больничного"}
+          </button>
         </div>
       ) : sickFormOpen ? (
         <div className="profile__health">
