@@ -6,7 +6,7 @@ import { FeedScreen } from "./components/FeedScreen";
 import { ProfileScreen } from "./components/ProfileScreen";
 import { NewWorkoutScreen } from "./components/NewWorkoutScreen";
 import { RulesScreen } from "./components/RulesScreen";
-import { sendMiniappPrivateText } from "./lib/miniappPrivateSend";
+import { sendMiniappPrivateText, sendMiniappTrainingWithPhoto } from "./lib/miniappPrivateSend";
 import { fetchLeoPendingCount } from "./lib/leoPersonalInbox";
 import { ensureMiniappOnboarding } from "./lib/miniappOnboarding";
 import "./App.css";
@@ -103,7 +103,7 @@ export function App() {
       {workoutOpen && (
         <NewWorkoutScreen
           onClose={() => setWorkoutOpen(false)}
-          onSave={async ({ type, min, intensity, note }) => {
+          onSave={async ({ type, min, intensity, note, photo }) => {
             if (!inTelegram || !initData) {
               showAlert("Открой мини-апп из Telegram (нужен initData).");
               return false;
@@ -120,7 +120,9 @@ export function App() {
             const base = `#training_done — ${kind}, ${min} мин, инт. ${intensity}/5`;
             const line = note ? `${base}\n\n${note}` : base;
             tg?.HapticFeedback?.impactOccurred?.("medium");
-            const result = await sendMiniappPrivateText(initData, line);
+            const result = photo
+              ? await sendMiniappTrainingWithPhoto(initData, line, photo)
+              : await sendMiniappPrivateText(initData, line);
             if (!result.ok) {
               showAlert(result.error);
               return false;

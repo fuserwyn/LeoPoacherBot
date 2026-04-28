@@ -81,19 +81,6 @@ func (b *Bot) saveDailyWisdomPackFeed(wisdom string) {
 	}
 }
 
-func packRemovedMiniappText(displayName string) string {
-	d := strings.TrimSpace(displayName)
-	if d == "" {
-		d = "участник"
-	}
-	return fmt.Sprintf(
-		"%s покинул стаю — 7 дней без движения. XP сгорел, доступ закрыт. Двери всегда открыты — возвращайся, когда будешь готов. 🐆",
-		d,
-	)
-}
-
-// savePackRemovedMiniappFeed — карточка в ленте мини-аппа: Лео объявляет, что участник выбыл за неактивность.
-// userID/username — выбывший участник; запись пишется в чат стаи.
 func (b *Bot) savePackRemovedMiniappFeed(chatID, userID int64, username string) {
 	if b == nil || b.db == nil || userID == 0 {
 		return
@@ -105,7 +92,7 @@ func (b *Bot) savePackRemovedMiniappFeed(chatID, userID int64, username string) 
 		UserID:      userID,
 		ChatID:      chatID,
 		Username:    strings.TrimSpace(username),
-		MessageText: packRemovedMiniappText(username),
+		MessageText: PackRemovedFeedNotice(b.config.Prompts, username),
 		MessageType: userMessageTypePackRemoved,
 	}
 	if err := b.db.SaveUserMessage(um); err != nil {

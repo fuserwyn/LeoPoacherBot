@@ -3,7 +3,24 @@ import { timeAgoFromISO } from "./timeAgo";
 import type { ActivityCardProps } from "../components/ActivityCard";
 
 /** Совпадает с ms_leo trainingFeedAllowedEmojis (порядок отображения). */
-export const TRAINING_FEED_EMOJIS = ["🔥", "💪", "👏", "❤️", "🎉", "🦁", "⭐", "👍"] as const;
+export const TRAINING_FEED_EMOJIS = [
+  "🔥",
+  "💪",
+  "👏",
+  "❤️",
+  "🎉",
+  "🦁",
+  "⭐",
+  "👍",
+  "🙌",
+  "✨",
+  "🤝",
+  "⚡",
+  "🎯",
+  "😤",
+  "👀",
+  "🙏",
+] as const;
 
 export type PackFeedReactionDTO = { emoji: string; count: number; me: boolean };
 
@@ -33,6 +50,8 @@ export type PackFeedItemDTO = {
   author_photo_url?: string;
   reactions?: PackFeedReactionDTO[];
   thread?: PackFeedThreadReplyDTO[];
+  /** Публичный URL фото из мини‑аппа после POST /api/miniapp/workout */
+  training_photo_url?: string;
 };
 
 /** Полная строка эмодзи для кнопок реакций (с нулевыми счётчиками). */
@@ -63,6 +82,8 @@ function typeMeta(t: string): { emoji: string; activity: string; details: string
       return { emoji: "🌅", activity: "Мудрость дня", details: "Мудрость дня" };
     case "pack_removed":
       return { emoji: "🐆", activity: "Лео · стая", details: "Выбыл за неактивность" };
+    case "inactive_notice":
+      return { emoji: "⏳", activity: "Лео · напоминание стае", details: "Таймер неактивности (дубль контекста)" };
     default:
       return { emoji: "📝", activity: t, details: "Сообщение" };
   }
@@ -115,5 +136,6 @@ export function dtoToCard(d: PackFeedItemDTO): ActivityCardProps {
     activity: m.activity,
     details: m.details,
     comment,
+    trainingPhotoUrl: (d.training_photo_url || "").trim() || undefined,
   };
 }

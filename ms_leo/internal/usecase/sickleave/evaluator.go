@@ -17,21 +17,6 @@ type Evaluator struct {
 	logger logger.Logger
 }
 
-var (
-	positiveKeywords = []string{
-		"болен", "болею", "болит", "заболел", "заболела", "забол", "заболева", "простыл", "простуд", "температур", "кашля", "кашель", "грипп",
-		"орви", "ангин", "плохо", "лежу", "честно", "правда", "шанс", "выздоров", "выздоравли", "таблет", "врач", "болезн", "недомог", "жар",
-		"сон", "боляч", "мигрен", "лихорад", "fever", "flu", "cold", "ill", "sick",
-	}
-	supportKeywords = []string{
-		"дай шанс", "прошу", "пожалуйста", "исправлюсь", "буду тренироваться", "честно-честно", "умоляю", "пожал", "верь", "поверь", "обещаю",
-	}
-	negativeKeywords = []string{
-		"делами", "работаю", "работа", "работе", "работ", "work", "workout", "воркаут", "лень", "просто не", "не хочу", "другие дела",
-		"прогул", "хитр", "обман", "схитрить", "занят", "занята",
-	}
-)
-
 func NewEvaluator(ai AIClient, log logger.Logger) *Evaluator {
 	return &Evaluator{
 		ai:     ai,
@@ -46,7 +31,7 @@ func (e *Evaluator) Evaluate(text string, messageLog *domain.MessageLog) bool {
 	clean = strings.ReplaceAll(clean, "#healthy", "")
 	clean = strings.ReplaceAll(clean, "#здоров", "")
 
-	heuristicsApprove, hasNegative := evaluateHeuristics(clean)
+	heuristicsApprove, hasNegative := EvaluateHeuristics(clean)
 	if heuristicsApprove {
 		return true
 	}
@@ -88,47 +73,4 @@ func (e *Evaluator) Evaluate(text string, messageLog *domain.MessageLog) bool {
 	default:
 		return false
 	}
-}
-
-func evaluateHeuristics(text string) (approved bool, hasNegative bool) {
-	if text == "" {
-		return false, false
-	}
-
-	for _, neg := range negativeKeywords {
-		if strings.Contains(text, neg) {
-			return false, true
-		}
-	}
-
-	score := 0
-	for _, pos := range positiveKeywords {
-		if strings.Contains(text, pos) {
-			score++
-		}
-	}
-	if strings.Contains(text, "боле") {
-		score++
-	}
-	if strings.Contains(text, "забол") {
-		score++
-	}
-	if strings.Contains(text, "простуд") {
-		score++
-	}
-	if strings.Contains(text, "температ") {
-		score++
-	}
-	if strings.Contains(text, "кашл") {
-		score++
-	}
-	if strings.Contains(text, "плохое самочувствие") {
-		score++
-	}
-	for _, sup := range supportKeywords {
-		if strings.Contains(text, sup) {
-			score++
-		}
-	}
-	return score >= 1, false
 }

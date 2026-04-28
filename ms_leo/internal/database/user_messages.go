@@ -10,8 +10,8 @@ import (
 // SaveUserMessage сохраняет сообщение пользователя для RAG контекста
 func (d *Database) SaveUserMessage(msg *domain.UserMessage) error {
 	query := `
-		INSERT INTO user_messages (user_id, chat_id, username, message_text, message_type, created_at)
-		VALUES ($1, $2, $3, $4, $5, $6)
+		INSERT INTO user_messages (user_id, chat_id, username, message_text, message_type, created_at, training_photo_url)
+		VALUES ($1, $2, $3, $4, $5, $6, $7)
 	`
 	// Используем московское время
 	moscowTime := utils.FormatMoscowTime(utils.GetMoscowTime())
@@ -20,15 +20,15 @@ func (d *Database) SaveUserMessage(msg *domain.UserMessage) error {
 		createdAt = time.Now()
 	}
 
-	_, err = d.db.Exec(query, msg.UserID, msg.ChatID, msg.Username, msg.MessageText, msg.MessageType, createdAt)
+	_, err = d.db.Exec(query, msg.UserID, msg.ChatID, msg.Username, msg.MessageText, msg.MessageType, createdAt, msg.TrainingPhotoURL)
 	return err
 }
 
 // SaveUserMessageReturningID — как SaveUserMessage, возвращает id строки (для треда ленты под #training_done).
 func (d *Database) SaveUserMessageReturningID(msg *domain.UserMessage) (int64, error) {
 	query := `
-		INSERT INTO user_messages (user_id, chat_id, username, message_text, message_type, created_at)
-		VALUES ($1, $2, $3, $4, $5, $6)
+		INSERT INTO user_messages (user_id, chat_id, username, message_text, message_type, created_at, training_photo_url)
+		VALUES ($1, $2, $3, $4, $5, $6, $7)
 		RETURNING id
 	`
 	moscowTime := utils.FormatMoscowTime(utils.GetMoscowTime())
@@ -37,7 +37,7 @@ func (d *Database) SaveUserMessageReturningID(msg *domain.UserMessage) (int64, e
 		createdAt = time.Now()
 	}
 	var id int64
-	err := d.db.QueryRow(query, msg.UserID, msg.ChatID, msg.Username, msg.MessageText, msg.MessageType, createdAt).Scan(&id)
+	err := d.db.QueryRow(query, msg.UserID, msg.ChatID, msg.Username, msg.MessageText, msg.MessageType, createdAt, msg.TrainingPhotoURL).Scan(&id)
 	return id, err
 }
 

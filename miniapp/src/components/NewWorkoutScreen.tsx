@@ -29,6 +29,8 @@ type Props = {
     intensity: 1 | 2 | 3 | 4 | 5;
     /** Произвольный текст: упражнения, ощущения — попадает в ленту и в контекст Лео. */
     note: string;
+    /** Снимок с тренировки — уходит только вместе с отчётом через multipart API. */
+    photo: File | null;
   }) => void | boolean | Promise<void | boolean>;
 };
 
@@ -40,6 +42,7 @@ export function NewWorkoutScreen({ onClose, onSave }: Props) {
   const [intensity, setIntensity] = useState<1 | 2 | 3 | 4 | 5>(3);
   const [note, setNote] = useState("");
   const [busy, setBusy] = useState(false);
+  const [photo, setPhoto] = useState<File | null>(null);
 
   const dec = (d: number) => setMin((m) => Math.max(1, m + d));
   return (
@@ -133,6 +136,22 @@ export function NewWorkoutScreen({ onClose, onSave }: Props) {
         <p className="nwo__note-cnt muted" aria-live="polite">
           {note.length}/{NOTE_MAX}
         </p>
+
+        <h2 className="section-title" style={{ marginTop: 22 }}>
+          Фото с тренировки
+        </h2>
+        <p className="nwo__note-hint muted">Необязательно. Так стая увидит снимок в ленте.</p>
+        <input
+          className="nwo__file"
+          type="file"
+          accept="image/*"
+          onChange={(e) => setPhoto(e.target.files?.[0] ?? null)}
+        />
+        {photo && (
+          <p className="nwo__note-hint muted" aria-live="polite">
+            Выбрано: {photo.name}
+          </p>
+        )}
       </div>
 
       <footer className="nwo__foot">
@@ -144,7 +163,7 @@ export function NewWorkoutScreen({ onClose, onSave }: Props) {
             if (busy) return;
             setBusy(true);
             try {
-              const r = await onSave({ type, min, intensity, note: note.trim() });
+              const r = await onSave({ type, min, intensity, note: note.trim(), photo });
               if (r !== false) onClose();
             } finally {
               setBusy(false);

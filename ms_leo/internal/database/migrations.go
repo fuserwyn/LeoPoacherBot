@@ -690,6 +690,16 @@ var Migrations = []Migration{
 			ALTER TABLE miniapp_user_profile DROP COLUMN IF EXISTS telegram_photo_url;
 		`,
 	},
+	{
+		Version:     34,
+		Description: "user_messages.training_photo_url for workout photo in pack feed",
+		UpSQL: `
+			ALTER TABLE user_messages ADD COLUMN IF NOT EXISTS training_photo_url TEXT NOT NULL DEFAULT '';
+		`,
+		DownSQL: `
+			ALTER TABLE user_messages DROP COLUMN IF EXISTS training_photo_url;
+		`,
+	},
 }
 
 // MigrationRecord представляет запись о выполненной миграции

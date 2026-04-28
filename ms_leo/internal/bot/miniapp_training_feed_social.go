@@ -12,7 +12,7 @@ import (
 )
 
 // Допустимые реакции на отчёт в ленте мини-аппа (порядок — отображение).
-var trainingFeedAllowedEmojis = []string{"🔥", "💪", "👏", "❤️", "🎉", "🦁", "⭐", "👍"}
+var trainingFeedAllowedEmojis = []string{"🔥", "💪", "👏", "❤️", "🎉", "🦁", "⭐", "👍", "🙌", "✨", "🤝", "⚡", "🎯", "😤", "👀", "🙏"}
 
 var (
 	// ErrTrainingFeedSocialForbidden — нет доступа к ленте.

@@ -17,14 +17,23 @@ import (
 const maxTextRunes = 4000
 
 type Server struct {
-	bot    *bot.Bot
-	token  string
-	logger logger.Logger
+	bot              *bot.Bot
+	token            string
+	logger           logger.Logger
+	publicMediaBase  string
+	mediaDirAbsolute string
 }
 
 // New — HTTP-оболочка для мини-апpa: валидация initData и тот же обработчик, что getUpdates.
-func New(b *bot.Bot, token string, log logger.Logger) http.Handler {
-	s := &Server{bot: b, token: token, logger: log}
+// publicMediaBase — публичная база этого сервиса (HTTPS в проде), нужна для URL фото тренировки; mediaDirAbsolute — каталог для файлов.
+func New(b *bot.Bot, token string, log logger.Logger, publicMediaBase, mediaDirAbsolute string) http.Handler {
+	s := &Server{
+		bot:              b,
+		token:            token,
+		logger:           log,
+		publicMediaBase:  strings.TrimRight(strings.TrimSpace(publicMediaBase), "/"),
+		mediaDirAbsolute: strings.TrimSpace(mediaDirAbsolute),
+	}
 	return withCORS(http.HandlerFunc(s.serve))
 }
 
@@ -59,8 +68,10 @@ func (s *Server) serve(w http.ResponseWriter, r *http.Request) {
 		s.handlePostProfileSave(w, r)
 	case path == "/api/miniapp/health/status" && r.Method == http.MethodPost:
 		s.handlePostHealthStatus(w, r)
-	case path == "/api/miniapp/onboarding/ensure" && r.Method == http.MethodPost:
-		s.handlePostOnboardingEnsure(w, r)
+	case path == "/api/miniapp/workout" && r.Method == http.MethodPost:
+		s.handlePostWorkoutWithPhoto(w, r)
+	case strings.HasPrefix(path, "/api/miniapp/media/") && r.Method == http.MethodGet:
+		s.handleGetMiniappMedia(w, r)
 	case path == "/" && r.Method == http.MethodGet:
 		s.handleRoot(w, r)
 	default:

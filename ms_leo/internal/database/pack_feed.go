@@ -26,12 +26,13 @@ func (d *Database) ListPackActivityFeed(chatID int64, limit int, sinceUTC *time.
 	q := `
 		SELECT
 			um.id, um.user_id, um.chat_id, um.username, um.message_text, um.message_type, um.created_at,
-			COALESCE(ml.streak_days, 0)::int
+			COALESCE(ml.streak_days, 0)::int,
+			COALESCE(um.training_photo_url, '')
 		FROM user_messages um
 		LEFT JOIN training_state ml
 			ON ml.user_id = um.user_id AND ml.chat_id = um.chat_id AND ml.is_deleted = FALSE
 		WHERE um.chat_id = $1
-		  AND um.message_type IN ('training_done', 'sick_leave', 'healthy', 'pack_join', 'pack_rejoin', 'daily_wisdom', 'pack_removed')
+		  AND um.message_type IN ('training_done', 'sick_leave', 'healthy', 'pack_join', 'pack_rejoin', 'daily_wisdom', 'pack_removed', 'inactive_notice')
 		  ` + whereSince + `
 		ORDER BY um.created_at DESC
 		LIMIT $2
@@ -47,7 +48,7 @@ func (d *Database) ListPackActivityFeed(chatID int64, limit int, sinceUTC *time.
 		var r domain.PackActivityRow
 		var createdAt time.Time
 		if err := rows.Scan(
-			&r.ID, &r.UserID, &r.ChatID, &r.Username, &r.MessageText, &r.MessageType, &createdAt, &r.StreakDays,
+			&r.ID, &r.UserID, &r.ChatID, &r.Username, &r.MessageText, &r.MessageType, &createdAt, &r.StreakDays, &r.TrainingPhotoURL,
 		); err != nil {
 			return nil, err
 		}

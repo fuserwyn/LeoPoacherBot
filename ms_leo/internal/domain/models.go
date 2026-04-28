@@ -65,8 +65,9 @@ type UserMessage struct {
 	ChatID      int64     `json:"chat_id" db:"chat_id"`
 	Username    string    `json:"username" db:"username"`
 	MessageText string    `json:"message_text" db:"message_text"`
-	MessageType string    `json:"message_type" db:"message_type"` // general, training_done, sick_leave, healthy
-	CreatedAt   time.Time `json:"created_at" db:"created_at"`
+	MessageType       string    `json:"message_type" db:"message_type"` // general, training_done, sick_leave, healthy
+	CreatedAt         time.Time `json:"created_at" db:"created_at"`
+	TrainingPhotoURL  string    `json:"training_photo_url,omitempty" db:"training_photo_url"`
 }
 
 // PackActivityRow — строка ленты мини-апpa (отчёты в чате стаи).
@@ -79,6 +80,8 @@ type PackActivityRow struct {
 	MessageType string
 	CreatedAt   time.Time
 	StreakDays  int
+	// TrainingPhotoURL — публичный URL фото из мини-аппа (#training_done), если приложили.
+	TrainingPhotoURL string
 }
 
 // PackGroupChatMessage — общий чат мини-апpa «Стая» (все участники; Лео — при @leo / @бот).

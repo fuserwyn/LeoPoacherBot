@@ -56,7 +56,19 @@ type MiniAppTextProcessResult struct {
 }
 
 // ProcessMiniAppPrivateText — валидация initData; обработка в фоне, HTTP не ждёт ИИ.
+// Текущий текст «без фото»: снимаем отложенный URL фото, чтобы не приклеить к чужому действию.
 func (b *Bot) ProcessMiniAppPrivateText(d initdata.InitData, text string) MiniAppTextProcessResult {
+	b.clearMiniappTrainingPhotoURL(d.User.ID)
+	return b.processMiniAppPrivateCore(d, text)
+}
+
+// ProcessMiniAppPrivateTextWithTrainingPhoto — тот же путь плюс публичный URL фото для следующего #training_done.
+func (b *Bot) ProcessMiniAppPrivateTextWithTrainingPhoto(d initdata.InitData, text, publicPhotoURL string) MiniAppTextProcessResult {
+	b.setMiniappTrainingPhotoURL(d.User.ID, publicPhotoURL)
+	return b.processMiniAppPrivateCore(d, text)
+}
+
+func (b *Bot) processMiniAppPrivateCore(d initdata.InitData, text string) MiniAppTextProcessResult {
 	out := MiniAppTextProcessResult{}
 	if text == "" || b == nil {
 		return out
@@ -67,13 +79,9 @@ func (b *Bot) ProcessMiniAppPrivateText(d initdata.InitData, text string) MiniAp
 	if err := b.AssertMiniAppPackChatAligns(d); err != nil {
 		return out
 	}
-	_ = PrivateTextMessageFromInitUser(d, text) // для будущих чек-ов; сейчас сообщение всегда private, отдельный paywall-гейт не нужен
+	_ = PrivateTextMessageFromInitUser(d, text)
 	b.miniappPersonalClear(d.User.ID)
-	// Юзер-сообщение из мини-аппа: сохраняем в БД сразу, чтобы оно появилось в истории
-	// на всех устройствах одного юзера (см. требование «история чата должна быть общей»).
 	b.savePersonalChatMessage(d.User.ID, "user", text)
-	// В личку Telegram из мини-аппа не дублируем (ответы Лео по-прежнему в апп через poll).
-	// Исключение по смыслу: предупреждения дней 5–7 без отчёта — шлём в апп из timer_leopard (как дубль к DM).
 	go b.runMiniAppPrivateTextWorker(d, text)
 	out.Pending = true
 	return out
@@ -87,9 +95,6 @@ func (b *Bot) runMiniAppPrivateTextWorker(d initdata.InitData, text string) {
 	}()
 	msg := PrivateTextMessageFromInitUser(d, text)
 	ch := make(chan string, 32)
-	// Пометка mini-app origin позволяет helper'ам notifyUserText / sendChatActionIfTG
-	// (sick_leave, healthy, change, timezone, AI-fallback) НЕ дублировать ответ Лео в TG-личку.
-	// Снимается строго после drain канала, чтобы handler не успел уйти в TG раньше нас.
 	b.markMiniappOrigin(d.User.ID, ch)
 	defer b.unmarkMiniappOrigin(d.User.ID)
 	b.dispatchTextMessageFromUser(msg, ch)

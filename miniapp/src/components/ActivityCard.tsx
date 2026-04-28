@@ -48,8 +48,8 @@ export type ActivityCardProps = {
   threadComposer?: ActivityCardThreadComposer;
   /** Удалить свою реплику в треде (id строки miniapp_training_feed_thread). */
   onThreadReplyDelete?: (threadReplyId: number) => void;
-  /** Пока идёт DELETE для id реплики. */
-  threadReplyDeleting?: Record<number, boolean>;
+  /** Фото к отчёту #training_done (URL с бэкенда). */
+  trainingPhotoUrl?: string;
 };
 
 export function ActivityCard({
@@ -69,6 +69,7 @@ export function ActivityCard({
   threadComposer,
   onThreadReplyDelete,
   threadReplyDeleting = {},
+  trainingPhotoUrl,
 }: ActivityCardProps) {
   const threadInputRef = useRef<HTMLTextAreaElement>(null);
   const [threadOpen, setThreadOpen] = useState(false);
@@ -110,6 +111,11 @@ export function ActivityCard({
         </p>
         <p className="act-card__details muted">{details}</p>
         {comment && <p className="act-card__comment">{comment}</p>}
+        {trainingPhotoUrl ? (
+          <div className="act-card__photo-wrap">
+            <img className="act-card__photo" src={trainingPhotoUrl} alt="" loading="lazy" />
+          </div>
+        ) : null}
         {aiText && (
           <div className="act-card__ai">
             <div className="act-card__ai-label">AI</div>

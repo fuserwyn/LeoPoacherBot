@@ -19,6 +19,8 @@ type Bundle struct {
 	WritingChatSuffix     string
 	CriticalTimerQuestion string
 	WarningTimerQuestion    string // предупреждение за 6 дней без отчёта
+	// PackFeedParticipantRemoved — карточка в ленте мини‑аппа, когда человек уже не видит её: текст для стаи.
+	PackFeedParticipantRemoved string
 }
 
 //go:embed data/daily_summary.txt
@@ -48,6 +50,9 @@ var embeddedCriticalTimerQuestion string
 //go:embed data/warning_timer_question.txt
 var embeddedWarningTimerQuestion string
 
+//go:embed data/pack_feed_removed.txt
+var embeddedPackFeedParticipantRemoved string
+
 // DefaultBundle возвращает встроенные тексты из каталога data/.
 func DefaultBundle() Bundle {
 	return Bundle{
@@ -59,8 +64,9 @@ func DefaultBundle() Bundle {
 		DailyWisdomUserTemplate: embeddedDailyWisdomUserTemplate,
 		TrainingChatSuffix:      embeddedTrainingChatSuffix,
 		WritingChatSuffix:       embeddedTrainingChatSuffix,
-		CriticalTimerQuestion:   embeddedCriticalTimerQuestion,
-		WarningTimerQuestion:    embeddedWarningTimerQuestion,
+		CriticalTimerQuestion:      embeddedCriticalTimerQuestion,
+		WarningTimerQuestion:       embeddedWarningTimerQuestion,
+		PackFeedParticipantRemoved: embeddedPackFeedParticipantRemoved,
 	}
 }
 
@@ -98,6 +104,9 @@ func BundleFromEnv() Bundle {
 	}
 	if v := envPrompt("PROMPT_WARNING_TIMER_QUESTION"); v != "" {
 		b.WarningTimerQuestion = v
+	}
+	if v := envPrompt("PROMPT_PACK_FEED_REMOVED"); v != "" {
+		b.PackFeedParticipantRemoved = v
 	}
 	return b
 }

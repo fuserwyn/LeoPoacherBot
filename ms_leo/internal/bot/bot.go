@@ -14,6 +14,7 @@ import (
 	"leo-bot/internal/domain"
 	"leo-bot/internal/game/leopardmoney"
 	"leo-bot/internal/logger"
+	"leo-bot/internal/usecase/sickleave"
 	"leo-bot/internal/utils"
 
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
@@ -39,19 +40,9 @@ type Bot struct {
 	// «не дублировать в ТГ из мини-аппа, кроме предупреждений 5/6/7 дней»).
 	// Маркер ставит/снимает runMiniAppPrivateTextWorker.
 	miniappReplyOrigin sync.Map
+	// miniappTrainingPhotoURL — следующий URL фото для отчёта #training_done из мини‑аппа (съедается при сохранении user_messages).
+	miniappTrainingPhotoURL sync.Map // int64 (user id) -> string
 }
-
-var (
-	sickLeavePositiveKeywords = []string{
-		"болен", "болею", "болит", "заболел", "заболела", "забол", "заболева", "простыл", "простуд", "температур", "кашля", "кашель", "грипп", "орви", "ангин", "плохо", "лежу", "честно", "правда", "шанс", "выздоров", "выздоравли", "таблет", "врач", "болезн", "недомог", "жар", "сон", "боляч", "мигрен", "лихорад", "fever", "flu", "cold", "ill", "sick",
-	}
-	sickLeaveSupportKeywords = []string{
-		"дай шанс", "прошу", "пожалуйста", "исправлюсь", "буду тренироваться", "честно-честно", "умоляю", "пожал", "верь", "поверь", "обещаю",
-	}
-	sickLeaveNegativeKeywords = []string{
-		"делами", "работаю", "работа", "работе", "работ", "work", "workout", "воркаут", "лень", "просто не", "не хочу", "другие дела", "прогул", "хитр", "обман", "схитрить", "занят", "занята",
-	}
-)
 
 // leopardOnboardingBodyText — полный текст онбординга Fat Leopard (редактируй здесь).
 const leopardOnboardingBodyText = `Добро пожаловать в стаю, Fat Leopard 🐆🔥
@@ -471,7 +462,10 @@ func (b *Bot) handleMessage(msg *tgbotapi.Message, personalReplyCh chan<- string
 			username = fmt.Sprintf("User%d", msg.From.ID)
 		}
 
-		// Сохраняем сообщение в БД для RAG контекста
+		var trainingPhotoURL string
+		if hasTrainingDone {
+			trainingPhotoURL = b.takeMiniappTrainingPhotoURL(msg.From.ID)
+		}
 		var trainingDoneFeedMsgID int64
 		if text != "" {
 			messageType := "general"
@@ -486,11 +480,12 @@ func (b *Bot) handleMessage(msg *tgbotapi.Message, personalReplyCh chan<- string
 			}
 
 			userMsg := &domain.UserMessage{
-				UserID:      msg.From.ID,
-				ChatID:      msg.Chat.ID,
-				Username:    username,
-				MessageText: text,
-				MessageType: messageType,
+				UserID:            msg.From.ID,
+				ChatID:            msg.Chat.ID,
+				Username:          username,
+				MessageText:       text,
+				MessageType:       messageType,
+				TrainingPhotoURL: trainingPhotoURL,
 			}
 			if hasTrainingDone {
 				id, err := b.db.SaveUserMessageReturningID(userMsg)
@@ -502,11 +497,12 @@ func (b *Bot) handleMessage(msg *tgbotapi.Message, personalReplyCh chan<- string
 					// Отчёт из лички / мини-аппа пишется с chat_id = private (как у Telegram); дублируем строку для ленты.
 					if b.config.MonetizedChatID != 0 && msg.Chat != nil && msg.Chat.Type == "private" {
 						mirror := &domain.UserMessage{
-							UserID:      userMsg.UserID,
-							ChatID:      b.config.MonetizedChatID,
-							Username:    userMsg.Username,
-							MessageText: userMsg.MessageText,
-							MessageType: userMsg.MessageType,
+							UserID:            userMsg.UserID,
+							ChatID:            b.config.MonetizedChatID,
+							Username:          userMsg.Username,
+							MessageText:       userMsg.MessageText,
+							MessageType:       userMsg.MessageType,
+							TrainingPhotoURL: trainingPhotoURL,
 						}
 						feedID, errM := b.db.SaveUserMessageReturningID(mirror)
 						if errM != nil {
@@ -711,49 +707,6 @@ func (b *Bot) handleTrainingDone(msg *tgbotapi.Message, personalReplyCh chan<- s
 }
 
 
-func (b *Bot) evaluateSickLeaveHeuristics(text string) (approved bool, hasNegative bool) {
-	if text == "" {
-		return false, false
-	}
-
-	for _, neg := range sickLeaveNegativeKeywords {
-		if strings.Contains(text, neg) {
-			return false, true
-		}
-	}
-
-	score := 0
-	for _, pos := range sickLeavePositiveKeywords {
-		if strings.Contains(text, pos) {
-			score++
-		}
-	}
-	if strings.Contains(text, "боле") {
-		score++
-	}
-	if strings.Contains(text, "забол") {
-		score++
-	}
-	if strings.Contains(text, "простуд") {
-		score++
-	}
-	if strings.Contains(text, "температ") {
-		score++
-	}
-	if strings.Contains(text, "кашл") {
-		score++
-	}
-	if strings.Contains(text, "плохое самочувствие") {
-		score++
-	}
-	for _, sup := range sickLeaveSupportKeywords {
-		if strings.Contains(text, sup) {
-			score++
-		}
-	}
-	return score >= 1, false
-}
-
 func (b *Bot) evaluateSickLeaveJustification(text string, messageLog *domain.MessageLog) bool {
 	clean := strings.TrimSpace(strings.ToLower(text))
 	clean = strings.ReplaceAll(clean, "#sick_leave", "")
@@ -761,7 +714,7 @@ func (b *Bot) evaluateSickLeaveJustification(text string, messageLog *domain.Mes
 	clean = strings.ReplaceAll(clean, "#healthy", "")
 	clean = strings.ReplaceAll(clean, "#здоров", "")
 
-	heuristicsApprove, hasNegative := b.evaluateSickLeaveHeuristics(clean)
+	heuristicsApprove, hasNegative := sickleave.EvaluateHeuristics(clean)
 
 	if heuristicsApprove {
 		return true

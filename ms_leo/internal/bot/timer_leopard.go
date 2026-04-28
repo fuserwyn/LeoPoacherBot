@@ -179,6 +179,9 @@ func (b *Bot) sendInactiveWarning(userID, chatID int64, username string, day int
 		b.miniappPersonalPush(userID, messageText)
 	}
 
+	feedLine := fmt.Sprintf("⏳ %s — день %d без отчёта #training_done.\n\nПолное сообщение ушло от Лео в личку; стая видит здесь только отметку.", who, day)
+	b.saveInactiveNoticePackFeed(userID, username, feedLine)
+
 	if chatID == userID {
 		b.api.Send(tgbotapi.NewMessage(userID, messageText))
 		return
@@ -209,6 +212,9 @@ func (b *Bot) sendInactiveDay7ZeroXP(userID, chatID int64, username string) {
 	}
 
 	b.miniappPersonalPush(userID, txt)
+
+	feed7 := fmt.Sprintf("🔴 %s — день 7 без #training_done: XP обнулён. Детали в ЛС с Лео; стая видит отметку.", who)
+	b.saveInactiveNoticePackFeed(userID, username, feed7)
 
 	if _, dmErr := b.api.Send(tgbotapi.NewMessage(userID, txt)); dmErr != nil {
 		b.logger.Warnf("send inactive day7 DM user=%d: %v", userID, dmErr)

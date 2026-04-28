@@ -193,6 +193,11 @@ func TestEvaluateSickLeaveJustification(t *testing.T) {
 			text: "#sick_leave честно болею",
 			want: true,
 		},
+		{
+			name: "GI symptom понос (эвристика без модели)",
+			text: "#sick_leave понос второй день",
+			want: true,
+		},
 	}
 
 	for _, tc := range cases {

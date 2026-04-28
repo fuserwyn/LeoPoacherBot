@@ -179,3 +179,10 @@
   text-align: right;
   margin: 6px 0 0;
 }
+
+.nwo__file {
+  font-size: 14px;
+  margin-top: 8px;
+  max-width: 100%;
+}
+

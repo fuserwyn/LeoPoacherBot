@@ -40,6 +40,7 @@ type PackFeedItem struct {
 	StreakDays       int    `json:"streak_days"`
 	IsYou            bool   `json:"is_you"`
 	AuthorPhotoURL   string `json:"author_photo_url,omitempty"`
+	TrainingPhotoURL string `json:"training_photo_url,omitempty"`
 	// PackChatID — id группы «Стая» (MONETIZED_CHAT_ID), с которой синхронизирована лента.
 	PackChatID int64  `json:"pack_chat_id"`
 	PackTitle  string `json:"pack_title,omitempty"`
@@ -83,16 +84,17 @@ func (b *Bot) PackFeedForViewer(viewerUserID int64, initD initdata.InitData) ([]
 	out := make([]PackFeedItem, 0, len(rows))
 	for _, r := range rows {
 		out = append(out, PackFeedItem{
-			ID:         r.ID,
-			UserID:     r.UserID,
-			Username:   r.Username,
-			Type:       r.MessageType,
-			Text:       r.MessageText,
-			CreatedAt:  r.CreatedAt.UTC().Format("2006-01-02T15:04:05Z07:00"),
-			StreakDays: r.StreakDays,
-			IsYou:      r.UserID == viewerUserID,
-			PackChatID: chatID,
-			PackTitle:  packTitle,
+			ID:               r.ID,
+			UserID:           r.UserID,
+			Username:         r.Username,
+			Type:             r.MessageType,
+			Text:             r.MessageText,
+			CreatedAt:        r.CreatedAt.UTC().Format("2006-01-02T15:04:05Z07:00"),
+			StreakDays:       r.StreakDays,
+			IsYou:            r.UserID == viewerUserID,
+			PackChatID:       chatID,
+			PackTitle:        packTitle,
+			TrainingPhotoURL: r.TrainingPhotoURL,
 		})
 	}
 	out = b.enrichPackFeedTrainingSocial(out, viewerUserID, chatID)
