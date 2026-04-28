@@ -159,7 +159,14 @@ export function PackGroupChatPanel({ initData, inTelegram, meId, showAlert, onHa
                   </div>
                   <div className="packroom__bubble">{m.text}</div>
                   {mine && (
-                    <button type="button" className="packroom__del" onClick={() => void removeMine(m.id)}>
+                    <button
+                      type="button"
+                      className="packroom__del"
+                      onClick={() => {
+                        if (!window.confirm("Удалить сообщение?")) return;
+                        void removeMine(m.id);
+                      }}
+                    >
                       Удалить
                     </button>
                   )}
