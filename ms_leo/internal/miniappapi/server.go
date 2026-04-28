@@ -467,6 +467,7 @@ func (s *Server) handlePostFeedTrainingThread(w http.ResponseWriter, r *http.Req
 		InitData      string `json:"init_data"`
 		UserMessageID int64  `json:"user_message_id"`
 		Text          string `json:"text"`
+		ReplyToID     int64  `json:"reply_to_id"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
 		s.jsonErr(w, http.StatusBadRequest, "invalid_json")
@@ -494,7 +495,7 @@ func (s *Server) handlePostFeedTrainingThread(w http.ResponseWriter, r *http.Req
 		s.jsonErr(w, http.StatusBadRequest, "user_missing")
 		return
 	}
-	if err := s.bot.PackTrainingFeedThreadPost(parsed.User.ID, parsed, body.UserMessageID, body.Text); err != nil {
+	if err := s.bot.PackTrainingFeedThreadPost(parsed.User.ID, parsed, body.UserMessageID, body.Text, body.ReplyToID); err != nil {
 		if errors.Is(err, bot.ErrMiniAppChatMismatch) {
 			s.jsonErr(w, http.StatusConflict, "chat_mismatch")
 			return
@@ -513,6 +514,10 @@ func (s *Server) handlePostFeedTrainingThread(w http.ResponseWriter, r *http.Req
 		}
 		if errors.Is(err, bot.ErrTrainingFeedParentNotFound) {
 			s.jsonErr(w, http.StatusNotFound, "not_found")
+			return
+		}
+		if errors.Is(err, bot.ErrTrainingFeedThreadInvalidReply) {
+			s.jsonErr(w, http.StatusBadRequest, "invalid_reply")
 			return
 		}
 		s.logger.Errorf("feed training thread: %v", err)

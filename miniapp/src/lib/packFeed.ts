@@ -2,6 +2,28 @@ import { LEO_AVATAR_URL } from "./leoAvatar";
 import { timeAgoFromISO } from "./timeAgo";
 import type { ActivityCardProps } from "../components/ActivityCard";
 
+const viteMiniappApi = (import.meta.env.VITE_MINIAPP_API_URL as string | undefined)?.replace(/\/$/, "").trim() ?? "";
+
+/** Лента всегда ходит на VITE_MINIAPP_API_URL; в БД мог остаться старый origin (127.0.0.1 или другой домен). */
+export function resolveTrainingPhotoUrl(stored: string | undefined): string | undefined {
+  const raw = (stored ?? "").trim();
+  if (!raw) return undefined;
+  const marker = "/api/miniapp/media/";
+  const idx = raw.indexOf(marker);
+  let path = "";
+  if (idx >= 0) {
+    path = raw.slice(idx);
+  } else if (raw.startsWith(marker.slice(1))) {
+    path = "/" + raw;
+  } else if (raw.startsWith(marker)) {
+    path = raw;
+  } else {
+    return raw;
+  }
+  if (!viteMiniappApi) return raw;
+  return viteMiniappApi + path;
+}
+
 /** Совпадает с ms_leo trainingFeedAllowedEmojis (порядок отображения). */
 export const TRAINING_FEED_EMOJIS = [
   "🔥",
@@ -35,6 +57,11 @@ export type PackFeedThreadReplyDTO = {
   is_leo?: boolean;
   /** URL из miniapp_user_profile (Telegram WebApp user.photo_url при онбординге). */
   author_photo_url?: string;
+  /** Ответ на сообщение внутри треда (как Reply в Telegram). */
+  reply_to_id?: number;
+  reply_to_username?: string;
+  reply_to_text?: string;
+  reply_to_is_leo?: boolean;
 };
 
 export type PackFeedItemDTO = {
@@ -137,6 +164,6 @@ export function dtoToCard(d: PackFeedItemDTO): ActivityCardProps {
     activity: m.activity,
     details: m.details,
     comment,
-    trainingPhotoUrl: (d.training_photo_url || "").trim() || undefined,
+    trainingPhotoUrl: resolveTrainingPhotoUrl(d.training_photo_url),
   };
 }

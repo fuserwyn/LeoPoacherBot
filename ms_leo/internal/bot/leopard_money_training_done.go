@@ -359,7 +359,7 @@ func (b *Bot) handleLeopardMoneyTrainingDone(msg *tgbotapi.Message, personalRepl
 		); extra != "" {
 			threadText = extra + "\n\n" + messageText
 		}
-		if _, err := b.db.InsertTrainingFeedThreadReply(b.config.MonetizedChatID, trainingUserMessageID, 0, "Лео", threadText); err != nil {
+		if _, err := b.db.InsertTrainingFeedThreadReply(b.config.MonetizedChatID, trainingUserMessageID, 0, "Лео", threadText, 0); err != nil {
 			b.logger.Warnf("training feed leo thread reply: %v", err)
 		}
 	}

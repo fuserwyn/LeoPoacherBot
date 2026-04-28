@@ -49,6 +49,10 @@ export function FeedScreen({ name, streak, userId, initData, inTelegram, showAle
   const [threadDrafts, setThreadDrafts] = useState<Record<number, string>>({});
   const [threadPosting, setThreadPosting] = useState<Record<number, boolean>>({});
   const [threadReplyDeleting, setThreadReplyDeleting] = useState<Record<number, boolean>>({});
+  /** Ответ на конкретное сообщение треда (reply_to_id) — ключ id отчёта user_messages. */
+  const [threadReplyTargets, setThreadReplyTargets] = useState<
+    Record<number, { replyToThreadId: number; authorLabel: string; excerpt: string } | undefined>
+  >({});
 
   const load = useCallback(async () => {
     if (!apiBase || !inTelegram || !initData) {
@@ -110,7 +114,7 @@ export function FeedScreen({ name, streak, userId, initData, inTelegram, showAle
   );
 
   const postTrainingThread = useCallback(
-    async (userMessageId: number, text: string) => {
+    async (userMessageId: number, text: string, replyToThreadId?: number) => {
       const t = text.trim();
       if (!t) {
         showAlert("Введи текст комментария.");
@@ -122,7 +126,12 @@ export function FeedScreen({ name, streak, userId, initData, inTelegram, showAle
         const res = await fetch(`${apiBase}/api/miniapp/feed/training/thread`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ init_data: initData, user_message_id: userMessageId, text: t }),
+          body: JSON.stringify({
+            init_data: initData,
+            user_message_id: userMessageId,
+            text: t,
+            reply_to_id: replyToThreadId ?? 0,
+          }),
         });
         const j = (await res.json().catch(() => ({}))) as {
           error?: string;
@@ -136,12 +145,14 @@ export function FeedScreen({ name, streak, userId, initData, inTelegram, showAle
             forbidden: "Нет доступа",
             chat_mismatch: "Открой мини-апп из чата стаи",
             thread_error: "Сервер не сохранил комментарий (таблица миграции или БД)",
+            invalid_reply: "Не удалось ответить на это сообщение (обнови ленту)",
           };
           showAlert(errMap[j.error ?? ""] ?? j.error ?? `Ошибка ${res.status}`);
           return;
         }
         const postedThread = j.thread;
         setThreadDrafts((d) => ({ ...d, [userMessageId]: "" }));
+        setThreadReplyTargets((r) => ({ ...r, [userMessageId]: undefined }));
         await load();
         if (Array.isArray(postedThread)) {
           setFeedItems((prev) =>
@@ -261,15 +272,30 @@ export function FeedScreen({ name, streak, userId, initData, inTelegram, showAle
                 if (it.type !== "training_done") {
                   return <ActivityCard key={it.id} {...base} />;
                 }
-                const threadReplies = (it.thread ?? []).map((tr) => ({
-                  id: tr.id,
-                  author: (tr.username || "").trim() || `Участник ${tr.user_id}`,
-                  text: tr.text,
-                  timeAgo: timeAgoFromISO(tr.created_at),
-                  isYou: tr.is_you,
-                  isLeo: Boolean(tr.is_leo),
-                  authorPhotoUrl: tr.author_photo_url,
-                }));
+                const threadReplies = (it.thread ?? []).map((tr) => {
+                  const rq =
+                    typeof tr.reply_to_id === "number" &&
+                    tr.reply_to_id > 0 &&
+                    ((tr.reply_to_text || "").trim() !== "" || (tr.reply_to_username || "").trim() !== "")
+                      ? {
+                          author: tr.reply_to_is_leo
+                            ? "Лео"
+                            : (tr.reply_to_username || "").trim() || `Участник ${tr.user_id}`,
+                          text: (tr.reply_to_text || "").trim(),
+                          isLeo: Boolean(tr.reply_to_is_leo),
+                        }
+                      : undefined;
+                  return {
+                    id: tr.id,
+                    author: (tr.username || "").trim() || `Участник ${tr.user_id}`,
+                    text: tr.text,
+                    timeAgo: timeAgoFromISO(tr.created_at),
+                    isYou: tr.is_you,
+                    isLeo: Boolean(tr.is_leo),
+                    authorPhotoUrl: tr.author_photo_url,
+                    replyTo: rq,
+                  };
+                });
                 return (
                   <ActivityCard
                     key={it.id}
@@ -279,10 +305,25 @@ export function FeedScreen({ name, streak, userId, initData, inTelegram, showAle
                     threadReplies={threadReplies}
                     onThreadReplyDelete={(replyId) => void deleteTrainingThreadReply(it.id, replyId)}
                     threadReplyDeleting={threadReplyDeleting}
+                    threadReplyIntent={threadReplyTargets[it.id] ?? null}
+                    onCancelThreadReplyIntent={() =>
+                      setThreadReplyTargets((r) => ({ ...r, [it.id]: undefined }))
+                    }
+                    onThreadReplyIntent={(payload) =>
+                      setThreadReplyTargets((r) => ({
+                        ...r,
+                        [it.id]: {
+                          replyToThreadId: payload.replyToThreadId,
+                          authorLabel: payload.authorLabel,
+                          excerpt: payload.excerpt,
+                        },
+                      }))
+                    }
                     threadComposer={{
                       draft: threadDrafts[it.id] ?? "",
                       onDraftChange: (v) => setThreadDrafts((d) => ({ ...d, [it.id]: v })),
-                      onSubmit: (text) => void postTrainingThread(it.id, text),
+                      onSubmit: (text) =>
+                        void postTrainingThread(it.id, text, threadReplyTargets[it.id]?.replyToThreadId),
                       posting: threadPosting[it.id] ?? false,
                     }}
                   />

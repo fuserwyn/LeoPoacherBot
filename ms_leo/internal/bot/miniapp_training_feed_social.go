@@ -28,6 +28,8 @@ var (
 	ErrTrainingFeedThreadTooLong = errors.New("thread text too long")
 	// ErrTrainingFeedThreadDeleteNotFound — не найден комментарий или чужой / Лео.
 	ErrTrainingFeedThreadDeleteNotFound = errors.New("training thread reply not found or forbidden")
+	// ErrTrainingFeedThreadInvalidReply — reply_to не из этого отчёта / не найден.
+	ErrTrainingFeedThreadInvalidReply = errors.New("training thread invalid reply reference")
 )
 
 func allowedTrainingFeedEmoji(s string) (string, bool) {
@@ -85,8 +87,8 @@ func (b *Bot) PackTrainingFeedReact(viewerUserID int64, initD initdata.InitData,
 	return b.db.SetTrainingFeedReaction(chatID, userMessageID, viewerUserID, uname, em)
 }
 
-// PackTrainingFeedThreadPost — комментарий в треде под training_done.
-func (b *Bot) PackTrainingFeedThreadPost(viewerUserID int64, initD initdata.InitData, userMessageID int64, text string) error {
+// PackTrainingFeedThreadPost — комментарий в треде под training_done. replyToThreadID — id строки miniapp_training_feed_thread, на которую отвечаем (как Reply в Telegram).
+func (b *Bot) PackTrainingFeedThreadPost(viewerUserID int64, initD initdata.InitData, userMessageID int64, text string, replyToThreadID int64) error {
 	if err := b.AssertMiniAppPackChatAligns(initD); err != nil {
 		return err
 	}
@@ -108,12 +110,21 @@ func (b *Bot) PackTrainingFeedThreadPost(viewerUserID int64, initD initdata.Init
 	if !has || typ != "training_done" {
 		return ErrTrainingFeedParentNotFound
 	}
+	if replyToThreadID != 0 {
+		parent, ok, err := b.db.GetTrainingFeedThreadRowInPack(replyToThreadID, chatID)
+		if err != nil {
+			return err
+		}
+		if !ok || parent.UserMessageID != userMessageID {
+			return ErrTrainingFeedThreadInvalidReply
+		}
+	}
 	uname := displayNameFromInitData(initD)
-	threadID, err := b.db.InsertTrainingFeedThreadReply(chatID, userMessageID, viewerUserID, uname, text)
+	threadID, err := b.db.InsertTrainingFeedThreadReply(chatID, userMessageID, viewerUserID, uname, text, replyToThreadID)
 	if err != nil {
 		return err
 	}
-	b.afterPackTrainingThreadInserted(chatID, userMessageID, viewerUserID, uname, text, threadID)
+	b.afterPackTrainingThreadInserted(chatID, userMessageID, viewerUserID, uname, text, threadID, replyToThreadID)
 	return nil
 }
 
@@ -126,20 +137,52 @@ func truncateForDM(s string, maxRunes int) string {
 	return string(r[:maxRunes]) + "…"
 }
 
-// Уведомление в личку Telegram автору отчёта + строка для бейджа «Стая» в мини-аппе.
-func (b *Bot) afterPackTrainingThreadInserted(packChatID, userMessageID, commenterUserID int64, commenterName, commentText string, threadReplyID int64) {
+// Уведомление в личку + бейдж «Стая»: комментарий к отчёту или ответ на конкретное сообщение треда.
+func (b *Bot) afterPackTrainingThreadInserted(packChatID, userMessageID, commenterUserID int64, commenterName, commentText string, threadReplyID, replyToParentThreadID int64) {
 	if b == nil || b.db == nil {
 		return
 	}
-	authorID, ok, err := b.db.GetUserMessageAuthorUserID(packChatID, userMessageID)
-	if err != nil {
-		b.logger.Warnf("training thread author lookup: %v", err)
+	var notifyUserID int64
+	if replyToParentThreadID != 0 {
+		parent, ok, err := b.db.GetTrainingFeedThreadRowInPack(replyToParentThreadID, packChatID)
+		if err != nil {
+			b.logger.Warnf("training thread parent lookup: %v", err)
+			return
+		}
+		if !ok {
+			return
+		}
+		if parent.FromUserID != 0 {
+			if parent.FromUserID == commenterUserID {
+				return
+			}
+			notifyUserID = parent.FromUserID
+		} else {
+			aid, ok2, err2 := b.db.GetUserMessageAuthorUserID(packChatID, userMessageID)
+			if err2 != nil {
+				b.logger.Warnf("training thread author lookup: %v", err2)
+				return
+			}
+			if !ok2 || aid == 0 || aid == commenterUserID {
+				return
+			}
+			notifyUserID = aid
+		}
+	} else {
+		aid, ok, err := b.db.GetUserMessageAuthorUserID(packChatID, userMessageID)
+		if err != nil {
+			b.logger.Warnf("training thread author lookup: %v", err)
+			return
+		}
+		if !ok || aid == 0 || aid == commenterUserID {
+			return
+		}
+		notifyUserID = aid
+	}
+	if notifyUserID == 0 {
 		return
 	}
-	if !ok || authorID == 0 || authorID == commenterUserID {
-		return
-	}
-	if err := b.db.InsertTrainingThreadUnread(authorID, packChatID, threadReplyID); err != nil {
+	if err := b.db.InsertTrainingThreadUnread(notifyUserID, packChatID, threadReplyID); err != nil {
 		b.logger.Warnf("training thread unread insert: %v", err)
 	}
 	preview := truncateForDM(commentText, 160)
@@ -147,8 +190,13 @@ func (b *Bot) afterPackTrainingThreadInserted(packChatID, userMessageID, comment
 	if cn == "" {
 		cn = "Участник стаи"
 	}
-	body := "💬 " + cn + " прокомментировал(а) твою тренировку в стае.\n\n«" + preview + "»\n\nОткрой мини-апп → вкладка «Стая»."
-	b.sendTrainingThreadCommentDM(authorID, body)
+	var body string
+	if replyToParentThreadID != 0 {
+		body = "↩️ " + cn + " ответил(а) на твой комментарий в стае.\n\n«" + preview + "»\n\nОткрой мини-апп → вкладка «Стая»."
+	} else {
+		body = "💬 " + cn + " прокомментировал(а) твою тренировку в стае.\n\n«" + preview + "»\n\nОткрой мини-апп → вкладка «Стая»."
+	}
+	b.sendTrainingThreadCommentDM(notifyUserID, body)
 }
 
 // Всегда в Telegram-личку, без очереди мини-аппа (уведомления-алерт).
@@ -211,10 +259,33 @@ func (b *Bot) PackTrainingFeedThreadDelete(viewerUserID int64, initD initdata.In
 	return parentID, nil
 }
 
-func threadDBRowsToPackReplies(rows []database.TrainingFeedThreadRow, viewerUserID int64) []PackFeedThreadReply {
+func (b *Bot) threadRowsToPackReplies(rows []database.TrainingFeedThreadRow, viewerUserID, packChatID int64) []PackFeedThreadReply {
 	out := make([]PackFeedThreadReply, 0, len(rows))
+	if len(rows) == 0 {
+		return out
+	}
+	var refIDs []int64
+	seen := map[int64]struct{}{}
 	for _, t := range rows {
-		out = append(out, PackFeedThreadReply{
+		if t.ReplyToID.Valid && t.ReplyToID.Int64 != 0 {
+			rid := t.ReplyToID.Int64
+			if _, ok := seen[rid]; !ok {
+				seen[rid] = struct{}{}
+				refIDs = append(refIDs, rid)
+			}
+		}
+	}
+	parentByID := map[int64]database.TrainingFeedThreadRow{}
+	if len(refIDs) > 0 && b.db != nil {
+		m, err := b.db.ListTrainingFeedThreadRowsByIDs(packChatID, refIDs)
+		if err != nil {
+			b.logger.Warnf("training thread reply parents: %v", err)
+		} else {
+			parentByID = m
+		}
+	}
+	for _, t := range rows {
+		pr := PackFeedThreadReply{
 			ID:        t.ID,
 			UserID:    t.FromUserID,
 			Username:  t.Username,
@@ -222,7 +293,24 @@ func threadDBRowsToPackReplies(rows []database.TrainingFeedThreadRow, viewerUser
 			CreatedAt: t.CreatedAt.UTC().Format("2006-01-02T15:04:05Z07:00"),
 			IsYou:     t.FromUserID != 0 && t.FromUserID == viewerUserID,
 			IsLeo:     t.FromUserID == 0,
-		})
+		}
+		if t.ReplyToID.Valid && t.ReplyToID.Int64 != 0 {
+			rid := t.ReplyToID.Int64
+			pr.ReplyToID = rid
+			if p, ok := parentByID[rid]; ok {
+				pr.ReplyToIsLeo = p.FromUserID == 0
+				if pr.ReplyToIsLeo {
+					pr.ReplyToUsername = "Лео"
+				} else {
+					pr.ReplyToUsername = strings.TrimSpace(p.Username)
+					if pr.ReplyToUsername == "" {
+						pr.ReplyToUsername = fmt.Sprintf("Участник %d", p.FromUserID)
+					}
+				}
+				pr.ReplyToText = truncateForDM(p.MessageText, 100)
+			}
+		}
+		out = append(out, pr)
 	}
 	return out
 }
@@ -236,7 +324,8 @@ func (b *Bot) PackFeedThreadRepliesForViewer(viewerUserID, userMessageID int64) 
 	if err != nil {
 		return nil, err
 	}
-	return threadDBRowsToPackReplies(m[userMessageID], viewerUserID), nil
+	chatID := b.config.MonetizedChatID
+	return b.threadRowsToPackReplies(m[userMessageID], viewerUserID, chatID), nil
 }
 
 // enrichPackFeedTrainingSocial — реакции и треды для карточек training_done.
@@ -276,7 +365,7 @@ func (b *Bot) enrichPackFeedTrainingSocial(items []PackFeedItem, viewerUserID in
 			}
 		}
 		if thr, ok := threadMap[id]; ok {
-			items[i].Thread = threadDBRowsToPackReplies(thr, viewerUserID)
+			items[i].Thread = b.threadRowsToPackReplies(thr, viewerUserID, chatID)
 		}
 	}
 	return items

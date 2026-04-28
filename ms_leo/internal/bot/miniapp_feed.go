@@ -27,6 +27,10 @@ type PackFeedThreadReply struct {
 	IsYou           bool   `json:"is_you"`
 	IsLeo           bool   `json:"is_leo"`
 	AuthorPhotoURL  string `json:"author_photo_url,omitempty"`
+	ReplyToID       int64  `json:"reply_to_id,omitempty"`
+	ReplyToUsername string `json:"reply_to_username,omitempty"`
+	ReplyToText     string `json:"reply_to_text,omitempty"`
+	ReplyToIsLeo    bool   `json:"reply_to_is_leo,omitempty"`
 }
 
 // PackFeedItem — JSON для мини-апpa.

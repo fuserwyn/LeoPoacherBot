@@ -159,19 +159,67 @@ func (d *Database) GetTrainingFeedThreadRow(id int64) (TrainingFeedThreadRow, bo
 	return r, true, nil
 }
 
-// InsertTrainingFeedThreadReply — комментарий под отчётом.
-func (d *Database) InsertTrainingFeedThreadReply(packChatID, userMessageID, fromUserID int64, username, text string) (int64, error) {
+// InsertTrainingFeedThreadReply — комментарий под отчётом; replyToThreadID=0 без ответа на сообщение треда.
+func (d *Database) InsertTrainingFeedThreadReply(packChatID, userMessageID, fromUserID int64, username, text string, replyToThreadID int64) (int64, error) {
 	const q = `
-		INSERT INTO miniapp_training_feed_thread (pack_chat_id, user_message_id, from_user_id, username, message_text)
-		VALUES ($1, $2, $3, $4, $5)
+		INSERT INTO miniapp_training_feed_thread (pack_chat_id, user_message_id, from_user_id, username, message_text, reply_to_id)
+		VALUES ($1, $2, $3, $4, $5, NULLIF($6::bigint, 0))
 		RETURNING id
 	`
 	var id int64
-	err := d.db.QueryRow(q, packChatID, userMessageID, fromUserID, strings.TrimSpace(username), text).Scan(&id)
+	err := d.db.QueryRow(q, packChatID, userMessageID, fromUserID, strings.TrimSpace(username), text, replyToThreadID).Scan(&id)
 	if err != nil {
 		return 0, fmt.Errorf("insert training thread: %w", err)
 	}
 	return id, nil
+}
+
+// GetTrainingFeedThreadRowInPack — строка по id только в нужной стае (для reply_to).
+func (d *Database) GetTrainingFeedThreadRowInPack(threadID, packChatID int64) (TrainingFeedThreadRow, bool, error) {
+	if threadID == 0 {
+		return TrainingFeedThreadRow{}, false, nil
+	}
+	const q = `
+		SELECT id, user_message_id, from_user_id, COALESCE(username, ''), message_text, created_at, reply_to_id
+		FROM miniapp_training_feed_thread WHERE id = $1 AND pack_chat_id = $2`
+	var r TrainingFeedThreadRow
+	var replyTo sql.NullInt64
+	err := d.db.QueryRow(q, threadID, packChatID).Scan(&r.ID, &r.UserMessageID, &r.FromUserID, &r.Username, &r.MessageText, &r.CreatedAt, &replyTo)
+	if err == sql.ErrNoRows {
+		return TrainingFeedThreadRow{}, false, nil
+	}
+	if err != nil {
+		return TrainingFeedThreadRow{}, false, err
+	}
+	r.ReplyToID = replyTo
+	return r, true, nil
+}
+
+// ListTrainingFeedThreadRowsByIDs — родительские сообщения для цитат (тот же pack).
+func (d *Database) ListTrainingFeedThreadRowsByIDs(packChatID int64, ids []int64) (map[int64]TrainingFeedThreadRow, error) {
+	out := make(map[int64]TrainingFeedThreadRow)
+	if len(ids) == 0 || packChatID == 0 {
+		return out, nil
+	}
+	q := `
+		SELECT id, user_message_id, from_user_id, COALESCE(username, ''), message_text, created_at, reply_to_id
+		FROM miniapp_training_feed_thread
+		WHERE pack_chat_id = $1 AND id = ANY($2)`
+	rows, err := d.db.Query(q, packChatID, pq.Array(ids))
+	if err != nil {
+		return nil, fmt.Errorf("list training thread by ids: %w", err)
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var r TrainingFeedThreadRow
+		var replyTo sql.NullInt64
+		if err := rows.Scan(&r.ID, &r.UserMessageID, &r.FromUserID, &r.Username, &r.MessageText, &r.CreatedAt, &replyTo); err != nil {
+			return nil, err
+		}
+		r.ReplyToID = replyTo
+		out[r.ID] = r
+	}
+	return out, rows.Err()
 }
 
 // DeleteTrainingFeedThreadReply — удалить реплику; только автор (from_user_id), не ответы Лео (from_user_id = 0).
@@ -201,7 +249,7 @@ func (d *Database) ListTrainingFeedThreadByMessages(userMessageIDs []int64) (map
 		return res, nil
 	}
 	const q = `
-		SELECT id, user_message_id, from_user_id, COALESCE(username, ''), message_text, created_at
+		SELECT id, user_message_id, from_user_id, COALESCE(username, ''), message_text, created_at, reply_to_id
 		FROM miniapp_training_feed_thread
 		WHERE user_message_id = ANY($1)
 		ORDER BY user_message_id, created_at ASC
@@ -213,9 +261,11 @@ func (d *Database) ListTrainingFeedThreadByMessages(userMessageIDs []int64) (map
 	defer rows.Close()
 	for rows.Next() {
 		var r TrainingFeedThreadRow
-		if err := rows.Scan(&r.ID, &r.UserMessageID, &r.FromUserID, &r.Username, &r.MessageText, &r.CreatedAt); err != nil {
+		var replyTo sql.NullInt64
+		if err := rows.Scan(&r.ID, &r.UserMessageID, &r.FromUserID, &r.Username, &r.MessageText, &r.CreatedAt, &replyTo); err != nil {
 			return nil, err
 		}
+		r.ReplyToID = replyTo
 		res[r.UserMessageID] = append(res[r.UserMessageID], r)
 	}
 	if err := rows.Err(); err != nil {

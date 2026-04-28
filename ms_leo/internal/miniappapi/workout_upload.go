@@ -19,6 +19,34 @@ import (
 
 const maxWorkoutPhotoBytes = 6 << 20 // 6 MiB
 
+// absolutePublicBaseFromRequest — публичный origin (https + host) из reverse-proxy (Railway) или r.Host.
+// Нужен, чтобы в БД не попадал http://127.0.0.1:PORT при пустом MINIAPP_PUBLIC_BASE_URL — иначе фото в ленте не грузится в Telegram WebView.
+func absolutePublicBaseFromRequest(r *http.Request) string {
+	if r == nil {
+		return ""
+	}
+	host := strings.TrimSpace(r.Header.Get("X-Forwarded-Host"))
+	if host == "" {
+		host = strings.TrimSpace(r.Host)
+	}
+	if host == "" {
+		return ""
+	}
+	proto := strings.TrimSpace(r.Header.Get("X-Forwarded-Proto"))
+	if proto == "" {
+		if r.TLS != nil {
+			proto = "https"
+		} else {
+			proto = "http"
+		}
+	}
+	proto = strings.ToLower(proto)
+	if proto != "http" && proto != "https" {
+		proto = "https"
+	}
+	return proto + "://" + host
+}
+
 func sniffImageExt(header []byte) (ext string, ok bool) {
 	if len(header) < 3 {
 		return "", false
@@ -44,7 +72,15 @@ func (s *Server) handlePostWorkoutWithPhoto(w http.ResponseWriter, r *http.Reque
 		s.jsonErr(w, http.StatusServiceUnavailable, "server_unavailable")
 		return
 	}
-	if s.publicMediaBase == "" || s.mediaDirAbsolute == "" {
+	if s.mediaDirAbsolute == "" {
+		s.jsonErr(w, http.StatusBadRequest, "media_not_configured")
+		return
+	}
+	publicBase := strings.TrimRight(strings.TrimSpace(s.publicMediaBase), "/")
+	if reqBase := absolutePublicBaseFromRequest(r); reqBase != "" {
+		publicBase = strings.TrimRight(reqBase, "/")
+	}
+	if publicBase == "" {
 		s.jsonErr(w, http.StatusBadRequest, "media_not_configured")
 		return
 	}
@@ -144,7 +180,7 @@ func (s *Server) handlePostWorkoutWithPhoto(w http.ResponseWriter, r *http.Reque
 		return
 	}
 
-	publicURL := s.publicMediaBase + "/api/miniapp/media/" + baseName
+	publicURL := publicBase + "/api/miniapp/media/" + baseName
 	miniRes := s.bot.ProcessMiniAppPrivateTextWithTrainingPhoto(parsed, line, publicURL)
 	w.Header().Set("Content-Type", "application/json; charset=utf-8")
 	outm := map[string]any{"ok": true, "photo_url": publicURL}

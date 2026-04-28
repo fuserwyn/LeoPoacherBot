@@ -18,6 +18,8 @@ export type ActivityCardThreadReply = {
   isLeo?: boolean;
   /** Аватар участника (TG), если уже синхронился с сервера. */
   authorPhotoUrl?: string;
+  /** Цитата родителя (reply). */
+  replyTo?: { author: string; text: string; isLeo?: boolean };
 };
 
 export type ActivityCardThreadComposer = {
@@ -174,6 +176,11 @@ export type ActivityCardProps = {
   threadComposer?: ActivityCardThreadComposer;
   /** Удалить свою реплику в треде (id строки miniapp_training_feed_thread). */
   onThreadReplyDelete?: (threadReplyId: number) => void;
+  /** Выбрать сообщение для ответа (как Reply в Telegram). */
+  onThreadReplyIntent?: (payload: { replyToThreadId: number; authorLabel: string; excerpt: string }) => void;
+  /** Режим ответа на сообщение в треде (до отправки). */
+  threadReplyIntent?: { replyToThreadId: number; authorLabel: string; excerpt: string } | null;
+  onCancelThreadReplyIntent?: () => void;
   /** Фото к отчёту #training_done (URL с бэкенда). */
   trainingPhotoUrl?: string;
   /** Состояние удаления строк треда (id → отправка). */
@@ -196,6 +203,9 @@ export function ActivityCard({
   threadReplies = [],
   threadComposer,
   onThreadReplyDelete,
+  onThreadReplyIntent,
+  threadReplyIntent,
+  onCancelThreadReplyIntent,
   threadReplyDeleting = {},
   trainingPhotoUrl,
 }: ActivityCardProps) {
@@ -319,7 +329,35 @@ export function ActivityCard({
                                   </button>
                                 )}
                               </div>
+                              {tr.replyTo != null &&
+                                ((tr.replyTo.text || "").trim() !== "" || (tr.replyTo.author || "").trim() !== "") && (
+                                  <div className="act-card__thread-quote" aria-label="Ответ на сообщение">
+                                    <span className="act-card__thread-quote-author muted">
+                                      {tr.replyTo.isLeo ? "Лео" : tr.replyTo.author}
+                                    </span>
+                                    {(tr.replyTo.text || "").trim() !== "" && (
+                                      <p className="act-card__thread-quote-text">{(tr.replyTo.text || "").trim()}</p>
+                                    )}
+                                  </div>
+                                )}
                               <p className="act-card__thread-text">{tr.text}</p>
+                              {onThreadReplyIntent != null && (
+                                <button
+                                  type="button"
+                                  className="act-card__thread-answer"
+                                  onClick={() => {
+                                    onThreadReplyIntent({
+                                      replyToThreadId: tr.id,
+                                      authorLabel: displayAuthor,
+                                      excerpt:
+                                        tr.text.length > 100 ? `${tr.text.slice(0, 99).trim()}…` : tr.text.trim(),
+                                    });
+                                    threadInputRef.current?.focus();
+                                  }}
+                                >
+                                  Ответить
+                                </button>
+                              )}
                             </div>
                           </div>
                         </li>
@@ -329,11 +367,37 @@ export function ActivityCard({
                 )}
                 {threadComposer && (
                   <div className="act-card__thread-compose">
+                    {threadReplyIntent != null && (
+                      <div className="act-card__reply-intent">
+                        <div className="act-card__reply-intent-row">
+                          <span className="act-card__reply-intent-label">
+                            Ответ <strong>{threadReplyIntent.authorLabel}</strong>
+                          </span>
+                          {onCancelThreadReplyIntent != null && (
+                            <button
+                              type="button"
+                              className="act-card__reply-intent-cancel"
+                              aria-label="Отменить ответ"
+                              onClick={() => onCancelThreadReplyIntent()}
+                            >
+                              ✕
+                            </button>
+                          )}
+                        </div>
+                        {(threadReplyIntent.excerpt || "").trim() !== "" && (
+                          <p className="act-card__reply-intent-snippet muted">{threadReplyIntent.excerpt}</p>
+                        )}
+                      </div>
+                    )}
                     <textarea
                       ref={threadInputRef}
                       className="act-card__thread-input"
                       rows={2}
-                      placeholder="Написать комментарий…"
+                      placeholder={
+                        threadReplyIntent
+                          ? `Сообщение для ${threadReplyIntent.authorLabel}…`
+                          : "Написать комментарий…"
+                      }
                       value={threadComposer.draft}
                       onChange={(e) => threadComposer.onDraftChange(e.target.value)}
                       maxLength={2000}
