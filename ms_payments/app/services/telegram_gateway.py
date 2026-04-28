@@ -117,3 +117,20 @@ class TelegramGateway:
         data = await self._post("sendMessage", body)
         if not data.get("ok"):
             logger.warning("sendMessage failed: %s", data)
+
+    async def set_chat_menu_button_default(self, user_id: int) -> bool:
+        """Включить per-user menu_button=default в ЛС, чтобы появилась web_app кнопка из BotFather."""
+        if not self._token:
+            logger.error("bot token empty, cannot setChatMenuButton")
+            return False
+        if user_id == 0:
+            return False
+        body: dict[str, Any] = {
+            "chat_id": user_id,
+            "menu_button": {"type": "default"},
+        }
+        data = await self._post("setChatMenuButton", body)
+        if not data.get("ok"):
+            logger.warning("setChatMenuButton(default) failed: %s", data)
+            return False
+        return True

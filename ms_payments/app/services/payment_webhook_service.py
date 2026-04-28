@@ -53,6 +53,15 @@ class PaymentWebhookService:
         self._telegram = telegram
         self._settings = app_settings
 
+    async def _ensure_miniapp_menu_button(self, user_tid: int) -> None:
+        """Best-effort: сразу включаем web_app кнопку после успешной оплаты по webhook."""
+        try:
+            ok = await self._telegram.set_chat_menu_button_default(user_tid)
+            if ok:
+                logger.info("yookassa webhook: setChatMenuButton(default) applied for user=%s", user_tid)
+        except Exception as e:
+            logger.warning("yookassa webhook: setChatMenuButton(default) failed user=%s err=%s", user_tid, e)
+
     async def handle_payment_succeeded(self, notification: PaymentNotification) -> WebhookOutcome:
         obj = notification.object or {}
         payment_id = str(obj.get("id") or "").strip()
@@ -146,6 +155,7 @@ class PaymentWebhookService:
 
         if rec["status"] == "completed":
             logger.info("yookassa webhook: already completed payment=%s req=%s", payment_id, req_id)
+            await self._ensure_miniapp_menu_button(user_tid)
             if self._ledger:
                 await self._ledger.mark_main_db_synced(payment_id)
             return WebhookOutcome(200, {"status": "already processed"})
@@ -194,6 +204,8 @@ class PaymentWebhookService:
 
         if self._ledger:
             await self._ledger.mark_main_db_synced(payment_id)
+
+        await self._ensure_miniapp_menu_button(user_tid)
 
         # Группы больше нет, и ms_payments больше не шлёт welcome / не делает reactivate сам.
         # Всё post-payment делает ms_leo через outbox_worker (paywallDeliverAccessAfterPayment):
