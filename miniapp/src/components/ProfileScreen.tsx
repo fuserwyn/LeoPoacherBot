@@ -395,7 +395,7 @@ export function ProfileScreen({
             onClick={() => void submitHealthy()}
             disabled={healthBusy}
           >
-            {healthBusy ? "Отправляю…" : "Я выздоровел — возобновить таймер"}
+            {healthBusy ? "Отправляю…" : "Выйти с больничного"}
           </button>
         </div>
       ) : sickFormOpen ? (
