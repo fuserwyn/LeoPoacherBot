@@ -655,7 +655,7 @@ func (d *Database) GetChatContext(chatID int64, excludeUserID int64, limit int) 
 	return users, nil
 }
 
-// GetChatType получает тип чата (training/writing), по умолчанию возвращает "training"
+// GetChatType получает тип чата (training/writing/coding), по умолчанию возвращает "training"
 func (d *Database) GetChatType(chatID int64) (string, error) {
 	query := `SELECT chat_type FROM chat_types WHERE chat_id = $1`
 	var chatType string
@@ -667,10 +667,10 @@ func (d *Database) GetChatType(chatID int64) (string, error) {
 	return chatType, nil
 }
 
-// SetChatType устанавливает тип чата (training/writing)
+// SetChatType устанавливает тип чата (training/writing/coding)
 func (d *Database) SetChatType(chatID int64, chatType string) error {
-	if chatType != "training" && chatType != "writing" {
-		return fmt.Errorf("invalid chat type: %s (must be 'training' or 'writing')", chatType)
+	if chatType != "training" && chatType != "writing" && chatType != "coding" {
+		return fmt.Errorf("invalid chat type: %s (must be 'training', 'writing' or 'coding')", chatType)
 	}
 
 	query := `

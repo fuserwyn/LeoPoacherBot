@@ -220,7 +220,20 @@ func (b *Bot) cancelTimer(userID, chatID int64) {
 func (b *Bot) sendWarning(userID, chatID int64, username string) {
 	// Базовый текст предупреждения
 	who := normalizeUserDisplayName(username)
-	messageText := fmt.Sprintf("⚠️ Предупреждение!\n\n%s, ты не отправляешь отчет о тренировке уже 6 дней!\n\n⏰ У тебя остался 1 день до удаления из чата!\n\n🎯 Отправь #training_done прямо сейчас!", who)
+	chatType, err := b.db.GetChatType(chatID)
+	if err != nil {
+		chatType = "training"
+	}
+	reportTag := "#training_done"
+	activityLabel := "тренировке"
+	if chatType == "writing" {
+		reportTag = "#writing_done"
+		activityLabel = "писательской сессии"
+	} else if chatType == "coding" {
+		reportTag = "#coding_done"
+		activityLabel = "кодинг-сессии"
+	}
+	messageText := fmt.Sprintf("⚠️ Предупреждение!\n\n%s, ты не отправляешь отчет о %s уже 6 дней!\n\n⏰ У тебя остался 1 день до удаления из чата!\n\n🎯 Отправь %s прямо сейчас!", who, activityLabel, reportTag)
 
 	// Добавляем короткую ИИ‑приписку к предупреждению
 	if b.aiClient != nil {
@@ -281,7 +294,7 @@ func (b *Bot) sendWarning(userID, chatID int64, username string) {
 
 	msg := tgbotapi.NewMessage(chatID, messageText)
 	b.logger.Infof("Sending warning to user %d (%s)", userID, username)
-	_, err := b.api.Send(msg)
+	_, err = b.api.Send(msg)
 	if err != nil {
 		b.logger.Errorf("Failed to send warning: %v", err)
 	} else {
@@ -292,7 +305,17 @@ func (b *Bot) sendWarning(userID, chatID int64, username string) {
 func (b *Bot) sendCriticalWarning(userID, chatID int64, username string) {
 	// Критическое предупреждение за 3 часа до удаления — Леопард уже готовит
 	who := normalizeUserDisplayName(username)
-	messageText := fmt.Sprintf("🚨 КРИТИЧЕСКОЕ ПРЕДУПРЕЖДЕНИЕ! 🚨\n\n%s, я уже готовлюсь к обеду! Расставляю тарелки, накрываю на стол... Осталось всего 3 ЧАСА до удаления из чата!\n\n⏰ Это твой последний шанс!\n\n🎯 Отправь #training_done ПРЯМО СЕЙЧАС — или станешь главным блюдом! 😬", who)
+	chatType, err := b.db.GetChatType(chatID)
+	if err != nil {
+		chatType = "training"
+	}
+	reportTag := "#training_done"
+	if chatType == "writing" {
+		reportTag = "#writing_done"
+	} else if chatType == "coding" {
+		reportTag = "#coding_done"
+	}
+	messageText := fmt.Sprintf("🚨 КРИТИЧЕСКОЕ ПРЕДУПРЕЖДЕНИЕ! 🚨\n\n%s, я уже готовлюсь к обеду! Расставляю тарелки, накрываю на стол... Осталось всего 3 ЧАСА до удаления из чата!\n\n⏰ Это твой последний шанс!\n\n🎯 Отправь %s ПРЯМО СЕЙЧАС — или станешь главным блюдом! 😬", who, reportTag)
 
 	// Добавляем короткую ИИ‑приписку в духе «Леопард уже ест»
 	if b.aiClient != nil {
@@ -345,7 +368,7 @@ func (b *Bot) sendCriticalWarning(userID, chatID int64, username string) {
 
 	msg := tgbotapi.NewMessage(chatID, messageText)
 	b.logger.Infof("Sending critical warning to user %d (%s)", userID, username)
-	_, err := b.api.Send(msg)
+	_, err = b.api.Send(msg)
 	if err != nil {
 		b.logger.Errorf("Failed to send critical warning: %v", err)
 	} else {

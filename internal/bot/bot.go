@@ -476,7 +476,7 @@ func (b *Bot) handleMessage(msg *tgbotapi.Message) {
 
 	b.tryHandleSickApprovalReply(msg, text)
 
-	// КРИТИЧЕСКИ ВАЖНО: Сначала проверяем хештеги команд (#training_done, #writing_done, #sick_leave, и т.д.)
+	// КРИТИЧЕСКИ ВАЖНО: Сначала проверяем хештеги команд (#training_done, #writing_done, #coding_done, #sick_leave, и т.д.)
 	// Команды имеют приоритет над ИИ-обработкой
 	// Проверяем тип чата для определения правильного хештега
 	chatTypeForCommand, err := b.db.GetChatType(msg.Chat.ID)
@@ -486,13 +486,16 @@ func (b *Bot) handleMessage(msg *tgbotapi.Message) {
 
 	hasTrainingDone := strings.Contains(strings.ToLower(text), "#training_done")
 	hasWritingDone := strings.Contains(strings.ToLower(text), "#writing_done")
+	hasCodingDone := strings.Contains(strings.ToLower(text), "#coding_done")
 	// Для чатов писательства принимаем оба хештега для совместимости, но приоритет у #writing_done
 	hasTrainingDone = hasTrainingDone || (hasWritingDone && chatTypeForCommand == "writing")
+	// Для чатов программирования принимаем оба хештега для совместимости, но приоритет у #coding_done
+	hasTrainingDone = hasTrainingDone || (hasCodingDone && chatTypeForCommand == "coding")
 	hasSickLeave := strings.Contains(strings.ToLower(text), "#sick_leave")
 	hasHealthy := strings.Contains(strings.ToLower(text), "#healthy")
 	hasChange := strings.Contains(strings.ToLower(text), "#change")
 	hasTimeZone := strings.Contains(strings.ToLower(text), "#timezone")
-	hasCommand := hasTrainingDone || hasWritingDone || hasSickLeave || hasHealthy || hasChange || hasTimeZone
+	hasCommand := hasTrainingDone || hasWritingDone || hasCodingDone || hasSickLeave || hasHealthy || hasChange || hasTimeZone
 
 	// Если есть команда, обрабатываем её и НЕ обрабатываем через ИИ
 	if hasCommand {
@@ -512,8 +515,8 @@ func (b *Bot) handleMessage(msg *tgbotapi.Message) {
 		// Сохраняем сообщение в БД для RAG контекста
 		if text != "" {
 			messageType := "general"
-			if hasTrainingDone || hasWritingDone {
-				messageType = "training_done" // Используем единый тип для обоих хештегов
+			if hasTrainingDone || hasWritingDone || hasCodingDone {
+				messageType = "training_done" // Используем единый тип для всех отчетных хештегов
 			} else if hasSickLeave {
 				messageType = "sick_leave"
 			} else if hasHealthy {
@@ -1130,8 +1133,10 @@ func (b *Bot) handleTrainingDone(msg *tgbotapi.Message) {
 				trainingText = msg.Caption
 			}
 			if trainingText != "" {
-				// Убираем хэштег #training_done из текста для контекста
+				// Убираем отчетные хэштеги из текста для контекста
 				trainingTextClean := strings.ReplaceAll(trainingText, "#training_done", "")
+				trainingTextClean = strings.ReplaceAll(trainingTextClean, "#writing_done", "")
+				trainingTextClean = strings.ReplaceAll(trainingTextClean, "#coding_done", "")
 				trainingTextClean = strings.TrimSpace(trainingTextClean)
 				if trainingTextClean != "" {
 					if chatType == "writing" {
@@ -1236,6 +1241,8 @@ func (b *Bot) handleTrainingDone(msg *tgbotapi.Message) {
 		// Добавляем фразу о продолжении тренировок/писательства в самом конце
 		if chatType == "writing" {
 			messageText = messageText + "\n\n🎯 Продолжай писать и не забывай отправлять #writing_done!"
+		} else if chatType == "coding" {
+			messageText = messageText + "\n\n🎯 Продолжай кодить и не забывай отправлять #coding_done!"
 		} else {
 			messageText = messageText + "\n\n🎯 Продолжай тренироваться и не забывай отправлять #training_done!"
 		}
@@ -1269,6 +1276,8 @@ func (b *Bot) handleTrainingDone(msg *tgbotapi.Message) {
 		var messageText string
 		if chatType == "writing" {
 			messageText = fmt.Sprintf("🦁 Какой мотивированный леопард! Еще одна писательская сессия сегодня! 💪\n\n🔥 Твоя мотивация впечатляет\n🏆 +1 кубок за дополнительную писательскую сессию!\n🏆 Всего кубков: %d\n\n⏰ Таймер уже перезапущен на 7 дней\n\n🎯 Завтра снова отправляй #writing_done для продолжения серии!", currentCups)
+		} else if chatType == "coding" {
+			messageText = fmt.Sprintf("🦁 Какой мотивированный леопард! Еще одна кодинг-сессия сегодня! 💪\n\n🔥 Твоя мотивация впечатляет\n🏆 +1 кубок за дополнительную кодинг-сессию!\n🏆 Всего кубков: %d\n\n⏰ Таймер уже перезапущен на 7 дней\n\n🎯 Завтра снова отправляй #coding_done для продолжения серии!", currentCups)
 		} else {
 			messageText = fmt.Sprintf("🦁 Какой мотивированный леопард! Еще одна тренировка сегодня! 💪\n\n🔥 Твоя мотивация впечатляет\n🏆 +1 кубок за дополнительную тренировку!\n🏆 Всего кубков: %d\n\n⏰ Таймер уже перезапущен на 7 дней\n\n🎯 Завтра снова отправляй #training_done для продолжения серии!", currentCups)
 		}
@@ -1331,9 +1340,10 @@ func (b *Bot) handleTrainingDone(msg *tgbotapi.Message) {
 				trainingTextDouble = msg.Caption
 			}
 			if trainingTextDouble != "" {
-				// Убираем хэштеги #training_done и #writing_done из текста для контекста
+				// Убираем отчетные хэштеги из текста для контекста
 				trainingTextClean := strings.ReplaceAll(trainingTextDouble, "#training_done", "")
 				trainingTextClean = strings.ReplaceAll(trainingTextClean, "#writing_done", "")
+				trainingTextClean = strings.ReplaceAll(trainingTextClean, "#coding_done", "")
 				trainingTextClean = strings.TrimSpace(trainingTextClean)
 				if trainingTextClean != "" {
 					if chatType == "writing" {
@@ -1504,6 +1514,7 @@ func (b *Bot) handleTrainingDone(msg *tgbotapi.Message) {
 		sessionText := text
 		sessionText = strings.ReplaceAll(sessionText, "#training_done", "")
 		sessionText = strings.ReplaceAll(sessionText, "#writing_done", "")
+		sessionText = strings.ReplaceAll(sessionText, "#coding_done", "")
 		sessionText = strings.TrimSpace(sessionText)
 
 		if err := b.db.SaveTrainingSession(&domain.TrainingSession{
@@ -4407,19 +4418,19 @@ func (b *Bot) shouldDetectChatTypeAsWriting(text string, chatID int64) bool {
 	return false
 }
 
-// handleSetChatType устанавливает тип чата (training/writing)
-// Использование: /set_chat_type <training|writing>
+// handleSetChatType устанавливает тип чата (training/writing/coding)
+// Использование: /set_chat_type <training|writing|coding>
 func (b *Bot) handleSetChatType(msg *tgbotapi.Message) {
 	args := strings.Fields(msg.CommandArguments())
 	if len(args) < 1 {
-		reply := tgbotapi.NewMessage(msg.Chat.ID, "❌ Использование: /set_chat_type <training|writing>")
+		reply := tgbotapi.NewMessage(msg.Chat.ID, "❌ Использование: /set_chat_type <training|writing|coding>")
 		b.api.Send(reply)
 		return
 	}
 
 	chatType := strings.ToLower(strings.TrimSpace(args[0]))
-	if chatType != "training" && chatType != "writing" {
-		reply := tgbotapi.NewMessage(msg.Chat.ID, "❌ Тип чата должен быть 'training' или 'writing'")
+	if chatType != "training" && chatType != "writing" && chatType != "coding" {
+		reply := tgbotapi.NewMessage(msg.Chat.ID, "❌ Тип чата должен быть 'training', 'writing' или 'coding'")
 		b.api.Send(reply)
 		return
 	}
@@ -4434,6 +4445,8 @@ func (b *Bot) handleSetChatType(msg *tgbotapi.Message) {
 	chatTypeText := "тренировок"
 	if chatType == "writing" {
 		chatTypeText = "писательства"
+	} else if chatType == "coding" {
+		chatTypeText = "программирования"
 	}
 
 	reply := tgbotapi.NewMessage(msg.Chat.ID, fmt.Sprintf("✅ Тип чата установлен: %s\n\nТеперь бот будет вести отдельный контекст для чата %s.", chatTypeText, chatTypeText))
