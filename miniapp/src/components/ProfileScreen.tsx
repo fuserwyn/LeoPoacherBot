@@ -445,13 +445,24 @@ export function ProfileScreen({
       ) : (
         <div className="profile__health">
           <p className="profile__hint muted">Заболел — таймер остановится до выздоровления.</p>
-          <button
-            type="button"
-            className="profile__save profile__health-btn profile__health-btn--secondary"
-            onClick={() => setSickFormOpen(true)}
-          >
-            Взять больничный
-          </button>
+          <div className="profile__health-actions">
+            <button
+              type="button"
+              className="profile__save profile__health-btn profile__health-btn--secondary"
+              onClick={() => setSickFormOpen(true)}
+              disabled={healthBusy}
+            >
+              Взять больничный
+            </button>
+            <button
+              type="button"
+              className="profile__save profile__health-btn"
+              onClick={() => void submitHealthy()}
+              disabled={healthBusy}
+            >
+              {healthBusy ? "Отправляю…" : "Выйти с больничного"}
+            </button>
+          </div>
         </div>
       )}
 

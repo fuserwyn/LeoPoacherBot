@@ -1,7 +1,15 @@
 import { useCallback, useEffect, useState } from "react";
 import { ActivityCard, type ActivityCardProps } from "./ActivityCard";
 import { PackGroupChatPanel } from "./PackGroupChatPanel";
-import { dtoToCard, mergeTrainingFeedReactions, type PackFeedItemDTO, type PackFeedThreadReplyDTO } from "../lib/packFeed";
+import {
+  dtoToCard,
+  HEALTHY_FEED_EMOJIS,
+  mergePackFeedReactions,
+  mergeTrainingFeedReactions,
+  SICK_LEAVE_FEED_EMOJIS,
+  type PackFeedItemDTO,
+  type PackFeedThreadReplyDTO,
+} from "../lib/packFeed";
 import { timeAgoFromISO } from "../lib/timeAgo";
 import "./FeedScreen.css";
 
@@ -300,7 +308,7 @@ export function FeedScreen({ name, streak, userId, initData, inTelegram, showAle
             {!useMockFeed &&
               feedItems.map((it) => {
                 const base = dtoToCard(it);
-                if (it.type !== "training_done" && it.type !== "sick_leave") {
+                if (it.type !== "training_done" && it.type !== "sick_leave" && it.type !== "healthy") {
                   return <ActivityCard key={it.id} {...base} />;
                 }
                 const threadReplies = (it.thread ?? []).map((tr) => {
@@ -333,8 +341,14 @@ export function FeedScreen({ name, streak, userId, initData, inTelegram, showAle
                   <ActivityCard
                     key={it.id}
                     {...base}
-                    reactions={it.type === "training_done" ? mergeTrainingFeedReactions(it.reactions) : []}
-                    onReactionClick={it.type === "training_done" ? (emoji) => void postTrainingReact(it.id, emoji) : undefined}
+                    reactions={
+                      it.type === "training_done"
+                        ? mergeTrainingFeedReactions(it.reactions)
+                        : it.type === "sick_leave"
+                          ? mergePackFeedReactions(SICK_LEAVE_FEED_EMOJIS, it.reactions)
+                          : mergePackFeedReactions(HEALTHY_FEED_EMOJIS, it.reactions)
+                    }
+                    onReactionClick={(emoji) => void postTrainingReact(it.id, emoji)}
                     threadReplies={threadReplies}
                     onThreadReplyDelete={(replyId) => void deleteTrainingThreadReply(it.id, replyId)}
                     onThreadReplyLike={(replyId) => void toggleTrainingThreadLike(it.id, replyId)}

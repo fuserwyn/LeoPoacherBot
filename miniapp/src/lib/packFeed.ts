@@ -49,6 +49,12 @@ export const TRAINING_FEED_EMOJIS = [
   "😱",
 ] as const;
 
+/** Совпадает с ms_leo sickLeaveAllowedEmojis. */
+export const SICK_LEAVE_FEED_EMOJIS = ["😢", "😔", "🥺", "🤒", "🫂", "🙏", "❤️", "💙", "🌧️", "💤"] as const;
+
+/** Совпадает с ms_leo healthyAllowedEmojis. */
+export const HEALTHY_FEED_EMOJIS = ["🎉", "🥳", "😄", "💚", "❤️", "👏", "🙌", "✨", "🌟", "💪"] as const;
+
 export type PackFeedReactionDTO = { emoji: string; count: number; me: boolean; voters?: string[] };
 
 export type PackFeedThreadReplyDTO = {
@@ -90,11 +96,18 @@ export type PackFeedItemDTO = {
 
 /** Полная строка эмодзи для кнопок реакций (с нулевыми счётчиками). Собственная реакция (`me`) показывается первой — в т.ч. если её выбрали в меню «⋯». */
 export function mergeTrainingFeedReactions(fromServer?: PackFeedReactionDTO[]): { emoji: string; count: number; me: boolean; voters?: string[] }[] {
+  return mergePackFeedReactions(TRAINING_FEED_EMOJIS, fromServer);
+}
+
+export function mergePackFeedReactions(
+  allowedEmojis: readonly string[],
+  fromServer?: PackFeedReactionDTO[],
+): { emoji: string; count: number; me: boolean; voters?: string[] }[] {
   const byEmoji = new Map<string, PackFeedReactionDTO>();
   for (const r of fromServer ?? []) {
     byEmoji.set(r.emoji, r);
   }
-  const ordered = TRAINING_FEED_EMOJIS.map((emoji) => {
+  const ordered = allowedEmojis.map((emoji) => {
     const r = byEmoji.get(emoji);
     return { emoji, count: r?.count ?? 0, me: r?.me ?? false, voters: r?.voters };
   });

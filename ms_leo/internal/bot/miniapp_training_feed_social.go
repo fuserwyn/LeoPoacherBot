@@ -12,8 +12,10 @@ import (
 	initdata "github.com/telegram-mini-apps/init-data-golang"
 )
 
-// Допустимые реакции на отчёт в ленте мини-аппа (порядок — отображение).
+// Допустимые реакции по типам карточек в ленте мини-аппа (порядок — отображение).
 var trainingFeedAllowedEmojis = []string{"🔥", "💪", "👏", "❤️", "🎉", "🦁", "⭐", "👍", "🙌", "✨", "🤝", "⚡", "🎯", "😤", "👀", "🙏", "😱"}
+var sickLeaveAllowedEmojis = []string{"😢", "😔", "🥺", "🤒", "🫂", "🙏", "❤️", "💙", "🌧️", "💤"}
+var healthyAllowedEmojis = []string{"🎉", "🥳", "😄", "💚", "❤️", "👏", "🙌", "✨", "🌟", "💪"}
 
 var (
 	// ErrTrainingFeedSocialForbidden — нет доступа к ленте.
@@ -42,6 +44,27 @@ func allowedTrainingFeedEmoji(s string) (string, bool) {
 	return "", false
 }
 
+func allowedEmojiForType(messageType, emoji string) (string, bool) {
+	emoji = strings.TrimSpace(emoji)
+	var allowed []string
+	switch messageType {
+	case "training_done":
+		allowed = trainingFeedAllowedEmojis
+	case "sick_leave":
+		allowed = sickLeaveAllowedEmojis
+	case "healthy":
+		allowed = healthyAllowedEmojis
+	default:
+		return "", false
+	}
+	for _, e := range allowed {
+		if emoji == e {
+			return e, true
+		}
+	}
+	return "", false
+}
+
 func (b *Bot) assertPackFeedSocialViewer(viewerUserID int64) error {
 	if b == nil {
 		return ErrTrainingFeedSocialForbidden
@@ -63,7 +86,7 @@ func (b *Bot) assertPackFeedSocialViewer(viewerUserID int64) error {
 	return nil
 }
 
-// PackTrainingFeedReact — реакция на training_done (повтор с той же эмодзи снимает).
+// PackTrainingFeedReact — реакция на training_done/sick_leave/healthy (повтор с той же эмодзи снимает).
 func (b *Bot) PackTrainingFeedReact(viewerUserID int64, initD initdata.InitData, userMessageID int64, emoji string) error {
 	if err := b.AssertMiniAppPackChatAligns(initD); err != nil {
 		return err
@@ -71,17 +94,17 @@ func (b *Bot) PackTrainingFeedReact(viewerUserID int64, initD initdata.InitData,
 	if err := b.assertPackFeedSocialViewer(viewerUserID); err != nil {
 		return err
 	}
-	em, ok := allowedTrainingFeedEmoji(emoji)
-	if !ok {
-		return ErrTrainingFeedInvalidEmoji
-	}
 	chatID := b.config.MonetizedChatID
 	typ, has, err := b.db.GetUserMessageTypeByIDForChat(userMessageID, chatID)
 	if err != nil {
 		return err
 	}
-	if !has || typ != "training_done" {
+	if !has || (typ != "training_done" && typ != "sick_leave" && typ != "healthy") {
 		return ErrTrainingFeedParentNotFound
+	}
+	em, ok := allowedEmojiForType(typ, emoji)
+	if !ok {
+		return ErrTrainingFeedInvalidEmoji
 	}
 	uname := displayNameFromInitData(initD)
 	return b.db.SetTrainingFeedReaction(chatID, userMessageID, viewerUserID, uname, em)
@@ -402,10 +425,10 @@ func (b *Bot) enrichPackFeedTrainingSocial(items []PackFeedItem, viewerUserID in
 	socialIDs := make([]int64, 0)
 	reactionIDs := make([]int64, 0)
 	for _, it := range items {
-		if it.Type == "training_done" || it.Type == "sick_leave" {
+		if it.Type == "training_done" || it.Type == "sick_leave" || it.Type == "healthy" {
 			socialIDs = append(socialIDs, it.ID)
 		}
-		if it.Type == "training_done" {
+		if it.Type == "training_done" || it.Type == "sick_leave" || it.Type == "healthy" {
 			reactionIDs = append(reactionIDs, it.ID)
 		}
 	}
@@ -428,21 +451,25 @@ func (b *Bot) enrichPackFeedTrainingSocial(items []PackFeedItem, viewerUserID in
 		return items
 	}
 	for i := range items {
-		if items[i].Type != "training_done" && items[i].Type != "sick_leave" {
+		if items[i].Type != "training_done" && items[i].Type != "sick_leave" && items[i].Type != "healthy" {
 			continue
 		}
 		id := items[i].ID
-		if items[i].Type == "training_done" {
-			meEmoji := meMap[id]
-			if aggs, ok := aggsMap[id]; ok {
-				for _, a := range database.SortReactionAggsForDisplay(aggs, trainingFeedAllowedEmojis) {
-					items[i].Reactions = append(items[i].Reactions, PackFeedReaction{
-						Emoji:  a.Emoji,
-						Count:  a.Count,
-						Me:     meEmoji == a.Emoji,
-						Voters: a.Voters,
-					})
-				}
+		meEmoji := meMap[id]
+		if aggs, ok := aggsMap[id]; ok {
+			allowed := trainingFeedAllowedEmojis
+			if items[i].Type == "sick_leave" {
+				allowed = sickLeaveAllowedEmojis
+			} else if items[i].Type == "healthy" {
+				allowed = healthyAllowedEmojis
+			}
+			for _, a := range database.SortReactionAggsForDisplay(aggs, allowed) {
+				items[i].Reactions = append(items[i].Reactions, PackFeedReaction{
+					Emoji:  a.Emoji,
+					Count:  a.Count,
+					Me:     meEmoji == a.Emoji,
+					Voters: a.Voters,
+				})
 			}
 		}
 		if thr, ok := threadMap[id]; ok {

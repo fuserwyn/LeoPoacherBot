@@ -829,18 +829,10 @@ func (b *Bot) handlePaywallPreCheckout(q *tgbotapi.PreCheckoutQuery) {
 	_, _ = b.api.Request(tgbotapi.PreCheckoutConfig{PreCheckoutQueryID: q.ID, OK: true})
 }
 
-// paywallPostPaymentUserText — после успешной оплаты: мини-приложение и приглашение зайти.
-// TG-группы как сущности больше нет: вся механика стаи живёт в мини-аппе.
-// Доступ — разовый: остаётся, пока ты активен; кикает только 8 дней неактивности
-// (после кика нужна повторная оплата). Поэтому «на 30 дней» в тексте не пишем.
-func paywallPostPaymentUserText() string {
-	return `✅ Оплата принята, вход в Fat Leopard MiniApp открыт.
-
-📱 Открой мини-приложение бота — кнопка внизу в этом чате (или через меню ⋮). Там лента стаи, общий чат, тренировки и больничные. При первом открытии бот автоматически добавит тебя в стаю и запустит таймер активности.
-
-ℹ️ Тренировки можно отмечать кнопкой «+» в мини-аппе, либо просто отправить в личку боту сообщение с тегом #training_done.
-
-⏳ Доступ остаётся пока ты активен. Если 8 дней без тренировок — выкидываю, и тогда нужна повторная оплата.`
+// paywallPostPaymentUserText — после успешной оплаты отправляем тот же onboarding,
+// что и при /start у уже оплаченного пользователя.
+func (b *Bot) paywallPostPaymentUserText() string {
+	return welcomeStartText() + b.paywallPrivatePaidFooter()
 }
 
 // paywallDeliverAccessAfterPayment — DM-приветствие после зачёта оплаты (Telegram Payments / ЮKassa / sync API).
@@ -864,7 +856,7 @@ func (b *Bot) paywallDeliverAccessAfterPayment(userID int64) error {
 		return fmt.Errorf("paywall inconsistency: no profile for paid return user=%d chat=%d", userID, chatID)
 	}
 
-	if _, err := b.api.Send(tgbotapi.NewMessage(userID, paywallPostPaymentUserText())); err != nil {
+	if _, err := b.api.Send(tgbotapi.NewMessage(userID, b.paywallPostPaymentUserText())); err != nil {
 		b.logger.Errorf("paywall send done msg: %v", err)
 		return err
 	}
