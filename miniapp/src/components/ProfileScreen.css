@@ -51,6 +51,24 @@
   margin-bottom: 16px;
 }
 
+.profile__quick-healthy {
+  margin-top: 2px;
+  padding: 10px 14px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--text);
+  font-size: 13px;
+  font-weight: 700;
+  font-family: inherit;
+  cursor: pointer;
+}
+
+.profile__quick-healthy:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
 .profile__xp {
   display: flex;
   flex-direction: column;

@@ -252,6 +252,16 @@ export function ProfileScreen({
         <div>
           <h1 className="profile__name">{(profile.displayName || name).trim() || "Стая"}</h1>
           <p className="profile__level muted">Уровень 1 · Новичок</p>
+          {onSick ? (
+            <button
+              type="button"
+              className="profile__quick-healthy"
+              onClick={() => void submitHealthy()}
+              disabled={healthBusy}
+            >
+              {healthBusy ? "Отправляю…" : "Выйти с больничного"}
+            </button>
+          ) : null}
         </div>
         <div className="profile__xp">
           <div className="profile__xp-bar">
@@ -388,15 +398,7 @@ export function ProfileScreen({
         <p className="profile__hint muted">Загрузка статуса…</p>
       ) : onSick ? (
         <div className="profile__health">
-          <p className="profile__hint">🏥 Ты на больничном — таймер остановлен. Возвращайся, когда поправишься.</p>
-          <button
-            type="button"
-            className="profile__save profile__health-btn"
-            onClick={() => void submitHealthy()}
-            disabled={healthBusy}
-          >
-            {healthBusy ? "Отправляю…" : "Выйти с больничного"}
-          </button>
+          <p className="profile__hint">🏥 Ты на больничном — таймер остановлен. Кнопка выхода доступна в шапке профиля.</p>
         </div>
       ) : sickFormOpen ? (
         <div className="profile__health">
