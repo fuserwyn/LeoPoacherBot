@@ -164,7 +164,6 @@ export function App() {
         onChat={() => setTab("chat")}
         onFeed={() => setTab("feed")}
         onRules={() => setTab("rules")}
-        onWorkout={() => setWorkoutOpen(true)}
         onProfile={() => setTab("profile")}
       />
 

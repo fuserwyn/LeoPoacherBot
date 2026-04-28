@@ -11,7 +11,6 @@ type Props = {
   onChat: () => void;
   onFeed: () => void;
   onRules: () => void;
-  onWorkout: () => void;
   onProfile: () => void;
 };
 
@@ -22,7 +21,6 @@ export function BottomNav({
   onChat,
   onFeed,
   onRules,
-  onWorkout,
   onProfile,
 }: Props) {
   const leoBadge = leoBadgeCount > 0 ? (leoBadgeCount > 9 ? "9+" : String(leoBadgeCount)) : null;
@@ -62,11 +60,6 @@ export function BottomNav({
           )}
         </span>
         <span className="bottom-nav__label">Лео</span>
-      </button>
-      <button type="button" className="bottom-nav__fab" onClick={onWorkout} aria-label="Отметить тренировку (#training_done)">
-        <span className="bottom-nav__fab-plus" aria-hidden>
-          +
-        </span>
       </button>
       <button
         type="button"
