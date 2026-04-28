@@ -20,7 +20,7 @@ type Config struct {
 	OpenRouterAPIKey   string
 	OpenRouterModel    string        // Модель OpenRouter (по умолчанию deepseek/deepseek-chat)
 	OpenRouterTimeout  time.Duration // HTTP-таймаут к OpenRouter (весь запрос + чтение тела)
-	ScanHistoryOnStart bool   // Сканировать историю при старте (по умолчанию false)
+	ScanHistoryOnStart bool          // Сканировать историю при старте (по умолчанию false)
 
 	// Платный доступ к Fat Leopard MiniApp (Telegram Payments + ЮKassa).
 	// Архитектура mini-app-only: TG-группы как сущности больше нет, MonetizedChatID
@@ -50,7 +50,7 @@ type Config struct {
 	YookassaAmountMinor int
 	YookassaCurrency    string
 
-	// Prompts — промпты Fat Leopard (встроенные по умолчанию; переопределение через PROMPT_* в .env).
+	// Prompts — встроенные тексты из ms_leo/internal/prompts/data/ (//go:embed), без переопределения через env.
 	Prompts prompts.Bundle
 
 	// MiniappPublicBaseURL — публичный origin HTTP API мини-приложения (MINIAPP_PUBLIC_BASE_URL), без path.
@@ -118,7 +118,7 @@ func Load() (*Config, error) {
 		OpenRouterModel:    getEnv("OPENROUTER_MODEL", "deepseek/deepseek-chat"),
 		OpenRouterTimeout:  orTimeout,
 		ScanHistoryOnStart: scanHistoryOnStart,
-		Prompts:            prompts.BundleFromEnv(),
+		Prompts:            prompts.DefaultBundle(),
 
 		PaywallEnabled:                  paywallEnabled,
 		MonetizedChatID:                 monetizedChatID,

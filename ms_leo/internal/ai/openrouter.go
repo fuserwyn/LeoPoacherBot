@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"os"
 	"strings"
 	"time"
 
@@ -213,13 +212,9 @@ func (c *OpenRouterClient) AnswerUserQuestion(question string, userContext strin
 	return c.Chat(messages, "")
 }
 
-// GenerateDailyWisdom генерирует короткую «мудрость дня» о тренировках и дисциплине
+// GenerateDailyWisdom генерирует короткую «мудрость дня» о тренировках и дисциплине (тело из daily_wisdom_training.txt в промпт-бандле).
 func (c *OpenRouterClient) GenerateDailyWisdom() (string, error) {
-	body := c.promptsBundle.DailyWisdomTraining
-	if strings.TrimSpace(os.Getenv("PROMPT_DAILY_WISDOM_TRAINING")) == "" && strings.TrimSpace(os.Getenv("PROMPT_DAILY_WISDOM_WRITING")) != "" {
-		body = c.promptsBundle.DailyWisdomWriting
-	}
-	systemPrompt := body
+	systemPrompt := c.promptsBundle.DailyWisdomTraining
 
 	systemPrompt += "\n\n" + c.promptsBundle.DailyWisdomLangRule
 

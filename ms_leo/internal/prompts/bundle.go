@@ -2,23 +2,20 @@ package prompts
 
 import (
 	_ "embed"
-	"os"
 	"strings"
 )
 
-// Bundle — промпты персонажа Fat Leopard для OpenRouter и бота.
+// Bundle — промпты персонажа Fat Leopard для OpenRouter и бота (встроенные через //go:embed в data/).
 type Bundle struct {
-	DailySummary        string
-	MonthlySummary      string
-	AnswerUserQuestion  string
-	DailyWisdomTraining string
-	// DailyWisdomWriting — альтернативное тело «мудрости дня» (если задано в env); см. GenerateDailyWisdom.
-	DailyWisdomWriting      string
+	DailySummary            string
+	MonthlySummary          string
+	AnswerUserQuestion      string
+	DailyWisdomTraining     string
 	DailyWisdomLangRule     string
 	DailyWisdomUserTemplate string
 	TrainingChatSuffix      string
-	CriticalTimerQuestion string
-	WarningTimerQuestion  string // предупреждение за 6 дней без отчёта
+	CriticalTimerQuestion   string
+	WarningTimerQuestion    string // предупреждение за 6 дней без отчёта
 	// PackFeedParticipantRemoved — карточка в ленте мини‑аппа, когда человек уже не видит её: текст для стаи.
 	PackFeedParticipantRemoved string
 }
@@ -69,65 +66,11 @@ func DefaultBundle() Bundle {
 	}
 }
 
-// BundleFromEnv строит Bundle: сначала встроенные значения, затем непустые переменные окружения.
-func BundleFromEnv() Bundle {
-	b := DefaultBundle()
-	if v := envPrompt("PROMPT_DAILY_SUMMARY"); v != "" {
-		b.DailySummary = v
-	}
-	if v := envPrompt("PROMPT_MONTHLY_SUMMARY"); v != "" {
-		b.MonthlySummary = v
-	}
-	if v := envPrompt("PROMPT_ANSWER_USER_QUESTION"); v != "" {
-		b.AnswerUserQuestion = v
-	}
-	if v := envPrompt("PROMPT_DAILY_WISDOM_TRAINING"); v != "" {
-		b.DailyWisdomTraining = v
-	}
-	if v := envPrompt("PROMPT_DAILY_WISDOM_WRITING"); v != "" {
-		b.DailyWisdomWriting = v
-	}
-	if v := envPrompt("PROMPT_DAILY_WISDOM_LANG_RULE"); v != "" {
-		b.DailyWisdomLangRule = v
-	}
-	if v := envPrompt("PROMPT_DAILY_WISDOM_USER_TEMPLATE"); v != "" {
-		b.DailyWisdomUserTemplate = v
-	}
-	if v := envPrompt("PROMPT_TRAINING_CHAT_SUFFIX"); v != "" {
-		b.TrainingChatSuffix = v
-	}
-	if v := envPrompt("PROMPT_CRITICAL_TIMER_QUESTION"); v != "" {
-		b.CriticalTimerQuestion = v
-	}
-	if v := envPrompt("PROMPT_WARNING_TIMER_QUESTION"); v != "" {
-		b.WarningTimerQuestion = v
-	}
-	if v := envPrompt("PROMPT_PACK_FEED_REMOVED"); v != "" {
-		b.PackFeedParticipantRemoved = v
-	}
-	return b
-}
-
-// CombinedChatInstructionSuffix — добавка из PROMPT_TRAINING_CHAT_SUFFIX / training_chat_suffix.txt для ответа в чате.
+// CombinedChatInstructionSuffix — добавка из training_chat_suffix.txt для ответа в чате.
 func (b Bundle) CombinedChatInstructionSuffix() string {
 	s := strings.TrimSpace(b.TrainingChatSuffix)
 	if s == "" {
 		return ""
 	}
 	return "\n\n" + s
-}
-
-func envPrompt(key string) string {
-	raw := strings.TrimSpace(os.Getenv(key))
-	if raw == "" {
-		return ""
-	}
-	return unescapeEnvEscapes(raw)
-}
-
-func unescapeEnvEscapes(s string) string {
-	s = strings.ReplaceAll(s, `\n`, "\n")
-	s = strings.ReplaceAll(s, `\t`, "\t")
-	s = strings.ReplaceAll(s, `\r`, "")
-	return s
 }
