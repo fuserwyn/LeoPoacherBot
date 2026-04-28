@@ -20,6 +20,7 @@ export const TRAINING_FEED_EMOJIS = [
   "😤",
   "👀",
   "🙏",
+  "😱",
 ] as const;
 
 export type PackFeedReactionDTO = { emoji: string; count: number; me: boolean };
