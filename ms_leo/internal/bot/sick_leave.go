@@ -384,6 +384,11 @@ func (b *Bot) handleHealthy(msg *tgbotapi.Message) {
 		b.logger.Errorf("Failed to get message log: %v", err)
 		return
 	}
+	if !messageLog.HasSickLeave {
+		infoText := "ℹ️ Ты уже здоров(а) — активного больничного сейчас нет."
+		b.notifyUserText(msg, infoText, "", msg.MessageID)
+		return
+	}
 
 	b.cancelSickApprovalWatcher(msg.From.ID)
 	messageLog.SickApprovalPending = false
