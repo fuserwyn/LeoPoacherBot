@@ -7,13 +7,15 @@ import (
 )
 
 // PackMiniappHistorySinceUTC — с какого момента пользователю показывать общую историю в мини-аппе (лента + чат стаи).
-// Активный платный доступ: с момента зачёта оплаты (минимальный completed_at среди ещё действующих периодов).
-// Иначе участник по training_state: с момента появления записи или последнего возврата (returned_at).
+// Активный платный доступ: начало **текущего** членства — MAX(completed_at) среди ещё действующих строк.
+// Использовать MIN было нельзя: после миграции на access_expires_at = infinity у одного юзера могло остаться
+// несколько «активных» completed-строк → MIN отдавал дату самой первой оплаты и открывал всю старую ленту.
+// Иначе участник по training_state: GREATEST(created_at, returned_at).
 func (d *Database) PackMiniappHistorySinceUTC(userID, monetizedChatID int64, paywallEnabled bool) (time.Time, error) {
 	if paywallEnabled {
 		var payAt sql.NullTime
 		err := d.db.QueryRow(`
-			SELECT MIN(COALESCE(completed_at, created_at))
+			SELECT MAX(COALESCE(completed_at, created_at))
 			FROM paywall_access_requests
 			WHERE user_id = $1 AND monetized_chat_id = $2
 			  AND status = 'completed'

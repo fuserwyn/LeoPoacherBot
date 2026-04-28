@@ -679,6 +679,17 @@ var Migrations = []Migration{
 			  AND access_expires_at = 'infinity'::timestamptz;
 		`,
 	},
+	{
+		Version:     33,
+		Description: "miniapp_user_profile.telegram_photo_url from WebApp init (feed avatars)",
+		UpSQL: `
+			ALTER TABLE miniapp_user_profile
+			ADD COLUMN IF NOT EXISTS telegram_photo_url TEXT NOT NULL DEFAULT '';
+		`,
+		DownSQL: `
+			ALTER TABLE miniapp_user_profile DROP COLUMN IF EXISTS telegram_photo_url;
+		`,
+	},
 }
 
 // MigrationRecord представляет запись о выполненной миграции

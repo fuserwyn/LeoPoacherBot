@@ -28,6 +28,18 @@
   justify-content: center;
   font-size: 24px;
   flex-shrink: 0;
+  overflow: hidden;
+}
+
+.act-card__avatar-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.act-card__thread-avatar--member {
+  border: 1px solid rgba(180, 180, 210, 0.25);
 }
 
 .act-card__meta {
@@ -183,6 +195,30 @@
   padding: 8px 0;
   border-bottom: 1px solid var(--border-subtle);
   font-size: 14px;
+}
+
+.act-card__thread-item-inner {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+}
+
+.act-card__thread-item-inner--has-avatar {
+  align-items: flex-start;
+}
+
+.act-card__thread-avatar {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  object-fit: cover;
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+
+.act-card__thread-item-main {
+  flex: 1;
+  min-width: 0;
 }
 
 .act-card__thread-item:last-child {

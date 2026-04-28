@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { formatChatTime, timeAgoFromISO } from "../lib/timeAgo";
+import { LEO_AVATAR_URL } from "../lib/leoAvatar";
 import "./PackGroupChatPanel.css";
 
 const apiBase = (import.meta.env.VITE_MINIAPP_API_URL as string | undefined)?.replace(/\/$/, "") ?? "";
@@ -11,6 +12,7 @@ export type PackGroupMessage = {
   text: string;
   created_at: string;
   is_leo: boolean;
+  author_photo_url?: string;
 };
 
 type Props = {
@@ -119,10 +121,23 @@ export function PackGroupChatPanel({ initData, inTelegram, meId, showAlert, onHa
               key={m.id}
               className={`packroom__row ${m.is_leo ? "packroom__row--leo" : mine ? "packroom__row--me" : "packroom__row--oth"}`}
             >
-              <div className="packroom__meta">
-                {m.is_leo ? "Лео" : m.username} · {formatChatTime(m.created_at)} · {timeAgoFromISO(m.created_at)}
+              <div className="packroom__row-inner">
+                <div className="packroom__ava" aria-hidden>
+                  {m.is_leo ? (
+                    <img className="packroom__avatar" src={LEO_AVATAR_URL} width={32} height={32} alt="" loading="lazy" />
+                  ) : m.author_photo_url ? (
+                    <img className="packroom__avatar" src={m.author_photo_url} width={32} height={32} alt="" loading="lazy" />
+                  ) : (
+                    <span className="packroom__avatar-ph">🐾</span>
+                  )}
+                </div>
+                <div className="packroom__content">
+                  <div className="packroom__meta">
+                    {m.is_leo ? "Лео" : m.username} · {formatChatTime(m.created_at)} · {timeAgoFromISO(m.created_at)}
+                  </div>
+                  <div className="packroom__bubble">{m.text}</div>
+                </div>
               </div>
-              <div className="packroom__bubble">{m.text}</div>
             </div>
           );
         })}

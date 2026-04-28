@@ -14,7 +14,7 @@ import "./App.css";
 type Tab = "chat" | "feed" | "rules" | "profile";
 
 export function App() {
-  const { name, streak, setStreak, initData, userId, inTelegram, tg } = useTelegramWebApp();
+  const { name, streak, setStreak, initData, userId, photoUrl, inTelegram, tg } = useTelegramWebApp();
   const showAlert = useCallback((m: string) => {
     if (tg?.showAlert) void tg.showAlert(m);
     else window.alert(m);
@@ -85,6 +85,7 @@ export function App() {
           workouts={workouts}
           initData={initData}
           inTelegram={inTelegram}
+          userPhotoUrl={photoUrl}
           showAlert={showAlert}
         />
       )}

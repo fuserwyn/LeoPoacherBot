@@ -32,8 +32,46 @@
 .packroom__row {
   display: flex;
   flex-direction: column;
+  gap: 4px;
   max-width: 90%;
-  gap: 2px;
+}
+
+.packroom__row-inner {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+}
+
+.packroom__content {
+  flex: 1;
+  min-width: 0;
+}
+
+.packroom__ava {
+  flex-shrink: 0;
+  width: 32px;
+  padding-top: 2px;
+}
+
+.packroom__avatar {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  object-fit: cover;
+  display: block;
+  border: 1px solid var(--border-subtle, #2a2a36);
+}
+
+.packroom__avatar-ph {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 15px;
+  background: var(--card-inner, #16161e);
+  border: 1px dashed var(--border-subtle, #333);
 }
 
 .packroom__row--me {

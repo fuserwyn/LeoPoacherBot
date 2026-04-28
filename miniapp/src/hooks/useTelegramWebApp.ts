@@ -11,6 +11,8 @@ export function useTelegramWebApp() {
   const [initData, setInitData] = useState("");
   const [userId, setUserId] = useState(0);
 
+  const [photoUrl, setPhotoUrl] = useState<string | undefined>(undefined);
+
   useEffect(() => {
     const w = window.Telegram?.WebApp;
     if (!w) {
@@ -30,6 +32,8 @@ export function useTelegramWebApp() {
     if (u) {
       setName(u.first_name || u.username || "друг");
       setUserId(u.id);
+      const p = (u as { photo_url?: string }).photo_url;
+      if (p && typeof p === "string") setPhotoUrl(p);
     }
   }, []);
 
@@ -39,6 +43,7 @@ export function useTelegramWebApp() {
     setStreak,
     initData,
     userId,
+    photoUrl,
     inTelegram: Boolean(window.Telegram?.WebApp),
     tg: window.Telegram?.WebApp,
   };

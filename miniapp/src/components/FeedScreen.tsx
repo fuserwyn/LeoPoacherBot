@@ -268,6 +268,7 @@ export function FeedScreen({ name, streak, userId, initData, inTelegram, showAle
                   timeAgo: timeAgoFromISO(tr.created_at),
                   isYou: tr.is_you,
                   isLeo: Boolean(tr.is_leo),
+                  authorPhotoUrl: tr.author_photo_url,
                 }));
                 return (
                   <ActivityCard

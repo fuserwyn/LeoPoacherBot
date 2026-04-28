@@ -166,3 +166,21 @@ func (b *Bot) GetMiniappUserProfileJSONForAPI(userID, packChatID int64) (gender,
 	}
 	return gender, displayName, age
 }
+
+// SyncMiniappTelegramPhotoFromInit — сохраняет URL аватарки из WebApp initData (user.photo_url) для ленты/чата.
+// Пустая строка не затирает уже сохранённое (см. UpsertMiniappTelegramPhotoURL).
+func (b *Bot) SyncMiniappTelegramPhotoFromInit(userID, packChatID int64, photoURL string) {
+	if b == nil || b.db == nil {
+		return
+	}
+	photoURL = strings.TrimSpace(photoURL)
+	if photoURL == "" {
+		return
+	}
+	if len(photoURL) > 768 {
+		return
+	}
+	if err := b.db.UpsertMiniappTelegramPhotoURL(userID, packChatID, photoURL); err != nil {
+		b.logger.Warnf("miniapp sync telegram photo user=%d: %v", userID, err)
+	}
+}

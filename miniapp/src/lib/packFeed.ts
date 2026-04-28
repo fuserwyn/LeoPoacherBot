@@ -1,3 +1,4 @@
+import { LEO_AVATAR_URL } from "./leoAvatar";
 import { timeAgoFromISO } from "./timeAgo";
 import type { ActivityCardProps } from "../components/ActivityCard";
 
@@ -14,6 +15,8 @@ export type PackFeedThreadReplyDTO = {
   created_at: string;
   is_you: boolean;
   is_leo?: boolean;
+  /** URL из miniapp_user_profile (Telegram WebApp user.photo_url при онбординге). */
+  author_photo_url?: string;
 };
 
 export type PackFeedItemDTO = {
@@ -27,6 +30,7 @@ export type PackFeedItemDTO = {
   is_you: boolean;
   pack_chat_id?: number;
   pack_title?: string;
+  author_photo_url?: string;
   reactions?: PackFeedReactionDTO[];
   thread?: PackFeedThreadReplyDTO[];
 };
@@ -81,6 +85,7 @@ export function dtoToCard(d: PackFeedItemDTO): ActivityCardProps {
     d.type === "daily_wisdom" ||
     d.type === "pack_removed";
   const newcomer = (d.username || "").trim() || `Участник ${d.user_id}`;
+  const pic = (d.author_photo_url || "").trim();
   const commentRaw = d.text.trim();
   const maxComment =
     d.type === "training_done" || d.type === "daily_wisdom" ? 2000 : 280;
@@ -90,7 +95,7 @@ export function dtoToCard(d: PackFeedItemDTO): ActivityCardProps {
     if (d.type === "daily_wisdom") leoDetails = "Мудрость дня";
     else if (d.type === "pack_removed") leoDetails = newcomer;
     return {
-      avatar: "🐆",
+      avatar: LEO_AVATAR_URL,
       name: "Лео",
       streak: 0,
       hideStreak: true,
@@ -102,7 +107,7 @@ export function dtoToCard(d: PackFeedItemDTO): ActivityCardProps {
     };
   }
   return {
-    avatar: avatarFor(d.username),
+    avatar: pic || avatarFor(d.username),
     name: d.is_you ? "Ты" : d.username || `Участник ${d.user_id}`,
     streak: d.streak_days,
     timeAgo: timeAgoFromISO(d.created_at),

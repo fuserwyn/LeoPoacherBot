@@ -24,12 +24,14 @@ type Props = {
   workouts: number;
   initData: string;
   inTelegram: boolean;
+  /** Ссылка на аватар из Telegram WebApp (initDataUnsafe.user.photo_url), если бот открыл мини-апп. */
+  userPhotoUrl?: string;
   showAlert: (m: string) => void;
 };
 
 const LEVELS = [200];
 
-export function ProfileScreen({ name, streak, workouts, initData, inTelegram, showAlert }: Props) {
+export function ProfileScreen({ name, streak, workouts, initData, inTelegram, userPhotoUrl, showAlert }: Props) {
   const xp = 25;
   const [burn, setBurn] = useState<3 | 5 | 7>(5);
   const [profile, setProfile] = useState<ProfileData>({ gender: "", displayName: "", age: "", timezoneOffset: 0 });
@@ -220,7 +222,11 @@ export function ProfileScreen({ name, streak, workouts, initData, inTelegram, sh
     <div className="profile">
       <header className="profile__hero">
         <div className="profile__avatar" aria-hidden>
-          🐆
+          {userPhotoUrl ? (
+            <img src={userPhotoUrl} alt="" className="profile__avatar-img" width={88} height={88} />
+          ) : (
+            "🐆"
+          )}
         </div>
         <h1 className="profile__name">{(profile.displayName || name).trim() || "Стая"}</h1>
         <p className="profile__level muted">Уровень 1 · Новичок</p>

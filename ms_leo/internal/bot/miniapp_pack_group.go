@@ -71,7 +71,11 @@ func (b *Bot) PackGroupChatForViewer(viewerUserID int64, initD initdata.InitData
 	if err != nil {
 		return nil, err
 	}
-	return b.db.ListMiniappPackGroupChat(chatID, 100, since)
+	msgs, err := b.db.ListMiniappPackGroupChat(chatID, 100, since)
+	if err != nil {
+		return nil, err
+	}
+	return b.enrichPackGroupChatAuthorPhotos(msgs, chatID), nil
 }
 
 // ProcessMiniAppPackGroupMessage — сохраняет реплику; при @leo / @бот вызывает ИИ, без отправки в Telegram.
@@ -149,4 +153,37 @@ func (b *Bot) ProcessMiniAppPackGroupMessage(d initdata.InitData, text string) (
 	}
 	out.ReplyText = reply
 	return out, nil
+}
+
+func (b *Bot) enrichPackGroupChatAuthorPhotos(msgs []*domain.PackGroupChatMessage, chatID int64) []*domain.PackGroupChatMessage {
+	if b == nil || b.db == nil || chatID == 0 || len(msgs) == 0 {
+		return msgs
+	}
+	var ids []int64
+	seen := map[int64]struct{}{}
+	for _, m := range msgs {
+		if m == nil || m.IsLeo || m.UserID == 0 {
+			continue
+		}
+		if _, ok := seen[m.UserID]; ok {
+			continue
+		}
+		seen[m.UserID] = struct{}{}
+		ids = append(ids, m.UserID)
+	}
+	if len(ids) == 0 {
+		return msgs
+	}
+	urlMap, err := b.db.MiniappTelegramPhotoURLMap(chatID, ids)
+	if err != nil {
+		b.logger.Warnf("pack group chat author photos: %v", err)
+		return msgs
+	}
+	for _, m := range msgs {
+		if m == nil || m.IsLeo || m.UserID == 0 {
+			continue
+		}
+		m.AuthorPhotoURL = urlMap[m.UserID]
+	}
+	return msgs
 }

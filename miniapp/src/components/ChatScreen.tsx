@@ -1,11 +1,10 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { drainLeoPersonalInbox } from "../lib/leoPersonalInbox";
 import { formatChatTime } from "../lib/timeAgo";
+import { LEO_AVATAR_URL } from "../lib/leoAvatar";
 import "./ChatScreen.css";
 
 const envApi = (import.meta.env.VITE_MINIAPP_API_URL as string | undefined)?.replace(/\/$/, "") ?? "";
-
-const AVATAR_URL = `${import.meta.env.BASE_URL}leo-avatar.png`;
 
 type Props = {
   name: string;
@@ -223,7 +222,7 @@ export function ChatScreen({ name, initData, inTelegram, showAlert, onInboxDrain
       )}
       <header className="chat__head">
         <div className="chat__head-avatarwrap">
-          <img className="chat__head-avatar" src={AVATAR_URL} width={52} height={52} alt="Лео" loading="eager" />
+          <img className="chat__head-avatar" src={LEO_AVATAR_URL} width={52} height={52} alt="Лео" loading="eager" />
           {sending && (
             <span className="chat__head-typing" aria-hidden="true">
               <span className="chat__head-typing-dots">
@@ -242,7 +241,7 @@ export function ChatScreen({ name, initData, inTelegram, showAlert, onInboxDrain
       <div className="chat__log" role="log" aria-label="Сообщения с ботом">
         {loaded && items.length === 0 && (
           <div className="chat__row chat__row--sys">
-            <img className="chat__bubble-avatar" src={AVATAR_URL} width={36} height={36} alt="" aria-hidden="true" />
+            <img className="chat__bubble-avatar" src={LEO_AVATAR_URL} width={36} height={36} alt="" aria-hidden="true" />
             <div className="chat__bubble chat__bubble--sys">
               Привет! Здесь личный чат с Лео — ИИ отвечает на любой текст, есть #training_done и /start. История
               синхронизируется между всеми твоими устройствами.
@@ -259,7 +258,7 @@ export function ChatScreen({ name, initData, inTelegram, showAlert, onInboxDrain
             </div>
           ) : (
             <div key={m.uiKey} className="chat__row chat__row--sys">
-              <img className="chat__bubble-avatar" src={AVATAR_URL} width={36} height={36} alt="" aria-hidden="true" />
+              <img className="chat__bubble-avatar" src={LEO_AVATAR_URL} width={36} height={36} alt="" aria-hidden="true" />
               <div className="chat__bubble-wrap chat__bubble-wrap--sys">
                 <div className="chat__bubble chat__bubble--sys">{m.text}</div>
                 <div className="chat__time chat__time--sys">{formatChatTime(m.createdAt)}</div>
@@ -269,7 +268,7 @@ export function ChatScreen({ name, initData, inTelegram, showAlert, onInboxDrain
         )}
         {sending && (
           <div className="chat__row chat__row--sys" role="status" aria-live="polite" aria-label="Лео печатает">
-            <img className="chat__bubble-avatar" src={AVATAR_URL} width={36} height={36} alt="" aria-hidden="true" />
+            <img className="chat__bubble-avatar" src={LEO_AVATAR_URL} width={36} height={36} alt="" aria-hidden="true" />
             <div className="chat__bubble chat__bubble--sys chat__bubble--typing" aria-hidden="true">
               <span className="chat__typing-dots">
                 <span className="chat__dot" />

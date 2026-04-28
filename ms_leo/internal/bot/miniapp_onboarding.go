@@ -60,6 +60,8 @@ func (b *Bot) EnsureMiniAppOnboarding(d initdata.InitData) (MiniAppOnboardingRes
 		}
 	}
 
+	b.SyncMiniappTelegramPhotoFromInit(userID, chatID, strings.TrimSpace(d.User.PhotoURL))
+
 	// На всякий случай — приватный message_log для лички (sick/healthy через #хэштеги).
 	b.ensurePrivateMessageLogForMiniApp(userID, username)
 

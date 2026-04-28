@@ -1,5 +1,12 @@
 import { useRef, useState, useEffect } from "react";
+import { LEO_AVATAR_URL } from "../lib/leoAvatar";
 import "./ActivityCard.css";
+
+function avatarLooksLikeImageSrc(avatar: string): boolean {
+  const t = avatar.trim();
+  if (t.startsWith("/") || t.startsWith("http://") || t.startsWith("https://")) return true;
+  return /\.[a-z0-9]{2,4}(\?|$)/i.test(t);
+}
 
 export type ActivityCardThreadReply = {
   id: number;
@@ -9,6 +16,8 @@ export type ActivityCardThreadReply = {
   isYou: boolean;
   /** Ответ Лео из треда ленты (тот же текст, что персонально в ЛС). */
   isLeo?: boolean;
+  /** Аватар участника (TG), если уже синхронился с сервера. */
+  authorPhotoUrl?: string;
 };
 
 export type ActivityCardThreadComposer = {
@@ -77,7 +86,11 @@ export function ActivityCard({
     <article className={`act-card${hideStreak ? " act-card--leo" : ""}`}>
       <header className="act-card__head">
         <div className="act-card__avatar" aria-hidden>
-          {avatar}
+          {avatarLooksLikeImageSrc(avatar) ? (
+            <img className="act-card__avatar-img" src={avatar.trim()} alt="" loading="lazy" />
+          ) : (
+            avatar
+          )}
         </div>
         <div className="act-card__meta">
           <div className="act-card__row">
@@ -150,23 +163,42 @@ export function ActivityCard({
                           key={tr.id}
                           className={`act-card__thread-item${tr.isYou ? " act-card__thread-item--you" : ""}${leo ? " act-card__thread-item--leo" : ""}`}
                         >
-                          <div className="act-card__thread-item-head">
-                            <div className="act-card__thread-item-meta">
-                              <span className="act-card__thread-author">{displayAuthor}</span>
-                              <span className="act-card__thread-time muted">{tr.timeAgo}</span>
+                          <div className={`act-card__thread-item-inner${leo || (!leo && tr.authorPhotoUrl?.trim()) ? " act-card__thread-item-inner--has-avatar" : ""}`}>
+                            {leo ? (
+                              <img
+                                className="act-card__thread-avatar"
+                                src={LEO_AVATAR_URL}
+                                alt=""
+                                loading="lazy"
+                              />
+                            ) : tr.authorPhotoUrl?.trim() ? (
+                              <img
+                                className="act-card__thread-avatar act-card__thread-avatar--member"
+                                src={tr.authorPhotoUrl.trim()}
+                                alt=""
+                                loading="lazy"
+                              />
+                            ) : null}
+                            <div className="act-card__thread-item-main">
+                              <div className="act-card__thread-item-head">
+                                <div className="act-card__thread-item-meta">
+                                  <span className="act-card__thread-author">{displayAuthor}</span>
+                                  <span className="act-card__thread-time muted">{tr.timeAgo}</span>
+                                </div>
+                                {tr.isYou && !leo && onThreadReplyDelete != null && (
+                                  <button
+                                    type="button"
+                                    className="act-card__thread-del"
+                                    disabled={Boolean(threadReplyDeleting[tr.id])}
+                                    onClick={() => onThreadReplyDelete(tr.id)}
+                                  >
+                                    {threadReplyDeleting[tr.id] ? "…" : "Удалить"}
+                                  </button>
+                                )}
+                              </div>
+                              <p className="act-card__thread-text">{tr.text}</p>
                             </div>
-                            {tr.isYou && !leo && onThreadReplyDelete != null && (
-                              <button
-                                type="button"
-                                className="act-card__thread-del"
-                                disabled={Boolean(threadReplyDeleting[tr.id])}
-                                onClick={() => onThreadReplyDelete(tr.id)}
-                              >
-                                {threadReplyDeleting[tr.id] ? "…" : "Удалить"}
-                              </button>
-                            )}
                           </div>
-                          <p className="act-card__thread-text">{tr.text}</p>
                         </li>
                       );
                     })}

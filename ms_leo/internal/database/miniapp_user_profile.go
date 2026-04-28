@@ -5,27 +5,30 @@ import (
 	"fmt"
 	"strings"
 	"time"
+
+	"github.com/lib/pq"
 )
 
 // MiniappUserProfile — опциональные поля мини-аппа (стая / MONETIZED_CHAT_ID).
 type MiniappUserProfile struct {
-	UserID      int64
-	PackChatID  int64
-	Gender      string
-	DisplayName string
-	AgeYears    sql.NullInt64
-	UpdatedAt   time.Time
+	UserID            int64
+	PackChatID        int64
+	Gender            string
+	DisplayName       string
+	AgeYears          sql.NullInt64
+	TelegramPhotoURL  string
+	UpdatedAt         time.Time
 }
 
 // GetMiniappUserProfile — профиль.
 func (d *Database) GetMiniappUserProfile(userID, packChatID int64) (*MiniappUserProfile, error) {
 	const q = `
-		SELECT user_id, pack_chat_id, gender, display_name, age_years, updated_at
+		SELECT user_id, pack_chat_id, gender, display_name, age_years, telegram_photo_url, updated_at
 		FROM miniapp_user_profile
 		WHERE user_id = $1 AND pack_chat_id = $2`
 	var p MiniappUserProfile
 	err := d.db.QueryRow(q, userID, packChatID).Scan(
-		&p.UserID, &p.PackChatID, &p.Gender, &p.DisplayName, &p.AgeYears, &p.UpdatedAt,
+		&p.UserID, &p.PackChatID, &p.Gender, &p.DisplayName, &p.AgeYears, &p.TelegramPhotoURL, &p.UpdatedAt,
 	)
 	if err != nil {
 		return nil, err
@@ -33,7 +36,76 @@ func (d *Database) GetMiniappUserProfile(userID, packChatID int64) (*MiniappUser
 	return &p, nil
 }
 
-// UpsertMiniappUserProfile — полная замена полей.
+// UpsertMiniappTelegramPhotoURL — URL аватарки из WebApp initData (`user.photo_url`); только колонка photo.
+func (d *Database) UpsertMiniappTelegramPhotoURL(userID, packChatID int64, photoURL string) error {
+	photoURL = strings.TrimSpace(photoURL)
+	if d == nil || packChatID == 0 || userID == 0 || photoURL == "" {
+		return nil
+	}
+	if len(photoURL) > 768 {
+		return fmt.Errorf("telegram photo url too long")
+	}
+	const q = `
+		INSERT INTO miniapp_user_profile (user_id, pack_chat_id, gender, display_name, age_years, telegram_photo_url, updated_at)
+		VALUES ($1, $2, '', '', NULL, $3, NOW())
+		ON CONFLICT (user_id, pack_chat_id) DO UPDATE SET
+			telegram_photo_url = EXCLUDED.telegram_photo_url,
+			updated_at = EXCLUDED.updated_at`
+	_, err := d.db.Exec(q, userID, packChatID, photoURL)
+	if err != nil {
+		return fmt.Errorf("upsert telegram photo url: %w", err)
+	}
+	return nil
+}
+
+// MiniappTelegramPhotoURLMap — telegram_photo_url по списку user_id (лента / тред / чат стаи).
+func (d *Database) MiniappTelegramPhotoURLMap(packChatID int64, userIDs []int64) (map[int64]string, error) {
+	out := make(map[int64]string)
+	if d == nil || packChatID == 0 || len(userIDs) == 0 {
+		return out, nil
+	}
+	uniq := uniqInt64PreserveOrder(userIDs)
+	if len(uniq) == 0 {
+		return out, nil
+	}
+	q := `
+		SELECT user_id, telegram_photo_url FROM miniapp_user_profile
+		WHERE pack_chat_id = $1 AND user_id = ANY($2)
+		  AND NULLIF(BTRIM(telegram_photo_url), '') IS NOT NULL`
+	rows, err := d.db.Query(q, packChatID, pq.Array(uniq))
+	if err != nil {
+		return nil, fmt.Errorf("telegram photo url map: %w", err)
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var uid int64
+		var url string
+		if err := rows.Scan(&uid, &url); err != nil {
+			return nil, err
+		}
+		url = strings.TrimSpace(url)
+		if url != "" {
+			out[uid] = url
+		}
+	}
+	return out, rows.Err()
+}
+
+func uniqInt64PreserveOrder(ids []int64) []int64 {
+	seen := make(map[int64]struct{})
+	var out []int64
+	for _, id := range ids {
+		if id == 0 {
+			continue
+		}
+		if _, ok := seen[id]; ok {
+			continue
+		}
+		seen[id] = struct{}{}
+		out = append(out, id)
+	}
+	return out
+}
 func (d *Database) UpsertMiniappUserProfile(p *MiniappUserProfile) error {
 	if p == nil {
 		return fmt.Errorf("nil profile")
