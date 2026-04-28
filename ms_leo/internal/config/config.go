@@ -52,6 +52,10 @@ type Config struct {
 
 	// Prompts — промпты Fat Leopard (встроенные по умолчанию; переопределение через PROMPT_* в .env).
 	Prompts prompts.Bundle
+
+	// MiniappPublicBaseURL — публичный origin HTTP API мини-приложения (MINIAPP_PUBLIC_BASE_URL), без path.
+	// Используется для канонизации URL фото тренировки в ленте; должен совпадать с тем, что в VITE_MINIAPP_API_URL.
+	MiniappPublicBaseURL string
 }
 
 func Load() (*Config, error) {
@@ -134,6 +138,8 @@ func Load() (*Config, error) {
 		YookassaNotificationURL: strings.TrimSpace(getEnv("YOOKASSA_NOTIFICATION_URL", "")),
 		YookassaAmountMinor:     ykMinor,
 		YookassaCurrency:        ykCur,
+
+		MiniappPublicBaseURL: strings.TrimSpace(getEnv("MINIAPP_PUBLIC_BASE_URL", "")),
 	}, nil
 }
 

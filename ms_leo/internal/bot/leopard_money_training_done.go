@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	"leo-bot/internal/ai"
 	"leo-bot/internal/domain"
@@ -364,4 +365,59 @@ func (b *Bot) handleLeopardMoneyTrainingDone(msg *tgbotapi.Message, personalRepl
 		}
 	}
 
+}
+
+// LeoBanterReplyToUserTrainingFeedThread — ответ Лео в треде под отчётом, когда пользователь ответил на сообщение Лео (reply).
+// Вызывается асинхронно из PackTrainingFeedThreadPost; не шлёт личку, только строка в miniapp_training_feed_thread.
+func (b *Bot) LeoBanterReplyToUserTrainingFeedThread(
+	packChatID, trainingUserMessageID int64,
+	userThreadReplyRowID int64,
+	viewerTelegramUserID int64,
+	userReplyText, leoMessageBeingRepliedTo string,
+) {
+	if b == nil || b.db == nil || b.aiClient == nil {
+		return
+	}
+	reportText := ""
+	if t, err := b.db.GetUserMessageTextByIDForChat(trainingUserMessageID, packChatID); err == nil {
+		reportText = t
+	}
+	profName, _ := b.LeoUserProfileForFeedPrompt(viewerTelegramUserID)
+	leoCtx := truncateForDM(leoMessageBeingRepliedTo, 1400)
+	userCtx := truncateForDM(userReplyText, 1400)
+	reportCtx := truncateForDM(reportText, 900)
+
+	qb := strings.Builder{}
+	qb.WriteString("Ты Лео — Fat Leopard. Пользователь ответил на ТВОЁ сообщение в комментариях под его отчётом #training_done в ленте стаи (мини-апп).\n\n")
+	qb.WriteString("Твоё сообщение, на которое он ответил:\n")
+	qb.WriteString(leoCtx)
+	qb.WriteString("\n\nЕго реплика тебе:\n")
+	qb.WriteString(userCtx)
+	qb.WriteString("\n\nОтветь ему 1–4 короткими предложениями в том же тоне: остроумно, по-хищному по-дружески, можно лёгкую иронию. Реагируй на его слова, продолжай диалог — не пересказывай длинный отчёт ниже целиком.\n")
+	qb.WriteString("Без Markdown, без нумерации списков. Эмодзи — не больше двух на весь ответ. Без мета («как языковая модель»).\n")
+	if strings.TrimSpace(profName) != "" {
+		qb.WriteString("Имя из профиля (если уместно в обращении): " + strings.TrimSpace(profName) + "\n")
+	}
+
+	ctxBody := strings.Builder{}
+	ctxBody.WriteString("Выдержка из текста отчёта пользователя (контекст, не цитируй дословно целиком):\n")
+	ctxBody.WriteString(reportCtx)
+
+	reply, err := b.aiClient.AnswerUserQuestion(qb.String(), ctxBody.String())
+	if err != nil {
+		b.logger.Warnf("leo training feed thread banter AI: %v", err)
+		return
+	}
+	reply = ai.SanitizeTextForUser(reply)
+	reply = strings.TrimSpace(strings.Trim(reply, "\"'«»“”„"))
+	if utf8.RuneCountInString(reply) < 2 {
+		return
+	}
+	if utf8.RuneCountInString(reply) > 900 {
+		r := []rune(reply)
+		reply = string(r[:900]) + "…"
+	}
+	if _, err := b.db.InsertTrainingFeedThreadReply(packChatID, trainingUserMessageID, 0, "Лео", reply, userThreadReplyRowID); err != nil {
+		b.logger.Warnf("leo training feed thread banter insert: %v", err)
+	}
 }

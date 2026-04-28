@@ -4,7 +4,7 @@ import type { ActivityCardProps } from "../components/ActivityCard";
 
 const viteMiniappApi = (import.meta.env.VITE_MINIAPP_API_URL as string | undefined)?.replace(/\/$/, "").trim() ?? "";
 
-/** Лента всегда ходит на VITE_MINIAPP_API_URL; в БД мог остаться старый origin (127.0.0.1 или другой домен). */
+/** Лента: в БД мог остаться старый origin; API additionally canonicalizes via MINIAPP_PUBLIC_BASE_URL. */
 export function resolveTrainingPhotoUrl(stored: string | undefined): string | undefined {
   const raw = (stored ?? "").trim();
   if (!raw) return undefined;
@@ -18,6 +18,10 @@ export function resolveTrainingPhotoUrl(stored: string | undefined): string | un
   } else if (raw.startsWith(marker)) {
     path = raw;
   } else {
+    return raw;
+  }
+  // Уже канонический https с API — не перетираем ошибочным VITE_MINIAPP_API_URL (частая причина битых картинок).
+  if (raw.startsWith("https://") && !raw.includes("127.0.0.1") && !raw.includes("localhost")) {
     return raw;
   }
   if (!viteMiniappApi) return raw;

@@ -251,7 +251,13 @@ export function ActivityCard({
         {comment && <p className="act-card__comment">{comment}</p>}
         {trainingPhotoUrl ? (
           <div className="act-card__photo-wrap">
-            <img className="act-card__photo" src={trainingPhotoUrl} alt="" loading="lazy" />
+            <img
+              className="act-card__photo"
+              src={trainingPhotoUrl}
+              alt=""
+              loading="lazy"
+              referrerPolicy="no-referrer"
+            />
           </div>
         ) : null}
         {aiText && (

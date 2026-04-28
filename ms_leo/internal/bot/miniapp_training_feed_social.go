@@ -110,6 +110,8 @@ func (b *Bot) PackTrainingFeedThreadPost(viewerUserID int64, initD initdata.Init
 	if !has || typ != "training_done" {
 		return ErrTrainingFeedParentNotFound
 	}
+	var leoParentSnapshot string
+	replyingToLeo := false
 	if replyToThreadID != 0 {
 		parent, ok, err := b.db.GetTrainingFeedThreadRowInPack(replyToThreadID, chatID)
 		if err != nil {
@@ -118,6 +120,10 @@ func (b *Bot) PackTrainingFeedThreadPost(viewerUserID int64, initD initdata.Init
 		if !ok || parent.UserMessageID != userMessageID {
 			return ErrTrainingFeedThreadInvalidReply
 		}
+		if parent.FromUserID == 0 {
+			replyingToLeo = true
+			leoParentSnapshot = parent.MessageText
+		}
 	}
 	uname := displayNameFromInitData(initD)
 	threadID, err := b.db.InsertTrainingFeedThreadReply(chatID, userMessageID, viewerUserID, uname, text, replyToThreadID)
@@ -125,6 +131,22 @@ func (b *Bot) PackTrainingFeedThreadPost(viewerUserID int64, initD initdata.Init
 		return err
 	}
 	b.afterPackTrainingThreadInserted(chatID, userMessageID, viewerUserID, uname, text, threadID, replyToThreadID)
+	if replyingToLeo && threadID != 0 {
+		snap := leoParentSnapshot
+		txt := text
+		uid := viewerUserID
+		tid := threadID
+		umid := userMessageID
+		cid := chatID
+		go func() {
+			defer func() {
+				if r := recover(); r != nil {
+					b.logger.Errorf("leo banter training thread panic: %v", r)
+				}
+			}()
+			b.LeoBanterReplyToUserTrainingFeedThread(cid, umid, tid, uid, txt, snap)
+		}()
+	}
 	return nil
 }
 

@@ -98,7 +98,7 @@ func (b *Bot) PackFeedForViewer(viewerUserID int64, initD initdata.InitData) ([]
 			IsYou:            r.UserID == viewerUserID,
 			PackChatID:       chatID,
 			PackTitle:        packTitle,
-			TrainingPhotoURL: r.TrainingPhotoURL,
+			TrainingPhotoURL: b.canonicalMiniappTrainingPhotoURL(r.TrainingPhotoURL),
 		})
 	}
 	out = b.enrichPackFeedTrainingSocial(out, viewerUserID, chatID)

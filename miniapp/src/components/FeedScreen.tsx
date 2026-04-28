@@ -159,6 +159,9 @@ export function FeedScreen({ name, streak, userId, initData, inTelegram, showAle
             prev.map((it) => (it.id === userMessageId ? { ...it, thread: postedThread } : it)),
           );
         }
+        if (replyToThreadId) {
+          window.setTimeout(() => void load(), 5000);
+        }
       } catch (e) {
         showAlert(e instanceof Error ? e.message : "Сеть");
       } finally {

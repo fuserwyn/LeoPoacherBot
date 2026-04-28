@@ -40,6 +40,19 @@ func (d *Database) GetUserMessageTypeByIDForChat(id, chatID int64) (messageType 
 	return messageType, true, nil
 }
 
+// GetUserMessageTextByIDForChat — текст отчёта (user_messages) для контекста ответа Лео в треде.
+func (d *Database) GetUserMessageTextByIDForChat(id, chatID int64) (string, error) {
+	var t string
+	err := d.db.QueryRow(
+		`SELECT message_text FROM user_messages WHERE id = $1 AND chat_id = $2`,
+		id, chatID,
+	).Scan(&t)
+	if err != nil {
+		return "", err
+	}
+	return t, nil
+}
+
 // TrainingFeedReactionAgg — агрегат реакций по одному user_message_id.
 type TrainingFeedReactionAgg struct {
 	Emoji string
