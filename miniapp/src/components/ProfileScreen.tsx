@@ -260,7 +260,7 @@ export function ProfileScreen({
           }}
           disabled={healthBusy}
         >
-          ❌
+          ✚
         </button>
         {onSick ? <span className="profile__ambulance" aria-hidden>🚑</span> : null}
         <div>
