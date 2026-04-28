@@ -700,6 +700,39 @@ var Migrations = []Migration{
 			ALTER TABLE user_messages DROP COLUMN IF EXISTS training_photo_url;
 		`,
 	},
+	{
+		Version:     35,
+		Description: "miniapp_training_feed_thread.reply_to_id for thread replies",
+		UpSQL: `
+			ALTER TABLE miniapp_training_feed_thread ADD COLUMN IF NOT EXISTS reply_to_id BIGINT NULL
+				REFERENCES miniapp_training_feed_thread(id) ON DELETE SET NULL;
+			CREATE INDEX IF NOT EXISTS idx_miniapp_tr_feed_thr_reply_to ON miniapp_training_feed_thread (reply_to_id)
+				WHERE reply_to_id IS NOT NULL;
+		`,
+		DownSQL: `
+			DROP INDEX IF EXISTS idx_miniapp_tr_feed_thr_reply_to;
+			ALTER TABLE miniapp_training_feed_thread DROP COLUMN IF EXISTS reply_to_id;
+		`,
+	},
+	{
+		Version:     36,
+		Description: "miniapp unread markers for comments on author's training_done (feed tab badge)",
+		UpSQL: `
+			CREATE TABLE IF NOT EXISTS miniapp_training_thread_unread (
+				id BIGSERIAL PRIMARY KEY,
+				recipient_user_id BIGINT NOT NULL,
+				pack_chat_id BIGINT NOT NULL,
+				thread_reply_id BIGINT NOT NULL UNIQUE,
+				created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW()
+			);
+			CREATE INDEX IF NOT EXISTS idx_miniapp_tr_thread_unread_recipient
+				ON miniapp_training_thread_unread (recipient_user_id, pack_chat_id);
+		`,
+		DownSQL: `
+			DROP INDEX IF EXISTS idx_miniapp_tr_thread_unread_recipient;
+			DROP TABLE IF EXISTS miniapp_training_thread_unread;
+		`,
+	},
 }
 
 // MigrationRecord представляет запись о выполненной миграции

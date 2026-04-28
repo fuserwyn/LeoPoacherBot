@@ -55,3 +55,15 @@ func TestSanitizeStripsRykInline(t *testing.T) {
 		t.Errorf("expected *Рык* stripped, got %q", got)
 	}
 }
+
+func TestSanitizeStripsLeadingParenStageBlock(t *testing.T) {
+	t.Parallel()
+	in := "(Резко разворачиваюсь, сверкая глазами)\n\nКороткий ответ без ремарок."
+	got := SanitizeTextForUser(in)
+	if strings.Contains(got, "разворачиваюсь") || strings.Contains(got, "сверка") {
+		t.Errorf("expected parenthetical stage line removed, got %q", got)
+	}
+	if !strings.Contains(got, "Короткий ответ") {
+		t.Errorf("expected body kept, got %q", got)
+	}
+}

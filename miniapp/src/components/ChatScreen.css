@@ -17,6 +17,10 @@
 }
 
 .chat {
+  /* Фиксированная высота колонки: иначе .chat__log растягивается по контенту, скроллит
+     document, и в WKWebView/Telegram перетаскивание ручек выделения вниз не двигает область. */
+  height: calc(100dvh - 8px);
+  max-height: calc(100dvh - 8px);
   min-height: calc(100dvh - 8px);
   display: flex;
   flex-direction: column;
@@ -24,6 +28,7 @@
   max-width: 480px;
   margin: 0 auto;
   box-sizing: border-box;
+  overflow: hidden;
 }
 
 .chat__head {
@@ -156,11 +161,13 @@
 
 .chat__log {
   flex: 1;
+  min-height: 0;
   padding: 16px;
   display: flex;
   flex-direction: column;
   gap: 12px;
   overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
 }
 
 .chat__row {

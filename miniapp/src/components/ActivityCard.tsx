@@ -1,4 +1,4 @@
-import { useRef, useState, useEffect } from "react";
+import { useRef, useState, useEffect, useLayoutEffect } from "react";
 import { LEO_AVATAR_URL } from "../lib/leoAvatar";
 import "./ActivityCard.css";
 
@@ -28,6 +28,132 @@ export type ActivityCardThreadComposer = {
   posting: boolean;
 };
 
+/** Ширина строки + кнопка «ещё»: оценка px на кнопку (эмодзи + отступы + счётчик). */
+function trainingReactionVisibleCount(rowWidth: number, total: number): number {
+  if (total <= 0) return 0;
+  if (total === 1 || rowWidth <= 0) return total;
+  const chip = 46;
+  const gap = 8;
+  const moreBtn = 48;
+  const all = total * chip + (total - 1) * gap;
+  if (all <= rowWidth) return total;
+  for (let k = total - 1; k >= 1; k--) {
+    const used = k * chip + (k - 1) * gap + gap + moreBtn;
+    if (used <= rowWidth) return k;
+  }
+  return 1;
+}
+
+function ReactionChip({
+  r,
+  disabled,
+  onPick,
+}: {
+  r: { emoji: string; count: number; me?: boolean };
+  disabled?: boolean;
+  onPick: (emoji: string) => void;
+}) {
+  return (
+    <button
+      type="button"
+      className={`act-card__react-btn${r.me ? " act-card__react-btn--mine" : ""}`}
+      disabled={disabled}
+      onClick={() => onPick(r.emoji)}
+    >
+      {r.emoji}
+      {r.count > 0 && <span className="act-card__react-cnt">{r.count}</span>}
+    </button>
+  );
+}
+
+function TrainingReactionsBar({
+  reactions,
+  onReactionClick,
+}: {
+  reactions: { emoji: string; count: number; me?: boolean }[];
+  onReactionClick?: (emoji: string) => void;
+}) {
+  const rowRef = useRef<HTMLDivElement>(null);
+  const moreRef = useRef<HTMLDivElement>(null);
+  const [visibleCount, setVisibleCount] = useState(reactions.length);
+  const [menuOpen, setMenuOpen] = useState(false);
+
+  useLayoutEffect(() => {
+    const el = rowRef.current;
+    if (!el) return;
+    const measure = () => {
+      const w = el.clientWidth;
+      if (w <= 0) return;
+      setVisibleCount(trainingReactionVisibleCount(w, reactions.length));
+    };
+    measure();
+    const ro = new ResizeObserver(measure);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [reactions.length]);
+
+  useEffect(() => {
+    if (!menuOpen) return;
+    const close = (e: MouseEvent | TouchEvent) => {
+      const t = e.target as Node;
+      if (moreRef.current?.contains(t)) return;
+      setMenuOpen(false);
+    };
+    const esc = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setMenuOpen(false);
+    };
+    document.addEventListener("mousedown", close);
+    document.addEventListener("touchstart", close);
+    document.addEventListener("keydown", esc);
+    return () => {
+      document.removeEventListener("mousedown", close);
+      document.removeEventListener("touchstart", close);
+      document.removeEventListener("keydown", esc);
+    };
+  }, [menuOpen]);
+
+  const n = reactions.length;
+  const showAll = visibleCount >= n;
+  const visible = showAll ? reactions : reactions.slice(0, visibleCount);
+  const hidden = showAll ? [] : reactions.slice(visibleCount);
+
+  const pick = (emoji: string) => {
+    onReactionClick?.(emoji);
+    setMenuOpen(false);
+  };
+
+  return (
+    <div className="act-card__react-inner" ref={rowRef}>
+      <div className="act-card__react-inline">
+        {visible.map((r) => (
+          <ReactionChip key={r.emoji} r={r} disabled={onReactionClick == null} onPick={pick} />
+        ))}
+        {hidden.length > 0 && (
+          <div className="act-card__react-more" ref={moreRef}>
+            <button
+              type="button"
+              className={`act-card__react-toggle${menuOpen ? " act-card__react-toggle--open" : ""}`}
+              aria-expanded={menuOpen}
+              aria-haspopup="menu"
+              aria-label="Ещё реакции"
+              onClick={() => setMenuOpen((v) => !v)}
+            >
+              ⋯
+            </button>
+            {menuOpen && (
+              <div className="act-card__react-popover" role="menu">
+                {hidden.map((r) => (
+                  <ReactionChip key={r.emoji} r={r} disabled={onReactionClick == null} onPick={pick} />
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 export type ActivityCardProps = {
   avatar: string;
   name: string;
@@ -50,6 +176,8 @@ export type ActivityCardProps = {
   onThreadReplyDelete?: (threadReplyId: number) => void;
   /** Фото к отчёту #training_done (URL с бэкенда). */
   trainingPhotoUrl?: string;
+  /** Состояние удаления строк треда (id → отправка). */
+  threadReplyDeleting?: Record<number, boolean>;
 };
 
 export function ActivityCard({
@@ -124,18 +252,7 @@ export function ActivityCard({
         )}
         {showReact && (
           <div className="act-card__react" role="group" aria-label="Реакции">
-            {reactions.map((r) => (
-              <button
-                type="button"
-                className={`act-card__react-btn${r.me ? " act-card__react-btn--mine" : ""}`}
-                key={r.emoji}
-                disabled={onReactionClick == null}
-                onClick={() => onReactionClick?.(r.emoji)}
-              >
-                {r.emoji}
-                {r.count > 0 && <span className="act-card__react-cnt">{r.count}</span>}
-              </button>
-            ))}
+            <TrainingReactionsBar reactions={reactions} onReactionClick={onReactionClick} />
           </div>
         )}
         {hasThread && (

@@ -15,6 +15,9 @@ var reAnswerOnMessageLine = regexp.MustCompile(`(?mi)^[ \t]*(?:#{1,6}\s*)?(?:о�
 // Строка целиком в виде *реплика* / *Рычит* (и опц. эмодзи) — сценарная ремарка, убираем.
 var reStarOnlyLine = regexp.MustCompile(`(?m)^[ \t]*\*[^*]{1,200}\*(?:[ \t]*[🐆🦁🐯])?[ \t]*\r?$`)
 
+// Ведущая «театральная» ремарка в круглых скобках одной строкой или абзацем (модели всё равно добавляют).
+var reLeadingParenStageBlock = regexp.MustCompile(`(?s)^[ \t]*\([^)]{2,500}\)[ \t]*(?:\n{1,2}|$)`)
+
 // *Рычит* / *р-р* / *мр-я* (внутри фразы)
 var reStarInlineGimmicks = []*regexp.Regexp{
 	regexp.MustCompile(`(?i)(?:^|[\s,.!?:;—–-]|\(|\)|«|»|])\*рыч(ит|а|у|н(ул|ёшь|ит|ито)?|ь|о)\*(\s*[🐆🦁🐯]?\s*)?`),
@@ -41,6 +44,18 @@ func stripMarkdownHeadingAndAnswerLines(s string) string {
 		out = append(out, line)
 	}
 	return strings.TrimSpace(strings.ReplaceAll(strings.Join(out, "\n"), "\n\n\n", "\n\n"))
+}
+
+func stripLeadingParenStageBlocks(s string) string {
+	s = strings.TrimSpace(s)
+	for i := 0; i < 5; i++ {
+		next := strings.TrimSpace(reLeadingParenStageBlock.ReplaceAllString(s, ""))
+		if next == s || next == "" {
+			break
+		}
+		s = next
+	}
+	return strings.TrimSpace(s)
 }
 
 func stripAsteriskStageRemarks(s string) string {
@@ -99,6 +114,7 @@ func SanitizeTextForUser(text string) string {
 		}
 	}
 
+	clean = stripLeadingParenStageBlocks(clean)
 	clean = stripAsteriskStageRemarks(clean)
 	if strings.TrimSpace(clean) == "" {
 		return ""

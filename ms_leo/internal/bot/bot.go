@@ -329,12 +329,13 @@ func (b *Bot) handleUpdate(update tgbotapi.Update) {
 		return
 	}
 
-	b.dispatchTextMessageFromUser(msg, nil)
+	b.dispatchTextMessageFromUser(msg, nil, "")
 }
 
 // dispatchTextMessageFromUser — тот же путь, что личка с ботом (и Mini App API с initData).
 // personalReplyCh — не nil только из Mini App: одно дублирование персонального ответа (см. #training_done).
-func (b *Bot) dispatchTextMessageFromUser(msg *tgbotapi.Message, personalReplyCh chan<- string) {
+// trainingPhotoURLOverride — непустой при POST /api/miniapp/workout с фото (без sync.Map).
+func (b *Bot) dispatchTextMessageFromUser(msg *tgbotapi.Message, personalReplyCh chan<- string, trainingPhotoURLOverride string) {
 	b.logger.Infof("Received message from %d: %s", msg.From.ID, msg.Text)
 
 	// Админ-мастер перехватывает сообщения владельца в личке при активной сессии.
@@ -379,7 +380,7 @@ func (b *Bot) dispatchTextMessageFromUser(msg *tgbotapi.Message, personalReplyCh
 	}
 
 	// Обрабатываем обычные сообщения
-	b.handleMessage(msg, personalReplyCh)
+	b.handleMessage(msg, personalReplyCh, trainingPhotoURLOverride)
 }
 
 func (b *Bot) handleCommand(msg *tgbotapi.Message) {
@@ -429,7 +430,7 @@ func (b *Bot) handleCommand(msg *tgbotapi.Message) {
 	}
 }
 
-func (b *Bot) handleMessage(msg *tgbotapi.Message, personalReplyCh chan<- string) {
+func (b *Bot) handleMessage(msg *tgbotapi.Message, personalReplyCh chan<- string, trainingPhotoURLOverride string) {
 	// Проверяем наличие хештегов в тексте или подписи
 	text := msg.Text
 	if text == "" && msg.Caption != "" {
@@ -464,7 +465,11 @@ func (b *Bot) handleMessage(msg *tgbotapi.Message, personalReplyCh chan<- string
 
 		var trainingPhotoURL string
 		if hasTrainingDone {
-			trainingPhotoURL = b.takeMiniappTrainingPhotoURL(msg.From.ID)
+			if trainingPhotoURLOverride != "" {
+				trainingPhotoURL = trainingPhotoURLOverride
+			} else {
+				trainingPhotoURL = b.takeMiniappTrainingPhotoURL(msg.From.ID)
+			}
 		}
 		var trainingDoneFeedMsgID int64
 		if text != "" {

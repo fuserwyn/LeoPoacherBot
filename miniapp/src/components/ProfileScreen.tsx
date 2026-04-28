@@ -243,8 +243,39 @@ export function ProfileScreen({ name, streak, workouts, initData, inTelegram, us
         </div>
       </header>
 
+      <div className="profile__grid3">
+        <div className="stat-card">
+          <div className="stat-card__label">СТРИК</div>
+          <div className="stat-card__val">
+            <span className="stat-card__streak-ico">🔥</span> {streak}
+          </div>
+        </div>
+        <div className="stat-card">
+          <div className="stat-card__label">РЕКОРД</div>
+          <div className="stat-card__val">{streak} д</div>
+        </div>
+        <div className="stat-card">
+          <div className="stat-card__label">ТРЕНИРОВОК</div>
+          <div className="stat-card__val">{workouts}</div>
+        </div>
+      </div>
+
+      <h2 className="section-title">За неделю</h2>
+      <div className="profile__grid2">
+        <div className="wide-card">
+          <div className="wide-card__label">Тренировок</div>
+          <div className="wide-card__val">{workouts}</div>
+        </div>
+        <div className="wide-card">
+          <div className="wide-card__label">Средняя интенсивность</div>
+          <div className="wide-card__val">{workouts > 0 ? "3.0" : "—"}</div>
+        </div>
+      </div>
+
+      <h2 className="section-title">Достижения</h2>
+      <div className="profile__empty">Пока нет — тренируйся, и они появятся</div>
+
       <h2 className="section-title">Профиль (для Лео)</h2>
-      <p className="profile__form-hint muted">Всё по желанию. Пол помогает говорить «качал/качала» и т.п. без путаницы.</p>
       {profileLoading && <p className="muted">Загрузка профиля…</p>}
       <div className="profile__form">
         <label className="profile__field">
@@ -283,7 +314,6 @@ export function ProfileScreen({ name, streak, workouts, initData, inTelegram, us
             max={120}
             value={profile.age}
             onChange={(e) => setProfile((p) => ({ ...p, age: e.target.value.replace(/\D/g, "").slice(0, 3) }))}
-            placeholder="—"
             disabled={profileLoading}
           />
         </label>
@@ -319,38 +349,6 @@ export function ProfileScreen({ name, streak, workouts, initData, inTelegram, us
           {profileSaving ? "Сохраняю…" : "Сохранить"}
         </button>
       </div>
-
-      <div className="profile__grid3">
-        <div className="stat-card">
-          <div className="stat-card__label">СТРИК</div>
-          <div className="stat-card__val">
-            <span className="stat-card__streak-ico">🔥</span> {streak}
-          </div>
-        </div>
-        <div className="stat-card">
-          <div className="stat-card__label">РЕКОРД</div>
-          <div className="stat-card__val">{streak} д</div>
-        </div>
-        <div className="stat-card">
-          <div className="stat-card__label">ТРЕНИРОВОК</div>
-          <div className="stat-card__val">{workouts}</div>
-        </div>
-      </div>
-
-      <h2 className="section-title">За неделю</h2>
-      <div className="profile__grid2">
-        <div className="wide-card">
-          <div className="wide-card__label">Тренировок</div>
-          <div className="wide-card__val">{workouts}</div>
-        </div>
-        <div className="wide-card">
-          <div className="wide-card__label">Средняя интенсивность</div>
-          <div className="wide-card__val">{workouts > 0 ? "3.0" : "—"}</div>
-        </div>
-      </div>
-
-      <h2 className="section-title">Достижения</h2>
-      <div className="profile__empty">Пока нет — тренируйся, и они появятся</div>
 
       <h2 className="section-title">Здоровье</h2>
       {onSick === null ? (

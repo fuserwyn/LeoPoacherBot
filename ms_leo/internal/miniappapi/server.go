@@ -58,6 +58,10 @@ func (s *Server) serve(w http.ResponseWriter, r *http.Request) {
 		s.handlePostFeedTrainingThread(w, r)
 	case path == "/api/miniapp/feed/training/thread/delete" && r.Method == http.MethodPost:
 		s.handlePostFeedTrainingThreadDelete(w, r)
+	case path == "/api/miniapp/feed/training/thread/unread-count" && r.Method == http.MethodPost:
+		s.handlePostFeedTrainingThreadUnreadCount(w, r)
+	case path == "/api/miniapp/feed/training/thread/unread-clear" && r.Method == http.MethodPost:
+		s.handlePostFeedTrainingThreadUnreadClear(w, r)
 	case path == "/api/miniapp/pack-group/feed" && r.Method == http.MethodPost:
 		s.handlePostPackGroupFeed(w, r)
 	case path == "/api/miniapp/pack-group/messages" && r.Method == http.MethodPost:
@@ -251,6 +255,95 @@ func (s *Server) handlePostPersonalPendingCount(w http.ResponseWriter, r *http.R
 		"ok":    true,
 		"count": n,
 	})
+}
+
+func (s *Server) handlePostFeedTrainingThreadUnreadCount(w http.ResponseWriter, r *http.Request) {
+	corsWriteHeaders(w, r)
+	if s.bot == nil || s.token == "" {
+		s.jsonErr(w, http.StatusServiceUnavailable, "server_unavailable")
+		return
+	}
+	var body struct {
+		InitData string `json:"init_data"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		s.jsonErr(w, http.StatusBadRequest, "invalid_json")
+		return
+	}
+	if body.InitData == "" {
+		s.jsonErr(w, http.StatusBadRequest, "missing_init_data")
+		return
+	}
+	if err := initdata.Validate(body.InitData, s.token, 24*time.Hour); err != nil {
+		s.logger.Warnf("miniapp feed thread unread count: invalid init: %v", err)
+		s.jsonErr(w, http.StatusUnauthorized, "invalid_init_data")
+		return
+	}
+	parsed, err := initdata.Parse(body.InitData)
+	if err != nil {
+		s.jsonErr(w, http.StatusBadRequest, "parse_init_data")
+		return
+	}
+	if parsed.User.ID == 0 {
+		s.jsonErr(w, http.StatusBadRequest, "user_missing")
+		return
+	}
+	n, err := s.bot.MiniappTrainingThreadUnreadCount(parsed, parsed.User.ID)
+	if err != nil {
+		if errors.Is(err, bot.ErrMiniAppChatMismatch) {
+			s.jsonErr(w, http.StatusConflict, "chat_mismatch")
+			return
+		}
+		s.logger.Errorf("feed thread unread count: %v", err)
+		s.jsonErr(w, http.StatusInternalServerError, "unread_error")
+		return
+	}
+	w.Header().Set("Content-Type", "application/json; charset=utf-8")
+	_ = json.NewEncoder(w).Encode(map[string]any{"ok": true, "count": n})
+}
+
+func (s *Server) handlePostFeedTrainingThreadUnreadClear(w http.ResponseWriter, r *http.Request) {
+	corsWriteHeaders(w, r)
+	if s.bot == nil || s.token == "" {
+		s.jsonErr(w, http.StatusServiceUnavailable, "server_unavailable")
+		return
+	}
+	var body struct {
+		InitData string `json:"init_data"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		s.jsonErr(w, http.StatusBadRequest, "invalid_json")
+		return
+	}
+	if body.InitData == "" {
+		s.jsonErr(w, http.StatusBadRequest, "missing_init_data")
+		return
+	}
+	if err := initdata.Validate(body.InitData, s.token, 24*time.Hour); err != nil {
+		s.logger.Warnf("miniapp feed thread unread clear: invalid init: %v", err)
+		s.jsonErr(w, http.StatusUnauthorized, "invalid_init_data")
+		return
+	}
+	parsed, err := initdata.Parse(body.InitData)
+	if err != nil {
+		s.jsonErr(w, http.StatusBadRequest, "parse_init_data")
+		return
+	}
+	if parsed.User.ID == 0 {
+		s.jsonErr(w, http.StatusBadRequest, "user_missing")
+		return
+	}
+	if err := s.bot.MiniappTrainingThreadUnreadClear(parsed, parsed.User.ID); err != nil {
+		if errors.Is(err, bot.ErrMiniAppChatMismatch) {
+			s.jsonErr(w, http.StatusConflict, "chat_mismatch")
+			return
+		}
+		s.logger.Errorf("feed thread unread clear: %v", err)
+		s.jsonErr(w, http.StatusInternalServerError, "clear_error")
+		return
+	}
+	w.Header().Set("Content-Type", "application/json; charset=utf-8")
+	_ = json.NewEncoder(w).Encode(map[string]any{"ok": true})
 }
 
 func (s *Server) handlePostFeed(w http.ResponseWriter, r *http.Request) {

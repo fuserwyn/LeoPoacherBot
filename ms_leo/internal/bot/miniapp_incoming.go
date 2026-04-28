@@ -59,16 +59,16 @@ type MiniAppTextProcessResult struct {
 // Текущий текст «без фото»: снимаем отложенный URL фото, чтобы не приклеить к чужому действию.
 func (b *Bot) ProcessMiniAppPrivateText(d initdata.InitData, text string) MiniAppTextProcessResult {
 	b.clearMiniappTrainingPhotoURL(d.User.ID)
-	return b.processMiniAppPrivateCore(d, text)
+	return b.processMiniAppPrivateCore(d, text, "")
 }
 
-// ProcessMiniAppPrivateTextWithTrainingPhoto — тот же путь плюс публичный URL фото для следующего #training_done.
+// ProcessMiniAppPrivateTextWithTrainingPhoto — тот же путь; URL фото передаётся в воркер без sync.Map (надёжно для ленты).
 func (b *Bot) ProcessMiniAppPrivateTextWithTrainingPhoto(d initdata.InitData, text, publicPhotoURL string) MiniAppTextProcessResult {
-	b.setMiniappTrainingPhotoURL(d.User.ID, publicPhotoURL)
-	return b.processMiniAppPrivateCore(d, text)
+	b.clearMiniappTrainingPhotoURL(d.User.ID)
+	return b.processMiniAppPrivateCore(d, text, strings.TrimSpace(publicPhotoURL))
 }
 
-func (b *Bot) processMiniAppPrivateCore(d initdata.InitData, text string) MiniAppTextProcessResult {
+func (b *Bot) processMiniAppPrivateCore(d initdata.InitData, text string, trainingPhotoURL string) MiniAppTextProcessResult {
 	out := MiniAppTextProcessResult{}
 	if text == "" || b == nil {
 		return out
@@ -82,12 +82,12 @@ func (b *Bot) processMiniAppPrivateCore(d initdata.InitData, text string) MiniAp
 	_ = PrivateTextMessageFromInitUser(d, text)
 	b.miniappPersonalClear(d.User.ID)
 	b.savePersonalChatMessage(d.User.ID, "user", text)
-	go b.runMiniAppPrivateTextWorker(d, text)
+	go b.runMiniAppPrivateTextWorker(d, text, trainingPhotoURL)
 	out.Pending = true
 	return out
 }
 
-func (b *Bot) runMiniAppPrivateTextWorker(d initdata.InitData, text string) {
+func (b *Bot) runMiniAppPrivateTextWorker(d initdata.InitData, text string, trainingPhotoURL string) {
 	defer func() {
 		if r := recover(); r != nil {
 			b.logger.Errorf("miniapp private worker panic: %v", r)
@@ -97,7 +97,7 @@ func (b *Bot) runMiniAppPrivateTextWorker(d initdata.InitData, text string) {
 	ch := make(chan string, 32)
 	b.markMiniappOrigin(d.User.ID, ch)
 	defer b.unmarkMiniappOrigin(d.User.ID)
-	b.dispatchTextMessageFromUser(msg, ch)
+	b.dispatchTextMessageFromUser(msg, ch, trainingPhotoURL)
 	for {
 		select {
 		case t := <-ch:

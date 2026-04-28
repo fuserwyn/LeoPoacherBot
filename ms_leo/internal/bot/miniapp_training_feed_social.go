@@ -8,6 +8,7 @@ import (
 
 	"leo-bot/internal/database"
 
+	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 	initdata "github.com/telegram-mini-apps/init-data-golang"
 )
 
@@ -108,8 +109,81 @@ func (b *Bot) PackTrainingFeedThreadPost(viewerUserID int64, initD initdata.Init
 		return ErrTrainingFeedParentNotFound
 	}
 	uname := displayNameFromInitData(initD)
-	_, err = b.db.InsertTrainingFeedThreadReply(chatID, userMessageID, viewerUserID, uname, text)
-	return err
+	threadID, err := b.db.InsertTrainingFeedThreadReply(chatID, userMessageID, viewerUserID, uname, text)
+	if err != nil {
+		return err
+	}
+	b.afterPackTrainingThreadInserted(chatID, userMessageID, viewerUserID, uname, text, threadID)
+	return nil
+}
+
+func truncateForDM(s string, maxRunes int) string {
+	s = strings.TrimSpace(s)
+	r := []rune(s)
+	if len(r) <= maxRunes {
+		return string(r)
+	}
+	return string(r[:maxRunes]) + "…"
+}
+
+// Уведомление в личку Telegram автору отчёта + строка для бейджа «Стая» в мини-аппе.
+func (b *Bot) afterPackTrainingThreadInserted(packChatID, userMessageID, commenterUserID int64, commenterName, commentText string, threadReplyID int64) {
+	if b == nil || b.db == nil {
+		return
+	}
+	authorID, ok, err := b.db.GetUserMessageAuthorUserID(packChatID, userMessageID)
+	if err != nil {
+		b.logger.Warnf("training thread author lookup: %v", err)
+		return
+	}
+	if !ok || authorID == 0 || authorID == commenterUserID {
+		return
+	}
+	if err := b.db.InsertTrainingThreadUnread(authorID, packChatID, threadReplyID); err != nil {
+		b.logger.Warnf("training thread unread insert: %v", err)
+	}
+	preview := truncateForDM(commentText, 160)
+	cn := strings.TrimSpace(commenterName)
+	if cn == "" {
+		cn = "Участник стаи"
+	}
+	body := "💬 " + cn + " прокомментировал(а) твою тренировку в стае.\n\n«" + preview + "»\n\nОткрой мини-апп → вкладка «Стая»."
+	b.sendTrainingThreadCommentDM(authorID, body)
+}
+
+// Всегда в Telegram-личку, без очереди мини-аппа (уведомления-алерт).
+func (b *Bot) sendTrainingThreadCommentDM(telegramUserID int64, text string) {
+	if b == nil || b.api == nil || telegramUserID == 0 || strings.TrimSpace(text) == "" {
+		return
+	}
+	m := tgbotapi.NewMessage(telegramUserID, text)
+	if _, err := b.api.Send(m); err != nil {
+		b.logger.Warnf("training thread comment DM user=%d: %v", telegramUserID, err)
+	}
+}
+
+// MiniappTrainingThreadUnreadCount — для бейджа на вкладке «Стая».
+func (b *Bot) MiniappTrainingThreadUnreadCount(initD initdata.InitData, viewerUserID int64) (int64, error) {
+	if err := b.AssertMiniAppPackChatAligns(initD); err != nil {
+		return 0, err
+	}
+	chatID := b.config.MonetizedChatID
+	if chatID == 0 || b.db == nil {
+		return 0, nil
+	}
+	return b.db.CountTrainingThreadUnread(viewerUserID, chatID)
+}
+
+// MiniappTrainingThreadUnreadClear — сброс бейджа при открытии ленты.
+func (b *Bot) MiniappTrainingThreadUnreadClear(initD initdata.InitData, viewerUserID int64) error {
+	if err := b.AssertMiniAppPackChatAligns(initD); err != nil {
+		return err
+	}
+	chatID := b.config.MonetizedChatID
+	if chatID == 0 || b.db == nil {
+		return nil
+	}
+	return b.db.ClearTrainingThreadUnread(viewerUserID, chatID)
 }
 
 // PackTrainingFeedThreadDelete — удалить свою реплику в треде (ответы Лео не удаляются).
@@ -130,6 +204,9 @@ func (b *Bot) PackTrainingFeedThreadDelete(viewerUserID int64, initD initdata.In
 	}
 	if !deleted {
 		return 0, ErrTrainingFeedThreadDeleteNotFound
+	}
+	if err := b.db.DeleteTrainingThreadUnreadByReplyID(threadReplyID); err != nil {
+		b.logger.Warnf("training thread unread delete: %v", err)
 	}
 	return parentID, nil
 }

@@ -59,6 +59,10 @@
   pointer-events: none;
 }
 
+.bottom-nav__badge--feed {
+  background: #2a5cff;
+}
+
 .bottom-nav__item.is-active .bottom-nav__icon {
   filter: none;
 }

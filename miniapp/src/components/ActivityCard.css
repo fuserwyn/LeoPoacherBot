@@ -113,13 +113,76 @@
 }
 
 .act-card__react {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 8px;
   padding-top: 4px;
   border-top: 1px solid var(--border-subtle);
   margin: 0 -2px;
+}
+
+.act-card__react-inner {
+  width: 100%;
+  min-width: 0;
+}
+
+.act-card__react-inline {
+  display: flex;
+  flex-wrap: nowrap;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.act-card__react-more {
+  position: relative;
+  flex-shrink: 0;
+}
+
+.act-card__react-toggle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 40px;
+  height: 36px;
+  padding: 0 10px;
+  border-radius: 999px;
+  font-size: 18px;
+  line-height: 1;
+  letter-spacing: 1px;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  color: var(--text-muted);
+  cursor: pointer;
+}
+
+.act-card__react-toggle--open {
+  border-color: rgba(255, 90, 31, 0.45);
+  color: var(--accent);
+}
+
+.act-card__react-popover {
+  position: absolute;
+  z-index: 30;
+  right: 0;
+  left: auto;
+  top: calc(100% + 6px);
+  width: max-content;
+  min-width: min(260px, 100%);
+  max-width: min(calc(100vw - 32px), 300px);
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: flex-start;
+  padding: 10px;
+  max-height: min(220px, 42vh);
+  overflow-y: auto;
+  background: var(--card);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  box-shadow: 0 8px 28px rgba(0, 0, 0, 0.45);
+  -webkit-overflow-scrolling: touch;
+}
+
+.act-card__react-inline > .act-card__react-btn {
+  flex-shrink: 0;
 }
 
 .act-card__react-btn {

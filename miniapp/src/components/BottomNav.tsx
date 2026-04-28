@@ -6,6 +6,8 @@ type Props = {
   active: Tab;
   /** Непрочитанные фрагменты из очереди лички Лео (предупреждения, ответы). */
   leoBadgeCount?: number;
+  /** Непрочитанные комментарии к твоим отчётам в ленте стаи. */
+  feedBadgeCount?: number;
   onChat: () => void;
   onFeed: () => void;
   onRules: () => void;
@@ -13,8 +15,18 @@ type Props = {
   onProfile: () => void;
 };
 
-export function BottomNav({ active, leoBadgeCount = 0, onChat, onFeed, onRules, onWorkout, onProfile }: Props) {
-  const badge = leoBadgeCount > 0 ? (leoBadgeCount > 9 ? "9+" : String(leoBadgeCount)) : null;
+export function BottomNav({
+  active,
+  leoBadgeCount = 0,
+  feedBadgeCount = 0,
+  onChat,
+  onFeed,
+  onRules,
+  onWorkout,
+  onProfile,
+}: Props) {
+  const leoBadge = leoBadgeCount > 0 ? (leoBadgeCount > 9 ? "9+" : String(leoBadgeCount)) : null;
+  const feedBadge = feedBadgeCount > 0 ? (feedBadgeCount > 9 ? "9+" : String(feedBadgeCount)) : null;
   return (
     <nav className="bottom-nav" role="navigation" aria-label="Основное меню">
       <button
@@ -22,9 +34,15 @@ export function BottomNav({ active, leoBadgeCount = 0, onChat, onFeed, onRules, 
         className={`bottom-nav__item ${active === "feed" ? "is-active" : ""}`}
         onClick={onFeed}
         aria-current={active === "feed" ? "page" : undefined}
+        aria-label={feedBadge ? `Стая, непрочитанных комментариев: ${feedBadgeCount}` : "Стая"}
       >
-        <span className="bottom-nav__icon" aria-hidden>
-          🐆
+        <span className="bottom-nav__icon-wrap" aria-hidden>
+          <span className="bottom-nav__icon">🐆</span>
+          {feedBadge && (
+            <span className="bottom-nav__badge bottom-nav__badge--feed" title="Новый комментарий к твоей тренировке">
+              {feedBadge}
+            </span>
+          )}
         </span>
         <span className="bottom-nav__label">Стая</span>
       </button>
@@ -33,13 +51,13 @@ export function BottomNav({ active, leoBadgeCount = 0, onChat, onFeed, onRules, 
         className={`bottom-nav__item ${active === "chat" ? "is-active" : ""}`}
         onClick={onChat}
         aria-current={active === "chat" ? "page" : undefined}
-        aria-label={badge ? `Лео, непрочитанных: ${leoBadgeCount}` : "Лео"}
+        aria-label={leoBadge ? `Лео, непрочитанных: ${leoBadgeCount}` : "Лео"}
       >
         <span className="bottom-nav__icon-wrap" aria-hidden>
           <span className="bottom-nav__icon">💬</span>
-          {badge && (
+          {leoBadge && (
             <span className="bottom-nav__badge" title="Новое от Лео">
-              {badge}
+              {leoBadge}
             </span>
           )}
         </span>

@@ -8,6 +8,7 @@ import { NewWorkoutScreen } from "./components/NewWorkoutScreen";
 import { RulesScreen } from "./components/RulesScreen";
 import { sendMiniappPrivateText, sendMiniappTrainingWithPhoto } from "./lib/miniappPrivateSend";
 import { fetchLeoPendingCount } from "./lib/leoPersonalInbox";
+import { clearFeedThreadUnread, fetchFeedThreadUnreadCount } from "./lib/feedThreadUnread";
 import { ensureMiniappOnboarding } from "./lib/miniappOnboarding";
 import "./App.css";
 
@@ -23,29 +24,48 @@ export function App() {
   const [workoutOpen, setWorkoutOpen] = useState(false);
   const [workouts, setWorkouts] = useState(1);
   const [leoPending, setLeoPending] = useState(0);
+  const [feedUnread, setFeedUnread] = useState(0);
 
-  const refreshLeoPending = useCallback(async () => {
+  const refreshTabBadges = useCallback(async () => {
     if (!inTelegram || !initData?.trim()) {
       setLeoPending(0);
+      setFeedUnread(0);
       return;
     }
-    setLeoPending(await fetchLeoPendingCount(initData));
+    const [leo, feed] = await Promise.all([fetchLeoPendingCount(initData), fetchFeedThreadUnreadCount(initData)]);
+    setLeoPending(leo);
+    setFeedUnread(feed);
   }, [inTelegram, initData]);
 
   useEffect(() => {
-    void refreshLeoPending();
+    void refreshTabBadges();
     const t = window.setInterval(() => {
-      void refreshLeoPending();
+      void refreshTabBadges();
     }, 30_000);
     const onVis = () => {
-      if (document.visibilityState === "visible") void refreshLeoPending();
+      if (document.visibilityState === "visible") void refreshTabBadges();
     };
     document.addEventListener("visibilitychange", onVis);
     return () => {
       window.clearInterval(t);
       document.removeEventListener("visibilitychange", onVis);
     };
-  }, [refreshLeoPending]);
+  }, [refreshTabBadges]);
+
+  useEffect(() => {
+    if (tab !== "feed" || !inTelegram || !initData?.trim()) return;
+    let cancelled = false;
+    void (async () => {
+      await clearFeedThreadUnread(initData);
+      if (!cancelled) {
+        const n = await fetchFeedThreadUnreadCount(initData);
+        if (!cancelled) setFeedUnread(n);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [tab, inTelegram, initData]);
 
   useEffect(() => {
     if (!inTelegram || !initData?.trim()) return;
@@ -53,8 +73,8 @@ export function App() {
   }, [inTelegram, initData]);
 
   const onLeoInboxDrained = useCallback(() => {
-    void refreshLeoPending();
-  }, [refreshLeoPending]);
+    void refreshTabBadges();
+  }, [refreshTabBadges]);
 
   return (
     <div className="app">
@@ -93,6 +113,7 @@ export function App() {
       <BottomNav
         active={tab}
         leoBadgeCount={leoPending}
+        feedBadgeCount={feedUnread}
         onChat={() => setTab("chat")}
         onFeed={() => setTab("feed")}
         onRules={() => setTab("rules")}
@@ -139,7 +160,7 @@ export function App() {
               showAlert(result.error);
               return false;
             }
-            void refreshLeoPending();
+            void refreshTabBadges();
             setWorkouts((c) => c + 1);
             setStreak((s) => s + 1);
             const msg = result.replyParts.filter(Boolean).join("\n\n").trim() || "Отчёт отправлен.";

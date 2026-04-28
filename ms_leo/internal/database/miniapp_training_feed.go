@@ -10,6 +10,21 @@ import (
 	"github.com/lib/pq"
 )
 
+// GetUserMessageAuthorUserID — автор отчёта training_done (user_messages.user_id).
+func (d *Database) GetUserMessageAuthorUserID(chatID, userMessageID int64) (userID int64, ok bool, err error) {
+	err = d.db.QueryRow(
+		`SELECT user_id FROM user_messages WHERE id = $1 AND chat_id = $2`,
+		userMessageID, chatID,
+	).Scan(&userID)
+	if err == sql.ErrNoRows {
+		return 0, false, nil
+	}
+	if err != nil {
+		return 0, false, err
+	}
+	return userID, true, nil
+}
+
 // GetUserMessageTypeByIDForChat — проверка, что строка user_messages принадлежит чату.
 func (d *Database) GetUserMessageTypeByIDForChat(id, chatID int64) (messageType string, ok bool, err error) {
 	err = d.db.QueryRow(
@@ -114,12 +129,34 @@ func (d *Database) SetTrainingFeedReaction(packChatID, userMessageID, userID int
 
 // TrainingFeedThreadRow — одна реплика в треде.
 type TrainingFeedThreadRow struct {
-	ID           int64
+	ID            int64
 	UserMessageID int64
 	FromUserID   int64
-	Username     string
-	MessageText  string
-	CreatedAt    time.Time
+	Username      string
+	MessageText   string
+	CreatedAt     time.Time
+	ReplyToID     sql.NullInt64
+}
+
+// GetTrainingFeedThreadRow — строка по id (для проверки reply_to).
+func (d *Database) GetTrainingFeedThreadRow(id int64) (TrainingFeedThreadRow, bool, error) {
+	if id == 0 {
+		return TrainingFeedThreadRow{}, false, nil
+	}
+	const q = `
+		SELECT id, user_message_id, from_user_id, COALESCE(username, ''), message_text, created_at, reply_to_id
+		FROM miniapp_training_feed_thread WHERE id = $1`
+	var r TrainingFeedThreadRow
+	var replyTo sql.NullInt64
+	err := d.db.QueryRow(q, id).Scan(&r.ID, &r.UserMessageID, &r.FromUserID, &r.Username, &r.MessageText, &r.CreatedAt, &replyTo)
+	if err == sql.ErrNoRows {
+		return TrainingFeedThreadRow{}, false, nil
+	}
+	if err != nil {
+		return TrainingFeedThreadRow{}, false, err
+	}
+	r.ReplyToID = replyTo
+	return r, true, nil
 }
 
 // InsertTrainingFeedThreadReply — комментарий под отчётом.
@@ -185,6 +222,65 @@ func (d *Database) ListTrainingFeedThreadByMessages(userMessageIDs []int64) (map
 		return nil, err
 	}
 	return res, nil
+}
+
+// InsertTrainingThreadUnread — одна запись на комментарий для бейджа «Стая» у автора отчёта.
+func (d *Database) InsertTrainingThreadUnread(recipientUserID, packChatID, threadReplyID int64) error {
+	if recipientUserID == 0 || threadReplyID == 0 {
+		return nil
+	}
+	_, err := d.db.Exec(
+		`INSERT INTO miniapp_training_thread_unread (recipient_user_id, pack_chat_id, thread_reply_id)
+		 VALUES ($1, $2, $3) ON CONFLICT (thread_reply_id) DO NOTHING`,
+		recipientUserID, packChatID, threadReplyID,
+	)
+	if err != nil {
+		return fmt.Errorf("insert training thread unread: %w", err)
+	}
+	return nil
+}
+
+// DeleteTrainingThreadUnreadByReplyID — при удалении своего комментария убрать из непрочитанных.
+func (d *Database) DeleteTrainingThreadUnreadByReplyID(threadReplyID int64) error {
+	if threadReplyID == 0 {
+		return nil
+	}
+	_, err := d.db.Exec(`DELETE FROM miniapp_training_thread_unread WHERE thread_reply_id = $1`, threadReplyID)
+	if err != nil {
+		return fmt.Errorf("delete training thread unread by reply: %w", err)
+	}
+	return nil
+}
+
+// CountTrainingThreadUnread — число непросмотренных комментариев к своим отчётам.
+func (d *Database) CountTrainingThreadUnread(recipientUserID, packChatID int64) (int64, error) {
+	if recipientUserID == 0 {
+		return 0, nil
+	}
+	var n int64
+	err := d.db.QueryRow(
+		`SELECT COUNT(*) FROM miniapp_training_thread_unread WHERE recipient_user_id = $1 AND pack_chat_id = $2`,
+		recipientUserID, packChatID,
+	).Scan(&n)
+	if err != nil {
+		return 0, fmt.Errorf("count training thread unread: %w", err)
+	}
+	return n, nil
+}
+
+// ClearTrainingThreadUnread — пользователь открыл ленту (вкладка Стая).
+func (d *Database) ClearTrainingThreadUnread(recipientUserID, packChatID int64) error {
+	if recipientUserID == 0 {
+		return nil
+	}
+	_, err := d.db.Exec(
+		`DELETE FROM miniapp_training_thread_unread WHERE recipient_user_id = $1 AND pack_chat_id = $2`,
+		recipientUserID, packChatID,
+	)
+	if err != nil {
+		return fmt.Errorf("clear training thread unread: %w", err)
+	}
+	return nil
 }
 
 // SortReactionAggsForDisplay — стабильный порядок эмодзи в UI.
