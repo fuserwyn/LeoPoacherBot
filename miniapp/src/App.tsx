@@ -163,6 +163,7 @@ export function App() {
         feedBadgeCount={feedUnread}
         onChat={() => setTab("chat")}
         onFeed={() => setTab("feed")}
+        onAddWorkout={() => setWorkoutOpen(true)}
         onRules={() => setTab("rules")}
         onProfile={() => setTab("profile")}
       />

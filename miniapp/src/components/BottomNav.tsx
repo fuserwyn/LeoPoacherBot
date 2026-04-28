@@ -10,6 +10,7 @@ type Props = {
   feedBadgeCount?: number;
   onChat: () => void;
   onFeed: () => void;
+  onAddWorkout: () => void;
   onRules: () => void;
   onProfile: () => void;
 };
@@ -20,6 +21,7 @@ export function BottomNav({
   feedBadgeCount = 0,
   onChat,
   onFeed,
+  onAddWorkout,
   onRules,
   onProfile,
 }: Props) {
@@ -60,6 +62,17 @@ export function BottomNav({
           )}
         </span>
         <span className="bottom-nav__label">Лео</span>
+      </button>
+      <button
+        type="button"
+        className="bottom-nav__add"
+        onClick={onAddWorkout}
+        aria-label="Добавить тренировку #training_done"
+        title="Добавить тренировку"
+      >
+        <span className="bottom-nav__add-plus" aria-hidden>
+          +
+        </span>
       </button>
       <button
         type="button"

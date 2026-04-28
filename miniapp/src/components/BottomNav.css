@@ -31,6 +31,38 @@
   transition: color 0.15s ease;
 }
 
+.bottom-nav__add {
+  width: 54px;
+  height: 54px;
+  margin-bottom: 8px;
+  border-radius: 50%;
+  border: 1px solid color-mix(in srgb, var(--accent) 65%, #ffffff 35%);
+  background: linear-gradient(180deg, color-mix(in srgb, var(--accent) 82%, #ffffff 18%) 0%, var(--accent) 100%);
+  box-shadow:
+    0 8px 18px rgba(0, 0, 0, 0.3),
+    0 0 0 1px rgba(255, 255, 255, 0.14) inset;
+  color: #ffffff;
+  display: grid;
+  place-items: center;
+  flex: 0 0 auto;
+  transition: transform 0.15s ease, filter 0.15s ease;
+}
+
+.bottom-nav__add:hover {
+  filter: brightness(1.03);
+}
+
+.bottom-nav__add:active {
+  transform: translateY(1px) scale(0.98);
+}
+
+.bottom-nav__add-plus {
+  font-size: 30px;
+  font-weight: 500;
+  line-height: 1;
+  margin-top: -2px;
+}
+
 .bottom-nav__item.is-active {
   color: var(--accent);
 }
