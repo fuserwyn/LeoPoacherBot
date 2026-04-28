@@ -70,6 +70,8 @@ func (s *Server) serve(w http.ResponseWriter, r *http.Request) {
 		s.handlePostPackGroupFeed(w, r)
 	case path == "/api/miniapp/pack-group/messages" && r.Method == http.MethodPost:
 		s.handlePostPackGroupMessage(w, r)
+	case path == "/api/miniapp/pack-group/messages/delete" && r.Method == http.MethodPost:
+		s.handlePostPackGroupMessageDelete(w, r)
 	case path == "/api/miniapp/profile/load" && r.Method == http.MethodPost:
 		s.handlePostProfileLoad(w, r)
 	case path == "/api/miniapp/profile/save" && r.Method == http.MethodPost:
@@ -790,6 +792,64 @@ func (s *Server) handlePostPackGroupMessage(w http.ResponseWriter, r *http.Reque
 		out["reply_text"] = miniRes.ReplyText
 	}
 	_ = json.NewEncoder(w).Encode(out)
+}
+
+func (s *Server) handlePostPackGroupMessageDelete(w http.ResponseWriter, r *http.Request) {
+	corsWriteHeaders(w, r)
+	if s.bot == nil || s.token == "" {
+		s.jsonErr(w, http.StatusServiceUnavailable, "server_unavailable")
+		return
+	}
+	var body struct {
+		InitData  string `json:"init_data"`
+		MessageID int64  `json:"message_id"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		s.jsonErr(w, http.StatusBadRequest, "invalid_json")
+		return
+	}
+	if body.InitData == "" {
+		s.jsonErr(w, http.StatusBadRequest, "missing_init_data")
+		return
+	}
+	if body.MessageID == 0 {
+		s.jsonErr(w, http.StatusBadRequest, "missing_message_id")
+		return
+	}
+	if err := initdata.Validate(body.InitData, s.token, 24*time.Hour); err != nil {
+		s.logger.Warnf("miniapp pack group delete: invalid init: %v", err)
+		s.jsonErr(w, http.StatusUnauthorized, "invalid_init_data")
+		return
+	}
+	parsed, err := initdata.Parse(body.InitData)
+	if err != nil {
+		s.jsonErr(w, http.StatusBadRequest, "parse_init_data")
+		return
+	}
+	if parsed.User.ID == 0 {
+		s.jsonErr(w, http.StatusBadRequest, "user_missing")
+		return
+	}
+	deleted, derr := s.bot.DeleteMiniAppPackGroupMessage(parsed.User.ID, parsed, body.MessageID)
+	if derr != nil {
+		if errors.Is(derr, bot.ErrMiniAppChatMismatch) {
+			s.jsonErr(w, http.StatusConflict, "chat_mismatch")
+			return
+		}
+		if errors.Is(derr, bot.ErrPackFeedForbidden) {
+			s.jsonErr(w, http.StatusForbidden, "forbidden")
+			return
+		}
+		s.logger.Errorf("pack group delete: %v", derr)
+		s.jsonErr(w, http.StatusInternalServerError, "pack_group_delete_error")
+		return
+	}
+	if !deleted {
+		s.jsonErr(w, http.StatusNotFound, "not_found")
+		return
+	}
+	w.Header().Set("Content-Type", "application/json; charset=utf-8")
+	_ = json.NewEncoder(w).Encode(map[string]any{"ok": true})
 }
 
 // handlePostPersonalChatFeed — серверная история приватного чата юзера с Лео.

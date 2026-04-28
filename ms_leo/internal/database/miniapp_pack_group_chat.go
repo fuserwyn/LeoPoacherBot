@@ -71,3 +71,20 @@ func (d *Database) ListMiniappPackGroupChat(packChatID int64, limit int, sinceUT
 	}
 	return items, nil
 }
+
+// DeleteMiniappPackGroupMessageByAuthor — удалить своё сообщение (не Лео) в общем чате мини-аппа.
+func (d *Database) DeleteMiniappPackGroupMessageByAuthor(packChatID, messageID, actorUserID int64) (bool, error) {
+	if packChatID == 0 || messageID == 0 || actorUserID == 0 {
+		return false, nil
+	}
+	res, err := d.db.Exec(
+		`DELETE FROM miniapp_pack_group_chat
+		 WHERE id = $1 AND pack_chat_id = $2 AND from_user_id = $3 AND is_leo = FALSE`,
+		messageID, packChatID, actorUserID,
+	)
+	if err != nil {
+		return false, fmt.Errorf("delete miniapp pack group by author: %w", err)
+	}
+	n, _ := res.RowsAffected()
+	return n > 0, nil
+}

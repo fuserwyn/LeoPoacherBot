@@ -119,6 +119,18 @@
   border: none;
 }
 
+.packroom__del {
+  margin-top: 4px;
+  border: none;
+  background: transparent;
+  color: var(--muted, #8b8b9a);
+  font-size: 12px;
+  padding: 0;
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
 .packroom__form {
   display: flex;
   gap: 8px;

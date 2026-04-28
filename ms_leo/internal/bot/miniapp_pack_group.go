@@ -8,8 +8,8 @@ import (
 
 	"leo-bot/internal/domain"
 
-	initdata "github.com/telegram-mini-apps/init-data-golang"
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
+	initdata "github.com/telegram-mini-apps/init-data-golang"
 )
 
 // @leo или @<username_бота> (как в группе).
@@ -153,6 +153,29 @@ func (b *Bot) ProcessMiniAppPackGroupMessage(d initdata.InitData, text string) (
 	}
 	out.ReplyText = reply
 	return out, nil
+}
+
+// DeleteMiniAppPackGroupMessage — удалить своё сообщение в общем чате мини-аппа.
+func (b *Bot) DeleteMiniAppPackGroupMessage(viewerUserID int64, initD initdata.InitData, messageID int64) (bool, error) {
+	if err := b.AssertMiniAppPackChatAligns(initD); err != nil {
+		return false, err
+	}
+	chatID := b.config.MonetizedChatID
+	if chatID == 0 {
+		return false, nil
+	}
+	if b.config.OwnerID != 0 && viewerUserID == b.config.OwnerID {
+		// владелец тоже подчиняется правилу "только своё" на уровне SQL WHERE from_user_id.
+	} else {
+		ok, err := b.db.UserInPackOrPaid(viewerUserID, chatID, b.config.PaywallEnabled)
+		if err != nil {
+			return false, err
+		}
+		if !ok {
+			return false, ErrPackFeedForbidden
+		}
+	}
+	return b.db.DeleteMiniappPackGroupMessageByAuthor(chatID, messageID, viewerUserID)
 }
 
 func (b *Bot) enrichPackGroupChatAuthorPhotos(msgs []*domain.PackGroupChatMessage, chatID int64) []*domain.PackGroupChatMessage {

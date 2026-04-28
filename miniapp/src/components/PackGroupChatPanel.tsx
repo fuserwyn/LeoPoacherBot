@@ -102,6 +102,28 @@ export function PackGroupChatPanel({ initData, inTelegram, meId, showAlert, onHa
     }
   }, [text, sending, inTelegram, initData, showAlert, load, onHaptic]);
 
+  const removeMine = useCallback(
+    async (messageID: number) => {
+      if (!apiBase || !inTelegram || !initData || !messageID) return;
+      try {
+        const res = await fetch(`${apiBase}/api/miniapp/pack-group/messages/delete`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ init_data: initData, message_id: messageID }),
+        });
+        const j = (await res.json().catch(() => ({}))) as { error?: string };
+        if (!res.ok) {
+          showAlert(j.error ?? `Ошибка ${res.status}`);
+          return;
+        }
+        setItems((prev) => prev.filter((m) => m.id !== messageID));
+      } catch (e) {
+        showAlert(e instanceof Error ? e.message : "Сеть");
+      }
+    },
+    [inTelegram, initData, showAlert],
+  );
+
   if (!apiBase) {
     return <p className="packroom__warn muted">Нет API URL в билде.</p>;
   }
@@ -136,6 +158,11 @@ export function PackGroupChatPanel({ initData, inTelegram, meId, showAlert, onHa
                     {m.is_leo ? "Лео" : m.username} · {formatChatTime(m.created_at)} · {timeAgoFromISO(m.created_at)}
                   </div>
                   <div className="packroom__bubble">{m.text}</div>
+                  {mine && (
+                    <button type="button" className="packroom__del" onClick={() => void removeMine(m.id)}>
+                      Удалить
+                    </button>
+                  )}
                 </div>
               </div>
             </div>
