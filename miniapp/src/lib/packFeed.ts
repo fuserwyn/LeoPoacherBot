@@ -86,16 +86,21 @@ export type PackFeedItemDTO = {
   training_photo_url?: string;
 };
 
-/** Полная строка эмодзи для кнопок реакций (с нулевыми счётчиками). */
+/** Полная строка эмодзи для кнопок реакций (с нулевыми счётчиками). Собственная реакция (`me`) показывается первой — в т.ч. если её выбрали в меню «⋯». */
 export function mergeTrainingFeedReactions(fromServer?: PackFeedReactionDTO[]): { emoji: string; count: number; me: boolean }[] {
   const byEmoji = new Map<string, PackFeedReactionDTO>();
   for (const r of fromServer ?? []) {
     byEmoji.set(r.emoji, r);
   }
-  return TRAINING_FEED_EMOJIS.map((emoji) => {
+  const ordered = TRAINING_FEED_EMOJIS.map((emoji) => {
     const r = byEmoji.get(emoji);
     return { emoji, count: r?.count ?? 0, me: r?.me ?? false };
   });
+  const myIdx = ordered.findIndex((x) => x.me);
+  if (myIdx <= 0) return ordered;
+  const mine = ordered[myIdx]!;
+  const rest = [...ordered.slice(0, myIdx), ...ordered.slice(myIdx + 1)];
+  return [mine, ...rest];
 }
 
 function typeMeta(t: string): { emoji: string; activity: string; details: string } {
