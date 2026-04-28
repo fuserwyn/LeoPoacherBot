@@ -579,7 +579,7 @@ func (b *Bot) handleMessage(msg *tgbotapi.Message) {
 		// Обрабатываем хештеги
 		if hasTimeZone {
 			b.handleTimezoneCommand(msg, text)
-		} else if hasTrainingDone {
+		} else if hasTrainingDone || hasWritingDone || hasCodingDone {
 			b.handleTrainingDone(msg)
 		} else if hasSickLeave {
 			b.handleSickLeave(msg)
@@ -1085,6 +1085,8 @@ func (b *Bot) handleTrainingDone(msg *tgbotapi.Message) {
 		var messageText string
 		if chatType == "writing" {
 			messageText = fmt.Sprintf("✅ Отчёт принят! 💪\n\n🦁 Ты пишешь дней подряд: %d\n📝 +%d %s\n📝 Всего %s: %d\n🏆 +1 кубок за писательскую сессию!\n🏆 Всего кубков: %d\n\n⏰ Таймер перезапускается на 7 дней", newStreakDays, caloriesToAdd, getWordForm(caloriesToAdd), getWordForm(totalCalories), totalCalories, currentCups)
+		} else if chatType == "coding" {
+			messageText = fmt.Sprintf("✅ Отчёт принят! 💪\n\n🦁 Ты кодишь дней подряд: %d\n💻 +%d очко фокуса\n💻 Всего очков фокуса: %d\n🏆 +1 кубок за кодинг-сессию!\n🏆 Всего кубков: %d\n\n⏰ Таймер перезапускается на 7 дней", newStreakDays, caloriesToAdd, totalCalories, currentCups)
 		} else {
 			messageText = fmt.Sprintf("✅ Отчёт принят! 💪\n\n🦁 Ты тренируешься дней подряд: %d\n🔥 +%d калорий\n🔥 Всего калорий: %d\n🏆 +1 кубок за тренировку!\n🏆 Всего кубков: %d\n\n⏰ Таймер перезапускается на 7 дней", newStreakDays, caloriesToAdd, totalCalories, currentCups)
 		}
@@ -1141,6 +1143,8 @@ func (b *Bot) handleTrainingDone(msg *tgbotapi.Message) {
 				if trainingTextClean != "" {
 					if chatType == "writing" {
 						ctxBuilder.WriteString(fmt.Sprintf("Сообщение о писательской работе: %s\n", trainingTextClean))
+					} else if chatType == "coding" {
+						ctxBuilder.WriteString(fmt.Sprintf("Сообщение о кодинг-сессии: %s\n", trainingTextClean))
 					} else {
 						ctxBuilder.WriteString(fmt.Sprintf("Сообщение о тренировке: %s\n", trainingTextClean))
 					}
@@ -1150,6 +1154,9 @@ func (b *Bot) handleTrainingDone(msg *tgbotapi.Message) {
 			if chatType == "writing" {
 				ctxBuilder.WriteString(fmt.Sprintf("Добавлено %s: %d\n", getWordForm(caloriesToAdd), caloriesToAdd))
 				ctxBuilder.WriteString(fmt.Sprintf("Текущие %s: %d\n", getWordForm(totalCalories), totalCalories))
+			} else if chatType == "coding" {
+				ctxBuilder.WriteString(fmt.Sprintf("Добавлено очков фокуса: %d\n", caloriesToAdd))
+				ctxBuilder.WriteString(fmt.Sprintf("Текущие очки фокуса: %d\n", totalCalories))
 			} else {
 				ctxBuilder.WriteString(fmt.Sprintf("Добавлено калорий: %d\n", caloriesToAdd))
 				ctxBuilder.WriteString(fmt.Sprintf("Текущие калории: %d\n", totalCalories))
@@ -1163,6 +1170,8 @@ func (b *Bot) handleTrainingDone(msg *tgbotapi.Message) {
 			weekdayNames := []string{"воскресенье", "понедельник", "вторник", "среда", "четверг", "пятница", "суббота"}
 			if chatType == "writing" {
 				ctxBuilder.WriteString(fmt.Sprintf("Время писательской сессии: %s, %d:00\n", weekdayNames[weekday], hour))
+			} else if chatType == "coding" {
+				ctxBuilder.WriteString(fmt.Sprintf("Время кодинг-сессии: %s, %d:00\n", weekdayNames[weekday], hour))
 			} else {
 				ctxBuilder.WriteString(fmt.Sprintf("Время тренировки: %s, %d:00\n", weekdayNames[weekday], hour))
 			}
@@ -1183,6 +1192,8 @@ func (b *Bot) handleTrainingDone(msg *tgbotapi.Message) {
 			if wasOnSickLeave {
 				if chatType == "writing" {
 					ctxBuilder.WriteString("Недавно был больничный, теперь снова за писательством.\n")
+				} else if chatType == "coding" {
+					ctxBuilder.WriteString("Недавно был больничный, теперь снова в кодинге.\n")
 				} else {
 					ctxBuilder.WriteString("Недавно был больничный, теперь снова в строю.\n")
 				}
@@ -1348,6 +1359,8 @@ func (b *Bot) handleTrainingDone(msg *tgbotapi.Message) {
 				if trainingTextClean != "" {
 					if chatType == "writing" {
 						ctxBuilder.WriteString(fmt.Sprintf("Сообщение о писательской работе: %s\n", trainingTextClean))
+					} else if chatType == "coding" {
+						ctxBuilder.WriteString(fmt.Sprintf("Сообщение о кодинг-сессии: %s\n", trainingTextClean))
 					} else {
 						ctxBuilder.WriteString(fmt.Sprintf("Сообщение о тренировке: %s\n", trainingTextClean))
 					}
@@ -4182,6 +4195,39 @@ func (b *Bot) getUnifiedTrainingPrompt(streakDays, totalCalories, totalCups int,
 	weekday := now.Weekday()
 
 	var prompts []string
+
+	// Отдельные промпты для программирования — без упоминаний физической активности.
+	if chatType == "coding" {
+		prompts = []string{
+			"Напиши 2-3 предложения после #coding_done: первое — конкретный комментарий к задаче/коду из сообщения, второе — короткий практический совет по разработке. НЕ упоминай тренировки, спорт или физическую активность. Используй ТОЛЬКО этот отчёт. Без Markdown.",
+			"Сделай 2-3 предложения в стиле наставника по программированию: первое — отметь, что именно сделано в коде, второе — совет по качеству кода/тестам/рефакторингу. Только по текущему сообщению. Без Markdown.",
+			"Ответь на отчёт о кодинг-сессии 2-3 предложениями: конкретная похвала за прогресс и один следующий шаг для разработчика. Не повторяй цифры, не уходи в общие фразы. Без Markdown.",
+		}
+		if wasOnSickLeave {
+			prompts = append(prompts, "Напиши 2-3 предложения после #coding_done: пользователь вернулся после больничного. Похвали за возвращение в разработку и дай один спокойный совет по темпу. Без спорта и тренировок. Без Markdown.")
+		}
+		if streakDays >= 7 && streakDays < 14 {
+			prompts = append(prompts, "Сделай 2-3 предложения: уже неделя coding-ритма подряд. Отметь дисциплину в программировании и дай один практический совет по инженерной привычке. Без Markdown.")
+		}
+		if streakDays >= 21 {
+			prompts = append(prompts, "Сделай 2-3 предложения: длинная серия coding-сессий. Отметь стабильность и дай совет по устойчивому темпу разработки. Без тренировок, только про код. Без Markdown.")
+		}
+		if hour >= 17 && hour < 22 {
+			prompts = append(prompts, "Вечерняя coding-сессия: 2-3 предложения, отметь фокус в конце дня и дай короткий совет по качественному завершению работы. Без Markdown.")
+		}
+		if hour >= 22 || hour < 6 {
+			prompts = append(prompts, "Поздняя coding-сессия: 2-3 предложения, похвали за упорство и мягко напомни про баланс и ясную голову для завтрашнего кода. Без Markdown.")
+		}
+		if weekday == time.Saturday || weekday == time.Sunday {
+			prompts = append(prompts, "Coding в выходной: 2-3 предложения, отметь дисциплину и предложи один аккуратный шаг по улучшению проекта. Без Markdown.")
+		}
+		if totalCups >= 1000 {
+			prompts = append(prompts, "Сделай 2-3 предложения для опытного участника coding-чата: уважительный тон, конкретный комментарий по текущей задаче и один инженерный совет. Без Markdown.")
+		}
+
+		selectedPrompt := prompts[now.Unix()%int64(len(prompts))]
+		return selectedPrompt
+	}
 
 	// Разные промпты для чатов писательства и тренировок
 	if chatType == "writing" {
