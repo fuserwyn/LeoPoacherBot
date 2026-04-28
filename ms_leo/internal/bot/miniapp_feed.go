@@ -2,7 +2,6 @@ package bot
 
 import (
 	"errors"
-	"time"
 
 	initdata "github.com/telegram-mini-apps/init-data-golang"
 )
@@ -80,11 +79,8 @@ func (b *Bot) PackFeedForViewer(viewerUserID int64, initD initdata.InitData) ([]
 			return nil, ErrPackFeedForbidden
 		}
 	}
-	since, err := b.packMiniappHistorySinceForViewer(viewerUserID)
-	if err != nil {
-		return nil, err
-	}
-	rows, err := b.db.ListPackActivityFeed(chatID, 50, since)
+	// Показываем общую историю стаи для всех участников, без персональной отсечки "с момента входа".
+	rows, err := b.db.ListPackActivityFeed(chatID, 50, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -167,17 +163,3 @@ func (b *Bot) enrichPackFeedAuthorPhotos(items []PackFeedItem, chatID int64) []P
 	return items
 }
 
-// packMiniappHistorySinceForViewer — граница общей истории в мини-аппе; nil = без отсечения (владелец).
-func (b *Bot) packMiniappHistorySinceForViewer(viewerUserID int64) (*time.Time, error) {
-	if b == nil {
-		return nil, nil
-	}
-	if b.config.OwnerID != 0 && viewerUserID == b.config.OwnerID {
-		return nil, nil
-	}
-	t, err := b.db.PackMiniappHistorySinceUTC(viewerUserID, b.config.MonetizedChatID, b.config.PaywallEnabled)
-	if err != nil {
-		return nil, err
-	}
-	return &t, nil
-}

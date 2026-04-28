@@ -67,11 +67,8 @@ func (b *Bot) PackGroupChatForViewer(viewerUserID int64, initD initdata.InitData
 			return nil, ErrPackFeedForbidden
 		}
 	}
-	since, err := b.packMiniappHistorySinceForViewer(viewerUserID)
-	if err != nil {
-		return nil, err
-	}
-	msgs, err := b.db.ListMiniappPackGroupChat(chatID, 100, since)
+	// Показываем общий чат стаи целиком (с лимитом), без персональной отсечки истории.
+	msgs, err := b.db.ListMiniappPackGroupChat(chatID, 100, nil)
 	if err != nil {
 		return nil, err
 	}
