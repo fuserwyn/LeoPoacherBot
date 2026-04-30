@@ -3,6 +3,7 @@ package bot
 import (
 	"database/sql"
 	"errors"
+	"math"
 	"strings"
 	"time"
 
@@ -187,26 +188,38 @@ func (b *Bot) GetMiniappProfileStatsForAPI(userID, packChatID int64) MiniappProf
 	if b == nil || b.db == nil || userID == 0 || packChatID == 0 {
 		return out
 	}
-	ml, err := b.db.GetMessageLog(userID, packChatID)
-	if err == nil && ml != nil {
-		out.XP = ml.XP
-		out.StreakDays = ml.StreakDays
-		out.MaxStreakDays = ml.MaxStreakDays
-		if out.MaxStreakDays < out.StreakDays {
-			out.MaxStreakDays = out.StreakDays
+	applyLog := func(chatID int64) {
+		ml, err := b.db.GetMessageLog(userID, chatID)
+		if err != nil || ml == nil {
+			return
 		}
-		out.AchievementCount = ml.AchievementCount
+		out.XP = int(math.Max(float64(out.XP), float64(ml.XP)))
+		out.StreakDays = int(math.Max(float64(out.StreakDays), float64(ml.StreakDays)))
+		maxStreak := ml.MaxStreakDays
+		if maxStreak < ml.StreakDays {
+			maxStreak = ml.StreakDays
+		}
+		out.MaxStreakDays = int(math.Max(float64(out.MaxStreakDays), float64(maxStreak)))
+		out.AchievementCount = int(math.Max(float64(out.AchievementCount), float64(ml.AchievementCount)))
 	}
+	// Primary source: pack-row. Fallback/migration source: private-row (chat_id=userID).
+	applyLog(packChatID)
+	applyLog(userID)
+
 	today := time.Now().UTC()
 	weekAgo := today.AddDate(0, 0, -6)
-	total, err := b.db.CountTrainingSessionsInDateRange(userID, packChatID, "2000-01-01", today.Format("2006-01-02"))
-	if err == nil {
-		out.WorkoutsTotal = total
+	countAndMerge := func(chatID int64) {
+		total, err := b.db.CountTrainingSessionsInDateRange(userID, chatID, "2000-01-01", today.Format("2006-01-02"))
+		if err == nil {
+			out.WorkoutsTotal = int(math.Max(float64(out.WorkoutsTotal), float64(total)))
+		}
+		week, err := b.db.CountTrainingSessionsInDateRange(userID, chatID, weekAgo.Format("2006-01-02"), today.Format("2006-01-02"))
+		if err == nil {
+			out.WorkoutsWeek = int(math.Max(float64(out.WorkoutsWeek), float64(week)))
+		}
 	}
-	week, err := b.db.CountTrainingSessionsInDateRange(userID, packChatID, weekAgo.Format("2006-01-02"), today.Format("2006-01-02"))
-	if err == nil {
-		out.WorkoutsWeek = week
-	}
+	countAndMerge(packChatID)
+	countAndMerge(userID)
 	return out
 }
 
