@@ -31,6 +31,7 @@ export function App() {
   const [workoutsWeek, setWorkoutsWeek] = useState(0);
   const [leoPending, setLeoPending] = useState(0);
   const [feedUnread, setFeedUnread] = useState(0);
+  const [feedRefreshToken, setFeedRefreshToken] = useState(0);
 
   const refreshTabBadges = useCallback(async () => {
     if (!inTelegram || !initData?.trim()) {
@@ -137,6 +138,7 @@ export function App() {
           initData={initData}
           inTelegram={inTelegram}
           showAlert={showAlert}
+          refreshToken={feedRefreshToken}
         />
       )}
       {tab === "rules" && <RulesScreen />}
@@ -209,6 +211,9 @@ export function App() {
             }
             void refreshTabBadges();
             void refreshProfileStats();
+            setTab("feed");
+            setFeedRefreshToken((v) => v + 1);
+            window.setTimeout(() => setFeedRefreshToken((v) => v + 1), 4000);
             const msg = result.replyParts.filter(Boolean).join("\n\n").trim() || "Отчёт отправлен.";
             showAlert(msg.length > 350 ? `${msg.slice(0, 347)}…` : msg);
             return true;

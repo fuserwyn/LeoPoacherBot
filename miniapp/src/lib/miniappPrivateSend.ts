@@ -46,11 +46,19 @@ export async function sendMiniappPrivateText(initData: string, text: string): Pr
   if (!initData.trim()) {
     return { ok: false, error: "Нужен initData (открой апп из Telegram)." };
   }
-  const res = await fetch(`${apiBase}/api/miniapp/messages`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ init_data: initData, text }),
-  });
+  let res: Response;
+  try {
+    res = await fetch(`${apiBase}/api/miniapp/messages`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ init_data: initData, text }),
+    });
+  } catch (e) {
+    return {
+      ok: false,
+      error: `Сеть недоступна: ${e instanceof Error ? e.message : String(e)}`,
+    };
+  }
   const j = (await res.json().catch(() => ({}))) as {
     error?: string;
     ok?: boolean;
@@ -87,10 +95,18 @@ export async function sendMiniappTrainingWithPhoto(initData: string, text: strin
   fd.append("init_data", initData);
   fd.append("text", text);
   fd.append("photo", photo, photo.name || "photo.jpg");
-  const res = await fetch(`${apiBase}/api/miniapp/workout`, {
-    method: "POST",
-    body: fd,
-  });
+  let res: Response;
+  try {
+    res = await fetch(`${apiBase}/api/miniapp/workout`, {
+      method: "POST",
+      body: fd,
+    });
+  } catch (e) {
+    return {
+      ok: false,
+      error: `Сеть недоступна: ${e instanceof Error ? e.message : String(e)}`,
+    };
+  }
   const j = (await res.json().catch(() => ({}))) as {
     error?: string;
     ok?: boolean;

@@ -22,6 +22,7 @@ type Props = {
   initData: string;
   inTelegram: boolean;
   showAlert: (m: string) => void;
+  refreshToken?: number;
 };
 
 type Sub = "activity" | "room";
@@ -41,7 +42,7 @@ function mockFallback(_name: string, streak: number): ActivityCardProps[] {
   ];
 }
 
-export function FeedScreen({ name, streak, userId, initData, inTelegram, showAlert }: Props) {
+export function FeedScreen({ name, streak, userId, initData, inTelegram, showAlert, refreshToken = 0 }: Props) {
   const [sub, setSub] = useState<Sub>("activity");
   const subtitle =
     streak === 0
@@ -249,7 +250,7 @@ export function FeedScreen({ name, streak, userId, initData, inTelegram, showAle
 
   useEffect(() => {
     void load();
-  }, [load]);
+  }, [load, refreshToken]);
 
   return (
     <div className="feed">
