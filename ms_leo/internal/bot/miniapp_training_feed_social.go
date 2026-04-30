@@ -240,11 +240,11 @@ func (b *Bot) afterPackTrainingThreadInserted(packChatID, userMessageID, comment
 	if replyToParentThreadID != 0 {
 		body = "↩️ " + cn + " ответил(а) на твой комментарий в стае.\n\n«" + preview + "»\n\nОткрой мини-апп → вкладка «Стая»."
 	} else {
-		what := "тренировку"
+		what := "твою тренировку"
 		if parentType == "sick_leave" || parentType == "healthy" {
-			what = "статус по больничному"
+			what = "твой статус по больничному"
 		}
-		body = "💬 " + cn + " прокомментировал(а) твой " + what + " в стае.\n\n«" + preview + "»\n\nОткрой мини-апп → вкладка «Стая»."
+		body = "💬 " + cn + " прокомментировал(а) " + what + " в стае.\n\n«" + preview + "»\n\nОткрой мини-апп → вкладка «Стая»."
 	}
 	b.sendTrainingThreadCommentDM(notifyUserID, body)
 }
