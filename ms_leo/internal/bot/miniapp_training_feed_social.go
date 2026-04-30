@@ -236,15 +236,39 @@ func (b *Bot) afterPackTrainingThreadInserted(packChatID, userMessageID, comment
 	if cn == "" {
 		cn = "Участник стаи"
 	}
+	commenterGender, _, _ := b.GetMiniappUserProfileJSONForAPI(commenterUserID, packChatID)
+	commenterGender = strings.TrimSpace(strings.ToLower(commenterGender))
 	var body string
 	if replyToParentThreadID != 0 {
-		body = "↩️ " + cn + " ответил(а) на твой комментарий в стае.\n\n«" + preview + "»\n\nОткрой мини-апп → вкладка «Стая»."
+		verb := ""
+		switch commenterGender {
+		case "m":
+			verb = "ответил"
+		case "f":
+			verb = "ответила"
+		}
+		if verb == "" {
+			body = "↩️ Ответ от " + cn + " на твой комментарий в стае.\n\n«" + preview + "»\n\nОткрой мини-апп → вкладка «Стая»."
+		} else {
+			body = "↩️ " + cn + " " + verb + " на твой комментарий в стае.\n\n«" + preview + "»\n\nОткрой мини-апп → вкладка «Стая»."
+		}
 	} else {
 		what := "твою тренировку"
 		if parentType == "sick_leave" || parentType == "healthy" {
 			what = "твой статус по больничному"
 		}
-		body = "💬 " + cn + " прокомментировал(а) " + what + " в стае.\n\n«" + preview + "»\n\nОткрой мини-апп → вкладка «Стая»."
+		verb := ""
+		switch commenterGender {
+		case "m":
+			verb = "прокомментировал"
+		case "f":
+			verb = "прокомментировала"
+		}
+		if verb == "" {
+			body = "💬 Комментарий от " + cn + " к " + what + " в стае.\n\n«" + preview + "»\n\nОткрой мини-апп → вкладка «Стая»."
+		} else {
+			body = "💬 " + cn + " " + verb + " " + what + " в стае.\n\n«" + preview + "»\n\nОткрой мини-апп → вкладка «Стая»."
+		}
 	}
 	b.sendTrainingThreadCommentDM(notifyUserID, body)
 }
