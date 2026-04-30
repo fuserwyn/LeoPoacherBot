@@ -177,9 +177,10 @@ func (b *Bot) handleLeopardMoneyTrainingDone(msg *tgbotapi.Message, personalRepl
 		username = fmt.Sprintf("User%d", msg.From.ID)
 	}
 
-	b.startTimer(msg.From.ID, b.kickChatIDForMessage(msg), username)
+	packChatID := b.kickChatIDForMessage(msg)
+	b.startTimer(msg.From.ID, packChatID, username)
 
-	messageLog, err := b.db.GetMessageLog(msg.From.ID, msg.Chat.ID)
+	messageLog, err := b.db.GetMessageLog(msg.From.ID, packChatID)
 	if err != nil {
 		b.logger.Errorf("Failed to get message log: %v", err)
 		return
@@ -188,7 +189,6 @@ func (b *Bot) handleLeopardMoneyTrainingDone(msg *tgbotapi.Message, personalRepl
 	// Approval-стейт больничного теперь живёт на pack-row (см. handleSickLeave),
 	// поэтому отменяем его именно там — иначе watcher продержится до дедлайна и потом
 	// принудительно «отменит» уже неактуальный запрос лишним сообщением.
-	packChatID := b.kickChatIDForMessage(msg)
 	if packLog, packErr := b.db.GetMessageLog(msg.From.ID, packChatID); packErr == nil && packLog != nil && packLog.SickApprovalPending {
 		b.cancelSickApprovalWatcher(msg.From.ID)
 		packLog.SickApprovalPending = false
@@ -233,7 +233,7 @@ func (b *Bot) handleLeopardMoneyTrainingDone(msg *tgbotapi.Message, personalRepl
 		}
 	}
 
-	sessionsToday, err := b.db.CountTrainingSessionsInDateRange(msg.From.ID, msg.Chat.ID, today, today)
+	sessionsToday, err := b.db.CountTrainingSessionsInDateRange(msg.From.ID, packChatID, today, today)
 	if err != nil {
 		b.logger.Errorf("sessions today: %v", err)
 		sessionsToday = 0
@@ -268,19 +268,19 @@ func (b *Bot) handleLeopardMoneyTrainingDone(msg *tgbotapi.Message, personalRepl
 	}
 
 	if xpAdd > 0 {
-		if err := b.db.AddXP(msg.From.ID, msg.Chat.ID, xpAdd); err != nil {
+		if err := b.db.AddXP(msg.From.ID, packChatID, xpAdd); err != nil {
 			b.logger.Errorf("add XP: %v", err)
 		}
 	}
 
-	if err := b.db.UpdateStreak(msg.From.ID, msg.Chat.ID, newStreak, today); err != nil {
+	if err := b.db.UpdateStreak(msg.From.ID, packChatID, newStreak, today); err != nil {
 		b.logger.Errorf("update streak: %v", err)
 	}
-	if err := b.db.UpdateCalorieStreakWithDate(msg.From.ID, msg.Chat.ID, newCalStreak, today); err != nil {
+	if err := b.db.UpdateCalorieStreakWithDate(msg.From.ID, packChatID, newCalStreak, today); err != nil {
 		b.logger.Errorf("update cal streak: %v", err)
 	}
 
-	msgLog2, _ := b.db.GetMessageLog(msg.From.ID, msg.Chat.ID)
+	msgLog2, _ := b.db.GetMessageLog(msg.From.ID, packChatID)
 	if msgLog2 != nil && newStreak > 0 && newStreak%7 == 0 && newStreak <= 28 {
 		want := newStreak / 7
 		if msgLog2.AchievementCount < want && want <= leopardmoney.MaxAchievements {
@@ -290,9 +290,9 @@ func (b *Bot) handleLeopardMoneyTrainingDone(msg *tgbotapi.Message, personalRepl
 		}
 	}
 
-	totalXP, _ := b.db.GetUserXP(msg.From.ID, msg.Chat.ID)
+	totalXP, _ := b.db.GetUserXP(msg.From.ID, packChatID)
 	ach := 0
-	if ml, e := b.db.GetMessageLog(msg.From.ID, msg.Chat.ID); e == nil {
+	if ml, e := b.db.GetMessageLog(msg.From.ID, packChatID); e == nil {
 		ach = ml.AchievementCount
 	}
 
@@ -300,7 +300,7 @@ func (b *Bot) handleLeopardMoneyTrainingDone(msg *tgbotapi.Message, personalRepl
 
 	session := &domain.TrainingSession{
 		UserID:         msg.From.ID,
-		ChatID:         msg.Chat.ID,
+		ChatID:         packChatID,
 		SessionDate:    today,
 		MessageText:    text,
 		TrainingsCount: 1,

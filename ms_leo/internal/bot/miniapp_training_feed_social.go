@@ -110,7 +110,7 @@ func (b *Bot) PackTrainingFeedReact(viewerUserID int64, initD initdata.InitData,
 	return b.db.SetTrainingFeedReaction(chatID, userMessageID, viewerUserID, uname, em)
 }
 
-// PackTrainingFeedThreadPost — комментарий в треде под training_done/sick_leave.
+// PackTrainingFeedThreadPost — комментарий в треде под training_done/sick_leave/healthy.
 // replyToThreadID — id строки miniapp_training_feed_thread, на которую отвечаем (как Reply в Telegram).
 func (b *Bot) PackTrainingFeedThreadPost(viewerUserID int64, initD initdata.InitData, userMessageID int64, text string, replyToThreadID int64) error {
 	if err := b.AssertMiniAppPackChatAligns(initD); err != nil {
@@ -131,7 +131,7 @@ func (b *Bot) PackTrainingFeedThreadPost(viewerUserID int64, initD initdata.Init
 	if err != nil {
 		return err
 	}
-	if !has || (typ != "training_done" && typ != "sick_leave") {
+	if !has || (typ != "training_done" && typ != "sick_leave" && typ != "healthy") {
 		return ErrTrainingFeedParentNotFound
 	}
 	var leoParentSnapshot string
@@ -241,8 +241,8 @@ func (b *Bot) afterPackTrainingThreadInserted(packChatID, userMessageID, comment
 		body = "↩️ " + cn + " ответил(а) на твой комментарий в стае.\n\n«" + preview + "»\n\nОткрой мини-апп → вкладка «Стая»."
 	} else {
 		what := "тренировку"
-		if parentType == "sick_leave" {
-			what = "больничный"
+		if parentType == "sick_leave" || parentType == "healthy" {
+			what = "статус по больничному"
 		}
 		body = "💬 " + cn + " прокомментировал(а) твой " + what + " в стае.\n\n«" + preview + "»\n\nОткрой мини-апп → вкладка «Стая»."
 	}
