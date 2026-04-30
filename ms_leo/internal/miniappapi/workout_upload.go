@@ -178,6 +178,20 @@ func (s *Server) handlePostWorkoutWithPhoto(w http.ResponseWriter, r *http.Reque
 		return
 	}
 	written += nw64
+	// Важно: io.LimitReader просто обрезает поток на лимите.
+	// Проверяем, не осталось ли ещё байтов во входном файле, чтобы не сохранить битое изображение.
+	extra := make([]byte, 1)
+	extraN, extraErr := file.Read(extra)
+	if extraN > 0 {
+		_ = os.Remove(destAbs)
+		s.jsonErr(w, http.StatusBadRequest, "photo_too_large")
+		return
+	}
+	if extraErr != nil && extraErr != io.EOF {
+		_ = os.Remove(destAbs)
+		s.jsonErr(w, http.StatusBadRequest, "photo_read_error")
+		return
+	}
 	if written > maxWorkoutPhotoBytes {
 		_ = os.Remove(destAbs)
 		s.jsonErr(w, http.StatusBadRequest, "photo_too_large")
