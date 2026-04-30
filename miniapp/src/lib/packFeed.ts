@@ -3,6 +3,7 @@ import { timeAgoFromISO } from "./timeAgo";
 import type { ActivityCardProps } from "../components/ActivityCard";
 
 const viteMiniappApi = (import.meta.env.VITE_MINIAPP_API_URL as string | undefined)?.replace(/\/$/, "").trim() ?? "";
+const browserOrigin = typeof window !== "undefined" ? window.location.origin.replace(/\/$/, "") : "";
 
 /** Лента: в БД мог остаться старый origin; API additionally canonicalizes via MINIAPP_PUBLIC_BASE_URL. */
 export function resolveTrainingPhotoUrl(stored: string | undefined): string | undefined {
@@ -24,8 +25,9 @@ export function resolveTrainingPhotoUrl(stored: string | undefined): string | un
   if (raw.startsWith("https://") && !raw.includes("127.0.0.1") && !raw.includes("localhost")) {
     return raw;
   }
-  if (!viteMiniappApi) return raw;
-  return viteMiniappApi + path;
+  if (viteMiniappApi) return viteMiniappApi + path;
+  if (browserOrigin && browserOrigin.startsWith("http")) return browserOrigin + path;
+  return raw;
 }
 
 /** Совпадает с ms_leo trainingFeedAllowedEmojis (порядок отображения). */

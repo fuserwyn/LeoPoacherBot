@@ -61,10 +61,9 @@ func main() {
 			mediaDir = abs
 		}
 		_ = os.MkdirAll(mediaDir, 0750)
-		publicBase := strings.TrimSpace(os.Getenv("MINIAPP_PUBLIC_BASE_URL"))
-		if publicBase == "" {
-			publicBase = "http://127.0.0.1:" + p
-		}
+		// Берём base из конфигурации; если пусто — miniappapi/workout_upload сам
+		// вычислит публичный origin из X-Forwarded-* / Host (вместо localhost).
+		publicBase := strings.TrimSpace(cfg.MiniappPublicBaseURL)
 		h := miniappapi.New(bot, cfg.APIToken, logger, publicBase, mediaDir)
 		// Долгий ответ ИИ: WriteTimeout 0 = без лимита на запись тела ответа (иначе обрыв посреди JSON).
 		srv := &http.Server{
