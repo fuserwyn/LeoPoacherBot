@@ -911,20 +911,42 @@ func (b *Bot) paywallPostPaymentUserText() string {
 // Здесь же пишем карточку «вступил/вернулся» в ленту мини-аппа — раньше это делал EnsureMiniAppOnboarding
 // при первом заходе. Теперь ENtry-stream единый, а EnsureMiniAppOnboarding для оплаченных видит уже
 // активный timer_start_time и просто отдаёт InPack=true.
-func (b *Bot) paywallDeliverAccessAfterPayment(userID int64) error {
+//
+// paywallRequestID > 0 отмечает в БД факт отправки пост-оплатного DM — без второго «Ура, ты в стае…» при ретраях/outbox.
+func (b *Bot) paywallDeliverAccessAfterPayment(userID int64, paywallRequestID int64) error {
 	chatID := b.config.MonetizedChatID
+
+	// Сначала текст в ЛС — чтобы юзер не «пропал» после оплаты даже если ниже БД займёт время или ошибётся.
+	// По paywallRequestID не шлём второй раз (ретрай Telegram / outbox), чтобы не дублировать «Ура, ты в стае…».
+	welcomePending := true
+	if paywallRequestID > 0 {
+		sent, err := b.db.PaywallPostPaymentWelcomeSent(paywallRequestID)
+		if err != nil {
+			return fmt.Errorf("paywall welcome_sent check req=%d: %w", paywallRequestID, err)
+		}
+		welcomePending = !sent
+	}
+	if welcomePending {
+		if _, err := b.api.Send(tgbotapi.NewMessage(userID, b.paywallPostPaymentUserText())); err != nil {
+			b.logger.Errorf("paywall send done msg user=%d: %v", userID, err)
+			return err
+		}
+		if paywallRequestID > 0 {
+			if err := b.db.PaywallMarkPostPaymentWelcomeSent(paywallRequestID); err != nil {
+				b.logger.Errorf("paywall mark welcome_sent req=%d user=%d: %v", paywallRequestID, userID, err)
+			}
+		}
+		b.logger.Infof("paywall post-payment welcome sent user=%d req=%d", userID, paywallRequestID)
+	}
+
 	reactivated, err := b.db.ReactivateReturnedUser(userID, chatID, "")
 	if err != nil {
 		b.logger.Errorf("paywall reactivate returned user=%d: %v", userID, err)
 		return err
 	}
 	if !reactivated {
+		b.logger.Errorf("paywall reactivate returned false user=%d chat=%d", userID, chatID)
 		return fmt.Errorf("paywall inconsistency: no profile for paid return user=%d chat=%d", userID, chatID)
-	}
-
-	if _, err := b.api.Send(tgbotapi.NewMessage(userID, b.paywallPostPaymentUserText())); err != nil {
-		b.logger.Errorf("paywall send done msg: %v", err)
-		return err
 	}
 
 	// Username для приветственной карточки берём из только что обновлённой записи training_state.
@@ -959,61 +981,93 @@ func (b *Bot) paywallDeliverAccessAfterPayment(userID int64) error {
 }
 
 func (b *Bot) handlePaywallSuccessfulPayment(msg *tgbotapi.Message) {
-	if !b.paywallActive() || msg.From == nil || msg.SuccessfulPayment == nil {
+	if msg.From == nil || msg.SuccessfulPayment == nil {
+		return
+	}
+	if !b.paywallActive() {
+		b.logger.Warnf("paywall successful_payment ignored: paywall inactive user=%d", msg.From.ID)
 		return
 	}
 	sp := msg.SuccessfulPayment
-	switch sp.Currency {
+	cur := strings.ToUpper(strings.TrimSpace(sp.Currency))
+	switch cur {
 	case "XTR":
-		if !b.config.PaywallUsesStars() || sp.TotalAmount != b.config.PaywallStarsInvoiceAmount() {
+		wantStars := b.config.PaywallStarsInvoiceAmount()
+		if !b.config.PaywallUsesStars() {
+			b.logger.Errorf("paywall successful_payment XTR but stars disabled in config user=%d", msg.From.ID)
+			return
+		}
+		if sp.TotalAmount != wantStars {
 			b.logger.Errorf(
-				"paywall successful_payment stars mismatch: got %d, want %d — PAYMENT_STARS_AMOUNT / XTR",
-				sp.TotalAmount, b.config.PaywallStarsInvoiceAmount(),
+				"paywall successful_payment stars mismatch user=%d: got amount=%d currency=%q want_amount=%d — PAYMENT_STARS_AMOUNT / PAYMENT_CURRENCY=XTR / PAYMENT_AMOUNT_MINOR_UNITS",
+				msg.From.ID, sp.TotalAmount, cur, wantStars,
 			)
 			return
 		}
 	default:
-		if !b.config.PaywallUsesTelegramProviderInvoice() || sp.Currency != b.config.PaymentCurrency || sp.TotalAmount != b.config.PaymentAmountMinorUnits {
+		wantCur := strings.ToUpper(strings.TrimSpace(b.config.PaymentCurrency))
+		if !b.config.PaywallUsesTelegramProviderInvoice() || cur != wantCur || sp.TotalAmount != b.config.PaymentAmountMinorUnits {
 			b.logger.Errorf(
-				"paywall successful_payment mismatch: got %s %d, config wants %s %d — провайдер / PAYMENT_AMOUNT_*",
-				sp.Currency, sp.TotalAmount, b.config.PaymentCurrency, b.config.PaymentAmountMinorUnits,
+				"paywall successful_payment mismatch user=%d: got %s %d, config wants %s %d — провайдер / PAYMENT_AMOUNT_*",
+				msg.From.ID, cur, sp.TotalAmount, b.config.PaymentCurrency, b.config.PaymentAmountMinorUnits,
 			)
 			return
 		}
 	}
 	reqID, ok := parsePaywallPayload(sp.InvoicePayload)
 	if !ok {
+		b.logger.Warnf("paywall successful_payment bad invoice_payload user=%d payload=%q", msg.From.ID, sp.InvoicePayload)
 		return
 	}
 	rec, err := b.db.GetPaywallAccessRequestByID(reqID)
 	if err != nil || rec == nil {
-		b.logger.Errorf("paywall payment load request: %v", err)
+		b.logger.Errorf("paywall payment load request id=%d user=%d: %v", reqID, msg.From.ID, err)
 		return
 	}
 	if rec.UserID != msg.From.ID || rec.MonetizedChatID != b.config.MonetizedChatID {
-		b.logger.Warnf("paywall payment user/chat mismatch")
+		b.logger.Warnf("paywall payment user/chat mismatch req=%d", reqID)
 		return
 	}
-	okDb, err := b.db.CompletePaywallAccessRequest(reqID, msg.From.ID, b.config.MonetizedChatID, sp.TelegramPaymentChargeID, sp.TotalAmount, sp.Currency, false)
+	okDb, err := b.db.CompletePaywallAccessRequest(reqID, msg.From.ID, b.config.MonetizedChatID, sp.TelegramPaymentChargeID, sp.TotalAmount, cur, false)
 	if err != nil {
 		b.logger.Errorf("paywall complete request: %v", err)
 		return
 	}
+	deliver := func() {
+		if derr := b.paywallDeliverAccessAfterPayment(msg.From.ID, reqID); derr != nil {
+			b.logger.Errorf("paywall deliver after telegram payment user=%d req=%d: %v", msg.From.ID, reqID, derr)
+			sent, chkErr := b.db.PaywallPostPaymentWelcomeSent(reqID)
+			if chkErr != nil {
+				b.logger.Errorf("paywall welcome_sent check after deliver fail req=%d: %v", reqID, chkErr)
+				return
+			}
+			if !sent {
+				if enqErr := b.db.EnqueuePaywallAccessRestoreEvent(reqID, msg.From.ID, b.config.MonetizedChatID); enqErr != nil {
+					b.logger.Errorf("paywall enqueue restore after deliver fail req=%d: %v", reqID, enqErr)
+				} else {
+					b.logger.Infof("paywall enqueued restore after deliver fail user=%d req=%d", msg.From.ID, reqID)
+				}
+			}
+		}
+	}
 	if !okDb {
-		b.logger.Infof("paywall duplicate successful_payment for request=%d user=%d", reqID, msg.From.ID)
+		// Частый случай: Telegram повторил successful_payment после того как мы уже закрыли заявку в БД,
+		// но не успели/не смогли доставить DM (или упали после COMMIT). Раньше здесь был простой return —
+		// пользователь оставался без сообщения навсегда.
+		recDone, errDone := b.db.GetPaywallAccessRequestByID(reqID)
+		if errDone != nil || recDone == nil || recDone.Status != "completed" {
+			b.logger.Infof("paywall duplicate successful_payment noop request=%d user=%d", reqID, msg.From.ID)
+			return
+		}
+		if recDone.UserID != msg.From.ID || recDone.MonetizedChatID != b.config.MonetizedChatID {
+			b.logger.Warnf("paywall duplicate successful_payment user/chat mismatch req=%d", reqID)
+			return
+		}
+		b.logger.Infof("paywall duplicate successful_payment retry deliver request=%d user=%d", reqID, msg.From.ID)
+		deliver()
 		return
 	}
 	// Сразу приветствие и меню мини-аппа — не ждём outbox (иначе сообщение может не прийти при лаге воркера).
-	if derr := b.paywallDeliverAccessAfterPayment(msg.From.ID); derr != nil {
-		b.logger.Errorf("paywall deliver after telegram payment user=%d: %v", msg.From.ID, derr)
-		payload := map[string]int64{"request_id": reqID, "user_id": msg.From.ID, "chat_id": b.config.MonetizedChatID}
-		if enqErr := b.db.EnqueueOutboxEvent(
-			"paywall_access_restore_requested",
-			fmt.Sprintf("paywall_request:%d", reqID),
-			payload,
-		); enqErr != nil {
-			b.logger.Errorf("paywall enqueue fallback restore after deliver failure: %v", enqErr)
-		}
-	}
+	deliver()
 }
 

@@ -555,7 +555,7 @@ func (d *Database) ReactivateReturnedUser(userID, chatID int64, username string)
 			timer_start_time, timezone_offset_from_moscow, achievement_count, return_count,
 			returned_at, created_at, updated_at
 		) VALUES (
-			$1, NULLIF($2, ''), $3, 42, 0, 0, 0,
+			$1, NULLIF($2, ''), $3, 42, 0, 0, 0, 0,
 			$4, FALSE, FALSE, FALSE, FALSE,
 			NULL, 0, 0, 1,
 			(NOW() AT TIME ZONE 'Europe/Moscow'), $4, $4

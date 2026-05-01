@@ -779,6 +779,18 @@ var Migrations = []Migration{
 			DROP COLUMN IF EXISTS max_streak_days;
 		`,
 	},
+	{
+		Version:     39,
+		Description: "Paywall: idempotent post-payment welcome DM (retry / outbox)",
+		UpSQL: `
+			ALTER TABLE paywall_access_requests
+			ADD COLUMN IF NOT EXISTS post_payment_welcome_sent_at TIMESTAMP WITH TIME ZONE;
+		`,
+		DownSQL: `
+			ALTER TABLE paywall_access_requests
+			DROP COLUMN IF EXISTS post_payment_welcome_sent_at;
+		`,
+	},
 }
 
 // MigrationRecord представляет запись о выполненной миграции

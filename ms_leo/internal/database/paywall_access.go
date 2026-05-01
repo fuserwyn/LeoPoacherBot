@@ -20,7 +20,8 @@ type PaywallAccessRequest struct {
 	TelegramPaymentChargeID  sql.NullString
 	TotalAmountMinor         sql.NullInt64
 	Currency                 sql.NullString
-	YookassaPaymentID        sql.NullString
+	YookassaPaymentID          sql.NullString
+	PostPaymentWelcomeSentAt   sql.NullTime
 }
 
 func (d *Database) InsertPaywallAccessRequest(userID, monetizedChatID int64) (int64, error) {
@@ -39,7 +40,8 @@ func (d *Database) InsertPaywallAccessRequest(userID, monetizedChatID int64) (in
 func (d *Database) GetLatestPendingPaywallAccessRequest(userID, monetizedChatID int64) (*PaywallAccessRequest, error) {
 	const q = `
 		SELECT id, user_id, monetized_chat_id, status, created_at, completed_at, access_expires_at,
-		       telegram_payment_charge_id, total_amount_minor, currency, yookassa_payment_id
+		       telegram_payment_charge_id, total_amount_minor, currency, yookassa_payment_id,
+		       post_payment_welcome_sent_at
 		FROM paywall_access_requests
 		WHERE user_id = $1 AND monetized_chat_id = $2 AND status = 'pending'
 		ORDER BY id DESC
@@ -48,6 +50,7 @@ func (d *Database) GetLatestPendingPaywallAccessRequest(userID, monetizedChatID 
 	err := d.db.QueryRow(q, userID, monetizedChatID).Scan(
 		&r.ID, &r.UserID, &r.MonetizedChatID, &r.Status, &r.CreatedAt, &r.CompletedAt, &r.AccessExpiresAt,
 		&r.TelegramPaymentChargeID, &r.TotalAmountMinor, &r.Currency, &r.YookassaPaymentID,
+		&r.PostPaymentWelcomeSentAt,
 	)
 	if err == sql.ErrNoRows {
 		return nil, nil
@@ -61,12 +64,14 @@ func (d *Database) GetLatestPendingPaywallAccessRequest(userID, monetizedChatID 
 func (d *Database) GetPaywallAccessRequestByID(id int64) (*PaywallAccessRequest, error) {
 	const q = `
 		SELECT id, user_id, monetized_chat_id, status, created_at, completed_at, access_expires_at,
-		       telegram_payment_charge_id, total_amount_minor, currency, yookassa_payment_id
+		       telegram_payment_charge_id, total_amount_minor, currency, yookassa_payment_id,
+		       post_payment_welcome_sent_at
 		FROM paywall_access_requests WHERE id = $1`
 	var r PaywallAccessRequest
 	err := d.db.QueryRow(q, id).Scan(
 		&r.ID, &r.UserID, &r.MonetizedChatID, &r.Status, &r.CreatedAt, &r.CompletedAt, &r.AccessExpiresAt,
 		&r.TelegramPaymentChargeID, &r.TotalAmountMinor, &r.Currency, &r.YookassaPaymentID,
+		&r.PostPaymentWelcomeSentAt,
 	)
 	if err == sql.ErrNoRows {
 		return nil, nil
@@ -218,4 +223,44 @@ func (d *Database) CompletePaywallAccessRequest(id int64, userID, monetizedChatI
 
 func (d *Database) CompletePaywallAccessRequestAndEnqueueRestore(id int64, userID, monetizedChatID int64, telegramChargeID string, amountMinor int, currency string) (bool, error) {
 	return d.CompletePaywallAccessRequest(id, userID, monetizedChatID, telegramChargeID, amountMinor, currency, true)
+}
+
+// PaywallPostPaymentWelcomeSent — уже отправлено DM-приветствие после оплаты по этой заявке (идемпотентные ретраи).
+func (d *Database) PaywallPostPaymentWelcomeSent(requestID int64) (bool, error) {
+	var t sql.NullTime
+	err := d.db.QueryRow(
+		`SELECT post_payment_welcome_sent_at FROM paywall_access_requests WHERE id = $1`,
+		requestID,
+	).Scan(&t)
+	if err == sql.ErrNoRows {
+		return false, nil
+	}
+	if err != nil {
+		return false, err
+	}
+	return t.Valid, nil
+}
+
+// PaywallMarkPostPaymentWelcomeSent — отметить успешную отправку приветственного DM (один раз на заявку).
+func (d *Database) PaywallMarkPostPaymentWelcomeSent(requestID int64) error {
+	_, err := d.db.Exec(
+		`UPDATE paywall_access_requests SET post_payment_welcome_sent_at = NOW() WHERE id = $1 AND post_payment_welcome_sent_at IS NULL`,
+		requestID,
+	)
+	return err
+}
+
+// EnqueuePaywallAccessRestoreEvent — событие для outbox-воркера: добить paywallDeliverAccessAfterPayment
+// (повторный successful_payment от Telegram, сбой Send до отметки welcome, ЮKassa и т.д.).
+func (d *Database) EnqueuePaywallAccessRestoreEvent(requestID, userID, chatID int64) error {
+	payload := PaywallRestoreOutboxPayload{RequestID: requestID, UserID: userID, ChatID: chatID}
+	payloadJSON, err := json.Marshal(payload)
+	if err != nil {
+		return err
+	}
+	_, err = d.db.Exec(`
+		INSERT INTO outbox_events (event_type, aggregate_key, payload, status, next_attempt_at)
+		VALUES ($1, $2, $3::jsonb, 'pending', NOW())
+	`, "paywall_access_restore_requested", fmt.Sprintf("paywall_request:%d", requestID), string(payloadJSON))
+	return err
 }
