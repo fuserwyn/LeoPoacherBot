@@ -14,6 +14,7 @@ const TYPES: { id: string; label: string; emoji: string }[] = [
   { id: "dance", label: "Танцы", emoji: "💃" },
   { id: "hiit", label: "HIIT", emoji: "⚡" },
   { id: "cardio", label: "Кардио", emoji: "💓" },
+  { id: "kettlebell", label: "Гиря", emoji: "🏋️" },
   { id: "strength", label: "Силовая", emoji: "🏋️" },
   { id: "other", label: "Другое", emoji: "✨" },
 ];

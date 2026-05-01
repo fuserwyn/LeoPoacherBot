@@ -192,6 +192,7 @@ export function App() {
               dance: "танцы",
               hiit: "hiit",
               cardio: "кардио",
+              kettlebell: "гиря",
               strength: "силовая",
               other: "другое",
             };
