@@ -121,10 +121,10 @@
 }
 
 .packroom__row--me .packroom__bubble {
-  background: linear-gradient(135deg, #2a5cff 0%, #5c3ce6 100%);
-  color: #f4f4ff;
-  border: 1px solid rgba(255, 255, 255, 0.22);
-  box-shadow: 0 2px 14px rgba(42, 92, 255, 0.35);
+  background: linear-gradient(135deg, #1f6b47 0%, #2ea76e 100%);
+  color: #f2fff8;
+  border: 1px solid rgba(180, 240, 210, 0.35);
+  box-shadow: 0 2px 14px rgba(46, 167, 110, 0.38);
   border-bottom-right-radius: 6px;
 }
 
@@ -162,7 +162,7 @@
   height: 40px;
   border-radius: 10px;
   border: none;
-  background: #2a4bc7;
+  background: #268a5a;
   color: #fff;
   cursor: pointer;
 }
