@@ -791,6 +791,20 @@ var Migrations = []Migration{
 			DROP COLUMN IF EXISTS post_payment_welcome_sent_at;
 		`,
 	},
+	{
+		Version:     40,
+		Description: "Drop duplicate training_state rows where chat_id = user_id if pack row exists (Telegram pack chat_id < 0)",
+		UpSQL: `
+			DELETE FROM training_state ts
+			WHERE ts.user_id > 0
+			  AND ts.chat_id = ts.user_id
+			  AND EXISTS (
+			    SELECT 1 FROM training_state p
+			    WHERE p.user_id = ts.user_id AND p.chat_id <> ts.chat_id AND p.chat_id < 0
+			  );
+		`,
+		DownSQL: `SELECT 1;`,
+	},
 }
 
 // MigrationRecord представляет запись о выполненной миграции

@@ -89,7 +89,7 @@ func (b *Bot) processOutboxEvent(event database.OutboxEvent) error {
 			}
 			return nonRetryableOutboxError{msg: "smoke: simulated paywall deliver failure (aggregate smoke:fail_restore*)"}
 		}
-		if err := b.paywallDeliverAccessAfterPayment(payload.UserID, payload.RequestID); err != nil {
+		if err := b.paywallDeliverAccessAfterPayment(payload.UserID, payload.RequestID, nil); err != nil {
 			return err
 		}
 		return nil

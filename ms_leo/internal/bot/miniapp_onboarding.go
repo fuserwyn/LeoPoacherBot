@@ -76,6 +76,16 @@ func (b *Bot) EnsureMiniAppOnboarding(d initdata.InitData) (MiniAppOnboardingRes
 		// is_deleted=true означает «выбыл за неактивность». Возвращаться можно только через новую оплату.
 		return out, nil
 	}
+	// Старый баг: после оплаты ReactivateReturnedUser вызывали с пустым username → NULL в training_state.
+	if strings.TrimSpace(ml.Username) == "" {
+		fill := strings.TrimSpace(username)
+		if fill != "" {
+			ml.Username = fill
+			if err := b.db.SaveMessageLog(ml); err != nil {
+				b.logger.Warnf("miniapp onboarding: backfill pack username user=%d: %v", userID, err)
+			}
+		}
+	}
 	if ml.TimerStartTime != nil && strings.TrimSpace(*ml.TimerStartTime) != "" {
 		// Онбординг уже был.
 		return out, nil
@@ -97,20 +107,24 @@ func (b *Bot) EnsureMiniAppOnboarding(d initdata.InitData) (MiniAppOnboardingRes
 	return out, nil
 }
 
-// ensurePrivateMessageLogForMiniApp — создаёт минимальный message_log(userID, userID), если его нет.
-// Нужен для handleSickLeave / handleHealthy / processTrainingDone, которые работают с msg.Chat.ID = userID
-// (мини-апп шлёт сообщения через PrivateTextMessageFromInitUser → private chat).
+// ensurePrivateMessageLogForMiniApp — если включена стая, подстраховывает одну строку training_state на (user_id, MONETIZED_CHAT_ID).
+// Раньше создавали дубликат (user_id, user_id); состояние ведём только на id стаи.
+// Если MONETIZED_CHAT_ID не задан (локальный режим), остаётся легаси-строка (user_id, user_id).
 func (b *Bot) ensurePrivateMessageLogForMiniApp(userID int64, username string) {
 	if b == nil || b.db == nil || userID == 0 {
 		return
 	}
-	if existing, err := b.db.GetMessageLog(userID, userID); err == nil && existing != nil {
+	packChat := userID
+	if b.config != nil && b.config.MonetizedChatID != 0 {
+		packChat = b.config.MonetizedChatID
+	}
+	if existing, err := b.db.GetMessageLog(userID, packChat); err == nil && existing != nil {
 		return
 	}
 	now := utils.FormatMoscowTime(utils.GetMoscowTime())
 	ml := &domain.MessageLog{
 		UserID:          userID,
-		ChatID:          userID,
+		ChatID:          packChat,
 		Username:        strings.TrimSpace(username),
 		XP:              0,
 		StreakDays:      0,

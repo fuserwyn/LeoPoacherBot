@@ -183,6 +183,35 @@ func (d *Database) GetMonthlyMessages(chatID int64, month time.Time) ([]*domain.
 	return messages, nil
 }
 
+// GetUserMessagesAcrossTrainingScope — сообщения пользователя за период по каноническому scope стаи (chat_id = scope)
+// и по легаси-личке (chat_id = user_id), чтобы контекст ИИ видел историю до Consolidated training_state.
+func (d *Database) GetUserMessagesAcrossTrainingScope(userID, scopeChatID int64, startTime, endTime time.Time) ([]*domain.UserMessage, error) {
+	query := `
+		SELECT id, user_id, chat_id, username, message_text, message_type, created_at
+		FROM user_messages
+		WHERE user_id = $1
+		  AND (chat_id = $2 OR ($2 <> $1 AND chat_id = $1))
+		  AND created_at >= $3 AND created_at <= $4
+		ORDER BY created_at ASC
+	`
+	rows, err := d.db.Query(query, userID, scopeChatID, startTime, endTime)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var messages []*domain.UserMessage
+	for rows.Next() {
+		var msg domain.UserMessage
+		err := rows.Scan(&msg.ID, &msg.UserID, &msg.ChatID, &msg.Username, &msg.MessageText, &msg.MessageType, &msg.CreatedAt)
+		if err != nil {
+			return nil, err
+		}
+		messages = append(messages, &msg)
+	}
+	return messages, nil
+}
+
 // GetUserTrainingHistory получает историю тренировок пользователя для RAG контекста
 func (d *Database) GetUserTrainingHistory(userID, chatID int64, limit int) ([]*domain.UserMessage, error) {
 	if limit <= 0 {
@@ -192,7 +221,7 @@ func (d *Database) GetUserTrainingHistory(userID, chatID int64, limit int) ([]*d
 	query := `
 		SELECT id, user_id, chat_id, username, message_text, message_type, created_at
 		FROM user_messages
-		WHERE user_id = $1 AND chat_id = $2
+		WHERE user_id = $1 AND (chat_id = $2 OR ($2 <> $1 AND chat_id = $1))
 		ORDER BY created_at DESC
 		LIMIT $3
 	`

@@ -151,7 +151,7 @@ func (b *Bot) activateSickLeave(msg *tgbotapi.Message, messageLog *domain.Messag
 			}
 		}()
 
-		totalCups, _ := b.db.GetUserCups(msg.From.ID, msg.Chat.ID)
+		totalCups, _ := b.db.GetUserCups(msg.From.ID, messageLog.ChatID)
 		question := "Сделай ровно 5 предложений‑приписку после сообщения о взятии больничного: строго, дружелюбно, пожелай скорейшего восстановления и мягко мотивируй вернуться к режиму. Учитывай текущие калории и кубки, упомяни, что я 'ем' только ленивых (без угроз активным). Не повторяй цифры из основного текста. Без Markdown."
 		var ctxBuilder strings.Builder
 		ctxBuilder.WriteString(fmt.Sprintf("Пользователь: %s\n", messageLog.Username))
@@ -511,7 +511,7 @@ func (b *Bot) handleHealthy(msg *tgbotapi.Message) {
 			}
 		}()
 
-		totalCups, _ := b.db.GetUserCups(msg.From.ID, msg.Chat.ID)
+		totalCups, _ := b.db.GetUserCups(msg.From.ID, messageLog.ChatID)
 		question := "Сделай ровно 5 предложений‑приписку после сообщения о выздоровлении: поздравь, напомни о дисциплине, похвали за честность и предупреди о контроле таймера. Учитывай текущие калории и кубки. Не повторяй цифры из основного текста. Без Markdown."
 		var ctxBuilder strings.Builder
 		ctxBuilder.WriteString(fmt.Sprintf("Пользователь: %s\n", messageLog.Username))

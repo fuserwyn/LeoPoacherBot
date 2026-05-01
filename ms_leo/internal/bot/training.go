@@ -24,7 +24,7 @@ func (b *Bot) processTrainingDone(msg *tgbotapi.Message) {
 		username = fmt.Sprintf("User%d", msg.From.ID)
 	}
 
-	messageLog, err := b.db.GetMessageLog(msg.From.ID, msg.Chat.ID)
+	messageLog, err := b.db.GetMessageLog(msg.From.ID, b.packTrainingStateChatID(msg))
 	if err != nil {
 		b.logger.Errorf("Failed to get message log: %v", err)
 		return
@@ -44,7 +44,7 @@ func (b *Bot) processTrainingDone(msg *tgbotapi.Message) {
 	if userGender == "" {
 		userGender = b.detectGenderFromName(msg.From.FirstName)
 		if userGender != "" {
-			if err := b.updateUserGender(msg.From.ID, msg.Chat.ID, userGender); err != nil {
+			if err := b.updateUserGender(msg.From.ID, b.packTrainingStateChatID(msg), userGender); err != nil {
 				b.logger.Warnf("Failed to update user gender: %v", err)
 			}
 		}
@@ -55,14 +55,14 @@ func (b *Bot) processTrainingDone(msg *tgbotapi.Message) {
 	b.logger.Infof("DEBUG handleTrainingDone: caloriesToAdd=%d, newStreakDays=%d, newCalorieStreakDays=%d, weeklyAchievement=%t, twoWeekAchievement=%t, threeWeekAchievement=%t, monthlyAchievement=%t, fortyTwoDayAchievement=%t, fiftyDayAchievement=%t, sixtyDayAchievement=%t, quarterlyAchievement=%t, hundredDayAchievement=%t, oneHundredEightyDayAchievement=%t, twoHundredDayAchievement=%t, twoHundredFortyDayAchievement=%t",
 		caloriesToAdd, newStreakDays, newCalorieStreakDays, weeklyAchievement, twoWeekAchievement, threeWeekAchievement, monthlyAchievement, fortyTwoDayAchievement, fiftyDayAchievement, sixtyDayAchievement, quarterlyAchievement, hundredDayAchievement, oneHundredEightyDayAchievement, twoHundredDayAchievement, twoHundredFortyDayAchievement)
 
-	if err := b.db.AddXP(msg.From.ID, msg.Chat.ID, caloriesToAdd); err != nil {
+	if err := b.db.AddXP(msg.From.ID, b.packTrainingStateChatID(msg), caloriesToAdd); err != nil {
 		b.logger.Errorf("Failed to add calories: %v", err)
 	} else {
 		b.logger.Infof("DEBUG: Successfully added %d calories", caloriesToAdd)
 	}
 
 	if caloriesToAdd > 0 {
-		updatedCalories, err := b.db.GetUserXP(msg.From.ID, msg.Chat.ID)
+		updatedCalories, err := b.db.GetUserXP(msg.From.ID, b.packTrainingStateChatID(msg))
 		if err != nil {
 			b.logger.Errorf("Failed to get updated calories: %v", err)
 		} else if updatedCalories >= 100 && updatedCalories-caloriesToAdd < 100 {
@@ -86,7 +86,7 @@ func (b *Bot) processTrainingDone(msg *tgbotapi.Message) {
 					}
 				}()
 
-				totalCups, _ := b.db.GetUserCups(msg.From.ID, msg.Chat.ID)
+				totalCups, _ := b.db.GetUserCups(msg.From.ID, b.packTrainingStateChatID(msg))
 				q := "Сделай короткую приписку (1–2 предложения): дружелюбно и по делу предложи обмен через #change. Обязательно поясни, что после обмена калории обнулятся и начнут накапливаться заново; обмен имеет смысл, если ожидается перерыв в тренировках. Укажи, что серия и кубки продолжаются как обычно. Не повторяй цифры из текста, без Markdown."
 				var ctxBuilder strings.Builder
 				ctxBuilder.WriteString(fmt.Sprintf("Пользователь: %s\n", username))
@@ -129,11 +129,11 @@ func (b *Bot) processTrainingDone(msg *tgbotapi.Message) {
 	if caloriesToAdd > 0 {
 		today := b.getUserLocalDate(messageLog.TimezoneOffsetFromMoscow)
 
-		if err := b.db.UpdateStreak(msg.From.ID, msg.Chat.ID, newStreakDays, today); err != nil {
+		if err := b.db.UpdateStreak(msg.From.ID, b.packTrainingStateChatID(msg), newStreakDays, today); err != nil {
 			b.logger.Errorf("Failed to update streak: %v", err)
 		}
 
-		if err := b.db.UpdateCalorieStreakWithDate(msg.From.ID, msg.Chat.ID, newCalorieStreakDays, today); err != nil {
+		if err := b.db.UpdateCalorieStreakWithDate(msg.From.ID, b.packTrainingStateChatID(msg), newCalorieStreakDays, today); err != nil {
 			b.logger.Errorf("Failed to update calorie streak: %v", err)
 		}
 	}
@@ -141,78 +141,78 @@ func (b *Bot) processTrainingDone(msg *tgbotapi.Message) {
 	wasOnSickLeave := messageLog.HasSickLeave && !messageLog.HasHealthy
 
 	if caloriesToAdd > 0 {
-		if err := b.db.AddCups(msg.From.ID, msg.Chat.ID, 1); err != nil {
+		if err := b.db.AddCups(msg.From.ID, b.packTrainingStateChatID(msg), 1); err != nil {
 			b.logger.Errorf("Failed to add daily cup: %v", err)
 		}
 
 		if weeklyAchievement {
-			if err := b.db.AddCups(msg.From.ID, msg.Chat.ID, 42); err != nil {
+			if err := b.db.AddCups(msg.From.ID, b.packTrainingStateChatID(msg), 42); err != nil {
 				b.logger.Errorf("Failed to add weekly cups: %v", err)
 			}
 		}
 
 		if twoWeekAchievement {
-			if err := b.db.AddCups(msg.From.ID, msg.Chat.ID, 42); err != nil {
+			if err := b.db.AddCups(msg.From.ID, b.packTrainingStateChatID(msg), 42); err != nil {
 				b.logger.Errorf("Failed to add two-week cups: %v", err)
 			}
 		}
 
 		if threeWeekAchievement {
-			if err := b.db.AddCups(msg.From.ID, msg.Chat.ID, 42); err != nil {
+			if err := b.db.AddCups(msg.From.ID, b.packTrainingStateChatID(msg), 42); err != nil {
 				b.logger.Errorf("Failed to add three-week cups: %v", err)
 			}
 		}
 
 		if monthlyAchievement {
-			if err := b.db.AddCups(msg.From.ID, msg.Chat.ID, 420); err != nil {
+			if err := b.db.AddCups(msg.From.ID, b.packTrainingStateChatID(msg), 420); err != nil {
 				b.logger.Errorf("Failed to add monthly cups: %v", err)
 			}
 		}
 
 		if fortyTwoDayAchievement {
-			if err := b.db.AddCups(msg.From.ID, msg.Chat.ID, 42); err != nil {
+			if err := b.db.AddCups(msg.From.ID, b.packTrainingStateChatID(msg), 42); err != nil {
 				b.logger.Errorf("Failed to add 42-day cups: %v", err)
 			}
 		}
 
 		if fiftyDayAchievement {
-			if err := b.db.AddCups(msg.From.ID, msg.Chat.ID, 42); err != nil {
+			if err := b.db.AddCups(msg.From.ID, b.packTrainingStateChatID(msg), 42); err != nil {
 				b.logger.Errorf("Failed to add 50-day cups: %v", err)
 			}
 		}
 
 		if sixtyDayAchievement {
-			if err := b.db.AddCups(msg.From.ID, msg.Chat.ID, 420); err != nil {
+			if err := b.db.AddCups(msg.From.ID, b.packTrainingStateChatID(msg), 420); err != nil {
 				b.logger.Errorf("Failed to add 60-day cups: %v", err)
 			}
 		}
 
 		if quarterlyAchievement {
-			if err := b.db.AddCups(msg.From.ID, msg.Chat.ID, 420); err != nil {
+			if err := b.db.AddCups(msg.From.ID, b.packTrainingStateChatID(msg), 420); err != nil {
 				b.logger.Errorf("Failed to add quarterly cups: %v", err)
 			}
 		}
 
 		if hundredDayAchievement {
-			if err := b.db.AddCups(msg.From.ID, msg.Chat.ID, 4200); err != nil {
+			if err := b.db.AddCups(msg.From.ID, b.packTrainingStateChatID(msg), 4200); err != nil {
 				b.logger.Errorf("Failed to add 100-day cups: %v", err)
 			}
 		}
 
 		if oneHundredEightyDayAchievement {
-			if err := b.db.AddCups(msg.From.ID, msg.Chat.ID, 420); err != nil {
+			if err := b.db.AddCups(msg.From.ID, b.packTrainingStateChatID(msg), 420); err != nil {
 				b.logger.Errorf("Failed to add 180-day cups: %v", err)
 			}
 		}
 
 		if twoHundredDayAchievement {
-			if err := b.db.AddCups(msg.From.ID, msg.Chat.ID, 4200); err != nil {
+			if err := b.db.AddCups(msg.From.ID, b.packTrainingStateChatID(msg), 4200); err != nil {
 				b.logger.Errorf("Failed to add 200-day cups: %v", err)
 			}
 		}
 
 		if twoHundredFortyDayAchievement {
-			if err := b.db.AddCups(msg.From.ID, msg.Chat.ID, 4200); err != nil {
+			if err := b.db.AddCups(msg.From.ID, b.packTrainingStateChatID(msg), 4200); err != nil {
 				b.logger.Errorf("Failed to add 240-day cups: %v", err)
 			}
 		}
@@ -230,7 +230,7 @@ func (b *Bot) processTrainingDone(msg *tgbotapi.Message) {
 		}
 	}
 
-	b.startTimer(msg.From.ID, msg.Chat.ID, username)
+	b.startTimer(msg.From.ID, b.packTrainingStateChatID(msg), username)
 
 	if weeklyAchievement {
 		b.sendWeeklyCupsReward(msg, username, newStreakDays, caloriesToAdd, userGender)
@@ -270,7 +270,7 @@ func (b *Bot) processTrainingDone(msg *tgbotapi.Message) {
 	}
 
 	if caloriesToAdd > 0 {
-		totalCups, _ := b.db.GetUserCups(msg.From.ID, msg.Chat.ID)
+		totalCups, _ := b.db.GetUserCups(msg.From.ID, b.packTrainingStateChatID(msg))
 
 		// Проверяем достижение 420 кубков для розыгрыша
 		// if totalCups >= 420 && totalCups-caloriesToAdd < 420 {
@@ -346,13 +346,13 @@ func (b *Bot) sendStreakReward(
 	title string,
 	subtitle string,
 ) {
-	totalCalories, err := b.db.GetUserXP(msg.From.ID, msg.Chat.ID)
+	totalCalories, err := b.db.GetUserXP(msg.From.ID, b.packTrainingStateChatID(msg))
 	if err != nil {
 		b.logger.Errorf("Failed to get total calories for %s reward: %v", title, err)
 		totalCalories = 0
 	}
 
-	totalCups, err := b.db.GetUserCups(msg.From.ID, msg.Chat.ID)
+	totalCups, err := b.db.GetUserCups(msg.From.ID, b.packTrainingStateChatID(msg))
 	if err != nil {
 		b.logger.Errorf("Failed to get total cups for %s reward: %v", title, err)
 		totalCups = 0
@@ -486,8 +486,8 @@ func cupsWordForm(count int) string {
 }
 
 func (b *Bot) sendWeeklyCupsReward(msg *tgbotapi.Message, username string, streakDays int, caloriesAdded int, userGender string) {
-	totalCalories, _ := b.db.GetUserXP(msg.From.ID, msg.Chat.ID)
-	totalCups, _ := b.db.GetUserCups(msg.From.ID, msg.Chat.ID)
+	totalCalories, _ := b.db.GetUserXP(msg.From.ID, b.packTrainingStateChatID(msg))
+	totalCups, _ := b.db.GetUserCups(msg.From.ID, b.packTrainingStateChatID(msg))
 	rewardCups := 42
 	forms := b.getGenderForms(userGender)
 
@@ -520,8 +520,8 @@ func (b *Bot) sendWeeklyCupsReward(msg *tgbotapi.Message, username string, strea
 }
 
 func (b *Bot) sendTwoWeekCupsReward(msg *tgbotapi.Message, username string, streakDays int, caloriesAdded int, userGender string) {
-	totalCalories, _ := b.db.GetUserXP(msg.From.ID, msg.Chat.ID)
-	totalCups, _ := b.db.GetUserCups(msg.From.ID, msg.Chat.ID)
+	totalCalories, _ := b.db.GetUserXP(msg.From.ID, b.packTrainingStateChatID(msg))
+	totalCups, _ := b.db.GetUserCups(msg.From.ID, b.packTrainingStateChatID(msg))
 	rewardCups := 42
 
 	forms := b.getGenderForms(userGender)
@@ -555,8 +555,8 @@ func (b *Bot) sendTwoWeekCupsReward(msg *tgbotapi.Message, username string, stre
 }
 
 func (b *Bot) sendThreeWeekCupsReward(msg *tgbotapi.Message, username string, streakDays int, caloriesAdded int, userGender string) {
-	totalCalories, _ := b.db.GetUserXP(msg.From.ID, msg.Chat.ID)
-	totalCups, _ := b.db.GetUserCups(msg.From.ID, msg.Chat.ID)
+	totalCalories, _ := b.db.GetUserXP(msg.From.ID, b.packTrainingStateChatID(msg))
+	totalCups, _ := b.db.GetUserCups(msg.From.ID, b.packTrainingStateChatID(msg))
 	rewardCups := 42
 
 	forms := b.getGenderForms(userGender)
@@ -590,8 +590,8 @@ func (b *Bot) sendThreeWeekCupsReward(msg *tgbotapi.Message, username string, st
 }
 
 func (b *Bot) sendMonthlyCupsReward(msg *tgbotapi.Message, username string, streakDays int, caloriesAdded int, userGender string) {
-	totalCalories, _ := b.db.GetUserXP(msg.From.ID, msg.Chat.ID)
-	totalCups, _ := b.db.GetUserCups(msg.From.ID, msg.Chat.ID)
+	totalCalories, _ := b.db.GetUserXP(msg.From.ID, b.packTrainingStateChatID(msg))
+	totalCups, _ := b.db.GetUserCups(msg.From.ID, b.packTrainingStateChatID(msg))
 	rewardCups := 420
 	forms := b.getGenderForms(userGender)
 
@@ -625,8 +625,8 @@ func (b *Bot) sendMonthlyCupsReward(msg *tgbotapi.Message, username string, stre
 }
 
 func (b *Bot) sendFortyTwoDayCupsReward(msg *tgbotapi.Message, username string, streakDays int, caloriesAdded int, userGender string) {
-	totalCalories, _ := b.db.GetUserXP(msg.From.ID, msg.Chat.ID)
-	totalCups, _ := b.db.GetUserCups(msg.From.ID, msg.Chat.ID)
+	totalCalories, _ := b.db.GetUserXP(msg.From.ID, b.packTrainingStateChatID(msg))
+	totalCups, _ := b.db.GetUserCups(msg.From.ID, b.packTrainingStateChatID(msg))
 	rewardCups := 42
 	forms := b.getGenderForms(userGender)
 
@@ -659,8 +659,8 @@ func (b *Bot) sendFortyTwoDayCupsReward(msg *tgbotapi.Message, username string, 
 }
 
 func (b *Bot) sendFiftyDayCupsReward(msg *tgbotapi.Message, username string, streakDays int, caloriesAdded int, userGender string) {
-	totalCalories, _ := b.db.GetUserXP(msg.From.ID, msg.Chat.ID)
-	totalCups, _ := b.db.GetUserCups(msg.From.ID, msg.Chat.ID)
+	totalCalories, _ := b.db.GetUserXP(msg.From.ID, b.packTrainingStateChatID(msg))
+	totalCups, _ := b.db.GetUserCups(msg.From.ID, b.packTrainingStateChatID(msg))
 	rewardCups := 42
 
 	forms := b.getGenderForms(userGender)
@@ -702,8 +702,8 @@ func (b *Bot) sendQuarterlyCupsReward(msg *tgbotapi.Message, username string, st
 }
 
 func (b *Bot) sendHundredDayCupsReward(msg *tgbotapi.Message, username string, streakDays int, caloriesAdded int, userGender string) {
-	totalCalories, _ := b.db.GetUserXP(msg.From.ID, msg.Chat.ID)
-	totalCups, _ := b.db.GetUserCups(msg.From.ID, msg.Chat.ID)
+	totalCalories, _ := b.db.GetUserXP(msg.From.ID, b.packTrainingStateChatID(msg))
+	totalCups, _ := b.db.GetUserCups(msg.From.ID, b.packTrainingStateChatID(msg))
 	rewardCups := 4200
 	forms := b.getGenderForms(userGender)
 
@@ -743,8 +743,8 @@ func (b *Bot) sendOneHundredEightyDayCupsReward(msg *tgbotapi.Message, username 
 }
 
 func (b *Bot) sendTwoHundredDayCupsReward(msg *tgbotapi.Message, username string, streakDays int, caloriesAdded int, userGender string) {
-	totalCalories, _ := b.db.GetUserXP(msg.From.ID, msg.Chat.ID)
-	totalCups, _ := b.db.GetUserCups(msg.From.ID, msg.Chat.ID)
+	totalCalories, _ := b.db.GetUserXP(msg.From.ID, b.packTrainingStateChatID(msg))
+	totalCups, _ := b.db.GetUserCups(msg.From.ID, b.packTrainingStateChatID(msg))
 	rewardCups := 4200
 	messageText := fmt.Sprintf(`🌸 БУКЕТ ИЗ КУБКОВ! 🌸
 

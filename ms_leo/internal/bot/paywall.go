@@ -892,6 +892,70 @@ func (b *Bot) paywallPostPaymentUserText() string {
 Чтобы я тебя не съел, достаточно любого движения каждый день. Рык!`
 }
 
+// displayNameFromTelegramUser — строка для training_state.username (как при сообщениях из ЛС).
+func displayNameFromTelegramUser(u *tgbotapi.User) string {
+	if u == nil {
+		return ""
+	}
+	if un := strings.TrimSpace(u.UserName); un != "" {
+		return "@" + strings.TrimPrefix(un, "@")
+	}
+	s := strings.TrimSpace(u.FirstName)
+	if ln := strings.TrimSpace(u.LastName); ln != "" {
+		if s != "" {
+			s += " " + ln
+		} else {
+			s = ln
+		}
+	}
+	if s != "" {
+		return s
+	}
+	if u.ID != 0 {
+		return fmt.Sprintf("user%d", u.ID)
+	}
+	return ""
+}
+
+func displayNameFromTelegramChat(chat *tgbotapi.Chat) string {
+	if chat == nil {
+		return ""
+	}
+	if un := strings.TrimSpace(chat.UserName); un != "" {
+		return "@" + strings.TrimPrefix(un, "@")
+	}
+	s := strings.TrimSpace(chat.FirstName)
+	if ln := strings.TrimSpace(chat.LastName); ln != "" {
+		if s != "" {
+			s += " " + ln
+		} else {
+			s = ln
+		}
+	}
+	return strings.TrimSpace(s)
+}
+
+// resolveUsernameForPaywallDeliver — имя до ReactivateReturnedUser: иначе INSERT кладёт NULLIF('', '') → NULL в БД.
+func (b *Bot) resolveUsernameForPaywallDeliver(userID int64, payer *tgbotapi.User) string {
+	if userID == 0 {
+		return ""
+	}
+	if payer != nil {
+		if n := displayNameFromTelegramUser(payer); n != "" {
+			return n
+		}
+	}
+	if b != nil && b.api != nil {
+		ch, err := b.api.GetChat(tgbotapi.ChatInfoConfig{ChatConfig: tgbotapi.ChatConfig{ChatID: userID}})
+		if err != nil {
+			b.logger.Warnf("paywall resolve username getChat user=%d: %v", userID, err)
+		} else if n := displayNameFromTelegramChat(&ch); n != "" {
+			return n
+		}
+	}
+	return fmt.Sprintf("user%d", userID)
+}
+
 // paywallDeliverAccessAfterPayment — DM-приветствие после зачёта оплаты (Telegram Payments / ЮKassa / sync API).
 //
 // По требованию пользователя «при оплате сразу включается таймер timer_start_time»: окно неактивности
@@ -903,8 +967,10 @@ func (b *Bot) paywallPostPaymentUserText() string {
 // при первом заходе. Теперь ENtry-stream единый, а EnsureMiniAppOnboarding для оплаченных видит уже
 // активный timer_start_time и просто отдаёт InPack=true.
 //
+// payer — отправитель successful_payment (nil из outbox → имя через getChat).
+//
 // paywallRequestID > 0 отмечает в БД факт отправки пост-оплатного DM — без второго «Ура, ты в стае…» при ретраях/outbox.
-func (b *Bot) paywallDeliverAccessAfterPayment(userID int64, paywallRequestID int64) error {
+func (b *Bot) paywallDeliverAccessAfterPayment(userID int64, paywallRequestID int64, payer *tgbotapi.User) error {
 	chatID := b.config.MonetizedChatID
 
 	// Сначала текст в ЛС — чтобы юзер не «пропал» после оплаты даже если ниже БД займёт время или ошибётся.
@@ -930,7 +996,11 @@ func (b *Bot) paywallDeliverAccessAfterPayment(userID int64, paywallRequestID in
 		b.logger.Infof("paywall post-payment welcome sent user=%d req=%d", userID, paywallRequestID)
 	}
 
-	reactivated, err := b.db.ReactivateReturnedUser(userID, chatID, "")
+	resolvedName := strings.TrimSpace(b.resolveUsernameForPaywallDeliver(userID, payer))
+	if resolvedName == "" {
+		resolvedName = fmt.Sprintf("user%d", userID)
+	}
+	reactivated, err := b.db.ReactivateReturnedUser(userID, chatID, resolvedName)
 	if err != nil {
 		b.logger.Errorf("paywall reactivate returned user=%d: %v", userID, err)
 		return err
@@ -1025,7 +1095,7 @@ func (b *Bot) handlePaywallSuccessfulPayment(msg *tgbotapi.Message) {
 		return
 	}
 	deliver := func() {
-		if derr := b.paywallDeliverAccessAfterPayment(msg.From.ID, reqID); derr != nil {
+		if derr := b.paywallDeliverAccessAfterPayment(msg.From.ID, reqID, msg.From); derr != nil {
 			b.logger.Errorf("paywall deliver after telegram payment user=%d req=%d: %v", msg.From.ID, reqID, derr)
 			sent, chkErr := b.db.PaywallPostPaymentWelcomeSent(reqID)
 			if chkErr != nil {

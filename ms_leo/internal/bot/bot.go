@@ -274,7 +274,7 @@ func (b *Bot) handleTimezoneCommand(msg *tgbotapi.Message, text string) {
 		return
 	}
 
-	log, err := b.db.GetMessageLog(msg.From.ID, msg.Chat.ID)
+	log, err := b.db.GetMessageLog(msg.From.ID, b.packTrainingStateChatID(msg))
 	if err != nil {
 		b.logger.Errorf("Failed to get message log for timezone command: %v", err)
 		b.notifyUserText(msg, "❌ Не удалось сохранить часовой пояс, попробуй еще раз.", "", 0)
@@ -472,6 +472,8 @@ func (b *Bot) handleMessage(msg *tgbotapi.Message, personalReplyCh chan<- string
 				alreadyOnSickLeave = true
 			}
 		}
+		stateChatID := b.packTrainingStateChatID(msg)
+
 		if hasTrainingDone {
 			if trainingPhotoURLOverride != "" {
 				trainingPhotoURL = trainingPhotoURLOverride
@@ -545,13 +547,13 @@ func (b *Bot) handleMessage(msg *tgbotapi.Message, personalReplyCh chan<- string
 		}
 
 		// Получаем существующие данные пользователя
-		existingLog, err := b.db.GetMessageLog(msg.From.ID, msg.Chat.ID)
+		existingLog, err := b.db.GetMessageLog(msg.From.ID, stateChatID)
 		if err != nil {
 			// Если пользователя нет в БД, создаем новую запись
 			timerStartTime := utils.FormatMoscowTime(utils.GetMoscowTime())
 			messageLog := &domain.MessageLog{
 				UserID:            msg.From.ID,
-				ChatID:            msg.Chat.ID,
+				ChatID:            stateChatID,
 				Username:          username,
 				XP:                0,
 				StreakDays:        0,
@@ -569,7 +571,7 @@ func (b *Bot) handleMessage(msg *tgbotapi.Message, personalReplyCh chan<- string
 				b.logger.Errorf("Failed to save message log: %v", err)
 			} else {
 				b.logger.Infof("Initialized timer state for new user %d (%s) from message", msg.From.ID, username)
-				b.startTimer(msg.From.ID, msg.Chat.ID, username)
+				b.startTimer(msg.From.ID, stateChatID, username)
 			}
 		} else {
 			// Обновляем только необходимые поля, сохраняя streak данные
@@ -719,7 +721,8 @@ func (b *Bot) handleMessage(msg *tgbotapi.Message, personalReplyCh chan<- string
 		}
 
 		// Обновляем LastMessage в training_state
-		messageLog, err := b.db.GetMessageLog(msg.From.ID, msg.Chat.ID)
+		rowChat := b.packTrainingStateChatID(msg)
+		messageLog, err := b.db.GetMessageLog(msg.From.ID, rowChat)
 		if err == nil {
 			messageLog.Username = username
 			messageLog.LastMessage = text
@@ -801,8 +804,10 @@ func (b *Bot) handleChange(msg *tgbotapi.Message) {
 		username = fmt.Sprintf("User%d", msg.From.ID)
 	}
 
+	rowChat := b.packTrainingStateChatID(msg)
+
 	// Получаем текущие данные пользователя
-	messageLog, err := b.db.GetMessageLog(msg.From.ID, msg.Chat.ID)
+	messageLog, err := b.db.GetMessageLog(msg.From.ID, rowChat)
 	if err != nil {
 		b.logger.Errorf("Failed to get message log: %v", err)
 		b.notifyUserText(msg, "❌ Ошибка получения данных пользователя", "", 0)
@@ -811,7 +816,7 @@ func (b *Bot) handleChange(msg *tgbotapi.Message) {
 
 	// Получаем текущие калории и кубки
 	currentCalories := messageLog.XP
-	currentCups, err := b.db.GetUserCups(msg.From.ID, msg.Chat.ID)
+	currentCups, err := b.db.GetUserCups(msg.From.ID, rowChat)
 	if err != nil {
 		b.logger.Errorf("Failed to get user cups: %v", err)
 		currentCups = 0
@@ -832,14 +837,14 @@ func (b *Bot) handleChange(msg *tgbotapi.Message) {
 	caloriesToSpend := exchangesCanMake * exchangeRate
 	cupsToAdd := exchangesCanMake * cupsPerExchange
 
-	if err := b.db.AddXP(msg.From.ID, msg.Chat.ID, -caloriesToSpend); err != nil {
+	if err := b.db.AddXP(msg.From.ID, rowChat, -caloriesToSpend); err != nil {
 		b.logger.Errorf("Failed to spend calories/words: %v", err)
 		b.notifyUserText(msg, "❌ Ошибка при списании калорий", "", 0)
 		return
 	}
 
 	// Добавляем кубки
-	if err := b.db.AddCups(msg.From.ID, msg.Chat.ID, cupsToAdd); err != nil {
+	if err := b.db.AddCups(msg.From.ID, rowChat, cupsToAdd); err != nil {
 		b.logger.Errorf("Failed to add cups: %v", err)
 		b.notifyUserText(msg, "❌ Ошибка при добавлении кубков", "", 0)
 		return
@@ -850,7 +855,7 @@ func (b *Bot) handleChange(msg *tgbotapi.Message) {
 	// Обмен калорий - это просто обмен накопленных калорий на кубки
 
 	// Сбрасываем calorie_streak_days после обмена калорий
-	if err := b.db.ResetCalorieStreak(msg.From.ID, msg.Chat.ID); err != nil {
+	if err := b.db.ResetCalorieStreak(msg.From.ID, rowChat); err != nil {
 		b.logger.Errorf("Failed to reset calorie streak: %v", err)
 	} else {
 		b.logger.Infof("Successfully reset calorie streak after exchange")
@@ -873,8 +878,10 @@ func (b *Bot) handleStartTimer(msg *tgbotapi.Message) {
 		return
 	}
 
+	packScope := b.packTrainingStateChatID(msg)
+
 	// Получаем всех пользователей в чате
-	users, err := b.db.GetUsersByChatID(msg.Chat.ID)
+	users, err := b.db.GetUsersByChatID(packScope)
 	if err != nil {
 		b.logger.Errorf("Failed to get users: %v", err)
 		reply := tgbotapi.NewMessage(msg.Chat.ID, "❌ Ошибка при получении пользователей")
@@ -886,7 +893,7 @@ func (b *Bot) handleStartTimer(msg *tgbotapi.Message) {
 	startedCount := 0
 	for _, user := range users {
 		if b.isUserInChat(msg.Chat.ID, user.UserID) {
-			b.startTimer(user.UserID, msg.Chat.ID, "")
+			b.startTimer(user.UserID, packScope, "")
 			startedCount++
 		}
 	}
@@ -1080,8 +1087,9 @@ func (b *Bot) handleDB(msg *tgbotapi.Message) {
 }
 
 func (b *Bot) handleTop(msg *tgbotapi.Message) {
+	rowChat := b.packTrainingStateChatID(msg)
 	// Получаем топ пользователей
-	topUsers, err := b.db.GetTopUsers(msg.Chat.ID, 10)
+	topUsers, err := b.db.GetTopUsers(rowChat, 10)
 	if err != nil {
 		b.logger.Errorf("Failed to get top users: %v", err)
 		reply := tgbotapi.NewMessage(msg.Chat.ID, "❌ Ошибка при получении данных")
@@ -1122,8 +1130,9 @@ func (b *Bot) handleTop(msg *tgbotapi.Message) {
 }
 
 func (b *Bot) handlePoints(msg *tgbotapi.Message) {
+	rowChat := b.packTrainingStateChatID(msg)
 	// Получаем калории/слова пользователя
-	calories, err := b.db.GetUserXP(msg.From.ID, msg.Chat.ID)
+	calories, err := b.db.GetUserXP(msg.From.ID, rowChat)
 	if err != nil {
 		b.logger.Errorf("Failed to get user calories: %v", err)
 		reply := tgbotapi.NewMessage(msg.Chat.ID, "❌ Ошибка при получении данных")
@@ -1158,8 +1167,9 @@ func (b *Bot) handlePoints(msg *tgbotapi.Message) {
 }
 
 func (b *Bot) handleCups(msg *tgbotapi.Message) {
+	rowChat := b.packTrainingStateChatID(msg)
 	// Получаем кубки пользователя
-	cups, err := b.db.GetUserCups(msg.From.ID, msg.Chat.ID)
+	cups, err := b.db.GetUserCups(msg.From.ID, rowChat)
 	if err != nil {
 		b.logger.Errorf("Failed to get user cups: %v", err)
 		reply := tgbotapi.NewMessage(msg.Chat.ID, "❌ Ошибка при получении данных")
@@ -1168,7 +1178,7 @@ func (b *Bot) handleCups(msg *tgbotapi.Message) {
 	}
 
 	// Получаем пол пользователя для гендерной адаптации
-	messageLog, err := b.db.GetMessageLog(msg.From.ID, msg.Chat.ID)
+	messageLog, err := b.db.GetMessageLog(msg.From.ID, rowChat)
 	userGender := ""
 	if err == nil {
 		userGender = strings.TrimSpace(strings.ToLower(messageLog.Gender))
@@ -1220,6 +1230,8 @@ func (b *Bot) handleSetExempt(msg *tgbotapi.Message) {
 		return
 	}
 
+	rowChat := b.packTrainingStateChatID(msg)
+
 	// Парсим аргументы команды
 	args := strings.Fields(msg.Text)
 	if len(args) < 2 {
@@ -1232,10 +1244,10 @@ func (b *Bot) handleSetExempt(msg *tgbotapi.Message) {
 	searchUsername := args[1]
 
 	// Логируем поиск для отладки
-	b.logger.Infof("Searching for user: '%s' in chat %d", searchUsername, msg.Chat.ID)
+	b.logger.Infof("Searching for user: '%s' in chat %d", searchUsername, rowChat)
 
 	// Находим пользователя по username (функция сама обработает разные форматы)
-	userID, err := b.db.GetUserIDByUsername(searchUsername, msg.Chat.ID)
+	userID, err := b.db.GetUserIDByUsername(searchUsername, rowChat)
 	if err != nil {
 		b.logger.Errorf("Failed to get user ID by username '%s': %v", searchUsername, err)
 		reply := tgbotapi.NewMessage(msg.Chat.ID, fmt.Sprintf("❌ Пользователь %s не найден в базе данных", searchUsername))
@@ -1246,7 +1258,7 @@ func (b *Bot) handleSetExempt(msg *tgbotapi.Message) {
 	b.logger.Infof("Found user ID %d for username '%s'", userID, searchUsername)
 
 	// Устанавливаем исключение
-	messageLog, err := b.db.GetMessageLog(userID, msg.Chat.ID)
+	messageLog, err := b.db.GetMessageLog(userID, rowChat)
 	if err != nil {
 		b.logger.Errorf("Failed to get message log: %v", err)
 		reply := tgbotapi.NewMessage(msg.Chat.ID, "❌ Ошибка при получении данных пользователя")
@@ -1277,6 +1289,8 @@ func (b *Bot) handleRemoveExempt(msg *tgbotapi.Message) {
 		return
 	}
 
+	rowChat := b.packTrainingStateChatID(msg)
+
 	// Парсим аргументы команды
 	args := strings.Fields(msg.Text)
 	if len(args) < 2 {
@@ -1289,10 +1303,10 @@ func (b *Bot) handleRemoveExempt(msg *tgbotapi.Message) {
 	searchUsername := args[1]
 
 	// Логируем поиск для отладки
-	b.logger.Infof("Searching for user: '%s' in chat %d", searchUsername, msg.Chat.ID)
+	b.logger.Infof("Searching for user: '%s' in chat %d", searchUsername, rowChat)
 
 	// Находим пользователя по username (функция сама обработает разные форматы)
-	userID, err := b.db.GetUserIDByUsername(searchUsername, msg.Chat.ID)
+	userID, err := b.db.GetUserIDByUsername(searchUsername, rowChat)
 	if err != nil {
 		b.logger.Errorf("Failed to get user ID by username '%s': %v", searchUsername, err)
 		reply := tgbotapi.NewMessage(msg.Chat.ID, fmt.Sprintf("❌ Пользователь %s не найден в базе данных", searchUsername))
@@ -1303,7 +1317,7 @@ func (b *Bot) handleRemoveExempt(msg *tgbotapi.Message) {
 	b.logger.Infof("Found user ID %d for username '%s'", userID, searchUsername)
 
 	// Убираем исключение
-	messageLog, err := b.db.GetMessageLog(userID, msg.Chat.ID)
+	messageLog, err := b.db.GetMessageLog(userID, rowChat)
 	if err != nil {
 		b.logger.Errorf("Failed to get message log: %v", err)
 		reply := tgbotapi.NewMessage(msg.Chat.ID, "❌ Ошибка при получении данных пользователя")
@@ -1320,7 +1334,7 @@ func (b *Bot) handleRemoveExempt(msg *tgbotapi.Message) {
 	}
 
 	// Запускаем таймер для пользователя
-	b.startTimer(userID, msg.Chat.ID, messageLog.Username)
+	b.startTimer(userID, rowChat, messageLog.Username)
 
 	reply := tgbotapi.NewMessage(msg.Chat.ID, fmt.Sprintf("✅ Пользователь %s больше не исключен из правила удаления. Таймер запущен.", messageLog.Username))
 	b.api.Send(reply)
@@ -1334,8 +1348,10 @@ func (b *Bot) handleListUsers(msg *tgbotapi.Message) {
 		return
 	}
 
+	rowChat := b.packTrainingStateChatID(msg)
+
 	// Получаем всех пользователей в чате
-	users, err := b.db.GetUsersByChatID(msg.Chat.ID)
+	users, err := b.db.GetUsersByChatID(rowChat)
 	if err != nil {
 		b.logger.Errorf("Failed to get users: %v", err)
 		reply := tgbotapi.NewMessage(msg.Chat.ID, "❌ Ошибка при получении списка пользователей")
@@ -2137,12 +2153,14 @@ func (b *Bot) handleAIQuestion(msg *tgbotapi.Message, questionText string, perso
 
 	b.logger.Infof("Processing AI question: %s", questionText)
 
+	stateChat := b.packTrainingStateChatID(msg)
+
 	histLimit := 50
 	if compactContext {
 		histLimit = 18
 	}
 	// Получаем историю тренировок пользователя
-	history, err := b.db.GetUserTrainingHistory(msg.From.ID, msg.Chat.ID, histLimit)
+	history, err := b.db.GetUserTrainingHistory(msg.From.ID, stateChat, histLimit)
 	if err != nil {
 		b.logger.Errorf("Failed to get user training history: %v", err)
 		t := "❌ Ошибка при получении истории тренировок"
@@ -2192,9 +2210,9 @@ func (b *Bot) handleAIQuestion(msg *tgbotapi.Message, questionText string, perso
 	}
 
 	// Получаем полные данные пользователя
-	userLog, err := b.db.GetMessageLog(msg.From.ID, msg.Chat.ID)
+	userLog, err := b.db.GetMessageLog(msg.From.ID, stateChat)
 	if err == nil {
-		cups, _ := b.db.GetUserCups(msg.From.ID, msg.Chat.ID)
+		cups, _ := b.db.GetUserCups(msg.From.ID, stateChat)
 
 		contextText.WriteString("\n=== ТЕКУЩАЯ СТАТИСТИКА ===\n")
 		contextText.WriteString(fmt.Sprintf("👤 Пользователь: %s\n", userLog.Username))
@@ -2297,7 +2315,7 @@ func (b *Bot) handleAIQuestion(msg *tgbotapi.Message, questionText string, perso
 		}
 		end := time.Now()
 		start := end.AddDate(0, 0, -lookbackDays)
-		recent, err := b.db.GetUserMessages(msg.From.ID, msg.Chat.ID, start, end)
+		recent, err := b.db.GetUserMessagesAcrossTrainingScope(msg.From.ID, stateChat, start, end)
 		if err == nil {
 			var lastReplies []string
 			for i := len(recent) - 1; i >= 0 && len(lastReplies) < maxReplies; i-- {
@@ -2370,7 +2388,7 @@ func (b *Bot) handleAIQuestion(msg *tgbotapi.Message, questionText string, perso
 
 	// Обновляем пол в базе данных, если он определен
 	if detectedGender != "" {
-		if err := b.updateUserGender(msg.From.ID, msg.Chat.ID, detectedGender); err != nil {
+		if err := b.updateUserGender(msg.From.ID, stateChat, detectedGender); err != nil {
 			b.logger.Warnf("Failed to update user gender: %v", err)
 		}
 	}
@@ -2453,10 +2471,10 @@ func (b *Bot) handleAIQuestion(msg *tgbotapi.Message, questionText string, perso
 
 	// Ищем информацию о найденных пользователях в БД
 	for _, searchUsername := range mentionedUsernames {
-		userID, err := b.db.GetUserIDByUsername(searchUsername, msg.Chat.ID)
+		userID, err := b.db.GetUserIDByUsername(searchUsername, stateChat)
 		if err == nil && userID != msg.From.ID {
 			// Нашли другого пользователя, получаем всю информацию о нём
-			otherUserLog, err := b.db.GetMessageLog(userID, msg.Chat.ID)
+			otherUserLog, err := b.db.GetMessageLog(userID, stateChat)
 			if err == nil {
 				contextText.WriteString("\n=== ИНФОРМАЦИЯ О ЗАПРОШЕННОМ ПОЛЬЗОВАТЕЛЕ ===\n")
 				contextText.WriteString(fmt.Sprintf("Пользователь: %s (ID: %d)\n", otherUserLog.Username, otherUserLog.UserID))
@@ -2481,7 +2499,7 @@ func (b *Bot) handleAIQuestion(msg *tgbotapi.Message, questionText string, perso
 				}
 
 				// Статистика
-				cups, _ := b.db.GetUserCups(userID, msg.Chat.ID)
+				cups, _ := b.db.GetUserCups(userID, stateChat)
 				contextText.WriteString(fmt.Sprintf("🔥 Всего калорий: %d\n", otherUserLog.XP))
 				contextText.WriteString(fmt.Sprintf("🏆 Всего кубков: %d\n", cups))
 				contextText.WriteString(fmt.Sprintf("💪 Серия тренировок: %d дней подряд\n", otherUserLog.StreakDays))
@@ -2521,7 +2539,7 @@ func (b *Bot) handleAIQuestion(msg *tgbotapi.Message, questionText string, perso
 	// Если спрашивают про список участников ("какие участники", "кто есть", "список участников", "какого пола участники")
 	questionLower = strings.ToLower(questionText)
 	if strings.Contains(questionLower, "участник") || strings.Contains(questionLower, "кто есть") || strings.Contains(questionLower, "список") {
-		users, err := b.db.GetUsersByChatID(msg.Chat.ID)
+		users, err := b.db.GetUsersByChatID(stateChat)
 		if err == nil && len(users) > 0 {
 			contextText.WriteString("\n=== ПОЛНАЯ ИНФОРМАЦИЯ О ВСЕХ УЧАСТНИКАХ ЧАТА ===\n")
 			for i, user := range users {
@@ -2553,7 +2571,7 @@ func (b *Bot) handleAIQuestion(msg *tgbotapi.Message, questionText string, perso
 				}
 
 				// Статистика
-				cups, _ := b.db.GetUserCups(user.UserID, msg.Chat.ID)
+				cups, _ := b.db.GetUserCups(user.UserID, stateChat)
 				contextText.WriteString(fmt.Sprintf("🔥 Всего калорий: %d\n", user.XP))
 				contextText.WriteString(fmt.Sprintf("🏆 Всего кубков: %d\n", cups))
 				contextText.WriteString(fmt.Sprintf("💪 Серия тренировок: %d дней подряд\n", user.StreakDays))

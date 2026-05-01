@@ -27,10 +27,8 @@ func parseLastMessageTime(lastMessage string) (time.Time, error) {
 	return time.ParseInLocation("2006-01-02 15:04:05", lastMessage, utils.GetMoscowTime().Location())
 }
 
-// recentlyReported — true, если хотя бы по одной из строк training_state у юзера
-// зафиксирован #training_done с last_message моложе минуты. Проверяем pack-row (chatID
-// из триггера, обычно MonetizedChatID) и private-row (userID, userID) — last_message в
-// мини-апп архитектуре пишется именно во вторую (см. handleMessage).
+// recentlyReported — true, если по строке training_state (chatID из триггера, обычно MonetizedChatID)
+// зафиксирован недавний #training_done. Легаси private-row (userID, userID) — только если MONETIZED_CHAT_ID не задан.
 func recentlyReported(b *Bot, userID, chatID int64) bool {
 	check := func(ml *domain.MessageLog) bool {
 		if ml == nil || !ml.HasTrainingDone || strings.TrimSpace(ml.LastMessage) == "" {
@@ -45,7 +43,7 @@ func recentlyReported(b *Bot, userID, chatID int64) bool {
 	if ml, err := b.db.GetMessageLog(userID, chatID); err == nil && check(ml) {
 		return true
 	}
-	if chatID != userID {
+	if b != nil && b.config != nil && b.config.MonetizedChatID == 0 && chatID != userID {
 		if ml, err := b.db.GetMessageLog(userID, userID); err == nil && check(ml) {
 			return true
 		}

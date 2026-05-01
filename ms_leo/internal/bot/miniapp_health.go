@@ -1,8 +1,6 @@
 package bot
 
-// MiniappHealthStatus — на больничном ли пользователь сейчас.
-// Источник правды — pack-row (chat_id = MONETIZED_CHAT_ID), т.к. sick_leave.go ведёт стейт именно там.
-// Для старых/переходных данных оставляем fallback на private-row (chat_id = userID).
+// MiniappHealthStatus — на больничном ли пользователь сейчас (training_state по стае).
 func (b *Bot) MiniappHealthStatus(userID int64) bool {
 	if b == nil || b.db == nil || userID == 0 {
 		return false
@@ -11,6 +9,7 @@ func (b *Bot) MiniappHealthStatus(userID int64) bool {
 		if ml, err := b.db.GetMessageLog(userID, b.config.MonetizedChatID); err == nil && ml != nil {
 			return ml.HasSickLeave && !ml.HasHealthy
 		}
+		return false
 	}
 	ml, err := b.db.GetMessageLog(userID, userID)
 	if err != nil || ml == nil {
