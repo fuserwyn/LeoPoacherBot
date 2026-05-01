@@ -79,6 +79,11 @@
   text-align: right;
 }
 
+/* Свои сообщения — колонка справа и аватарка справа от пузыря (как в мессенджерах). */
+.packroom__row--me .packroom__row-inner {
+  flex-direction: row-reverse;
+}
+
 .packroom__row--leo,
 .packroom__row--oth {
   align-self: flex-start;
@@ -105,18 +110,22 @@
   background: #1a2a1f;
   border: 1px solid #2a4a33;
   color: #c4e0cc;
+  border-bottom-left-radius: 6px;
 }
 
 .packroom__row--oth .packroom__bubble {
   background: #1a1a24;
   border: 1px solid #2a2a36;
   color: #c8c8d4;
+  border-bottom-left-radius: 6px;
 }
 
 .packroom__row--me .packroom__bubble {
   background: linear-gradient(135deg, #2a5cff 0%, #5c3ce6 100%);
   color: #f4f4ff;
-  border: none;
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  box-shadow: 0 2px 14px rgba(42, 92, 255, 0.35);
+  border-bottom-right-radius: 6px;
 }
 
 .packroom__del {

@@ -252,7 +252,7 @@ export function ActivityCard({
         <p className="act-card__type">
           <span className="act-card__type-ico">{emoji}</span> {activity}
         </p>
-        <p className="act-card__details muted">{details}</p>
+        {details.trim() !== "" && <p className="act-card__details">{details}</p>}
         {comment && <p className="act-card__comment">{comment}</p>}
         {trainingPhotoUrl ? (
           <div className="act-card__photo-wrap">

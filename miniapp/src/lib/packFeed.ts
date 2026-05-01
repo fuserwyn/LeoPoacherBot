@@ -135,9 +135,9 @@ function typeMeta(t: string): { emoji: string; activity: string; details: string
     case "training_done":
       return { emoji: "💪", activity: "Тренировка", details: "Отчёт #training_done" };
     case "sick_leave":
-      return { emoji: "🏥", activity: "Больничный", details: "Заявка #sick_leave" };
+      return { emoji: "🏥", activity: "Больничный", details: "" };
     case "healthy":
-      return { emoji: "💚", activity: "Выздоровление", details: "#healthy" };
+      return { emoji: "💚", activity: "Выздоровление", details: "" };
     case "pack_join":
       return { emoji: "🐆", activity: "Лео · приветствие", details: "Новый участник" };
     case "pack_rejoin":
@@ -151,6 +151,12 @@ function typeMeta(t: string): { emoji: string; activity: string; details: string
     default:
       return { emoji: "📝", activity: t, details: "Сообщение" };
   }
+}
+
+/** Убирает ведущие строки с тегом — заголовок карточки уже передаёт смысл (#healthy / #sick_leave не дублируем мелким текстом). */
+function stripLeadingFeedHashtag(text: string, tag: "#healthy" | "#sick_leave"): string {
+  const esc = tag.replace("#", "\\#");
+  return text.replace(new RegExp(`^(?:\\s*${esc}\\b[^\\n]*(?:\\n|$))+`, "gi"), "").trim();
 }
 
 function avatarFor(name: string) {
@@ -172,10 +178,16 @@ export function dtoToCard(d: PackFeedItemDTO): ActivityCardProps {
     d.type === "pack_removed";
   const newcomer = (d.username || "").trim() || `Участник ${d.user_id}`;
   const pic = resolveFeedAvatarUrl(d.author_photo_url);
-  const commentRaw = d.text.trim();
+  let commentRaw = d.text.trim();
+  if (d.type === "healthy") {
+    commentRaw = stripLeadingFeedHashtag(commentRaw, "#healthy");
+  } else if (d.type === "sick_leave") {
+    commentRaw = stripLeadingFeedHashtag(commentRaw, "#sick_leave");
+  }
   const maxComment =
     d.type === "training_done" || d.type === "daily_wisdom" ? 2000 : 280;
-  const comment = commentRaw.length > maxComment ? commentRaw.slice(0, maxComment - 1) + "…" : commentRaw;
+  const comment =
+    commentRaw.length > maxComment ? commentRaw.slice(0, maxComment - 1) + "…" : commentRaw;
   if (isLeoNotice) {
     let leoDetails = newcomer;
     if (d.type === "daily_wisdom") leoDetails = "Мудрость дня";

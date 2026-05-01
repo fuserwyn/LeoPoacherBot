@@ -75,15 +75,21 @@
   margin-right: 2px;
 }
 
+.act-card__body {
+  width: 100%;
+  min-width: 0;
+}
+
 .act-card__details {
   font-size: 14px;
-  line-height: 1.4;
+  line-height: 1.45;
   margin-bottom: 8px;
+  color: var(--text-muted);
 }
 
 .act-card__comment {
   font-size: 14px;
-  line-height: 1.4;
+  line-height: 1.45;
   margin-bottom: 10px;
   color: var(--text);
 }
@@ -323,8 +329,22 @@
   text-decoration: none;
 }
 
+/* Свои комментарии — отдельный фон (синий), чтобы не смешиваться с чужими и не путать с оранжевым Лео. */
+.act-card__thread-item--you {
+  background: rgba(42, 92, 255, 0.1);
+  margin: 0 -4px;
+  padding: 10px 8px;
+  border-radius: var(--radius-sm);
+  border-bottom: 1px solid var(--border-subtle);
+  border-left: 3px solid rgba(92, 132, 255, 0.65);
+}
+
+.act-card__thread-item--you:last-child {
+  border-bottom: none;
+}
+
 .act-card__thread-item--you .act-card__thread-author {
-  color: var(--accent);
+  color: #b8ceff;
 }
 
 .act-card__thread-item--leo .act-card__thread-author {
