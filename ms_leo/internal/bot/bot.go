@@ -2910,6 +2910,9 @@ func (b *Bot) handleCallbackQuery(callback *tgbotapi.CallbackQuery) {
 	case paywallCallbackPayStars:
 		b.handlePaywallPayStarsCallback(callback)
 		return
+	case paywallCallbackPayStarsNow:
+		b.handlePaywallPayStarsNowCallback(callback)
+		return
 	case paywallCallbackPayYookassa:
 		b.handlePaywallPayYookassaCallback(callback)
 		return

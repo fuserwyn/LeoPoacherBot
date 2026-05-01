@@ -16,6 +16,7 @@ const paywallPayloadPrefix = "pw_"
 
 const paywallCallbackResendInvoice = "paywall_resend_invoice" // совместимость со старыми сообщениями
 const paywallCallbackPayStars = "paywall_pay_stars"
+const paywallCallbackPayStarsNow = "paywall_pay_stars_now"
 const paywallCallbackPayYookassa = "paywall_pay_yookassa"
 const paywallCallbackPayProvider = "paywall_pay_provider"
 const paywallCallbackReturnToPack = "paywall_return_to_pack"
@@ -314,24 +315,14 @@ func (b *Bot) paywallCardMethodText() string {
 
 func (b *Bot) paywallStarsMethodInlineKeyboard() *tgbotapi.InlineKeyboardMarkup {
 	var rows [][]tgbotapi.InlineKeyboardButton
-	if b.config.PaywallYookassaReady() {
-		label := "💳 Выбрать оплату картой"
-		if p := b.paywallPriceYookassaShort(); p != "" {
-			label += " — " + p
-		}
-		rows = append(rows, tgbotapi.NewInlineKeyboardRow(
-			tgbotapi.NewInlineKeyboardButtonData(label, paywallCallbackPayYookassa),
-		))
+	stars := b.config.PaywallStarsInvoiceAmount()
+	if stars <= 0 {
+		stars = 1
 	}
-	if b.config.PaywallUsesTelegramProviderInvoice() {
-		label := "💳 Выбрать оплату картой (Telegram)"
-		if p := b.paywallPriceProviderShort(); p != "" {
-			label += " — " + p
-		}
-		rows = append(rows, tgbotapi.NewInlineKeyboardRow(
-			tgbotapi.NewInlineKeyboardButtonData(label, paywallCallbackPayProvider),
-		))
-	}
+	payLabel := fmt.Sprintf("⭐ Заплатить %d %s", stars, starsWordRU(stars))
+	rows = append(rows, tgbotapi.NewInlineKeyboardRow(
+		tgbotapi.NewInlineKeyboardButtonData(payLabel, paywallCallbackPayStarsNow),
+	))
 	rows = append(rows, tgbotapi.NewInlineKeyboardRow(
 		tgbotapi.NewInlineKeyboardButtonData("⬅️ Назад", paywallCallbackBackToMethods),
 	))
@@ -343,24 +334,6 @@ func (b *Bot) paywallCardMethodInlineKeyboard(confirmURL string) *tgbotapi.Inlin
 	rows = append(rows, tgbotapi.NewInlineKeyboardRow(
 		tgbotapi.NewInlineKeyboardButtonURL("💳 Перейти к оплате (ЮKassa)", confirmURL),
 	))
-	if b.config.PaywallUsesStars() {
-		label := "⭐ Выбрать оплату звёздами"
-		if p := b.paywallPriceStarsShort(); p != "" {
-			label += " — " + p
-		}
-		rows = append(rows, tgbotapi.NewInlineKeyboardRow(
-			tgbotapi.NewInlineKeyboardButtonData(label, paywallCallbackPayStars),
-		))
-	}
-	if b.config.PaywallUsesTelegramProviderInvoice() {
-		label := "💳 Выбрать оплату картой (Telegram)"
-		if p := b.paywallPriceProviderShort(); p != "" {
-			label += " — " + p
-		}
-		rows = append(rows, tgbotapi.NewInlineKeyboardRow(
-			tgbotapi.NewInlineKeyboardButtonData(label, paywallCallbackPayProvider),
-		))
-	}
 	rows = append(rows, tgbotapi.NewInlineKeyboardRow(
 		tgbotapi.NewInlineKeyboardButtonData("⬅️ Назад", paywallCallbackBackToMethods),
 	))
@@ -633,6 +606,38 @@ func (b *Bot) handlePaywallPayStarsCallback(callback *tgbotapi.CallbackQuery) {
 		b.logger.Warnf("paywall stars callback send step message: %v", err)
 	}
 	_, _ = b.api.Request(tgbotapi.NewCallback(callback.ID, "Счёт на звёзды отправлен — открой его выше и нажми «Оплатить»."))
+}
+
+func (b *Bot) handlePaywallPayStarsNowCallback(callback *tgbotapi.CallbackQuery) {
+	if callback.From == nil {
+		_, _ = b.api.Request(tgbotapi.NewCallback(callback.ID, ""))
+		return
+	}
+	uid := callback.From.ID
+	if !b.paywallActive() || !b.config.PaywallPaymentReady() || !b.config.PaywallUsesStars() {
+		_, _ = b.api.Request(tgbotapi.NewCallbackWithAlert(callback.ID, "Счёт на звёзды сейчас недоступен."))
+		return
+	}
+	if b.config.PaywallYookassaReady() && b.paywallTrySyncYookassaPayment(uid) {
+		_, _ = b.api.Request(tgbotapi.NewCallback(callback.ID, "Оплата уже учтена. Нажми /start."))
+		return
+	}
+	reqID, err := b.paywallGetOrCreatePendingReqID(uid)
+	if err != nil {
+		b.logger.Errorf("paywall stars now cb pending: %v", err)
+		_, _ = b.api.Request(tgbotapi.NewCallbackWithAlert(callback.ID, "Ошибка. Попробуй /start."))
+		return
+	}
+	if err := b.SendPaywallStarsInvoice(uid, reqID); err != nil {
+		b.logger.Errorf("paywall stars now invoice: %s", paywallInvoiceErrLog(err))
+		h := paywallInvoiceShortHintForUser(err)
+		if len(h) > 180 {
+			h = h[:177] + "…"
+		}
+		_, _ = b.api.Request(tgbotapi.NewCallbackWithAlert(callback.ID, h))
+		return
+	}
+	_, _ = b.api.Request(tgbotapi.NewCallback(callback.ID, "Счёт отправлен — открой его выше и нажми «Оплатить»."))
 }
 
 func (b *Bot) handlePaywallPayYookassaCallback(callback *tgbotapi.CallbackQuery) {
