@@ -70,23 +70,7 @@ export function NewWorkoutScreen({ onClose, onSave, showAlert }: Props) {
       </header>
 
       <div className="nwo__body">
-        <h2 className="section-title">Что сделал</h2>
-        <textarea
-          className="nwo__note"
-          value={note}
-          onChange={(e) => setNote(e.target.value.slice(0, NOTE_MAX))}
-          rows={4}
-          maxLength={NOTE_MAX}
-          placeholder="Например: жим лёжа, тяга верхнего, пресс. Или ощущения — устал плечами…"
-          enterKeyHint="done"
-        />
-        <p className="nwo__note-cnt muted" aria-live="polite">
-          {note.length}/{NOTE_MAX}
-        </p>
-
-        <h2 className="section-title" style={{ marginTop: 22 }}>
-          Тип
-        </h2>
+        <h2 className="section-title">Тип</h2>
         <div className="chip-group">
           {TYPES.map((t) => (
             <button
@@ -183,6 +167,22 @@ export function NewWorkoutScreen({ onClose, onSave, showAlert }: Props) {
             Выбрано: {photo.name}
           </p>
         )}
+
+        <h2 className="section-title" style={{ marginTop: 22 }}>
+          Что сделал
+        </h2>
+        <textarea
+          className="nwo__note"
+          value={note}
+          onChange={(e) => setNote(e.target.value.slice(0, NOTE_MAX))}
+          rows={4}
+          maxLength={NOTE_MAX}
+          placeholder="Например: жим лёжа, тяга верхнего, пресс. Или ощущения — устал плечами…"
+          enterKeyHint="done"
+        />
+        <p className="nwo__note-cnt muted" aria-live="polite">
+          {note.length}/{NOTE_MAX}
+        </p>
       </div>
 
       <footer className="nwo__foot">

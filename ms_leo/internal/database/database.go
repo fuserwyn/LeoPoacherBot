@@ -11,8 +11,18 @@ import (
 	"leo-bot/internal/logger"
 	"leo-bot/internal/utils"
 
-	_ "github.com/lib/pq"
+	"github.com/lib/pq"
 )
+
+func init() {
+	// paywall_access_requests.access_expires_at = 'infinity'::timestamptz — без этого pq отдаёт []byte("infinity"),
+	// Scan в sql.NullTime падает (refund / GetPaywallAccessRequestByID).
+	// Должно быть до первого sql.Open("postgres", ...) в процессе (см. документацию pq.EnableInfinityTs).
+	pq.EnableInfinityTs(
+		time.Date(1, 1, 1, 0, 0, 0, 0, time.UTC),
+		time.Date(9999, 12, 31, 23, 59, 59, 999999999, time.UTC),
+	)
+}
 
 type Database struct {
 	db     *sql.DB
@@ -556,7 +566,7 @@ func (d *Database) ReactivateReturnedUser(userID, chatID int64, username string)
 			returned_at, created_at, updated_at
 		) VALUES (
 			$1, NULLIF($2, ''), $3, 42, 0, 0, 0, 0,
-			$4, FALSE, FALSE, FALSE, FALSE,
+			'', FALSE, FALSE, FALSE, FALSE,
 			NULL, 0, 0, 1,
 			(NOW() AT TIME ZONE 'Europe/Moscow'), $4, $4
 		)
