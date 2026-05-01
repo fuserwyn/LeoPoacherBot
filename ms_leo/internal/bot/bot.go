@@ -2916,6 +2916,9 @@ func (b *Bot) handleCallbackQuery(callback *tgbotapi.CallbackQuery) {
 	case paywallCallbackPayProvider:
 		b.handlePaywallPayProviderCallback(callback)
 		return
+	case paywallCallbackBackToMethods:
+		b.handlePaywallBackToMethodsCallback(callback)
+		return
 	case "back_to_menu":
 		// Удаляем сообщение и возвращаемся в меню
 		deleteMsg := tgbotapi.NewDeleteMessage(msg.Chat.ID, msg.MessageID)

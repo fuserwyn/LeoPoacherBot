@@ -19,6 +19,7 @@ const paywallCallbackPayStars = "paywall_pay_stars"
 const paywallCallbackPayYookassa = "paywall_pay_yookassa"
 const paywallCallbackPayProvider = "paywall_pay_provider"
 const paywallCallbackReturnToPack = "paywall_return_to_pack"
+const paywallCallbackBackToMethods = "paywall_back_to_methods"
 
 // Несколько попыток: вебхук ЮKassa может закрыть заявку в БД чуть позже события успешной оплаты.
 const paywallAccessRecheckAttempts = 5
@@ -298,7 +299,7 @@ func (b *Bot) paywallStarsMethodText() string {
 		stars = 1
 	}
 	return fmt.Sprintf(
-		"Для звёзд\n\n⭐ Оплата звёздами Telegram.\n\n%d %s спишется с твоего баланса.\nПосле успешной оплаты ты сразу получишь кнопку доступа в мини-апп приложение Леопарда в этом чате.\n\nЕсли с оплатой будет проблема, напиши запрос в нашу поддержку (почта).",
+		"⭐ Оплата звёздами Telegram.\n\n%d %s спишется с твоего баланса.\nПосле успешной оплаты ты сразу получишь кнопку доступа в мини-апп приложение Леопарда в этом чате.\n\nЕсли с оплатой будет проблема, напиши запрос в нашу поддержку (почта).",
 		stars, starsWordRU(stars),
 	)
 }
@@ -309,9 +310,64 @@ func (b *Bot) paywallCardMethodText() string {
 		price = "сумма по тарифу"
 	}
 	return fmt.Sprintf(
-		"Для карты\n\n💳 Оплата банковской картой. Доступна картами РФ.\n\n%s спишется и после успешной оплаты ты сразу получишь кнопку доступа в мини-апп приложение Леопарда в этом чате.\n\nЕсли с оплатой будет проблема, напиши запрос в нашу поддержку (почта).",
+		"💳 Оплата банковской картой. Доступна картами РФ.\n\n%s спишется и после успешной оплаты ты сразу получишь кнопку доступа в мини-апп приложение Леопарда в этом чате.\n\nЕсли с оплатой будет проблема, напиши запрос в нашу поддержку (почта).",
 		price,
 	)
+}
+
+func (b *Bot) paywallStarsMethodInlineKeyboard() *tgbotapi.InlineKeyboardMarkup {
+	var rows [][]tgbotapi.InlineKeyboardButton
+	if b.config.PaywallYookassaReady() {
+		label := "💳 Выбрать оплату картой"
+		if p := b.paywallPriceYookassaShort(); p != "" {
+			label += " — " + p
+		}
+		rows = append(rows, tgbotapi.NewInlineKeyboardRow(
+			tgbotapi.NewInlineKeyboardButtonData(label, paywallCallbackPayYookassa),
+		))
+	}
+	if b.config.PaywallUsesTelegramProviderInvoice() {
+		label := "💳 Выбрать оплату картой (Telegram)"
+		if p := b.paywallPriceProviderShort(); p != "" {
+			label += " — " + p
+		}
+		rows = append(rows, tgbotapi.NewInlineKeyboardRow(
+			tgbotapi.NewInlineKeyboardButtonData(label, paywallCallbackPayProvider),
+		))
+	}
+	rows = append(rows, tgbotapi.NewInlineKeyboardRow(
+		tgbotapi.NewInlineKeyboardButtonData("⬅️ Назад", paywallCallbackBackToMethods),
+	))
+	return &tgbotapi.InlineKeyboardMarkup{InlineKeyboard: rows}
+}
+
+func (b *Bot) paywallCardMethodInlineKeyboard(confirmURL string) *tgbotapi.InlineKeyboardMarkup {
+	var rows [][]tgbotapi.InlineKeyboardButton
+	rows = append(rows, tgbotapi.NewInlineKeyboardRow(
+		tgbotapi.NewInlineKeyboardButtonURL("💳 Перейти к оплате (ЮKassa)", confirmURL),
+	))
+	if b.config.PaywallUsesStars() {
+		label := "⭐ Выбрать оплату звёздами"
+		if p := b.paywallPriceStarsShort(); p != "" {
+			label += " — " + p
+		}
+		rows = append(rows, tgbotapi.NewInlineKeyboardRow(
+			tgbotapi.NewInlineKeyboardButtonData(label, paywallCallbackPayStars),
+		))
+	}
+	if b.config.PaywallUsesTelegramProviderInvoice() {
+		label := "💳 Выбрать оплату картой (Telegram)"
+		if p := b.paywallPriceProviderShort(); p != "" {
+			label += " — " + p
+		}
+		rows = append(rows, tgbotapi.NewInlineKeyboardRow(
+			tgbotapi.NewInlineKeyboardButtonData(label, paywallCallbackPayProvider),
+		))
+	}
+	rows = append(rows, tgbotapi.NewInlineKeyboardRow(
+		tgbotapi.NewInlineKeyboardButtonData("⬅️ Назад", paywallCallbackBackToMethods),
+	))
+	return &tgbotapi.InlineKeyboardMarkup{InlineKeyboard: rows}
 }
 
 func (b *Bot) paywallNotifyUser(userID int64, text string) {
@@ -575,7 +631,12 @@ func (b *Bot) handlePaywallPayStarsCallback(callback *tgbotapi.CallbackQuery) {
 		return
 	}
 	if callback.Message != nil {
-		edit := tgbotapi.NewEditMessageText(callback.Message.Chat.ID, callback.Message.MessageID, b.paywallStarsMethodText())
+		edit := tgbotapi.NewEditMessageTextAndMarkup(
+			callback.Message.Chat.ID,
+			callback.Message.MessageID,
+			b.paywallStarsMethodText(),
+			*b.paywallStarsMethodInlineKeyboard(),
+		)
 		if _, err := b.api.Send(edit); err != nil {
 			b.logger.Warnf("paywall stars callback edit text: %v", err)
 		}
@@ -618,15 +679,11 @@ func (b *Bot) handlePaywallPayYookassaCallback(callback *tgbotapi.CallbackQuery)
 	// Не плодим новое сообщение «вот тебе ещё одна кнопка Оплатить» (см. требование пользователя):
 	// заменяем кнопки выбора способа в исходном сообщении на одну URL-кнопку с готовой ссылкой ЮKassa.
 	// Юзер делает один тап и сразу попадает на страницу оплаты — без промежуточного экрана.
-	payButton := tgbotapi.NewInlineKeyboardMarkup(
-		tgbotapi.NewInlineKeyboardRow(
-			tgbotapi.NewInlineKeyboardButtonURL("💳 Перейти к оплате (ЮKassa)", confirmURL),
-		),
-	)
+	payButton := b.paywallCardMethodInlineKeyboard(confirmURL)
 	edited := false
 	if callback.Message != nil {
 		newText := b.paywallCardMethodText()
-		edit := tgbotapi.NewEditMessageTextAndMarkup(callback.Message.Chat.ID, callback.Message.MessageID, newText, payButton)
+		edit := tgbotapi.NewEditMessageTextAndMarkup(callback.Message.Chat.ID, callback.Message.MessageID, newText, *payButton)
 		if _, err := b.api.Send(edit); err != nil {
 			b.logger.Warnf("paywall yk callback edit text+markup: %v", err)
 		} else {
@@ -642,6 +699,36 @@ func (b *Bot) handlePaywallPayYookassaCallback(callback *tgbotapi.CallbackQuery)
 			_, _ = b.api.Request(tgbotapi.NewCallbackWithAlert(callback.ID, "Не удалось открыть оплату. Попробуй /start."))
 			return
 		}
+	}
+	_, _ = b.api.Request(tgbotapi.NewCallback(callback.ID, ""))
+}
+
+func (b *Bot) handlePaywallBackToMethodsCallback(callback *tgbotapi.CallbackQuery) {
+	if callback == nil || callback.From == nil {
+		return
+	}
+	if !b.paywallActive() || !b.config.PaywallPaymentReady() {
+		_, _ = b.api.Request(tgbotapi.NewCallbackWithAlert(callback.ID, "Оплата сейчас недоступна."))
+		return
+	}
+	if callback.Message != nil {
+		edit := tgbotapi.NewEditMessageTextAndMarkup(
+			callback.Message.Chat.ID,
+			callback.Message.MessageID,
+			b.paywallPrivateUnpaidUserText(),
+			*b.paywallUnpaidInlineKeyboard(),
+		)
+		if _, err := b.api.Send(edit); err == nil {
+			_, _ = b.api.Request(tgbotapi.NewCallback(callback.ID, ""))
+			return
+		}
+	}
+	msg := tgbotapi.NewMessage(callback.From.ID, b.paywallPrivateUnpaidUserText())
+	msg.ReplyMarkup = b.paywallUnpaidInlineKeyboard()
+	if _, err := b.api.Send(msg); err != nil {
+		b.logger.Errorf("paywall back to methods send: %v", err)
+		_, _ = b.api.Request(tgbotapi.NewCallbackWithAlert(callback.ID, "Не удалось вернуть экран оплаты. Напиши /start."))
+		return
 	}
 	_, _ = b.api.Request(tgbotapi.NewCallback(callback.ID, ""))
 }
