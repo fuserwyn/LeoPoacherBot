@@ -295,7 +295,7 @@
 }
 
 .chat__input:focus {
-  border-color: #3d5aee;
+  border-color: rgba(72, 187, 120, 0.65);
 }
 
 .chat__send {
