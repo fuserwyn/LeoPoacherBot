@@ -892,8 +892,7 @@ func (b *Bot) handlePaywallPreCheckout(q *tgbotapi.PreCheckoutQuery) {
 	_, _ = b.api.Request(tgbotapi.PreCheckoutConfig{PreCheckoutQueryID: q.ID, OK: true})
 }
 
-// paywallPostPaymentUserText — после успешной оплаты отправляем тот же onboarding,
-// что и при /start у уже оплаченного пользователя.
+// paywallPostPaymentUserText — сообщение сразу после успешной оплаты (перед первым входом в мини-апп).
 func (b *Bot) paywallPostPaymentUserText() string {
 	return `Ура, ты в стае! Видишь внизу синюю кнопку? Это вход в мини-апп. Там все подробные правила стаи.
 Там же я буду ждать твои отчеты о тренировках.
@@ -995,7 +994,7 @@ func (b *Bot) handlePaywallSuccessfulPayment(msg *tgbotapi.Message) {
 		b.logger.Warnf("paywall payment user/chat mismatch")
 		return
 	}
-	okDb, err := b.db.CompletePaywallAccessRequestAndEnqueueRestore(reqID, msg.From.ID, b.config.MonetizedChatID, sp.TelegramPaymentChargeID, sp.TotalAmount, sp.Currency)
+	okDb, err := b.db.CompletePaywallAccessRequest(reqID, msg.From.ID, b.config.MonetizedChatID, sp.TelegramPaymentChargeID, sp.TotalAmount, sp.Currency, false)
 	if err != nil {
 		b.logger.Errorf("paywall complete request: %v", err)
 		return
@@ -1003,6 +1002,18 @@ func (b *Bot) handlePaywallSuccessfulPayment(msg *tgbotapi.Message) {
 	if !okDb {
 		b.logger.Infof("paywall duplicate successful_payment for request=%d user=%d", reqID, msg.From.ID)
 		return
+	}
+	// Сразу приветствие и меню мини-аппа — не ждём outbox (иначе сообщение может не прийти при лаге воркера).
+	if derr := b.paywallDeliverAccessAfterPayment(msg.From.ID); derr != nil {
+		b.logger.Errorf("paywall deliver after telegram payment user=%d: %v", msg.From.ID, derr)
+		payload := map[string]int64{"request_id": reqID, "user_id": msg.From.ID, "chat_id": b.config.MonetizedChatID}
+		if enqErr := b.db.EnqueueOutboxEvent(
+			"paywall_access_restore_requested",
+			fmt.Sprintf("paywall_request:%d", reqID),
+			payload,
+		); enqErr != nil {
+			b.logger.Errorf("paywall enqueue fallback restore after deliver failure: %v", enqErr)
+		}
 	}
 }
 

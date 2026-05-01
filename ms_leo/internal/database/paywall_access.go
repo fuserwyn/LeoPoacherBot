@@ -165,7 +165,10 @@ type PaywallRestoreOutboxPayload struct {
 	ChatID    int64 `json:"chat_id"`
 }
 
-func (d *Database) CompletePaywallAccessRequestAndEnqueueRestore(id int64, userID, monetizedChatID int64, telegramChargeID string, amountMinor int, currency string) (bool, error) {
+// CompletePaywallAccessRequest закрывает pending-заявку. Если enqueueRestore=true, кладёт событие в outbox
+// (ЮKassa / фоновая доставка). Для Telegram Payments / Stars после оплаты лучше вызывать с enqueueRestore=false
+// и сразу держать paywallDeliverAccessAfterPayment в процессе бота — иначе юзер может долго не увидеть приветствие.
+func (d *Database) CompletePaywallAccessRequest(id int64, userID, monetizedChatID int64, telegramChargeID string, amountMinor int, currency string, enqueueRestore bool) (bool, error) {
 	tx, err := d.db.Begin()
 	if err != nil {
 		return false, err
@@ -193,20 +196,26 @@ func (d *Database) CompletePaywallAccessRequestAndEnqueueRestore(id int64, userI
 		return false, nil
 	}
 
-	payload := PaywallRestoreOutboxPayload{RequestID: id, UserID: userID, ChatID: monetizedChatID}
-	payloadJSON, err := json.Marshal(payload)
-	if err != nil {
-		return false, err
-	}
-	if _, err := tx.Exec(`
-		INSERT INTO outbox_events (event_type, aggregate_key, payload, status, next_attempt_at)
-		VALUES ($1, $2, $3::jsonb, 'pending', NOW())
-	`, "paywall_access_restore_requested", fmt.Sprintf("paywall_request:%d", id), string(payloadJSON)); err != nil {
-		return false, err
+	if enqueueRestore {
+		payload := PaywallRestoreOutboxPayload{RequestID: id, UserID: userID, ChatID: monetizedChatID}
+		payloadJSON, err := json.Marshal(payload)
+		if err != nil {
+			return false, err
+		}
+		if _, err := tx.Exec(`
+			INSERT INTO outbox_events (event_type, aggregate_key, payload, status, next_attempt_at)
+			VALUES ($1, $2, $3::jsonb, 'pending', NOW())
+		`, "paywall_access_restore_requested", fmt.Sprintf("paywall_request:%d", id), string(payloadJSON)); err != nil {
+			return false, err
+		}
 	}
 
 	if err := tx.Commit(); err != nil {
 		return false, err
 	}
 	return true, nil
+}
+
+func (d *Database) CompletePaywallAccessRequestAndEnqueueRestore(id int64, userID, monetizedChatID int64, telegramChargeID string, amountMinor int, currency string) (bool, error) {
+	return d.CompletePaywallAccessRequest(id, userID, monetizedChatID, telegramChargeID, amountMinor, currency, true)
 }
