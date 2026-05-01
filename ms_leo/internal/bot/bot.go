@@ -903,8 +903,8 @@ func (b *Bot) handleStartTimer(msg *tgbotapi.Message) {
 	}
 }
 
-// leopardOnboardingBody — основной текст онбординга (Leopard Money / Fat Leopard).
-// Используется в /start (welcomeStartText) и в DM после оплаты (см. paywallPostPaymentUserText).
+// leopardOnboardingBody — длинный онбординг (legacy): группы / paywall выключен.
+// При активном paywall оплативший в личке получает на /start короткий текст как после оплаты (paywallPostPaymentUserText).
 func leopardOnboardingBody() string {
 	return leopardOnboardingBodyText
 }
@@ -1014,7 +1014,7 @@ func (b *Bot) handleStart(msg *tgbotapi.Message) {
 
 	welcomeText := welcomeStartText()
 	if msg.Chat.IsPrivate() && b.paywallActive() && msg.From != nil && !b.paywallPrivateNeedsPayFirst(msg.From.ID) {
-		welcomeText += b.paywallPrivatePaidFooter()
+		welcomeText = b.paywallPostPaymentUserText()
 	}
 
 	reply := tgbotapi.NewMessage(msg.Chat.ID, welcomeText)
