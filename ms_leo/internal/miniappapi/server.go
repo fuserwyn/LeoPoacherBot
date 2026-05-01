@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
+	"strconv"
 	"strings"
 	"time"
 	"unicode/utf8"
@@ -54,6 +55,8 @@ func (s *Server) serve(w http.ResponseWriter, r *http.Request) {
 		s.handlePostPersonalChatLike(w, r)
 	case path == "/api/miniapp/feed" && r.Method == http.MethodPost:
 		s.handlePostFeed(w, r)
+	case path == "/api/miniapp/user-avatar" && r.Method == http.MethodGet:
+		s.handleGetUserAvatar(w, r)
 	case path == "/api/miniapp/feed/training/react" && r.Method == http.MethodPost:
 		s.handlePostFeedTrainingReact(w, r)
 	case path == "/api/miniapp/feed/training/thread" && r.Method == http.MethodPost:
@@ -383,7 +386,7 @@ func (s *Server) handlePostFeed(w http.ResponseWriter, r *http.Request) {
 		s.jsonErr(w, http.StatusBadRequest, "user_missing")
 		return
 	}
-	items, err := s.bot.PackFeedForViewer(parsed.User.ID, parsed)
+	items, err := s.bot.PackFeedForViewer(parsed.User.ID, parsed, body.InitData)
 	if err != nil {
 		if errors.Is(err, bot.ErrMiniAppChatMismatch) {
 			s.jsonErr(w, http.StatusConflict, "chat_mismatch")
@@ -399,6 +402,53 @@ func (s *Server) handlePostFeed(w http.ResponseWriter, r *http.Request) {
 	}
 	w.Header().Set("Content-Type", "application/json; charset=utf-8")
 	_ = json.NewEncoder(w).Encode(map[string]any{"ok": true, "items": items})
+}
+
+func (s *Server) handleGetUserAvatar(w http.ResponseWriter, r *http.Request) {
+	corsWriteHeaders(w, r)
+	if s.bot == nil || s.token == "" {
+		http.Error(w, "server_unavailable", http.StatusServiceUnavailable)
+		return
+	}
+	initData := strings.TrimSpace(r.URL.Query().Get("init_data"))
+	if initData == "" {
+		http.Error(w, "missing_init_data", http.StatusBadRequest)
+		return
+	}
+	uidStr := strings.TrimSpace(r.URL.Query().Get("user_id"))
+	subjectUID, err := strconv.ParseInt(uidStr, 10, 64)
+	if err != nil || subjectUID <= 0 {
+		http.Error(w, "invalid_user_id", http.StatusBadRequest)
+		return
+	}
+	if err := initdata.Validate(initData, s.token, 24*time.Hour); err != nil {
+		s.logger.Warnf("miniapp user-avatar init_data invalid: %v", err)
+		http.Error(w, "invalid_init_data", http.StatusUnauthorized)
+		return
+	}
+	parsed, err := initdata.Parse(initData)
+	if err != nil || parsed.User.ID == 0 {
+		http.Error(w, "parse_init_data", http.StatusBadRequest)
+		return
+	}
+	aerr := s.bot.WritePackMemberAvatarHTTP(w, r, parsed.User.ID, subjectUID, parsed)
+	if aerr == nil {
+		return
+	}
+	if errors.Is(aerr, bot.ErrPackFeedForbidden) {
+		http.Error(w, "forbidden", http.StatusForbidden)
+		return
+	}
+	if errors.Is(aerr, bot.ErrMiniAppChatMismatch) {
+		http.Error(w, "chat_mismatch", http.StatusConflict)
+		return
+	}
+	if errors.Is(aerr, bot.ErrPackMemberAvatarNotFound) {
+		http.NotFound(w, r)
+		return
+	}
+	s.logger.Warnf("miniapp user-avatar user=%d subject=%d: %v", parsed.User.ID, subjectUID, aerr)
+	http.Error(w, "avatar_error", http.StatusInternalServerError)
 }
 
 func (s *Server) handlePostFeedTrainingReact(w http.ResponseWriter, r *http.Request) {

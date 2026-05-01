@@ -1,5 +1,6 @@
 import { LEO_AVATAR_URL } from "./leoAvatar";
 import { timeAgoFromISO } from "./timeAgo";
+import { trainingDoneCategoryEmoji } from "./workoutCategories";
 import type { ActivityCardProps } from "../components/ActivityCard";
 
 const viteMiniappApi = (import.meta.env.VITE_MINIAPP_API_URL as string | undefined)?.replace(/\/$/, "").trim() ?? "";
@@ -27,6 +28,15 @@ export function resolveTrainingPhotoUrl(stored: string | undefined): string | un
   }
   if (viteMiniappApi) return viteMiniappApi + path;
   if (browserOrigin && browserOrigin.startsWith("http")) return browserOrigin + path;
+  return raw;
+}
+
+/** Аватары в ленте: абсолютные URL как есть; относительные `/api/miniapp/...` — к базе API (прокси user-avatar). */
+export function resolveFeedAvatarUrl(stored: string | undefined): string {
+  const raw = (stored ?? "").trim();
+  if (!raw) return "";
+  if (raw.startsWith("http://") || raw.startsWith("https://")) return raw;
+  if (raw.startsWith("/") && viteMiniappApi) return viteMiniappApi + raw;
   return raw;
 }
 
@@ -154,13 +164,14 @@ function avatarFor(name: string) {
 
 export function dtoToCard(d: PackFeedItemDTO): ActivityCardProps {
   const m = typeMeta(d.type);
+  const trainingEmoji = d.type === "training_done" ? trainingDoneCategoryEmoji(d.text) : m.emoji;
   const isLeoNotice =
     d.type === "pack_join" ||
     d.type === "pack_rejoin" ||
     d.type === "daily_wisdom" ||
     d.type === "pack_removed";
   const newcomer = (d.username || "").trim() || `Участник ${d.user_id}`;
-  const pic = (d.author_photo_url || "").trim();
+  const pic = resolveFeedAvatarUrl(d.author_photo_url);
   const commentRaw = d.text.trim();
   const maxComment =
     d.type === "training_done" || d.type === "daily_wisdom" ? 2000 : 280;
@@ -182,11 +193,11 @@ export function dtoToCard(d: PackFeedItemDTO): ActivityCardProps {
     };
   }
   return {
-    avatar: pic || avatarFor(d.username),
+    avatar: (pic || "").trim() || avatarFor(d.username),
     name: d.is_you ? "Ты" : d.username || `Участник ${d.user_id}`,
     streak: d.streak_days,
     timeAgo: timeAgoFromISO(d.created_at),
-    emoji: m.emoji,
+    emoji: trainingEmoji,
     activity: m.activity,
     details: m.details,
     comment,

@@ -56,8 +56,9 @@ type PackFeedItem struct {
 
 // PackFeedForViewer — лента «стаи» из user_messages (отчёты) для участника/оплатившего.
 // initD сверяется с MONETIZED_CHAT_ID, если в подписи есть group/supergroup.
-func (b *Bot) PackFeedForViewer(viewerUserID int64, initD initdata.InitData) ([]PackFeedItem, error) {
-	if err := b.AssertMiniAppPackChatAligns(initD); err != nil {
+// initDataRaw — строка WebApp initData для URL прокси аватаров (GET /api/miniapp/user-avatar).
+func (b *Bot) PackFeedForViewer(viewerUserID int64, initD initdata.InitData, initDataRaw string) ([]PackFeedItem, error) {
+	if err := b.PackFeedAssertViewerAccess(viewerUserID, initD); err != nil {
 		return nil, err
 	}
 	chatID := b.config.MonetizedChatID
@@ -67,17 +68,6 @@ func (b *Bot) PackFeedForViewer(viewerUserID int64, initD initdata.InitData) ([]
 	packTitle := ""
 	if initD.Chat.ID != 0 && (initD.Chat.Type == initdata.ChatTypeSupergroup || initD.Chat.Type == initdata.ChatTypeGroup) {
 		packTitle = initD.Chat.Title
-	}
-	if b.config.OwnerID != 0 && viewerUserID == b.config.OwnerID {
-		// владелец видит ленту без лишних проверок
-	} else {
-		ok, err := b.db.UserInPackOrPaid(viewerUserID, chatID, b.config.PaywallEnabled)
-		if err != nil {
-			return nil, err
-		}
-		if !ok {
-			return nil, ErrPackFeedForbidden
-		}
 	}
 	// Показываем общую историю стаи для всех участников, без персональной отсечки "с момента входа".
 	rows, err := b.db.ListPackActivityFeed(chatID, 50, nil)
@@ -101,7 +91,7 @@ func (b *Bot) PackFeedForViewer(viewerUserID int64, initD initdata.InitData) ([]
 		})
 	}
 	out = b.enrichPackFeedTrainingSocial(out, viewerUserID, chatID)
-	out = b.enrichPackFeedAuthorPhotos(out, chatID)
+	out = b.enrichPackFeedAuthorPhotos(out, chatID, initDataRaw)
 	return out, nil
 }
 
@@ -112,54 +102,5 @@ func packFeedIsLeoNoticeType(t string) bool {
 	default:
 		return false
 	}
-}
-
-// enrichPackFeedAuthorPhotos — подмешивает telegram_photo_url из miniapp_user_profile (сохранён при онбординге из initData user.photo_url).
-func (b *Bot) enrichPackFeedAuthorPhotos(items []PackFeedItem, chatID int64) []PackFeedItem {
-	if b == nil || b.db == nil || chatID == 0 || len(items) == 0 {
-		return items
-	}
-	var ids []int64
-	seen := map[int64]struct{}{}
-	add := func(uid int64) {
-		if uid == 0 {
-			return
-		}
-		if _, ok := seen[uid]; ok {
-			return
-		}
-		seen[uid] = struct{}{}
-		ids = append(ids, uid)
-	}
-	for _, it := range items {
-		for _, tr := range it.Thread {
-			if !tr.IsLeo {
-				add(tr.UserID)
-			}
-		}
-		if !packFeedIsLeoNoticeType(it.Type) {
-			add(it.UserID)
-		}
-	}
-	if len(ids) == 0 {
-		return items
-	}
-	m, err := b.db.MiniappTelegramPhotoURLMap(chatID, ids)
-	if err != nil {
-		b.logger.Warnf("miniapp feed author photos map: %v", err)
-		return items
-	}
-	for i := range items {
-		if !packFeedIsLeoNoticeType(items[i].Type) && items[i].UserID != 0 {
-			items[i].AuthorPhotoURL = m[items[i].UserID]
-		}
-		for j := range items[i].Thread {
-			if items[i].Thread[j].IsLeo || items[i].Thread[j].UserID == 0 {
-				continue
-			}
-			items[i].Thread[j].AuthorPhotoURL = m[items[i].Thread[j].UserID]
-		}
-	}
-	return items
 }
 

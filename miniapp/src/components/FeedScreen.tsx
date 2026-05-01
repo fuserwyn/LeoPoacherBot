@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { ActivityCard, type ActivityCardProps } from "./ActivityCard";
 import { PackGroupChatPanel } from "./PackGroupChatPanel";
 import {
@@ -6,11 +6,17 @@ import {
   HEALTHY_FEED_EMOJIS,
   mergePackFeedReactions,
   mergeTrainingFeedReactions,
+  resolveFeedAvatarUrl,
   SICK_LEAVE_FEED_EMOJIS,
   type PackFeedItemDTO,
   type PackFeedThreadReplyDTO,
 } from "../lib/packFeed";
 import { timeAgoFromISO } from "../lib/timeAgo";
+import {
+  trainingDoneMatchesCategory,
+  WORKOUT_CATEGORY_OPTIONS,
+  type WorkoutCategoryId,
+} from "../lib/workoutCategories";
 import "./FeedScreen.css";
 
 const apiBase = (import.meta.env.VITE_MINIAPP_API_URL as string | undefined)?.replace(/\/$/, "") ?? "";
@@ -62,6 +68,19 @@ export function FeedScreen({ name, streak, userId, initData, inTelegram, showAle
   const [threadReplyTargets, setThreadReplyTargets] = useState<
     Record<number, { replyToThreadId: number; authorLabel: string; excerpt: string } | undefined>
   >({});
+  const [feedOnlyMine, setFeedOnlyMine] = useState(false);
+  const [feedCategory, setFeedCategory] = useState<WorkoutCategoryId | null>(null);
+
+  const visibleFeedItems = useMemo(() => {
+    return feedItems.filter((it) => {
+      if (feedOnlyMine && !it.is_you) return false;
+      if (feedCategory !== null) {
+        if (it.type !== "training_done") return false;
+        if (!trainingDoneMatchesCategory(it.text, feedCategory)) return false;
+      }
+      return true;
+    });
+  }, [feedItems, feedOnlyMine, feedCategory]);
 
   const load = useCallback(async () => {
     if (!apiBase || !inTelegram || !initData) {
@@ -297,6 +316,47 @@ export function FeedScreen({ name, streak, userId, initData, inTelegram, showAle
       )}
       {sub === "activity" && (
         <>
+          <div className="feed__filters" aria-label="Фильтры ленты">
+            <div className="feed__filter-scope" role="group" aria-label="Чьи отчёты">
+              <button
+                type="button"
+                className={`feed__filter-pill${!feedOnlyMine ? " is-active" : ""}`}
+                onClick={() => setFeedOnlyMine(false)}
+              >
+                Все
+              </button>
+              <button
+                type="button"
+                className={`feed__filter-pill${feedOnlyMine ? " is-active" : ""}`}
+                onClick={() => setFeedOnlyMine(true)}
+              >
+                Мои тренировки
+              </button>
+            </div>
+            <div className="feed__filter-cats" role="group" aria-label="Тип тренировки">
+              <button
+                type="button"
+                className={`feed__filter-chip${feedCategory === null ? " is-active" : ""}`}
+                onClick={() => setFeedCategory(null)}
+              >
+                Все типы
+              </button>
+              {WORKOUT_CATEGORY_OPTIONS.map((c) => (
+                <button
+                  key={c.id}
+                  type="button"
+                  className={`feed__filter-chip${feedCategory === c.id ? " is-active" : ""}`}
+                  onClick={() => setFeedCategory((prev) => (prev === c.id ? null : c.id))}
+                  title={c.label}
+                >
+                  <span className="feed__filter-chip-emoji" aria-hidden>
+                    {c.emoji}
+                  </span>
+                  <span className="feed__filter-chip-label">{c.label}</span>
+                </button>
+              ))}
+            </div>
+          </div>
           <h2 className="section-title">Кто что постит</h2>
           {err && <p className="feed__err">{err}</p>}
           {loading && <p className="feed__load muted">Загрузка…</p>}
@@ -304,13 +364,31 @@ export function FeedScreen({ name, streak, userId, initData, inTelegram, showAle
             {!loading && !useMockFeed && feedItems.length === 0 && !err && (
               <p className="feed__empty muted">Пока нет отчётов в базе (или нет MONETIZED_CHAT_ID).</p>
             )}
+            {!loading &&
+              !useMockFeed &&
+              feedItems.length > 0 &&
+              visibleFeedItems.length === 0 &&
+              !err && (
+                <p className="feed__empty muted">
+                  Ничего не подходит под фильтры — выбери другой тип или «Все типы» / «Все».
+                </p>
+              )}
             {useMockFeed &&
-              mockFallback(name, streak).map((c, i) => <ActivityCard key={`mock-${i}`} {...c} />)}
+              mockFallback(name, streak).map((c, i) => (
+                <div key={`mock-${i}`} className="feed__card-slot feed__card-slot--them">
+                  <ActivityCard {...c} />
+                </div>
+              ))}
             {!useMockFeed &&
-              feedItems.map((it) => {
+              visibleFeedItems.map((it) => {
                 const base = dtoToCard(it);
+                const slotClass = `feed__card-slot${it.is_you ? " feed__card-slot--mine" : " feed__card-slot--them"}`;
                 if (it.type !== "training_done" && it.type !== "sick_leave" && it.type !== "healthy") {
-                  return <ActivityCard key={it.id} {...base} />;
+                  return (
+                    <div key={it.id} className={slotClass}>
+                      <ActivityCard {...base} />
+                    </div>
+                  );
                 }
                 const threadReplies = (it.thread ?? []).map((tr) => {
                   const rq =
@@ -332,50 +410,53 @@ export function FeedScreen({ name, streak, userId, initData, inTelegram, showAle
                     timeAgo: timeAgoFromISO(tr.created_at),
                     isYou: tr.is_you,
                     isLeo: Boolean(tr.is_leo),
-                    authorPhotoUrl: tr.author_photo_url,
+                    authorPhotoUrl: tr.author_photo_url?.trim()
+                      ? resolveFeedAvatarUrl(tr.author_photo_url.trim())
+                      : undefined,
                     replyTo: rq,
                     likeCount: tr.like_count ?? 0,
                     likeMe: Boolean(tr.like_me),
                   };
                 });
                 return (
-                  <ActivityCard
-                    key={it.id}
-                    {...base}
-                    reactions={
-                      it.type === "training_done"
-                        ? mergeTrainingFeedReactions(it.reactions)
-                        : it.type === "sick_leave"
-                          ? mergePackFeedReactions(SICK_LEAVE_FEED_EMOJIS, it.reactions)
-                          : mergePackFeedReactions(HEALTHY_FEED_EMOJIS, it.reactions)
-                    }
-                    onReactionClick={(emoji) => void postTrainingReact(it.id, emoji)}
-                    threadReplies={threadReplies}
-                    onThreadReplyDelete={(replyId) => void deleteTrainingThreadReply(it.id, replyId)}
-                    onThreadReplyLike={(replyId) => void toggleTrainingThreadLike(it.id, replyId)}
-                    threadReplyDeleting={threadReplyDeleting}
-                    threadReplyIntent={threadReplyTargets[it.id] ?? null}
-                    onCancelThreadReplyIntent={() =>
-                      setThreadReplyTargets((r) => ({ ...r, [it.id]: undefined }))
-                    }
-                    onThreadReplyIntent={(payload) =>
-                      setThreadReplyTargets((r) => ({
-                        ...r,
-                        [it.id]: {
-                          replyToThreadId: payload.replyToThreadId,
-                          authorLabel: payload.authorLabel,
-                          excerpt: payload.excerpt,
-                        },
-                      }))
-                    }
-                    threadComposer={{
-                      draft: threadDrafts[it.id] ?? "",
-                      onDraftChange: (v) => setThreadDrafts((d) => ({ ...d, [it.id]: v })),
-                      onSubmit: (text) =>
-                        void postTrainingThread(it.id, text, threadReplyTargets[it.id]?.replyToThreadId),
-                      posting: threadPosting[it.id] ?? false,
-                    }}
-                  />
+                  <div key={it.id} className={slotClass}>
+                    <ActivityCard
+                      {...base}
+                      reactions={
+                        it.type === "training_done"
+                          ? mergeTrainingFeedReactions(it.reactions)
+                          : it.type === "sick_leave"
+                            ? mergePackFeedReactions(SICK_LEAVE_FEED_EMOJIS, it.reactions)
+                            : mergePackFeedReactions(HEALTHY_FEED_EMOJIS, it.reactions)
+                      }
+                      onReactionClick={(emoji) => void postTrainingReact(it.id, emoji)}
+                      threadReplies={threadReplies}
+                      onThreadReplyDelete={(replyId) => void deleteTrainingThreadReply(it.id, replyId)}
+                      onThreadReplyLike={(replyId) => void toggleTrainingThreadLike(it.id, replyId)}
+                      threadReplyDeleting={threadReplyDeleting}
+                      threadReplyIntent={threadReplyTargets[it.id] ?? null}
+                      onCancelThreadReplyIntent={() =>
+                        setThreadReplyTargets((r) => ({ ...r, [it.id]: undefined }))
+                      }
+                      onThreadReplyIntent={(payload) =>
+                        setThreadReplyTargets((r) => ({
+                          ...r,
+                          [it.id]: {
+                            replyToThreadId: payload.replyToThreadId,
+                            authorLabel: payload.authorLabel,
+                            excerpt: payload.excerpt,
+                          },
+                        }))
+                      }
+                      threadComposer={{
+                        draft: threadDrafts[it.id] ?? "",
+                        onDraftChange: (v) => setThreadDrafts((d) => ({ ...d, [it.id]: v })),
+                        onSubmit: (text) =>
+                          void postTrainingThread(it.id, text, threadReplyTargets[it.id]?.replyToThreadId),
+                        posting: threadPosting[it.id] ?? false,
+                      }}
+                    />
+                  </div>
                 );
               })}
           </div>

@@ -42,7 +42,78 @@
 .feed__subtabs {
   display: flex;
   gap: 6px;
-  margin-bottom: 16px;
+  margin-bottom: 12px;
+}
+
+.feed__filters {
+  margin-bottom: 14px;
+}
+
+.feed__filter-scope {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 10px;
+}
+
+.feed__filter-pill {
+  flex: 1;
+  padding: 8px 10px;
+  border-radius: 10px;
+  border: 1px solid var(--border-subtle, #2a2a36);
+  background: #14141c;
+  color: var(--muted, #8b8b9a);
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.feed__filter-pill.is-active {
+  background: #1e2a4a;
+  color: #e8e8f0;
+  border-color: #3d5aee;
+}
+
+.feed__filter-cats {
+  display: flex;
+  flex-wrap: nowrap;
+  gap: 6px;
+  overflow-x: auto;
+  padding-bottom: 4px;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: thin;
+}
+
+.feed__filter-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+  padding: 6px 10px;
+  border-radius: 999px;
+  border: 1px solid var(--border-subtle, #2a2a36);
+  background: #14141c;
+  color: var(--text, #e8e8f0);
+  font-size: 0.78rem;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.feed__filter-chip.is-active {
+  border-color: rgba(255, 90, 31, 0.65);
+  background: rgba(255, 90, 31, 0.12);
+  color: var(--accent, #ff7a45);
+}
+
+.feed__filter-chip-emoji {
+  font-size: 1rem;
+  line-height: 1;
+}
+
+.feed__filter-chip-label {
+  max-width: 7.5rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .feed__subtab {
@@ -64,7 +135,38 @@
 }
 
 .feed__list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
   padding-bottom: 8px;
+}
+
+.feed__card-slot {
+  display: flex;
+  width: 100%;
+}
+
+.feed__card-slot--them {
+  justify-content: flex-start;
+}
+
+.feed__card-slot--mine {
+  justify-content: flex-end;
+}
+
+.feed__card-slot .act-card {
+  margin-bottom: 0;
+  max-width: min(90%, 400px);
+}
+
+.feed__card-slot--them .act-card {
+  margin-right: auto;
+  margin-left: min(10px, 2.5vw);
+}
+
+.feed__card-slot--mine .act-card {
+  margin-left: auto;
+  margin-right: min(10px, 2.5vw);
 }
 
 .feed__err {

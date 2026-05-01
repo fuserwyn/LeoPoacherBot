@@ -1,23 +1,6 @@
 import { useState } from "react";
+import { WORKOUT_TYPES as TYPES } from "../lib/workoutCategories";
 import "./NewWorkoutScreen.css";
-
-const TYPES: { id: string; label: string; emoji: string }[] = [
-  { id: "run", label: "Бег", emoji: "🏃" },
-  { id: "walk", label: "Ходьба", emoji: "🚶" },
-  { id: "bike", label: "Велосипед", emoji: "🚴" },
-  { id: "swim", label: "Плавание", emoji: "🏊" },
-  { id: "yoga", label: "Йога", emoji: "🧘" },
-  { id: "rowing", label: "Гребля", emoji: "🚣" },
-  { id: "workout", label: "Воркаут", emoji: "🔥" },
-  { id: "crossfit", label: "Кроссфит", emoji: "🎯" },
-  { id: "stretch", label: "Растяжка", emoji: "🧎" },
-  { id: "dance", label: "Танцы", emoji: "💃" },
-  { id: "hiit", label: "HIIT", emoji: "⚡" },
-  { id: "cardio", label: "Кардио", emoji: "💓" },
-  { id: "kettlebell", label: "Гиря", emoji: "🏋️" },
-  { id: "strength", label: "Силовая", emoji: "🏋️" },
-  { id: "other", label: "Другое", emoji: "✨" },
-];
 
 const INTENSITIES: { v: 1 | 2 | 3 | 4 | 5; label: string }[] = [
   { v: 1, label: "1 · Разминка" },
@@ -50,7 +33,7 @@ const NOTE_MAX = 1500;
 const OTHER_LABEL_MAX = 80;
 
 export function NewWorkoutScreen({ onClose, onSave, showAlert }: Props) {
-  const [type, setType] = useState("strength");
+  const [type, setType] = useState<string>("strength");
   const [min, setMin] = useState(15);
   const [intensity, setIntensity] = useState<1 | 2 | 3 | 4 | 5>(3);
   const [note, setNote] = useState("");
