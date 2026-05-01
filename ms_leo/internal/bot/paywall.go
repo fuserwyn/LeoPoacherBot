@@ -698,15 +698,6 @@ func (b *Bot) handlePaywallPayProviderCallback(callback *tgbotapi.CallbackQuery)
 	_, _ = b.api.Request(tgbotapi.NewCallback(callback.ID, "Счёт отправлен — открой его выше и нажми «Оплатить»."))
 }
 
-func (b *Bot) paywallPrivatePaidFooter() string {
-	if !b.paywallActive() {
-		return ""
-	}
-	return `
-
-💳 Доступ оплачен. Открывай мини-приложение бота — кнопка внизу в этом чате (или через меню ⋮). Там вся стая.`
-}
-
 func (b *Bot) handlePaywallReturnToPackCallback(callback *tgbotapi.CallbackQuery) {
 	if callback == nil || callback.From == nil {
 		return
