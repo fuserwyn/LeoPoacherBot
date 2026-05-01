@@ -627,16 +627,10 @@ func (b *Bot) handlePaywallPayStarsCallback(callback *tgbotapi.CallbackQuery) {
 		_, _ = b.api.Request(tgbotapi.NewCallbackWithAlert(callback.ID, h))
 		return
 	}
-	if callback.Message != nil {
-		edit := tgbotapi.NewEditMessageTextAndMarkup(
-			callback.Message.Chat.ID,
-			callback.Message.MessageID,
-			b.paywallStarsMethodText(),
-			*b.paywallStarsMethodInlineKeyboard(),
-		)
-		if _, err := b.api.Send(edit); err != nil {
-			b.logger.Warnf("paywall stars callback edit text: %v", err)
-		}
+	msg := tgbotapi.NewMessage(uid, b.paywallStarsMethodText())
+	msg.ReplyMarkup = b.paywallStarsMethodInlineKeyboard()
+	if _, err := b.api.Send(msg); err != nil {
+		b.logger.Warnf("paywall stars callback send step message: %v", err)
 	}
 	_, _ = b.api.Request(tgbotapi.NewCallback(callback.ID, "Счёт на звёзды отправлен — открой его выше и нажми «Оплатить»."))
 }
@@ -677,25 +671,12 @@ func (b *Bot) handlePaywallPayYookassaCallback(callback *tgbotapi.CallbackQuery)
 	// заменяем кнопки выбора способа в исходном сообщении на одну URL-кнопку с готовой ссылкой ЮKassa.
 	// Юзер делает один тап и сразу попадает на страницу оплаты — без промежуточного экрана.
 	payButton := b.paywallCardMethodInlineKeyboard(confirmURL)
-	edited := false
-	if callback.Message != nil {
-		newText := b.paywallCardMethodText()
-		edit := tgbotapi.NewEditMessageTextAndMarkup(callback.Message.Chat.ID, callback.Message.MessageID, newText, *payButton)
-		if _, err := b.api.Send(edit); err != nil {
-			b.logger.Warnf("paywall yk callback edit text+markup: %v", err)
-		} else {
-			edited = true
-		}
-	}
-	if !edited {
-		// Fallback: исходного сообщения нет (resend / reentrancy) — шлём отдельным.
-		fallback := tgbotapi.NewMessage(uid, b.paywallCardMethodText())
-		fallback.ReplyMarkup = payButton
-		if _, err := b.api.Send(fallback); err != nil {
-			b.logger.Errorf("paywall yk callback fallback send: %v", err)
-			_, _ = b.api.Request(tgbotapi.NewCallbackWithAlert(callback.ID, "Не удалось открыть оплату. Попробуй /start."))
-			return
-		}
+	step := tgbotapi.NewMessage(uid, b.paywallCardMethodText())
+	step.ReplyMarkup = payButton
+	if _, err := b.api.Send(step); err != nil {
+		b.logger.Errorf("paywall yk callback send step message: %v", err)
+		_, _ = b.api.Request(tgbotapi.NewCallbackWithAlert(callback.ID, "Не удалось открыть оплату. Попробуй /start."))
+		return
 	}
 	_, _ = b.api.Request(tgbotapi.NewCallback(callback.ID, ""))
 }
@@ -707,18 +688,6 @@ func (b *Bot) handlePaywallBackToMethodsCallback(callback *tgbotapi.CallbackQuer
 	if !b.paywallActive() || !b.config.PaywallPaymentReady() {
 		_, _ = b.api.Request(tgbotapi.NewCallbackWithAlert(callback.ID, "Оплата сейчас недоступна."))
 		return
-	}
-	if callback.Message != nil {
-		edit := tgbotapi.NewEditMessageTextAndMarkup(
-			callback.Message.Chat.ID,
-			callback.Message.MessageID,
-			b.paywallPrivateUnpaidUserText(),
-			*b.paywallUnpaidInlineKeyboard(),
-		)
-		if _, err := b.api.Send(edit); err == nil {
-			_, _ = b.api.Request(tgbotapi.NewCallback(callback.ID, ""))
-			return
-		}
 	}
 	msg := tgbotapi.NewMessage(callback.From.ID, b.paywallPrivateUnpaidUserText())
 	msg.ReplyMarkup = b.paywallUnpaidInlineKeyboard()
