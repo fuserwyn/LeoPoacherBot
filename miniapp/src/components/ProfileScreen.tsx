@@ -51,7 +51,6 @@ export function ProfileScreen({
   userPhotoUrl,
   showAlert,
 }: Props) {
-  const [burn, setBurn] = useState<3 | 5 | 7>(5);
   const [profile, setProfile] = useState<ProfileData>({ gender: "", displayName: "", age: "", timezoneOffset: 0 });
   const [initialAgeSet, setInitialAgeSet] = useState(false);
   const [profileLoading, setProfileLoading] = useState(true);
@@ -457,22 +456,6 @@ export function ProfileScreen({
           </div>
         </div>
       )}
-
-      <h2 className="section-title">Порог сгорания</h2>
-      <p className="profile__hint muted">Текущий: {burn} дн. без тренировки — и стрик сгорает</p>
-      <div className="burn-row" role="group" aria-label="Дней до сгорания стрика">
-        {([3, 5, 7] as const).map((d) => (
-          <button
-            key={d}
-            type="button"
-            className={`burn-btn ${burn === d ? "is-on" : ""}`}
-            aria-pressed={burn === d}
-            onClick={() => setBurn(d)}
-          >
-            {d}
-          </button>
-        ))}
-      </div>
 
       <h2 className="section-title">Заморозка</h2>
       <p className="profile__hint muted">Осталось: 1 из 1 в месяц (Free)</p>
