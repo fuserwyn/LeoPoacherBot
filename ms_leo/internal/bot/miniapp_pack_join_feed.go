@@ -5,6 +5,8 @@ import (
 	"strings"
 
 	"leo-bot/internal/domain"
+
+	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 )
 
 const (
@@ -14,6 +16,16 @@ const (
 	userMessageTypePackRemoved  = "pack_removed"
 )
 
+// Текст для ленты стаи: без «присоединился @ник» — только нейтральное объявление от Лео.
+func packJoinMiniappFeedPublicText() string {
+	return "В стае новый участник. Я написал ему в личку — там полное приветствие и с чего начать."
+}
+
+func packRejoinMiniappFeedPublicText() string {
+	return "Участник вернулся в стаю. Я написал ему в личку — с возвращением и напоминание про ритм стаи."
+}
+
+// Персональное приветствие — только в Telegram-личку вступившему (не дублировать целиком в ленту).
 func packJoinMiniappWelcomeText(displayName string) string {
 	d := strings.TrimSpace(displayName)
 	if d == "" {
@@ -36,8 +48,22 @@ func packRejoinMiniappWelcomeText(displayName string) string {
 	)
 }
 
-// savePackJoinMiniappFeed — строка ленты мини-аппа: короткое приветствие от Лео с именем вступившего (user_id / username — новичок).
-func (b *Bot) savePackJoinMiniappFeed(chatID, userID int64, username, msgType, leoText string) {
+func (b *Bot) sendPackWelcomeDM(telegramUserID int64, text string) {
+	if b == nil || b.api == nil || telegramUserID == 0 {
+		return
+	}
+	t := strings.TrimSpace(text)
+	if t == "" {
+		return
+	}
+	m := tgbotapi.NewMessage(telegramUserID, t)
+	if _, err := b.api.Send(m); err != nil {
+		b.logger.Warnf("pack welcome DM user=%d: %v", telegramUserID, err)
+	}
+}
+
+// savePackJoinMiniappFeed — строка ленты (нейтральный публичный текст) + личное приветствие в ЛС.
+func (b *Bot) savePackJoinMiniappFeed(chatID, userID int64, username, msgType, feedPublicText, dmText string) {
 	if b == nil || b.db == nil || userID == 0 {
 		return
 	}
@@ -48,12 +74,14 @@ func (b *Bot) savePackJoinMiniappFeed(chatID, userID int64, username, msgType, l
 		UserID:      userID,
 		ChatID:      chatID,
 		Username:    strings.TrimSpace(username),
-		MessageText: leoText,
+		MessageText: strings.TrimSpace(feedPublicText),
 		MessageType: msgType,
 	}
 	if err := b.db.SaveUserMessage(um); err != nil {
 		b.logger.Warnf("miniapp pack feed %s user=%d: %v", msgType, userID, err)
+		return
 	}
+	b.sendPackWelcomeDM(userID, dmText)
 }
 
 // saveDailyWisdomPackFeed — «мудрость дня» в ленту мини-аппа (одна запись в чате стаи, автор Лео).

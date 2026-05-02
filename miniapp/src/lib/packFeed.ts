@@ -185,13 +185,20 @@ export function dtoToCard(d: PackFeedItemDTO): ActivityCardProps {
     commentRaw = stripLeadingFeedHashtag(commentRaw, "#sick_leave");
   }
   const maxComment =
-    d.type === "training_done" || d.type === "daily_wisdom" ? 2000 : 280;
+    d.type === "training_done" ||
+    d.type === "daily_wisdom" ||
+    d.type === "pack_join" ||
+    d.type === "pack_rejoin"
+      ? 2000
+      : 280;
   const comment =
     commentRaw.length > maxComment ? commentRaw.slice(0, maxComment - 1) + "…" : commentRaw;
   if (isLeoNotice) {
     let leoDetails = newcomer;
     if (d.type === "daily_wisdom") leoDetails = "Мудрость дня";
     else if (d.type === "pack_removed") leoDetails = newcomer;
+    else if (d.type === "pack_join") leoDetails = "Новый участник";
+    else if (d.type === "pack_rejoin") leoDetails = "Вернулся в стаю";
     return {
       avatar: LEO_AVATAR_URL,
       name: "Лео",

@@ -99,9 +99,23 @@ func (b *Bot) EnsureMiniAppOnboarding(d initdata.InitData) (MiniAppOnboardingRes
 		out.IsRejoin = true
 	}
 	if out.IsRejoin {
-		b.savePackJoinMiniappFeed(chatID, userID, username, userMessageTypePackRejoin, packRejoinMiniappWelcomeText(username))
+		b.savePackJoinMiniappFeed(
+			chatID,
+			userID,
+			username,
+			userMessageTypePackRejoin,
+			packRejoinMiniappFeedPublicText(),
+			packRejoinMiniappWelcomeText(username),
+		)
 	} else {
-		b.savePackJoinMiniappFeed(chatID, userID, username, userMessageTypePackJoin, packJoinMiniappWelcomeText(username))
+		b.savePackJoinMiniappFeed(
+			chatID,
+			userID,
+			username,
+			userMessageTypePackJoin,
+			packJoinMiniappFeedPublicText(),
+			packJoinMiniappWelcomeText(username),
+		)
 	}
 	b.logger.Infof("miniapp onboarding: started timer + feed card user=%d rejoin=%t", userID, out.IsRejoin)
 	return out, nil

@@ -382,7 +382,13 @@ export function FeedScreen({ name, streak, userId, initData, inTelegram, showAle
             {!useMockFeed &&
               visibleFeedItems.map((it) => {
                 const base = dtoToCard(it);
-                const slotClass = `feed__card-slot${it.is_you ? " feed__card-slot--mine" : " feed__card-slot--them"}`;
+                const isLeoSystemFeed =
+                  it.type === "pack_join" ||
+                  it.type === "pack_rejoin" ||
+                  it.type === "daily_wisdom" ||
+                  it.type === "pack_removed" ||
+                  it.type === "inactive_notice";
+                const slotClass = `feed__card-slot${it.is_you && !isLeoSystemFeed ? " feed__card-slot--mine" : " feed__card-slot--them"}`;
                 if (it.type !== "training_done" && it.type !== "sick_leave" && it.type !== "healthy") {
                   return (
                     <div key={it.id} className={slotClass}>

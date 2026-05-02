@@ -1024,14 +1024,29 @@ func (b *Bot) paywallDeliverAccessAfterPayment(userID int64, paywallRequestID in
 
 	// 2) Карточка ленты мини-аппа: pack_join (первая оплата) либо pack_rejoin (после кика).
 	//    Различаем по return_count — он инкрементируется в ReactivateReturnedUser при возврате.
+	//    Личное приветствие в ЛС уже отправлено выше (paywallPostPaymentUserText) — второе не шлём.
 	isRejoin := false
 	if rc, rcErr := b.db.GetUserReturnCount(userID, chatID); rcErr == nil && rc > 1 {
 		isRejoin = true
 	}
 	if isRejoin {
-		b.savePackJoinMiniappFeed(chatID, userID, username, userMessageTypePackRejoin, packRejoinMiniappWelcomeText(username))
+		b.savePackJoinMiniappFeed(
+			chatID,
+			userID,
+			username,
+			userMessageTypePackRejoin,
+			packRejoinMiniappFeedPublicText(),
+			"",
+		)
 	} else {
-		b.savePackJoinMiniappFeed(chatID, userID, username, userMessageTypePackJoin, packJoinMiniappWelcomeText(username))
+		b.savePackJoinMiniappFeed(
+			chatID,
+			userID,
+			username,
+			userMessageTypePackJoin,
+			packJoinMiniappFeedPublicText(),
+			"",
+		)
 	}
 
 	// 3) Синяя кнопка LeopardMiniApp в ЛС только для paid + не кикнутых.
