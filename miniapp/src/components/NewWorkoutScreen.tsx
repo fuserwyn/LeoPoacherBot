@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { WORKOUT_TYPES as TYPES } from "../lib/workoutCategories";
 import "./NewWorkoutScreen.css";
 
@@ -79,7 +79,54 @@ const OTHER_LABEL_MAX = 80;
 
 export function NewWorkoutScreen({ onClose, onSave, showAlert }: Props) {
   const viewportH = useVisibleViewportHeight();
+  const bodyRef = useRef<HTMLDivElement>(null);
   const noteBlockRef = useRef<HTMLDivElement>(null);
+  const noteTaRef = useRef<HTMLTextAreaElement>(null);
+  const noteFocusedRef = useRef(false);
+
+  /** Клавиатура съедает низ: прокручиваем контейнер так, чтобы поле было у верхней кромки скролла (видимо над IME). */
+  const scrollNoteIntoView = useCallback(() => {
+    const block = noteBlockRef.current;
+    const body = bodyRef.current;
+    if (!block || !body) return;
+    const bodyRect = body.getBoundingClientRect();
+    const blockRect = block.getBoundingClientRect();
+    const margin = 6;
+    if (blockRect.top < bodyRect.top + margin) {
+      body.scrollTop -= bodyRect.top + margin - blockRect.top;
+    } else if (blockRect.bottom > bodyRect.bottom - margin) {
+      body.scrollTop += blockRect.bottom - (bodyRect.bottom - margin);
+    }
+  }, []);
+
+  const bumpScrollToNote = useCallback(() => {
+    noteBlockRef.current?.scrollIntoView({ block: "start", inline: "nearest", behavior: "instant" as ScrollBehavior });
+    requestAnimationFrame(() => scrollNoteIntoView());
+  }, [scrollNoteIntoView]);
+
+  useEffect(() => {
+    if (!noteFocusedRef.current) return;
+    const t = window.setTimeout(bumpScrollToNote, 50);
+    return () => window.clearTimeout(t);
+  }, [viewportH, bumpScrollToNote]);
+
+  useEffect(() => {
+    const onVV = () => {
+      if (!noteFocusedRef.current) return;
+      bumpScrollToNote();
+    };
+    const vv = window.visualViewport;
+    vv?.addEventListener("resize", onVV);
+    vv?.addEventListener("scroll", onVV);
+    const tg = window.Telegram?.WebApp as { onEvent?: (e: string, fn: () => void) => void } | undefined;
+    tg?.onEvent?.("viewportChanged", onVV);
+    return () => {
+      vv?.removeEventListener("resize", onVV);
+      vv?.removeEventListener("scroll", onVV);
+      const tgOff = window.Telegram?.WebApp as { offEvent?: (e: string, fn: () => void) => void } | undefined;
+      tgOff?.offEvent?.("viewportChanged", onVV);
+    };
+  }, [bumpScrollToNote]);
   const [type, setType] = useState<string>("strength");
   const [min, setMin] = useState(15);
   const [intensity, setIntensity] = useState<1 | 2 | 3 | 4 | 5>(3);
@@ -99,7 +146,7 @@ export function NewWorkoutScreen({ onClose, onSave, showAlert }: Props) {
         <span className="nwo__spacer" aria-hidden />
       </header>
 
-      <div className="nwo__body">
+      <div className="nwo__body" ref={bodyRef}>
         <div className="nwo__upper">
           <h2 className="nwo__sec">Тип</h2>
           <div className="nwo__types-scroll" role="group" aria-label="Тип тренировки">
@@ -214,9 +261,10 @@ export function NewWorkoutScreen({ onClose, onSave, showAlert }: Props) {
         <div className="nwo__note-block" ref={noteBlockRef}>
           <h2 className="nwo__sec">Что сделал</h2>
           <textarea
+            ref={noteTaRef}
             className="nwo__note"
             value={note}
-            rows={3}
+            rows={2}
             onChange={(e) => setNote(e.target.value.slice(0, NOTE_MAX))}
             maxLength={NOTE_MAX}
             placeholder="Жим, тяга, пресс…"
@@ -224,9 +272,14 @@ export function NewWorkoutScreen({ onClose, onSave, showAlert }: Props) {
             autoCorrect="on"
             spellCheck
             onFocus={() => {
-              requestAnimationFrame(() => {
-                noteBlockRef.current?.scrollIntoView({ block: "nearest", behavior: "smooth" });
-              });
+              noteFocusedRef.current = true;
+              const run = () => bumpScrollToNote();
+              requestAnimationFrame(run);
+              window.setTimeout(run, 120);
+              window.setTimeout(run, 320);
+            }}
+            onBlur={() => {
+              noteFocusedRef.current = false;
             }}
           />
           <p className="nwo__note-cnt muted" aria-live="polite">
