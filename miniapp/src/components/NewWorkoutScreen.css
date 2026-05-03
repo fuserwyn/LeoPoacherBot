@@ -18,10 +18,11 @@
   align-items: center;
   justify-content: space-between;
   flex-shrink: 0;
-  padding: 4px 6px 4px 8px;
-  max-width: 520px;
+  padding: 4px 8px;
+  max-width: 100%;
   width: 100%;
   margin: 0 auto;
+  box-sizing: border-box;
 }
 
 .nwo__close {
@@ -59,8 +60,8 @@
   display: flex;
   flex-direction: column;
   gap: 3px;
-  padding: 0 10px 4px;
-  max-width: 520px;
+  padding: 0 8px 4px;
+  max-width: 100%;
   width: 100%;
   margin: 0 auto;
   box-sizing: border-box;
@@ -263,14 +264,6 @@
   display: flex;
   flex-direction: column;
   margin-top: 1px;
-  /* Шире колонки формы: на всю ширину вьюпорта (раньше было ~100% узкой колонки с padding) */
-  width: 100vw;
-  position: relative;
-  left: 50%;
-  transform: translateX(-50%);
-  box-sizing: border-box;
-  padding-left: max(12px, env(safe-area-inset-left, 0px));
-  padding-right: max(12px, env(safe-area-inset-right, 0px));
 }
 
 .nwo__note {
@@ -278,7 +271,6 @@
   width: 100%;
   box-sizing: border-box;
   min-height: 40px;
-  /* Без flex:1 поле не растягивается на остаток экрана; высота порядка в 3 раза меньше прежней + скролл */
   max-height: 96px;
   max-height: min(17dvh, 96px);
   overflow-y: auto;
@@ -314,9 +306,10 @@
 .nwo__foot {
   flex-shrink: 0;
   padding: 8px 12px calc(8px + env(safe-area-inset-bottom, 0px));
-  max-width: 520px;
+  max-width: 100%;
   width: 100%;
   margin: 0 auto;
+  box-sizing: border-box;
   border-top: 1px solid var(--border-subtle);
   background: var(--bg);
 }
