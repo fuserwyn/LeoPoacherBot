@@ -263,6 +263,14 @@
   display: flex;
   flex-direction: column;
   margin-top: 1px;
+  /* Шире колонки формы: на всю ширину вьюпорта (раньше было ~100% узкой колонки с padding) */
+  width: 100vw;
+  position: relative;
+  left: 50%;
+  transform: translateX(-50%);
+  box-sizing: border-box;
+  padding-left: max(12px, env(safe-area-inset-left, 0px));
+  padding-right: max(12px, env(safe-area-inset-right, 0px));
 }
 
 .nwo__note {
