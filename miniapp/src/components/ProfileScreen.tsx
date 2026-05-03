@@ -264,7 +264,7 @@ export function ProfileScreen({
           </p>
           {inactivityKickHint ? (
             <p className="profile__kick muted" title="Если не отправишь #training_done — исключение из стаи (МСК)">
-              Не будешь съеден до {inactivityKickHint}
+              Лео тебя не съест до {inactivityKickHint}
             </p>
           ) : null}
           {onSick ? (
