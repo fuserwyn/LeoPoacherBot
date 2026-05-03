@@ -196,6 +196,7 @@ export function App() {
               cardio: "кардио",
               kettlebell: "гиря",
               strength: "силовая",
+              jump_rope: "скакалка",
               other: "другое",
             };
             let kind = labels[type] ?? type;
