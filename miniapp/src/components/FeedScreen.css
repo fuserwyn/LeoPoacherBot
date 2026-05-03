@@ -198,13 +198,13 @@
   justify-content: flex-end;
 }
 
-/* Одна и та же ширина для всех карточек: без width flex даёт shrink-to-fit по тексту —
-   короткие «больничный / выздоровление» получались узкими, тренировки — широкими. */
+/* Как в чате: свои справа, чужие слева; ширина карточки 2/3 полосы ленты. */
 .feed__card-slot .act-card {
   margin-bottom: 0;
   box-sizing: border-box;
-  width: 100%;
-  max-width: 100%;
+  width: 66.666%;
+  max-width: 66.666%;
+  flex-shrink: 0;
 }
 
 .feed__card-slot--them .act-card {
