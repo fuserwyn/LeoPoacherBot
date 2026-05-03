@@ -81,32 +81,35 @@ export function NewWorkoutScreen({ onClose, onSave, showAlert }: Props) {
   const viewportH = useVisibleViewportHeight();
   const bodyRef = useRef<HTMLDivElement>(null);
   const noteBlockRef = useRef<HTMLDivElement>(null);
-  const noteTaRef = useRef<HTMLTextAreaElement>(null);
   const noteFocusedRef = useRef(false);
 
-  /** Клавиатура съедает низ: прокручиваем контейнер так, чтобы поле было у верхней кромки скролла (видимо над IME). */
-  const scrollNoteIntoView = useCallback(() => {
+  const [type, setType] = useState<string>("strength");
+  const [min, setMin] = useState(15);
+  const [intensity, setIntensity] = useState<1 | 2 | 3 | 4 | 5>(3);
+  const [note, setNote] = useState("");
+  const [otherLabel, setOtherLabel] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [photo, setPhoto] = useState<File | null>(null);
+
+  /** Поднимаем блок с полем к верху скролла — так textarea остаётся в видимой области над клавиатурой. */
+  const bumpScrollToNote = useCallback(() => {
     const block = noteBlockRef.current;
     const body = bodyRef.current;
     if (!block || !body) return;
-    const bodyRect = body.getBoundingClientRect();
-    const blockRect = block.getBoundingClientRect();
-    const margin = 6;
-    if (blockRect.top < bodyRect.top + margin) {
-      body.scrollTop -= bodyRect.top + margin - blockRect.top;
-    } else if (blockRect.bottom > bodyRect.bottom - margin) {
-      body.scrollTop += blockRect.bottom - (bodyRect.bottom - margin);
-    }
+    block.scrollIntoView({ block: "start", inline: "nearest", behavior: "auto" });
+    requestAnimationFrame(() => {
+      const bodyRect = body.getBoundingClientRect();
+      const blockRect = block.getBoundingClientRect();
+      const margin = 4;
+      if (blockRect.bottom > bodyRect.bottom - margin) {
+        body.scrollTop += blockRect.bottom - (bodyRect.bottom - margin);
+      }
+    });
   }, []);
-
-  const bumpScrollToNote = useCallback(() => {
-    noteBlockRef.current?.scrollIntoView({ block: "start", inline: "nearest", behavior: "instant" as ScrollBehavior });
-    requestAnimationFrame(() => scrollNoteIntoView());
-  }, [scrollNoteIntoView]);
 
   useEffect(() => {
     if (!noteFocusedRef.current) return;
-    const t = window.setTimeout(bumpScrollToNote, 50);
+    const t = window.setTimeout(bumpScrollToNote, 60);
     return () => window.clearTimeout(t);
   }, [viewportH, bumpScrollToNote]);
 
@@ -127,13 +130,6 @@ export function NewWorkoutScreen({ onClose, onSave, showAlert }: Props) {
       tgOff?.offEvent?.("viewportChanged", onVV);
     };
   }, [bumpScrollToNote]);
-  const [type, setType] = useState<string>("strength");
-  const [min, setMin] = useState(15);
-  const [intensity, setIntensity] = useState<1 | 2 | 3 | 4 | 5>(3);
-  const [note, setNote] = useState("");
-  const [otherLabel, setOtherLabel] = useState("");
-  const [busy, setBusy] = useState(false);
-  const [photo, setPhoto] = useState<File | null>(null);
 
   const dec = (d: number) => setMin((m) => Math.max(1, m + d));
   return (
@@ -261,7 +257,6 @@ export function NewWorkoutScreen({ onClose, onSave, showAlert }: Props) {
         <div className="nwo__note-block" ref={noteBlockRef}>
           <h2 className="nwo__sec">Что сделал</h2>
           <textarea
-            ref={noteTaRef}
             className="nwo__note"
             value={note}
             rows={2}
