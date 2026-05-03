@@ -1071,6 +1071,13 @@ func (b *Bot) handleTrainingDone(msg *tgbotapi.Message) {
 
 	b.logger.Infof("DEBUG: hasAnyAchievement=%t, caloriesToAdd=%d", hasAnyAchievement, caloriesToAdd)
 
+	solvedTotal, incErr := b.db.IncrementSolvedTasksCount(msg.From.ID, msg.Chat.ID)
+	if incErr != nil {
+		b.logger.Warnf("IncrementSolvedTasksCount: %v", incErr)
+		solvedTotal = messageLog.SolvedTasksCount
+	}
+	solvedLine := formatSolvedTasksTotalLine(chatType, solvedTotal)
+
 	// Обычное подтверждение + ИИ при любой новой тренировке (включая дни рубежей 7/14/… дней).
 	if caloriesToAdd > 0 {
 		// Получаем общее количество калорий для отображения
@@ -1084,11 +1091,11 @@ func (b *Bot) handleTrainingDone(msg *tgbotapi.Message) {
 		// Адаптируем текст в зависимости от типа чата
 		var messageText string
 		if chatType == "writing" {
-			messageText = fmt.Sprintf("✅ Отчёт принят! 💪\n\n🦁 Ты пишешь дней подряд: %d\n🏆 +1 кубок за писательскую сессию!\n🏆 Всего кубков: %d\n\n⏰ Таймер перезапускается на 7 дней", newStreakDays, currentCups)
+			messageText = fmt.Sprintf("✅ Отчёт принят! 💪\n\n🦁 Ты пишешь дней подряд: %d\n🏆 +1 кубок за писательскую сессию!\n🏆 Всего кубков: %d\n%s\n\n⏰ Таймер перезапускается на 7 дней", newStreakDays, currentCups, solvedLine)
 		} else if chatType == "coding" {
-			messageText = fmt.Sprintf("✅ Отчёт принят! 💪\n\n🦁 Ты кодишь дней подряд: %d\n🏆 +1 кубок за кодинг-сессию!\n🏆 Всего кубков: %d\n\n⏰ Таймер перезапускается на 7 дней", newStreakDays, currentCups)
+			messageText = fmt.Sprintf("✅ Отчёт принят! 💪\n\n🦁 Ты кодишь дней подряд: %d\n🏆 +1 кубок за кодинг-сессию!\n🏆 Всего кубков: %d\n%s\n\n⏰ Таймер перезапускается на 7 дней", newStreakDays, currentCups, solvedLine)
 		} else {
-			messageText = fmt.Sprintf("✅ Отчёт принят! 💪\n\n🦁 Ты тренируешься дней подряд: %d\n🏆 +1 кубок за тренировку!\n🏆 Всего кубков: %d\n\n⏰ Таймер перезапускается на 7 дней", newStreakDays, currentCups)
+			messageText = fmt.Sprintf("✅ Отчёт принят! 💪\n\n🦁 Ты тренируешься дней подряд: %d\n🏆 +1 кубок за тренировку!\n🏆 Всего кубков: %d\n%s\n\n⏰ Таймер перезапускается на 7 дней", newStreakDays, currentCups, solvedLine)
 		}
 
 		// Дополняем короткой ИИ-припиской по текущему контексту
