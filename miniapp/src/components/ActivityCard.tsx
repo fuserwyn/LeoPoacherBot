@@ -33,20 +33,31 @@ export type ActivityCardThreadComposer = {
   posting: boolean;
 };
 
+/** Минимум реакций в строке до кнопки «⋯», если типов больше (остальное — в попапе); строка может переноситься (flex-wrap). */
+const TRAINING_REACTIONS_MIN_INLINE = 5;
+
 /** Ширина строки + кнопка «ещё»: оценка px на кнопку (эмодзи + отступы + счётчик). */
 function trainingReactionVisibleCount(rowWidth: number, total: number): number {
   if (total <= 0) return 0;
-  if (total === 1 || rowWidth <= 0) return total;
-  const chip = 46;
-  const gap = 8;
-  const moreBtn = 48;
-  const all = total * chip + (total - 1) * gap;
-  if (all <= rowWidth) return total;
+  if (rowWidth <= 0) return total;
+  const chip = 40;
+  const gap = 6;
+  const moreBtn = 38;
+  const widthAll = total * chip + Math.max(0, total - 1) * gap;
+  if (widthAll <= rowWidth) return total;
+
+  let best = 1;
   for (let k = total - 1; k >= 1; k--) {
-    const used = k * chip + (k - 1) * gap + gap + moreBtn;
-    if (used <= rowWidth) return k;
+    const used = k * chip + Math.max(0, k - 1) * gap + gap + moreBtn;
+    if (used <= rowWidth) {
+      best = k;
+      break;
+    }
   }
-  return 1;
+  if (total <= TRAINING_REACTIONS_MIN_INLINE) {
+    return Math.min(total, best);
+  }
+  return Math.min(total, Math.max(TRAINING_REACTIONS_MIN_INLINE, best));
 }
 
 function ReactionChip({
@@ -228,7 +239,9 @@ export function ActivityCard({
   const hasThread = threadReplies.length > 0 || threadComposer != null;
   const threadCount = threadReplies.length;
   return (
-    <article className={`act-card${hideStreak ? " act-card--leo" : ""}`}>
+    <article
+      className={`act-card${hideStreak ? " act-card--leo" : ""}${threadOpen && hasThread ? " act-card--thread-open" : ""}`}
+    >
       <header className="act-card__head">
         <div className="act-card__avatar" aria-hidden>
           {avatarLooksLikeImageSrc(avatar) ? (
