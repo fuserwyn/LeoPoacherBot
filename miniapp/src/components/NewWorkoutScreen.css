@@ -270,9 +270,9 @@
   flex: none;
   width: 100%;
   box-sizing: border-box;
-  min-height: 40px;
-  max-height: 96px;
-  max-height: min(17dvh, 96px);
+  min-height: 120px;
+  max-height: 288px;
+  max-height: min(51dvh, 288px);
   overflow-y: auto;
   -webkit-overflow-scrolling: touch;
   padding: 6px 8px;
