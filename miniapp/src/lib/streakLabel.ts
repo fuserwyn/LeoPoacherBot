@@ -8,12 +8,6 @@ function streakDayWord(n: number): string {
   return "дней";
 }
 
-/** Строка для бейджа: «3 дня», «21 день»; при нуле — «нет серии». */
-export function formatStreakDaysRu(days: number): string {
-  if (days <= 0) return "нет серии";
-  return `${days} ${streakDayWord(days)}`;
-}
-
 /** Для aria / подсказок к бейджу «Стрик» в ленте. */
 export function streakStreakAriaLabel(days: number): string {
   if (days <= 0) return "Стрик: пока нет дней подряд с тренировками";
