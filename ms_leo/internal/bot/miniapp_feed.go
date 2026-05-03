@@ -55,6 +55,7 @@ type PackFeedItem struct {
 }
 
 // PackFeedForViewer — лента «стаи» из user_messages (отчёты) для участника/оплатившего.
+// Записи sick_leave в ленту мини-аппа не попадают (статус остаётся в профиле/боте).
 // initD сверяется с MONETIZED_CHAT_ID, если в подписи есть group/supergroup.
 // initDataRaw — строка WebApp initData для URL прокси аватаров (GET /api/miniapp/user-avatar).
 func (b *Bot) PackFeedForViewer(viewerUserID int64, initD initdata.InitData, initDataRaw string) ([]PackFeedItem, error) {
@@ -76,6 +77,9 @@ func (b *Bot) PackFeedForViewer(viewerUserID int64, initD initdata.InitData, ini
 	}
 	out := make([]PackFeedItem, 0, len(rows))
 	for _, r := range rows {
+		if r.MessageType == "sick_leave" {
+			continue
+		}
 		out = append(out, PackFeedItem{
 			ID:               r.ID,
 			UserID:           r.UserID,

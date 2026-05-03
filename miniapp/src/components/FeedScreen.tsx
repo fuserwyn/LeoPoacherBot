@@ -7,7 +7,6 @@ import {
   mergePackFeedReactions,
   mergeTrainingFeedReactions,
   resolveFeedAvatarUrl,
-  SICK_LEAVE_FEED_EMOJIS,
   type PackFeedItemDTO,
   type PackFeedThreadReplyDTO,
 } from "../lib/packFeed";
@@ -73,6 +72,7 @@ export function FeedScreen({ name, streak, userId, initData, inTelegram, showAle
 
   const visibleFeedItems = useMemo(() => {
     return feedItems.filter((it) => {
+      if (it.type === "sick_leave") return false;
       if (feedOnlyMine && !it.is_you) return false;
       if (feedCategory !== null) {
         if (it.type !== "training_done") return false;
@@ -389,7 +389,7 @@ export function FeedScreen({ name, streak, userId, initData, inTelegram, showAle
                   it.type === "pack_removed" ||
                   it.type === "inactive_notice";
                 const slotClass = `feed__card-slot${it.is_you && !isLeoSystemFeed ? " feed__card-slot--mine" : " feed__card-slot--them"}`;
-                if (it.type !== "training_done" && it.type !== "sick_leave" && it.type !== "healthy") {
+                if (it.type !== "training_done" && it.type !== "healthy") {
                   return (
                     <div key={it.id} className={slotClass}>
                       <ActivityCard {...base} />
@@ -431,9 +431,7 @@ export function FeedScreen({ name, streak, userId, initData, inTelegram, showAle
                       reactions={
                         it.type === "training_done"
                           ? mergeTrainingFeedReactions(it.reactions)
-                          : it.type === "sick_leave"
-                            ? mergePackFeedReactions(SICK_LEAVE_FEED_EMOJIS, it.reactions)
-                            : mergePackFeedReactions(HEALTHY_FEED_EMOJIS, it.reactions)
+                          : mergePackFeedReactions(HEALTHY_FEED_EMOJIS, it.reactions)
                       }
                       onReactionClick={(emoji) => void postTrainingReact(it.id, emoji)}
                       threadReplies={threadReplies}
