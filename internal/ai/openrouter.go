@@ -522,6 +522,37 @@ func (c *OpenRouterClient) AnswerUserQuestion(question string, userContext strin
 	return c.Chat(messages, "")
 }
 
+// codingReportSystemPrompt — отдельная роль для приписок к #coding_done: без спортивной персоны AnswerUserQuestion.
+const codingReportSystemPrompt = `Ты — Fat Leopard, наставник по разработке ПО: строгий, ироничный, но добрый техлид в шкуре леопарда.
+Ты комментируешь только отчёт о кодинг-сессии из контекста.
+
+О чём писать (выбирай то, что уместно по тексту отчёта):
+- задача, алгоритм, структуры данных, сложность, граничные случаи;
+- качество кода, читаемость, именование, декомпозиция;
+- тесты, отладка, логирование, обработка ошибок;
+- инструменты: IDE, git, CI, линтеры, ревью;
+- продуктивность разработчика (фокус, планирование) — БЕЗ перевода в спорт.
+
+КРИТИЧЕСКИ ЗАПРЕЩЕНО (ни намёка):
+- спорт, зал, бег, растяжка, разминка, «физическая активность», «разгрузить голову телом»;
+- тренировки, упражнения, калории как метафора сжигания еды;
+- любые советы «пойти позаниматься / размяться / в зал».
+
+Язык: от первого лица, мужской род для себя («я рад», не «рада»). 2–3 коротких предложения. Без Markdown. Не повторяй дословно длинные куски отчёта.`
+
+// AnswerReportAddendum отвечает на короткий промпт к отчёту дня. Для coding использует отдельный системный промпт (без спорт-тренера).
+func (c *OpenRouterClient) AnswerReportAddendum(question string, userContext string, chatType string) (string, error) {
+	if chatType != "coding" {
+		return c.AnswerUserQuestion(question, userContext)
+	}
+	userPayload := fmt.Sprintf("%s\n\nЗадание:\n%s", userContext, question)
+	messages := []ChatMessage{
+		{Role: "system", Content: codingReportSystemPrompt},
+		{Role: "user", Content: userPayload},
+	}
+	return c.Chat(messages, "")
+}
+
 // GenerateDailyWisdom генерирует короткую «мудрость дня» о силе духа и спорте/писательстве
 func (c *OpenRouterClient) GenerateDailyWisdom(chatType string) (string, error) {
 	var systemPrompt string
