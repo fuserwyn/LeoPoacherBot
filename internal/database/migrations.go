@@ -233,6 +233,18 @@ var Migrations = []Migration{
 			DROP COLUMN IF EXISTS timezone_offset_from_moscow;
 		`,
 	},
+	{
+		Version:     12,
+		Description: "Add solved_tasks_count to message_log (total accepted reports)",
+		UpSQL: `
+			ALTER TABLE message_log
+			ADD COLUMN IF NOT EXISTS solved_tasks_count INTEGER NOT NULL DEFAULT 0;
+		`,
+		DownSQL: `
+			ALTER TABLE message_log
+			DROP COLUMN IF EXISTS solved_tasks_count;
+		`,
+	},
 }
 
 // MigrationRecord представляет запись о выполненной миграции

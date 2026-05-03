@@ -30,6 +30,8 @@ type MessageLog struct {
 	SickApprovalPending   bool       `json:"sick_approval_pending" db:"sick_approval_pending"`
 	SickApprovalDeadline  *time.Time `json:"sick_approval_deadline" db:"sick_approval_deadline"`
 	SickApprovalMessageID *int64     `json:"sick_approval_message_id" db:"sick_approval_message_id"`
+	// SolvedTasksCount — суммарное число принятых отчётов (решённых задач / сессий / тренировок) в этом чате
+	SolvedTasksCount      int        `json:"solved_tasks_count" db:"solved_tasks_count"`
 	CreatedAt             time.Time  `json:"created_at" db:"created_at"`
 	UpdatedAt             time.Time  `json:"updated_at" db:"updated_at"`
 }
