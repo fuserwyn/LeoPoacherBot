@@ -4,6 +4,17 @@
   margin: 0 auto;
 }
 
+/* Шапка ленты + вкладки «Лента / Чат» — при прокрутке контента остаются сверху */
+.feed__sticky {
+  position: sticky;
+  top: 0;
+  z-index: 55;
+  background: var(--bg);
+  margin: -6px -8px 0;
+  padding: 6px 8px 0;
+  box-sizing: border-box;
+}
+
 .feed__header {
   display: flex;
   align-items: center;

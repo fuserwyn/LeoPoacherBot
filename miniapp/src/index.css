@@ -41,7 +41,9 @@ body,
 body {
   padding: 0;
   color-scheme: dark;
+  /* hidden ломает sticky в части WebView; clip — тот же горизонтальный клип без лишнего scroll-container */
   overflow-x: hidden;
+  overflow-x: clip;
   padding-top: var(--safe-top);
 }
 
