@@ -16,9 +16,9 @@ const (
 	userMessageTypePackRemoved  = "pack_removed"
 )
 
-// Текст для ленты стаи: без «присоединился @ник» — только нейтральное объявление от Лео.
+// Текст для ленты стаи: короткое объявление (приветствие остаётся только в личке).
 func packJoinMiniappFeedPublicText() string {
-	return "В стае новый участник. Я написал ему в личку — там полное приветствие и с чего начать."
+	return "В стае новый участник."
 }
 
 func packRejoinMiniappFeedPublicText() string {

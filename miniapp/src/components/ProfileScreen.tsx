@@ -263,8 +263,8 @@ export function ProfileScreen({
             Уровень {miniappLevelFromXp(xp)} · Новичок
           </p>
           {inactivityKickHint ? (
-            <p className="profile__kick muted" title="Без отчёта #training_done — возможное исключение из стаи (МСК)">
-              Без тренировки до {inactivityKickHint}
+            <p className="profile__kick muted" title="Если не отправишь #training_done — исключение из стаи (МСК)">
+              Не будешь съеден до {inactivityKickHint}
             </p>
           ) : null}
           {onSick ? (

@@ -324,10 +324,10 @@ export function FeedScreen({
           {removalHint ? (
             <div
               className="feed__kick-hint"
-              title="Без отчёта #training_done — возможное исключение из стаи (МСК)"
-              aria-label={`Возможное удаление за неактивность: ${removalHint}`}
+              title="Если не отправишь #training_done — исключение из стаи (МСК)"
+              aria-label={`Не будешь съеден до ${removalHint}`}
             >
-              до {removalHint}
+              Не будешь съеден до {removalHint}
             </div>
           ) : null}
           <div className="feed__streak" aria-label={streakStreakAriaLabel(streak)} title={streakStreakAriaLabel(streak)}>
