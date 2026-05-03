@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { miniappLevelFromXp } from "../lib/miniappLevel";
+import { miniappCupsLevelProgress, miniappLevelFromCups } from "../lib/miniappLevel";
 import { formatInactivityRemovalHint } from "../lib/formatInactivityRemoval";
 import { cupsWordRu } from "../lib/streakLabel";
 import "./ProfileScreen.css";
@@ -37,7 +37,8 @@ type Props = {
   showAlert: (m: string) => void;
 };
 
-const LEVELS = [200];
+const LEVEL_TITLE_RU = ["Новичок", "Любитель", "Стабильный", "Машина", "Легенда", "Легенда", "TBD"] as const;
+
 const ACHIEVEMENT_MILESTONES = [7, 14, 21, 28];
 
 export function ProfileScreen({
@@ -64,6 +65,10 @@ export function ProfileScreen({
   const [sickReason, setSickReason] = useState("");
   const [healthBusy, setHealthBusy] = useState(false);
   const [inactivityKickHint, setInactivityKickHint] = useState<string | null>(null);
+
+  const cupProgress = miniappCupsLevelProgress(xp);
+  const levelTitle = LEVEL_TITLE_RU[miniappLevelFromCups(xp) - 1] ?? "TBD";
+  const barPct = Math.min(100, (cupProgress.cupsInSegment / cupProgress.cupsToNext) * 100);
 
   const load = useCallback(async () => {
     if (!api || !inTelegram || !initData?.trim()) {
@@ -260,7 +265,7 @@ export function ProfileScreen({
         <div>
           <h1 className="profile__name">{(profile.displayName || name).trim() || "Стая"}</h1>
           <p className="profile__level muted">
-            Уровень {miniappLevelFromXp(xp)} · Новичок
+            Уровень {miniappLevelFromCups(xp)} · {levelTitle}
           </p>
           {inactivityKickHint ? (
             <p className="profile__kick muted" title="Если не отправишь #training_done — исключение из стаи (МСК)">
@@ -278,16 +283,16 @@ export function ProfileScreen({
             </button>
           ) : null}
         </div>
-        <div className="profile__xp" aria-label={`Кубки: ${xp} ${cupsWordRu(xp)} из ${LEVELS[0]}`}>
+        <div
+          className="profile__xp"
+          aria-label={`Кубки: ${xp} ${cupsWordRu(xp)}, до следующего уровня ${cupProgress.cupsToNext - cupProgress.cupsInSegment}`}
+        >
           <span className="profile__xp-caption">Кубки</span>
           <div className="profile__xp-bar">
-            <div
-              className="profile__xp-fill"
-              style={{ width: `${Math.min(100, (xp / LEVELS[0]) * 100)}%` }}
-            />
+            <div className="profile__xp-fill" style={{ width: `${barPct}%` }} />
           </div>
           <span className="profile__xp-txt">
-            {xp} {cupsWordRu(xp)} / {LEVELS[0]}
+            {xp} {cupsWordRu(xp)} · {cupProgress.cupsInSegment}/{cupProgress.cupsToNext}
           </span>
         </div>
       </header>

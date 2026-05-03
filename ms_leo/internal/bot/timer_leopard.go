@@ -204,12 +204,13 @@ func (b *Bot) sendInactiveDay7ZeroXP(userID, chatID int64, username string) {
 	log, err := b.db.GetMessageLog(userID, chatID)
 	if err == nil {
 		log.XP = 0
+		log.CupsEarned = 0
 		_ = b.db.SaveMessageLog(log)
 	}
 	who := normalizeUserDisplayName(username)
-	txt := fmt.Sprintf("🔴 День 7 без отчёта\n\n%s, твой XP обнулён. Последний шанс: отправь #training_done до 00:00 МСК дня после семи суток с последнего отчёта — иначе удаление из стаи.", who)
+	txt := fmt.Sprintf("🔴 День 7 без отчёта\n\n%s, твои кубки и калории обнулены. Последний шанс: отправь #training_done до 00:00 МСК дня после семи суток с последнего отчёта — иначе удаление из стаи.", who)
 	if b.aiClient != nil {
-		if add, err := b.aiClient.AnswerUserQuestion(b.config.Prompts.CriticalTimerQuestion, "День 7: XP=0, последний шанс.\nПользователь: "+username); err == nil {
+		if add, err := b.aiClient.AnswerUserQuestion(b.config.Prompts.CriticalTimerQuestion, "День 7: кубки и калории = 0, последний шанс.\nПользователь: "+username); err == nil {
 			add = ai.SanitizeTextForUser(add)
 			if add != "" {
 				txt = txt + "\n\n" + add
@@ -219,7 +220,7 @@ func (b *Bot) sendInactiveDay7ZeroXP(userID, chatID int64, username string) {
 
 	b.miniappPersonalPush(userID, txt)
 
-	feed7 := fmt.Sprintf("🔴 %s — день 7 без #training_done: XP обнулён. Детали в ЛС с Лео; стая видит отметку.", who)
+	feed7 := fmt.Sprintf("🔴 %s — день 7 без #training_done: кубки обнулены. Детали в ЛС с Лео; стая видит отметку.", who)
 	b.saveInactiveNoticePackFeed(userID, username, feed7)
 
 	if _, dmErr := b.api.Send(tgbotapi.NewMessage(userID, txt)); dmErr != nil {

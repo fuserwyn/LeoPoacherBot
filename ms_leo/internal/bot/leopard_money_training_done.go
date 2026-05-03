@@ -13,7 +13,7 @@ import (
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 )
 
-func (b *Bot) generateShortLeopardChatAck(username, text string, streak, totalXP, ach int) string {
+func (b *Bot) generateShortLeopardChatAck(username, text string, streak, totalCups, ach int) string {
 	fallback := "Красавчег, сегодня не съем тебя."
 	if b.aiClient == nil {
 		return fallback
@@ -24,7 +24,7 @@ func (b *Bot) generateShortLeopardChatAck(username, text string, streak, totalXP
 	ctxBuilder.WriteString("Контекст отчёта тренировки.\n")
 	ctxBuilder.WriteString(fmt.Sprintf("Пользователь: %s\n", username))
 	ctxBuilder.WriteString(fmt.Sprintf("Серия: %d дней\n", streak))
-	ctxBuilder.WriteString(fmt.Sprintf("XP: %d\n", totalXP))
+	ctxBuilder.WriteString(fmt.Sprintf("Кубки всего: %d\n", totalCups))
 	ctxBuilder.WriteString(fmt.Sprintf("Ачивки: %d\n", ach))
 	ctxBuilder.WriteString(fmt.Sprintf("Текст отчёта: %s\n", text))
 
@@ -83,7 +83,7 @@ func collapseSpacesKeepParagraphs(s string) string {
 // gapEmptyDays — полных дней «тишины» между прошлой датой тренировки и сегодня (без цифр в тексте, только настроение).
 func (b *Bot) generateLeoTrainingFeedEncouragement(
 	username, reportText string,
-	newStreak, totalXP, ach, gapEmptyDays int,
+	newStreak, totalCups, ach, gapEmptyDays int,
 	userGender string,
 	wasOnSickLeave bool,
 	profileName string,
@@ -121,7 +121,7 @@ func (b *Bot) generateLeoTrainingFeedEncouragement(
 
 СОГЛАСОВАНИЕ: строго следуй подсказке про глаголы (м/ж/нейтрально) из контекста.
 
-ЗАПРЕТЫ: не пиши цифры XP, серий, ачивок, таймер; не *рычит*; без Markdown, без нумерованных списков, без кавычек вокруг всего текста. Русский язык. Можно 0–2 эмодзи (не больше).`
+ЗАПРЕТЫ: не пиши цифры кубков, серий, ачивок, таймер; не *рычит*; без Markdown, без нумерованных списков, без кавычек вокруг всего текста. Русский язык. Можно 0–2 эмодзи (не больше).`
 
 	var ctxBuilder strings.Builder
 	ctxBuilder.WriteString("Контекст.\n")
@@ -133,7 +133,7 @@ func (b *Bot) generateLeoTrainingFeedEncouragement(
 		ctxBuilder.WriteString(fmt.Sprintf("Возраст (для нюанса, не произноси числом, если неловко): %d\n", *profileAge))
 	}
 	ctxBuilder.WriteString(verbHint + "\n")
-	ctxBuilder.WriteString(fmt.Sprintf("Настроение по данным: серия сейчас %d, XP всего %d, ачивок %d — в тексте НЕ произноси и не обсуждай числа (ниже в приложении дубль статов).\n", newStreak, totalXP, ach))
+	ctxBuilder.WriteString(fmt.Sprintf("Настроение по данным: серия сейчас %d, кубков всего %d, ачивок %d — в тексте НЕ произноси и не обсуждай числа (ниже в приложении дубль статов).\n", newStreak, totalCups, ach))
 	ctxBuilder.WriteString(fmt.Sprintf("Полных дней без тренировок между прошлой датой отчёта и сегодня (только логика; в ответе числом дни НЕ пиши): %d\n", gapEmptyDays))
 	ctxBuilder.WriteString(gapHint + "\n")
 	ctxBuilder.WriteString(sickHint + "\n")
@@ -161,7 +161,7 @@ func (b *Bot) generateLeoTrainingFeedEncouragement(
 	return enc
 }
 
-// handleLeopardMoneyTrainingDone — отчёт #training_done по модели Leopard Money (XP, ачивки, таймер 8 дней).
+// handleLeopardMoneyTrainingDone — отчёт #training_done по модели Leopard Money (кубки по формуле, ачивки, таймер 8 дней).
 // personalReplyCh, если задан, получает тот же текст, что и личка с итогом (для Mini App).
 // trainingUserMessageID — id строки user_messages с этим отчётом; для ленты мини-аппа подтягиваем ответ Лео в тред (только отчёт из чата стаи).
 func (b *Bot) handleLeopardMoneyTrainingDone(msg *tgbotapi.Message, personalReplyCh chan<- string, trainingUserMessageID int64) {
@@ -233,18 +233,6 @@ func (b *Bot) handleLeopardMoneyTrainingDone(msg *tgbotapi.Message, personalRepl
 		}
 	}
 
-	sessionsToday, err := b.db.CountTrainingSessionsInDateRange(msg.From.ID, packChatID, today, today)
-	if err != nil {
-		b.logger.Errorf("sessions today: %v", err)
-		sessionsToday = 0
-	}
-	firstReportToday := sessionsToday == 0
-
-	xpAdd := 0
-	if firstReportToday {
-		xpAdd = leopardmoney.XPPerActiveDay
-	}
-
 	newStreak := 1
 	if messageLog.LastTrainingDate != nil && *messageLog.LastTrainingDate == today {
 		newStreak = messageLog.StreakDays
@@ -267,10 +255,9 @@ func (b *Bot) handleLeopardMoneyTrainingDone(msg *tgbotapi.Message, personalRepl
 		}
 	}
 
-	if xpAdd > 0 {
-		if err := b.db.AddXP(msg.From.ID, packChatID, xpAdd); err != nil {
-			b.logger.Errorf("add XP: %v", err)
-		}
+	cupsAdd := leopardmoney.TrainingCupsFromReportText(text)
+	if err := b.db.AddCups(msg.From.ID, packChatID, cupsAdd); err != nil {
+		b.logger.Errorf("add cups: %v", err)
 	}
 
 	if err := b.db.UpdateStreak(msg.From.ID, packChatID, newStreak, today); err != nil {
@@ -290,7 +277,7 @@ func (b *Bot) handleLeopardMoneyTrainingDone(msg *tgbotapi.Message, personalRepl
 		}
 	}
 
-	totalXP, _ := b.db.GetUserXP(msg.From.ID, packChatID)
+	totalCups, _ := b.db.GetUserCups(msg.From.ID, packChatID)
 	ach := 0
 	if ml, e := b.db.GetMessageLog(msg.From.ID, packChatID); e == nil {
 		ach = ml.AchievementCount
@@ -304,7 +291,7 @@ func (b *Bot) handleLeopardMoneyTrainingDone(msg *tgbotapi.Message, personalRepl
 		SessionDate:    today,
 		MessageText:    text,
 		TrainingsCount: 1,
-		CupsAdded:      0,
+		CupsAdded:      cupsAdd,
 		IsBonus:        false,
 	}
 	if err := b.db.SaveTrainingSession(session); err != nil {
@@ -329,7 +316,7 @@ func (b *Bot) handleLeopardMoneyTrainingDone(msg *tgbotapi.Message, personalRepl
 	// (юзер видит подтверждение в мини-аппе через messageText ниже), иначе получится дубль
 	// в TG-личке: «Не дублировать в ТГ из мини-аппа» (см. требование пользователя).
 	if personalReplyCh == nil {
-		chatAckText := tagPrefix + b.generateShortLeopardChatAck(username, text, newStreak, totalXP, ach)
+		chatAckText := tagPrefix + b.generateShortLeopardChatAck(username, text, newStreak, totalCups, ach)
 		chatAck := tgbotapi.NewMessage(msg.Chat.ID, chatAckText)
 		chatAck.ParseMode = "Markdown"
 		if _, err := b.api.Send(chatAck); err != nil {
@@ -337,7 +324,7 @@ func (b *Bot) handleLeopardMoneyTrainingDone(msg *tgbotapi.Message, personalRepl
 		}
 	}
 
-	messageText := fmt.Sprintf("✅ Отчёт принят! 💪\n\n🦁 Серия: %d дн.\n⚡ +%d XP (всего XP: %d)\n🏆 Ачивок: %d/%d\n\n⏰ Таймер неактивности: %d дней (день 8 — удаление)\n\n🎯 Отчёт с %s", newStreak, xpAdd, totalXP, ach, leopardmoney.MaxAchievements, leopardmoney.InactiveRemovalDays, tag)
+	messageText := fmt.Sprintf("✅ Отчёт принят! 💪\n\n🦁 Серия: %d дн.\n🏆 +%d кубков (всего: %d)\n🎖 Ачивок: %d/%d\n\n⏰ Таймер неактивности: %d дней (день 8 — удаление)\n\n🎯 Отчёт с %s", newStreak, cupsAdd, totalCups, ach, leopardmoney.MaxAchievements, leopardmoney.InactiveRemovalDays, tag)
 
 	if personalReplyCh != nil {
 		// Mini-app: только в очередь приложения, в TG-личку НЕ дублируем.
@@ -356,12 +343,12 @@ func (b *Bot) handleLeopardMoneyTrainingDone(msg *tgbotapi.Message, personalRepl
 		threadText := ""
 		profName, profAge := b.LeoUserProfileForFeedPrompt(msg.From.ID)
 		if extra := b.generateLeoTrainingFeedEncouragement(
-			username, text, newStreak, totalXP, ach, gapEmptyDays, userGender, wasOnSickLeave, profName, profAge,
+			username, text, newStreak, totalCups, ach, gapEmptyDays, userGender, wasOnSickLeave, profName, profAge,
 		); extra != "" {
 			threadText = extra
 		}
 		if strings.TrimSpace(threadText) == "" {
-			threadText = b.generateShortLeopardChatAck(username, text, newStreak, totalXP, ach)
+			threadText = b.generateShortLeopardChatAck(username, text, newStreak, totalCups, ach)
 		}
 		if _, err := b.db.InsertTrainingFeedThreadReply(b.config.MonetizedChatID, trainingUserMessageID, 0, "Лео", threadText, 0); err != nil {
 			b.logger.Warnf("training feed leo thread reply: %v", err)
