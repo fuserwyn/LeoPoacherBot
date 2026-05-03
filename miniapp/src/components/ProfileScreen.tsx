@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { miniappLevelFromXp } from "../lib/miniappLevel";
+import { formatInactivityRemovalHint } from "../lib/formatInactivityRemoval";
 import { cupsWordRu } from "../lib/streakLabel";
 import "./ProfileScreen.css";
 
@@ -62,6 +63,7 @@ export function ProfileScreen({
   const [sickFormOpen, setSickFormOpen] = useState(false);
   const [sickReason, setSickReason] = useState("");
   const [healthBusy, setHealthBusy] = useState(false);
+  const [inactivityKickHint, setInactivityKickHint] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     if (!api || !inTelegram || !initData?.trim()) {
@@ -82,12 +84,14 @@ export function ProfileScreen({
         display_name?: string;
         age?: number | null;
         timezone_offset?: number;
+        inactivity_removal_at?: string;
       };
       if (!res.ok) {
         showAlert(j.error ?? `Профиль: ошибка ${res.status}`);
         return;
       }
       if (!j.ok) return;
+      setInactivityKickHint(formatInactivityRemovalHint(j.inactivity_removal_at));
       const g = j.gender === "m" || j.gender === "f" ? j.gender : "";
       const dn = (j.display_name ?? "").trim() || (name && name !== "друг" ? name : "");
       const tz =
@@ -189,9 +193,12 @@ export function ProfileScreen({
       void window.Telegram?.WebApp?.HapticFeedback?.notificationOccurred?.("success");
       setOnSick(false);
       showAlert("Отправлено. Лео подтвердит во вкладке Чат.");
-      setTimeout(() => void loadHealth(), 1200);
+      setTimeout(() => {
+        void loadHealth();
+        void load();
+      }, 1200);
     }
-  }, [sendHealthMessage, loadHealth, showAlert]);
+  }, [sendHealthMessage, loadHealth, load, showAlert]);
 
   const saveProfile = useCallback(async () => {
     if (!api || !inTelegram || !initData?.trim()) {
@@ -255,6 +262,11 @@ export function ProfileScreen({
           <p className="profile__level muted">
             Уровень {miniappLevelFromXp(xp)} · Новичок
           </p>
+          {inactivityKickHint ? (
+            <p className="profile__kick muted" title="Без отчёта #training_done — возможное исключение из стаи (МСК)">
+              Без тренировки до {inactivityKickHint}
+            </p>
+          ) : null}
           {onSick ? (
             <button
               type="button"

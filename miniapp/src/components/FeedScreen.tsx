@@ -12,6 +12,7 @@ import {
 } from "../lib/packFeed";
 import { timeAgoFromISO } from "../lib/timeAgo";
 import { streakStreakAriaLabel } from "../lib/streakLabel";
+import { formatInactivityRemovalHint } from "../lib/formatInactivityRemoval";
 import {
   sortWorkoutCategoryIds,
   trainingDoneMatchesAnyCategory,
@@ -32,6 +33,8 @@ type Props = {
   inTelegram: boolean;
   showAlert: (m: string) => void;
   refreshToken?: number;
+  /** ISO: возможный кик за неактивность (из profile/load). */
+  inactivityRemovalAt?: string | null;
 };
 
 type Sub = "activity" | "room";
@@ -51,7 +54,17 @@ function mockFallback(_name: string, streak: number): ActivityCardProps[] {
   ];
 }
 
-export function FeedScreen({ name, level, streak, userId, initData, inTelegram, showAlert, refreshToken = 0 }: Props) {
+export function FeedScreen({
+  name,
+  level,
+  streak,
+  userId,
+  initData,
+  inTelegram,
+  showAlert,
+  refreshToken = 0,
+  inactivityRemovalAt = null,
+}: Props) {
   const [sub, setSub] = useState<Sub>("activity");
 
   const [feedItems, setFeedItems] = useState<PackFeedItemDTO[]>([]);
@@ -294,6 +307,8 @@ export function FeedScreen({ name, level, streak, userId, initData, inTelegram, 
     void load();
   }, [load, refreshToken]);
 
+  const removalHint = formatInactivityRemovalHint(inactivityRemovalAt ?? undefined);
+
   return (
     <div className="feed">
       <div className="feed__sticky">
@@ -306,6 +321,15 @@ export function FeedScreen({ name, level, streak, userId, initData, inTelegram, 
             <span className="feed__level-k">Ур.</span>
             <span className="feed__level-v">{level}</span>
           </div>
+          {removalHint ? (
+            <div
+              className="feed__kick-hint"
+              title="Без отчёта #training_done — возможное исключение из стаи (МСК)"
+              aria-label={`Возможное удаление за неактивность: ${removalHint}`}
+            >
+              до {removalHint}
+            </div>
+          ) : null}
           <div className="feed__streak" aria-label={streakStreakAriaLabel(streak)} title={streakStreakAriaLabel(streak)}>
             <span className="feed__streak-emoji" aria-hidden>
               🔥

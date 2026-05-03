@@ -1157,6 +1157,7 @@ func (s *Server) handlePostProfileLoad(w http.ResponseWriter, r *http.Request) {
 	g, d, a := s.bot.GetMiniappUserProfileJSONForAPI(parsed.User.ID, packID)
 	tz := s.bot.GetTimezoneOffsetForAPI(parsed.User.ID, packID)
 	stats := s.bot.GetMiniappProfileStatsForAPI(parsed.User.ID, packID)
+	kickAt := s.bot.GetMiniappInactivityRemovalDeadlineRFC3339(parsed.User.ID, packID)
 	w.Header().Set("Content-Type", "application/json; charset=utf-8")
 	out := map[string]any{
 		"ok":                true,
@@ -1170,6 +1171,9 @@ func (s *Server) handlePostProfileLoad(w http.ResponseWriter, r *http.Request) {
 		"achievements_max":  stats.AchievementsMax,
 		"workouts_total":    stats.WorkoutsTotal,
 		"workouts_week":     stats.WorkoutsWeek,
+	}
+	if kickAt != "" {
+		out["inactivity_removal_at"] = kickAt
 	}
 	if a != nil {
 		out["age"] = *a
@@ -1249,6 +1253,7 @@ func (s *Server) handlePostProfileSave(w http.ResponseWriter, r *http.Request) {
 	g, d, a := s.bot.GetMiniappUserProfileJSONForAPI(parsed.User.ID, packID)
 	tz := s.bot.GetTimezoneOffsetForAPI(parsed.User.ID, packID)
 	stats := s.bot.GetMiniappProfileStatsForAPI(parsed.User.ID, packID)
+	kickAt := s.bot.GetMiniappInactivityRemovalDeadlineRFC3339(parsed.User.ID, packID)
 	w.Header().Set("Content-Type", "application/json; charset=utf-8")
 	out := map[string]any{
 		"ok":                true,
@@ -1262,6 +1267,9 @@ func (s *Server) handlePostProfileSave(w http.ResponseWriter, r *http.Request) {
 		"achievements_max":  stats.AchievementsMax,
 		"workouts_total":    stats.WorkoutsTotal,
 		"workouts_week":     stats.WorkoutsWeek,
+	}
+	if kickAt != "" {
+		out["inactivity_removal_at"] = kickAt
 	}
 	if a != nil {
 		out["age"] = *a

@@ -9,6 +9,7 @@ import (
 
 	"leo-bot/internal/database"
 	"leo-bot/internal/game/leopardmoney"
+	"leo-bot/internal/utils"
 )
 
 // Лимиты полей мини-апп — профиль.
@@ -221,6 +222,27 @@ func (b *Bot) GetMiniappProfileStatsForAPI(userID, packChatID int64) MiniappProf
 	countAndMerge(packChatID)
 	countAndMerge(userID)
 	return out
+}
+
+// GetMiniappInactivityRemovalDeadlineRFC3339 — когда возможен кик за неактивность (если не будет отчёта), Europe/Moscow в RFC3339. Пусто — нет таймера, освобождён от кика или нет данных.
+func (b *Bot) GetMiniappInactivityRemovalDeadlineRFC3339(userID, packChatID int64) string {
+	if b == nil || b.db == nil || userID == 0 || packChatID == 0 {
+		return ""
+	}
+	ml, err := b.db.GetMessageLog(userID, packChatID)
+	if err != nil || ml == nil {
+		return ""
+	}
+	if ml.IsExemptFromDeletion || ml.IsDeleted {
+		return ""
+	}
+	now := utils.GetMoscowTime()
+	dl, ok := inactivityKickDeadline(ml, now)
+	if !ok {
+		return ""
+	}
+	loc := utils.GetMoscowTime().Location()
+	return dl.In(loc).Format(time.RFC3339)
 }
 
 // SyncMiniappTelegramPhotoFromInit — сохраняет URL аватарки из WebApp initData (user.photo_url) для ленты/чата.

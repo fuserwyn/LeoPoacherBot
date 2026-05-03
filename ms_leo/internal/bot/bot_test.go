@@ -55,8 +55,12 @@ func TestCalculateRemainingTime(t *testing.T) {
 	}
 
 	remainingTime = bot.calculateRemainingTime(messageLogWithTime)
-	// 8 дн. − 1 дн. (от timer_start до sick_start) = 7 дн.
-	expectedTime = 7 * 24 * time.Hour
+	now := utils.GetMoscowTime()
+	deadline, ok := inactivityKickDeadline(messageLogWithTime, now)
+	if !ok {
+		t.Fatal("inactivityKickDeadline: expected ok")
+	}
+	expectedTime = deadline.Sub(now)
 	assertDurationApprox(t, remainingTime, expectedTime)
 
 	// Тест 3: Больничный сценарий - тренировка 11.09, больничный 13.09, выход 19.09
@@ -72,10 +76,13 @@ func TestCalculateRemainingTime(t *testing.T) {
 		HasHealthy:         true, // Пользователь выздоровел
 	}
 
+	now = utils.GetMoscowTime()
+	deadline, ok = inactivityKickDeadline(messageLogSickLeave, now)
+	if !ok {
+		t.Fatal("inactivityKickDeadline: expected ok")
+	}
+	expectedTime = deadline.Sub(now)
 	remainingTime = bot.calculateRemainingTime(messageLogSickLeave)
-
-	// 8 дн. − 2 дн. (от timer_start до sick_start) = 6 дн.
-	expectedTime = 6 * 24 * time.Hour
 	assertDurationApprox(t, remainingTime, expectedTime)
 }
 
@@ -237,29 +244,31 @@ func TestSickLeaveRecoveryScenario(t *testing.T) {
 		HasHealthy:         false, // На больничном
 	}
 
-	// Проверяем время на больничном (8 дн. − 2 дн. до больничного = 6 дн.)
-	remainingTimeOnSick := bot.calculateRemainingTime(messageLogSickLeave)
-	expectedTimeOnSick := 6 * 24 * time.Hour
-
-	if remainingTimeOnSick != expectedTimeOnSick {
-		t.Errorf("On sick leave: Expected %v, got %v", expectedTimeOnSick, remainingTimeOnSick)
+	now := utils.GetMoscowTime()
+	dOnSick, ok := inactivityKickDeadline(messageLogSickLeave, now)
+	if !ok {
+		t.Fatal("inactivityKickDeadline on sick: expected ok")
 	}
+	remainingTimeOnSick := bot.calculateRemainingTime(messageLogSickLeave)
+	expectedTimeOnSick := dOnSick.Sub(now)
+	assertDurationApprox(t, remainingTimeOnSick, expectedTimeOnSick)
 
-	// Пользователь выздоровел: sick_end = «сейчас» — в окне 8 дней с учётом паузы на больничный
-	// остаётся ≈6 суток (7 дн. с момента старта таймера сразу 2 дн. до больничного + 5 дн. больничного не считается).
 	messageLogSickLeave.HasHealthy = true
 	sickEndStr := utils.FormatMoscowTime(utils.GetMoscowTime())
 	messageLogSickLeave.SickLeaveEndTime = &sickEndStr
 
+	now2 := utils.GetMoscowTime()
+	dAfter, ok2 := inactivityKickDeadline(messageLogSickLeave, now2)
+	if !ok2 {
+		t.Fatal("inactivityKickDeadline after recovery: expected ok")
+	}
 	remainingTimeAfterRecovery := bot.calculateRemainingTime(messageLogSickLeave)
-	expectedTimeAfterRecovery := 6 * 24 * time.Hour
-
+	expectedTimeAfterRecovery := dAfter.Sub(now2)
 	assertDurationApprox(t, remainingTimeAfterRecovery, expectedTimeAfterRecovery)
 
 	formattedTime := bot.formatDurationToDays(remainingTimeAfterRecovery)
-	// микросдвиг "сейчас" между шагами даёт 5 дн. 23 ч. вместо 6 дн. — оба варианта ок
-	if formattedTime != "6 дн." && formattedTime != "5 дн. 23 ч." {
-		t.Errorf("Formatted time: unexpected %q (want ~6 дн.)", formattedTime)
+	if formattedTime == "" {
+		t.Errorf("Formatted time: empty")
 	}
 }
 

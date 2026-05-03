@@ -68,33 +68,29 @@ func (b *Bot) activateSickLeave(msg *tgbotapi.Message, messageLog *domain.Messag
 	messageLog.SickLeaveStartTime = &sickLeaveStartTime
 	b.logger.Infof("Set sick leave start time: %s", sickLeaveStartTime)
 
-	// Рассчитываем оставшееся время до удаления
-	fullTimerDuration := 7 * 24 * time.Hour // 7 дней
+	// Оставшееся до кика на момент начала больничного (дедлайн 00:00 МСК после 7×24ч + сдвиг паузы).
 	var remainingTime time.Duration
-
 	if messageLog.TimerStartTime != nil {
 		timerStart, err := utils.ParseMoscowTime(*messageLog.TimerStartTime)
 		if err == nil {
 			sickStart, err := utils.ParseMoscowTime(sickLeaveStartTime)
 			if err == nil {
-				// Время с тренировки до начала болезни
-				timeFromTrainingToSick := sickStart.Sub(timerStart)
-				// Оставшееся время = полное время - время с тренировки до болезни
-				remainingTime = fullTimerDuration - timeFromTrainingToSick
+				deadline := removalDeadlineMoscow(timerStart)
+				remainingTime = deadline.Sub(sickStart)
 				if remainingTime <= 0 {
 					remainingTime = 0
 				}
-				b.logger.Infof("Timer start: %v, sick start: %v, time from training to sick: %v, remaining time: %v", timerStart, sickStart, timeFromTrainingToSick, remainingTime)
+				b.logger.Infof("Timer start: %v, sick start: %v, removal deadline: %v, remaining time: %v", timerStart, sickStart, deadline, remainingTime)
 			} else {
-				remainingTime = fullTimerDuration
+				remainingTime = 8 * 24 * time.Hour
 				b.logger.Errorf("Failed to parse sick start time: %v", err)
 			}
 		} else {
-			remainingTime = fullTimerDuration
+			remainingTime = 8 * 24 * time.Hour
 			b.logger.Errorf("Failed to parse timer start time: %v", err)
 		}
 	} else {
-		remainingTime = fullTimerDuration
+		remainingTime = 8 * 24 * time.Hour
 		b.logger.Warnf("Timer start time is nil, using full duration")
 	}
 
@@ -483,8 +479,13 @@ func (b *Bot) handleHealthy(msg *tgbotapi.Message) {
 		return
 	}
 
-	// Запускаем таймер с оставшимся временем — на pack-row (для приват/мини-аппа). Только так таймер кика остаётся источником правды.
-	b.startTimerWithDuration(msg.From.ID, b.kickChatIDForMessage(msg), messageLog.Username, remainingTime)
+	// Восстанавливаем цепочку таймеров, не перетирая timer_start последней тренировкой (иначе «окно» перезапускается с #healthy).
+	if messageLog.TimerStartTime == nil || strings.TrimSpace(*messageLog.TimerStartTime) == "" {
+		b.startTimerWithDuration(msg.From.ID, b.kickChatIDForMessage(msg), messageLog.Username, remainingTime)
+	} else {
+		ts := strings.TrimSpace(*messageLog.TimerStartTime)
+		b.restoreTimerWithDuration(msg.From.ID, b.kickChatIDForMessage(msg), messageLog.Username, remainingTime, ts)
+	}
 
 	// Форматируем оставшееся время
 	remainingTimeFormatted := b.formatDurationToDays(remainingTime)

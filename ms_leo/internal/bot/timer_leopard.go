@@ -104,11 +104,17 @@ func (b *Bot) scheduleLeopardMilestones(userID, chatID int64, username string, t
 		{7, ch7, func() { b.sendInactiveDay7ZeroXP(userID, chatID, username) }},
 		{8, ch8, func() { b.removeUser(userID, chatID, username) }},
 	}
+	removalAt := removalDeadlineMoscow(timerStart)
 	for _, d := range days {
 		n := d.n
 		ch := d.ch
 		fn := d.action
-		target := timerStart.Add(time.Duration(n) * 24 * time.Hour)
+		var target time.Time
+		if n == leopardmoney.InactiveRemovalDays {
+			target = removalAt
+		} else {
+			target = timerStart.Add(time.Duration(n) * 24 * time.Hour)
+		}
 		delay := target.Sub(now)
 		removal := n == leopardmoney.InactiveRemovalDays
 		go func(delay time.Duration, ch chan bool, fn func(), removal bool) {
@@ -201,7 +207,7 @@ func (b *Bot) sendInactiveDay7ZeroXP(userID, chatID int64, username string) {
 		_ = b.db.SaveMessageLog(log)
 	}
 	who := normalizeUserDisplayName(username)
-	txt := fmt.Sprintf("🔴 День 7 без отчёта\n\n%s, твой XP обнулён. Последний шанс: сделай отчёт с #training_done до конца дня 8, иначе удаление из чата.", who)
+	txt := fmt.Sprintf("🔴 День 7 без отчёта\n\n%s, твой XP обнулён. Последний шанс: отправь #training_done до 00:00 МСК дня после семи суток с последнего отчёта — иначе удаление из стаи.", who)
 	if b.aiClient != nil {
 		if add, err := b.aiClient.AnswerUserQuestion(b.config.Prompts.CriticalTimerQuestion, "День 7: XP=0, последний шанс.\nПользователь: "+username); err == nil {
 			add = ai.SanitizeTextForUser(add)

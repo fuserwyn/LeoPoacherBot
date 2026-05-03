@@ -1599,95 +1599,21 @@ func (b *Bot) calculateRemainingTime(messageLog *domain.MessageLog) time.Duratio
 		messageLog.HasSickLeave, messageLog.HasHealthy,
 		messageLog.SickLeaveStartTime != nil, messageLog.SickLeaveEndTime != nil)
 
-	// Если нет данных о времени, возвращаем полный таймер
 	if messageLog.TimerStartTime == nil {
 		b.logger.Infof("DEBUG: TimerStartTime is nil, returning full duration")
 		return leopardmoney.FullTimerDuration
 	}
 
-	// Парсим время начала таймера
-	timerStart, err := utils.ParseMoscowTime(*messageLog.TimerStartTime)
-	if err != nil {
-		b.logger.Errorf("Failed to parse timer start time: %v", err)
+	moscowNow := utils.GetMoscowTime()
+	deadline, ok := inactivityKickDeadline(messageLog, moscowNow)
+	if !ok {
 		return leopardmoney.FullTimerDuration
 	}
-
-	fullTimerDuration := leopardmoney.FullTimerDuration
-
-	// Если был больничный, учитываем его
-	if messageLog.SickLeaveStartTime != nil && messageLog.HasSickLeave && !messageLog.HasHealthy {
-		// Пользователь на больничном - таймер приостановлен
-		// Возвращаем оставшееся время на момент больничного
-		sickLeaveStart, err := utils.ParseMoscowTime(*messageLog.SickLeaveStartTime)
-		if err != nil {
-			b.logger.Errorf("Failed to parse sick leave start time: %v", err)
-			return fullTimerDuration
-		}
-
-		// Рассчитываем время, которое прошло до больничного
-		timeBeforeSickLeave := sickLeaveStart.Sub(timerStart)
-
-		// Оставшееся время на момент больничного
-		remainingTime := fullTimerDuration - timeBeforeSickLeave
-
-		if remainingTime <= 0 {
-			return 0 // Время истекло
-		}
-
-		return remainingTime
+	remaining := deadline.Sub(moscowNow)
+	if remaining <= 0 {
+		return 0
 	}
-
-	// Если был больничный и пользователь выздоровел (проверяем по наличию SickLeaveStartTime и SickLeaveEndTime)
-	// ВАЖНО: старые sick_* даты не трогаем в БД после новой тренировки — timer_start тогда УЖЕ после конца больничного.
-	if messageLog.SickLeaveStartTime != nil && messageLog.SickLeaveEndTime != nil && messageLog.HasHealthy {
-		sickLeaveEnd, errEnd := utils.ParseMoscowTime(*messageLog.SickLeaveEndTime)
-		if errEnd != nil {
-			b.logger.Errorf("Failed to parse sick leave end time: %v", errEnd)
-			return fullTimerDuration
-		}
-		if timerStart.After(sickLeaveEnd) {
-			b.logger.Infof("DEBUG: timer_start after sick leave end — new 7d window, using elapsed time from timer_start")
-			// fall through to ordinary case below
-		} else {
-			sickLeaveStart, err := utils.ParseMoscowTime(*messageLog.SickLeaveStartTime)
-			if err != nil {
-				b.logger.Errorf("Failed to parse sick leave start time: %v", err)
-				return fullTimerDuration
-			}
-			moscowNow := utils.GetMoscowTime()
-			// Период больничного не должен «съедать» окно 8 дней: вычитаем пересечение [sickStart,sickEnd] с [timerStart, now].
-			overlapStart := sickLeaveStart
-			if timerStart.After(sickLeaveStart) {
-				overlapStart = timerStart
-			}
-			overlapEnd := sickLeaveEnd
-			if moscowNow.Before(sickLeaveEnd) {
-				overlapEnd = moscowNow
-			}
-			var pause time.Duration
-			if overlapEnd.After(overlapStart) {
-				pause = overlapEnd.Sub(overlapStart)
-			}
-			elapsedActive := moscowNow.Sub(timerStart) - pause
-			remainingTime := fullTimerDuration - elapsedActive
-			if remainingTime <= 0 {
-				return 0
-			}
-			return remainingTime
-		}
-	}
-
-	// Обычный случай - рассчитываем оставшееся время
-	// Используем московское время для расчета
-	moscowNow := utils.GetMoscowTime()
-	elapsedTime := moscowNow.Sub(timerStart)
-	remainingTime := fullTimerDuration - elapsedTime
-
-	if remainingTime <= 0 {
-		return 0 // Время истекло
-	}
-
-	return remainingTime
+	return remaining
 }
 
 // startDailySummaryScheduler запускает планировщик ежемесячных сводок 1-го числа в 16:20

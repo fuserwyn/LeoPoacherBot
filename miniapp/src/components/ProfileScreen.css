@@ -46,6 +46,12 @@
   margin-bottom: 4px;
 }
 
+.profile__kick {
+  font-size: 11px;
+  margin-top: 4px;
+  line-height: 1.35;
+}
+
 .profile__level {
   font-size: 14px;
   margin-bottom: 16px;

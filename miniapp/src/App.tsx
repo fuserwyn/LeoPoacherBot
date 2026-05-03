@@ -33,6 +33,7 @@ export function App() {
   const [leoPending, setLeoPending] = useState(0);
   const [feedUnread, setFeedUnread] = useState(0);
   const [feedRefreshToken, setFeedRefreshToken] = useState(0);
+  const [inactivityRemovalAt, setInactivityRemovalAt] = useState<string | null>(null);
 
   const refreshTabBadges = useCallback(async () => {
     if (!inTelegram || !initData?.trim()) {
@@ -63,8 +64,10 @@ export function App() {
         achievements_max?: number;
         workouts_total?: number;
         workouts_week?: number;
+        inactivity_removal_at?: string;
       };
       if (!res.ok || !j.ok) return;
+      setInactivityRemovalAt(typeof j.inactivity_removal_at === "string" ? j.inactivity_removal_at : null);
       setStreak(typeof j.streak_days === "number" ? j.streak_days : 0);
       setRecordStreak(typeof j.max_streak_days === "number" ? j.max_streak_days : 0);
       setXP(typeof j.xp === "number" ? j.xp : 0);
@@ -141,6 +144,7 @@ export function App() {
           inTelegram={inTelegram}
           showAlert={showAlert}
           refreshToken={feedRefreshToken}
+          inactivityRemovalAt={inactivityRemovalAt}
         />
       )}
       {tab === "rules" && <RulesScreen />}
