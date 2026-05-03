@@ -53,24 +53,28 @@ export function NewWorkoutScreen({ onClose, onSave, showAlert }: Props) {
       </header>
 
       <div className="nwo__body">
-        <h2 className="section-title">Тип</h2>
-        <div className="chip-group">
+        <h2 className="nwo__sec">Тип</h2>
+        <div className="nwo__types-scroll" role="group" aria-label="Тип тренировки">
           {TYPES.map((t) => (
             <button
               key={t.id}
               type="button"
-              className="chip"
+              className="chip nwo__type-chip"
+              title={t.label}
               aria-pressed={type === t.id}
               onClick={() => setType(t.id)}
             >
-              {t.emoji} {t.label}
+              <span className="nwo__type-emoji" aria-hidden>
+                {t.emoji}
+              </span>
+              <span className="nwo__type-lbl">{t.label}</span>
             </button>
           ))}
         </div>
         {type === "other" && (
           <div className="nwo__other-field">
             <label className="nwo__other-label muted" htmlFor="nwo-other-type">
-              Свой тип активности
+              Свой тип
             </label>
             <input
               id="nwo-other-type"
@@ -79,93 +83,100 @@ export function NewWorkoutScreen({ onClose, onSave, showAlert }: Props) {
               value={otherLabel}
               onChange={(e) => setOtherLabel(e.target.value.slice(0, OTHER_LABEL_MAX))}
               maxLength={OTHER_LABEL_MAX}
-              placeholder="Например: пилатес на кольцах…"
+              placeholder="Пилатес, скалолазанье…"
               autoComplete="off"
               enterKeyHint="done"
             />
           </div>
         )}
 
-        <h2 className="section-title" style={{ marginTop: 22 }}>
-          Длительность
-        </h2>
-        <p className="nwo__big-min">{min} мин</p>
-        <div className="nwo__presets">
-          {PRESET_MIN.map((p) => (
-            <button
-              key={p}
-              type="button"
-              className={`nwo__circle ${min === p ? "is-on" : ""}`}
-              aria-pressed={min === p}
-              onClick={() => setMin(p)}
-            >
-              {p}
-            </button>
-          ))}
-        </div>
-        <div className="nwo__stepper">
-          <button type="button" className="nwo__step" onClick={() => dec(-5)}>
-            -5
-          </button>
-          <button type="button" className="nwo__step" onClick={() => dec(-1)}>
-            -1
-          </button>
-          <button type="button" className="nwo__step" onClick={() => dec(1)}>
-            +1
-          </button>
-          <button type="button" className="nwo__step" onClick={() => dec(5)}>
-            +5
-          </button>
+        <div className="nwo__mid">
+          <div className="nwo__dur">
+            <h2 className="nwo__sec">Минуты</h2>
+            <div className="nwo__dur-top">
+              <span className="nwo__big-min">{min}</span>
+              <span className="nwo__big-suf">мин</span>
+            </div>
+            <div className="nwo__presets">
+              {PRESET_MIN.map((p) => (
+                <button
+                  key={p}
+                  type="button"
+                  className={`nwo__circle ${min === p ? "is-on" : ""}`}
+                  aria-pressed={min === p}
+                  onClick={() => setMin(p)}
+                >
+                  {p}
+                </button>
+              ))}
+            </div>
+            <div className="nwo__stepper">
+              <button type="button" className="nwo__step" onClick={() => dec(-5)}>
+                −5
+              </button>
+              <button type="button" className="nwo__step" onClick={() => dec(-1)}>
+                −1
+              </button>
+              <button type="button" className="nwo__step" onClick={() => dec(1)}>
+                +1
+              </button>
+              <button type="button" className="nwo__step" onClick={() => dec(5)}>
+                +5
+              </button>
+            </div>
+          </div>
+
+          <div className="nwo__int-wrap">
+            <h2 className="nwo__sec">Интенсивность</h2>
+            <div className="nwo__intensity-row" role="group" aria-label="Интенсивность">
+              {INTENSITIES.map((i) => (
+                <button
+                  key={i.v}
+                  type="button"
+                  className={`nwo__int-btn ${intensity === i.v ? "is-on" : ""}`}
+                  aria-pressed={intensity === i.v}
+                  aria-label={i.label}
+                  title={i.label}
+                  onClick={() => setIntensity(i.v)}
+                >
+                  {i.v}
+                </button>
+              ))}
+            </div>
+          </div>
         </div>
 
-        <h2 className="section-title" style={{ marginTop: 22 }}>
-          Интенсивность
-        </h2>
-        <div className="nwo__intensity">
-          {INTENSITIES.map((i) => (
-            <button
-              key={i.v}
-              type="button"
-              className="chip nwo__intensity-chip"
-              aria-pressed={intensity === i.v}
-              onClick={() => setIntensity(i.v)}
-            >
-              {i.label}
-            </button>
-          ))}
+        <div className="nwo__photo-row">
+          <h2 className="nwo__sec nwo__sec--inline">Фото</h2>
+          <input
+            className="nwo__file"
+            type="file"
+            accept="image/*"
+            title="Необязательно — стая увидит снимок в ленте"
+            onChange={(e) => setPhoto(e.target.files?.[0] ?? null)}
+          />
+          {photo ? (
+            <span className="nwo__photo-name muted" aria-live="polite">
+              {photo.name.length > 18 ? `${photo.name.slice(0, 16)}…` : photo.name}
+            </span>
+          ) : null}
         </div>
 
-        <h2 className="section-title" style={{ marginTop: 22 }}>
-          Фото с тренировки
-        </h2>
-        <p className="nwo__note-hint muted">Необязательно. Так стая увидит снимок в ленте.</p>
-        <input
-          className="nwo__file"
-          type="file"
-          accept="image/*"
-          onChange={(e) => setPhoto(e.target.files?.[0] ?? null)}
-        />
-        {photo && (
-          <p className="nwo__note-hint muted" aria-live="polite">
-            Выбрано: {photo.name}
+        <div className="nwo__note-block">
+          <h2 className="nwo__sec">Что сделал</h2>
+          <textarea
+            className="nwo__note"
+            value={note}
+            onChange={(e) => setNote(e.target.value.slice(0, NOTE_MAX))}
+            rows={2}
+            maxLength={NOTE_MAX}
+            placeholder="Жим, тяга, пресс…"
+            enterKeyHint="done"
+          />
+          <p className="nwo__note-cnt muted" aria-live="polite">
+            {note.length}/{NOTE_MAX}
           </p>
-        )}
-
-        <h2 className="section-title" style={{ marginTop: 22 }}>
-          Что сделал
-        </h2>
-        <textarea
-          className="nwo__note"
-          value={note}
-          onChange={(e) => setNote(e.target.value.slice(0, NOTE_MAX))}
-          rows={4}
-          maxLength={NOTE_MAX}
-          placeholder="Например: жим лёжа, тяга верхнего, пресс. Или ощущения — устал плечами…"
-          enterKeyHint="done"
-        />
-        <p className="nwo__note-cnt muted" aria-live="polite">
-          {note.length}/{NOTE_MAX}
-        </p>
+        </div>
       </div>
 
       <footer className="nwo__foot">
