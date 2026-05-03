@@ -16,7 +16,11 @@ interface TelegramUser {
 interface TelegramWebApp {
   initData: string;
   initDataUnsafe: { user?: TelegramUser; query_id?: string };
-  HapticFeedback?: { impactOccurred: (style: "light" | "medium" | "heavy" | "rigid" | "soft") => void };
+  HapticFeedback?: {
+    impactOccurred: (style: "light" | "medium" | "heavy" | "rigid" | "soft") => void;
+    notificationOccurred?: (type: "error" | "success" | "warning") => void;
+    selectionChanged?: () => void;
+  };
   colorScheme: "light" | "dark";
   themeParams: Record<string, string | undefined>;
   isExpanded: boolean;
