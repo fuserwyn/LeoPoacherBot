@@ -20,6 +20,10 @@ interface TelegramWebApp {
   colorScheme: "light" | "dark";
   themeParams: Record<string, string | undefined>;
   isExpanded: boolean;
+  /** Высота видимой области Mini App (в пикселях), см. WebApp.viewportHeight в Telegram. */
+  viewportHeight?: number;
+  /** Высота без оверлеев (стабильнее при появлении клавиатуры). */
+  viewportStableHeight?: number;
   ready: () => void;
   expand: () => void;
   setHeaderColor: (color: string) => void;
