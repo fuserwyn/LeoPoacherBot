@@ -37,6 +37,18 @@ export const WORKOUT_CATEGORY_OPTIONS: WorkoutCategoryOption[] = [
   { id: "other", label: "Другое", emoji: "✨" },
 ];
 
+/** Для фильтра ленты: по русскому алфавиту названий (HIIT и латиница — по правилам `ru`). */
+export const WORKOUT_CATEGORY_OPTIONS_ALPHABETICAL: WorkoutCategoryOption[] = [...WORKOUT_CATEGORY_OPTIONS].sort(
+  (a, b) => a.label.localeCompare(b.label, "ru", { sensitivity: "base" }),
+);
+
+const FEED_CAT_ORDER = new Map(WORKOUT_CATEGORY_OPTIONS_ALPHABETICAL.map((o, i) => [o.id, i]));
+
+/** Порядок id как в алфавитном списке фильтра (для чипов «выбрано»). */
+export function sortWorkoutCategoryIds(ids: readonly WorkoutCategoryId[]): WorkoutCategoryId[] {
+  return [...ids].sort((a, b) => (FEED_CAT_ORDER.get(a) ?? 0) - (FEED_CAT_ORDER.get(b) ?? 0));
+}
+
 /** Алиас для экрана новой тренировки. */
 export const WORKOUT_TYPES = WORKOUT_CATEGORY_OPTIONS;
 
@@ -54,6 +66,13 @@ export function trainingDoneCategoryEmoji(text: string): string {
   const cat = parseTrainingDoneCategory(text);
   if (cat === null) return "💪";
   return ID_TO_EMOJI[cat] ?? "💪";
+}
+
+/** Заголовок карточки вместо общего «Тренировка»: тип из строки отчёта. */
+export function trainingDoneCategoryDisplayLabel(text: string): string {
+  const cat = parseTrainingDoneCategory(text);
+  if (cat === null) return "Другое";
+  return WORKOUT_CATEGORY_OPTIONS.find((o) => o.id === cat)?.label ?? "Другое";
 }
 
 /**
@@ -75,4 +94,15 @@ export function trainingDoneMatchesCategory(text: string, filterId: WorkoutCateg
   if (cat == null) return filterId === "other";
   if (filterId === "other") return cat === "other";
   return cat === filterId;
+}
+
+/** Мультивыбор: отчёт попадает в ленту, если его тип есть в `selected` (не пустом). */
+export function trainingDoneMatchesAnyCategory(
+  text: string,
+  selected: ReadonlySet<WorkoutCategoryId>,
+): boolean {
+  if (selected.size === 0) return true;
+  const cat = parseTrainingDoneCategory(text);
+  if (cat !== null) return selected.has(cat);
+  return selected.has("other");
 }

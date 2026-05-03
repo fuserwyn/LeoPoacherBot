@@ -1,5 +1,6 @@
 import { useRef, useState, useEffect, useLayoutEffect } from "react";
 import { LEO_AVATAR_URL } from "../lib/leoAvatar";
+import { streakStreakAriaLabel } from "../lib/streakLabel";
 import "./ActivityCard.css";
 
 function avatarLooksLikeImageSrc(avatar: string): boolean {
@@ -240,8 +241,16 @@ export function ActivityCard({
           <div className="act-card__row">
             <span className="act-card__name">{name}</span>
             {!hideStreak && (
-              <span className="pill" aria-label={`Серия ${streak} дней`}>
-                <span>🔥</span> {streak}
+              <span
+                className="pill pill--streak"
+                aria-label={streakStreakAriaLabel(streak)}
+                title={streakStreakAriaLabel(streak)}
+              >
+                <span aria-hidden>🔥</span>
+                <span className="pill__streak-num">{streak}</span>
+                <span className="pill__streak-unit" aria-hidden>
+                  дн.
+                </span>
               </span>
             )}
           </div>

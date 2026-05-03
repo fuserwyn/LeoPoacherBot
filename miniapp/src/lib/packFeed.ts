@@ -1,6 +1,6 @@
 import { LEO_AVATAR_URL } from "./leoAvatar";
 import { timeAgoFromISO } from "./timeAgo";
-import { trainingDoneCategoryEmoji } from "./workoutCategories";
+import { trainingDoneCategoryDisplayLabel, trainingDoneCategoryEmoji } from "./workoutCategories";
 import type { ActivityCardProps } from "../components/ActivityCard";
 
 const viteMiniappApi = (import.meta.env.VITE_MINIAPP_API_URL as string | undefined)?.replace(/\/$/, "").trim() ?? "";
@@ -133,7 +133,7 @@ export function mergePackFeedReactions(
 function typeMeta(t: string): { emoji: string; activity: string; details: string } {
   switch (t) {
     case "training_done":
-      return { emoji: "💪", activity: "Тренировка", details: "Отчёт #training_done" };
+      return { emoji: "💪", activity: "", details: "" };
     case "sick_leave":
       return { emoji: "🏥", activity: "Больничный", details: "" };
     case "healthy":
@@ -151,6 +151,21 @@ function typeMeta(t: string): { emoji: string; activity: string; details: string
     default:
       return { emoji: "📝", activity: t, details: "Сообщение" };
   }
+}
+
+/** С первой строки тела отчёта убираем `#training_done — `, остаётся «силовая, 60 мин…». */
+function stripFirstLineTrainingDoneTag(text: string): string {
+  const t = text.trim();
+  if (t === "") return t;
+  const nl = t.indexOf("\n");
+  const first = nl >= 0 ? t.slice(0, nl) : t;
+  const rest = nl >= 0 ? t.slice(nl + 1) : "";
+  let stripped = first.replace(/^#training_done\s*[—–-]\s*/i, "").trim();
+  if (stripped === first.trim()) {
+    stripped = first.replace(/^#training_done\b\s*/i, "").trim();
+  }
+  const combined = rest ? `${stripped}\n${rest}` : stripped;
+  return combined.trim();
 }
 
 /** Убирает ведущие строки с тегом — заголовок карточки уже передаёт смысл (#healthy / #sick_leave не дублируем мелким текстом). */
@@ -183,6 +198,8 @@ export function dtoToCard(d: PackFeedItemDTO): ActivityCardProps {
     commentRaw = stripLeadingFeedHashtag(commentRaw, "#healthy");
   } else if (d.type === "sick_leave") {
     commentRaw = stripLeadingFeedHashtag(commentRaw, "#sick_leave");
+  } else if (d.type === "training_done") {
+    commentRaw = stripFirstLineTrainingDoneTag(commentRaw);
   }
   const maxComment =
     d.type === "training_done" ||
@@ -217,8 +234,8 @@ export function dtoToCard(d: PackFeedItemDTO): ActivityCardProps {
     streak: d.streak_days,
     timeAgo: timeAgoFromISO(d.created_at),
     emoji: trainingEmoji,
-    activity: m.activity,
-    details: m.details,
+    activity: d.type === "training_done" ? trainingDoneCategoryDisplayLabel(d.text) : m.activity,
+    details: d.type === "training_done" ? "" : m.details,
     comment,
     trainingPhotoUrl: resolveTrainingPhotoUrl(d.training_photo_url),
   };

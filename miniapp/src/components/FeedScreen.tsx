@@ -11,9 +11,11 @@ import {
   type PackFeedThreadReplyDTO,
 } from "../lib/packFeed";
 import { timeAgoFromISO } from "../lib/timeAgo";
+import { streakStreakAriaLabel } from "../lib/streakLabel";
 import {
-  trainingDoneMatchesCategory,
-  WORKOUT_CATEGORY_OPTIONS,
+  sortWorkoutCategoryIds,
+  trainingDoneMatchesAnyCategory,
+  WORKOUT_CATEGORY_OPTIONS_ALPHABETICAL,
   type WorkoutCategoryId,
 } from "../lib/workoutCategories";
 import "./FeedScreen.css";
@@ -68,19 +70,72 @@ export function FeedScreen({ name, streak, userId, initData, inTelegram, showAle
     Record<number, { replyToThreadId: number; authorLabel: string; excerpt: string } | undefined>
   >({});
   const [feedOnlyMine, setFeedOnlyMine] = useState(false);
-  const [feedCategory, setFeedCategory] = useState<WorkoutCategoryId | null>(null);
+  /** Мультивыбор типов тренировок (пусто = «все типы»). */
+  const [feedCategoryIds, setFeedCategoryIds] = useState<WorkoutCategoryId[]>([]);
+  const [typeSheetOpen, setTypeSheetOpen] = useState(false);
+  const [typeSheetQuery, setTypeSheetQuery] = useState("");
+
+  const categoryFilterSet = useMemo(() => new Set(feedCategoryIds), [feedCategoryIds]);
+
+  const typeSheetOptions = useMemo(() => {
+    const q = typeSheetQuery.trim().toLowerCase();
+    if (!q) return WORKOUT_CATEGORY_OPTIONS_ALPHABETICAL;
+    return WORKOUT_CATEGORY_OPTIONS_ALPHABETICAL.filter(
+      (o) => o.label.toLowerCase().includes(q) || o.id.toLowerCase().includes(q),
+    );
+  }, [typeSheetQuery]);
 
   const visibleFeedItems = useMemo(() => {
     return feedItems.filter((it) => {
       if (it.type === "sick_leave") return false;
       if (feedOnlyMine && !it.is_you) return false;
-      if (feedCategory !== null) {
+      if (feedCategoryIds.length > 0) {
         if (it.type !== "training_done") return false;
-        if (!trainingDoneMatchesCategory(it.text, feedCategory)) return false;
+        if (!trainingDoneMatchesAnyCategory(it.text, categoryFilterSet)) return false;
       }
       return true;
     });
-  }, [feedItems, feedOnlyMine, feedCategory]);
+  }, [feedItems, feedOnlyMine, feedCategoryIds, categoryFilterSet]);
+
+  const hapticLight = useCallback(() => {
+    window.Telegram?.WebApp?.HapticFeedback?.impactOccurred?.("light");
+  }, []);
+
+  const toggleFeedCategory = useCallback(
+    (id: WorkoutCategoryId) => {
+      hapticLight();
+      setFeedCategoryIds((prev) => {
+        const next = new Set(prev);
+        if (next.has(id)) next.delete(id);
+        else next.add(id);
+        return sortWorkoutCategoryIds([...next]);
+      });
+    },
+    [hapticLight],
+  );
+
+  const clearFeedCategories = useCallback(() => {
+    hapticLight();
+    setFeedCategoryIds([]);
+  }, [hapticLight]);
+
+  useEffect(() => {
+    if (!typeSheetOpen) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setTypeSheetOpen(false);
+    };
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [typeSheetOpen]);
+
+  useEffect(() => {
+    if (!typeSheetOpen) return;
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.body.style.overflow = prev;
+    };
+  }, [typeSheetOpen]);
 
   const load = useCallback(async () => {
     if (!apiBase || !inTelegram || !initData) {
@@ -278,8 +333,14 @@ export function FeedScreen({ name, streak, userId, initData, inTelegram, showAle
           <h1 className="feed__greet">Стая, {name}</h1>
           <p className="feed__sub muted">{subtitle}</p>
         </div>
-        <div className="feed__streak" aria-label={`Серия ${streak} дней`}>
-          <span>🔥</span> {streak}
+        <div className="feed__streak" aria-label={streakStreakAriaLabel(streak)} title={streakStreakAriaLabel(streak)}>
+          <span className="feed__streak-emoji" aria-hidden>
+            🔥
+          </span>
+          <span className="feed__streak-row">
+            <span className="feed__streak-word">Стрик</span>
+            <span className="feed__streak-num">{streak}</span>
+          </span>
         </div>
       </header>
       <div className="feed__subtabs" role="tablist" aria-label="Стая">

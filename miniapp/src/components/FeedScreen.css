@@ -28,15 +28,41 @@
 .feed__streak {
   display: flex;
   align-items: center;
-  gap: 4px;
+  gap: 6px;
   background: var(--card);
   border: 1px solid var(--border-subtle);
-  padding: 4px 10px;
+  padding: 5px 10px;
   border-radius: 999px;
-  font-size: 13px;
-  font-weight: 700;
-  color: var(--accent);
   flex-shrink: 0;
+}
+
+.feed__streak-emoji {
+  font-size: 1.15rem;
+  line-height: 1;
+  flex-shrink: 0;
+}
+
+.feed__streak-row {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 5px;
+  line-height: 1;
+  min-width: 0;
+}
+
+.feed__streak-word {
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--muted, #8b8b9a);
+}
+
+.feed__streak-num {
+  font-size: 0.95rem;
+  font-weight: 800;
+  color: var(--accent);
+  font-variant-numeric: tabular-nums;
 }
 
 .feed__subtabs {

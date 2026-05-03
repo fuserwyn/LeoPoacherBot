@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
+import { formatStreakDaysRu } from "../lib/streakLabel";
 import "./ProfileScreen.css";
 
 const api = (import.meta.env.VITE_MINIAPP_API_URL as string | undefined)?.replace(/\/$/, "") ?? "";
@@ -277,9 +278,9 @@ export function ProfileScreen({
 
       <div className="profile__grid3">
         <div className="stat-card">
-          <div className="stat-card__label">СТРИК</div>
+          <div className="stat-card__label">Серия дней</div>
           <div className="stat-card__val">
-            <span className="stat-card__streak-ico">🔥</span> {streak}
+            <span className="stat-card__streak-ico">🔥</span> {formatStreakDaysRu(streak)}
           </div>
         </div>
         <div className="stat-card">
