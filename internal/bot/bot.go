@@ -1071,15 +1071,15 @@ func (b *Bot) handleTrainingDone(msg *tgbotapi.Message) {
 
 	b.logger.Infof("DEBUG: hasAnyAchievement=%t, caloriesToAdd=%d", hasAnyAchievement, caloriesToAdd)
 
-	solvedTotal, incErr := b.db.IncrementSolvedTasksCount(msg.From.ID, msg.Chat.ID)
-	if incErr != nil {
-		b.logger.Warnf("IncrementSolvedTasksCount: %v", incErr)
-		solvedTotal = messageLog.SolvedTasksCount
-	}
-	solvedLine := formatSolvedTasksTotalLine(chatType, solvedTotal)
-
 	// Обычное подтверждение + ИИ при любой новой тренировке (включая дни рубежей 7/14/… дней).
 	if caloriesToAdd > 0 {
+		solvedTotal, incErr := b.db.IncrementSolvedTasksCount(msg.From.ID, msg.Chat.ID)
+		if incErr != nil {
+			b.logger.Warnf("IncrementSolvedTasksCount: %v", incErr)
+			solvedTotal = messageLog.SolvedTasksCount
+		}
+		solvedLine := formatSolvedTasksTotalLine(chatType, solvedTotal)
+
 		// Получаем общее количество калорий для отображения
 		totalCalories, err := b.db.GetUserCalories(msg.From.ID, msg.Chat.ID)
 		if err != nil {
@@ -1274,6 +1274,13 @@ func (b *Bot) handleTrainingDone(msg *tgbotapi.Message) {
 			b.logger.Infof("Successfully sent training done message to chat %d", msg.Chat.ID)
 		}
 	} else if !hasAnyAchievement {
+		solvedTotal, incErr := b.db.IncrementSolvedTasksCount(msg.From.ID, msg.Chat.ID)
+		if incErr != nil {
+			b.logger.Warnf("IncrementSolvedTasksCount (double session): %v", incErr)
+			solvedTotal = messageLog.SolvedTasksCount
+		}
+		solvedLine := formatSolvedTasksTotalLine(chatType, solvedTotal)
+
 		// Дополнительная тренировка в тот же день
 		// Начисляем 1 кубок за дополнительную тренировку
 		if err := b.db.AddCups(msg.From.ID, msg.Chat.ID, 1); err != nil {
