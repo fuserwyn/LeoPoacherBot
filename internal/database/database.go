@@ -188,6 +188,20 @@ func (d *Database) GetMessageLog(userID, chatID int64) (*domain.MessageLog, erro
 	return &msg, nil
 }
 
+// IncrementSolvedTasksCount увеличивает счётчик принятых отчётов (#training_done / #writing_done / #coding_done) на 1 и возвращает новое значение.
+func (d *Database) IncrementSolvedTasksCount(userID, chatID int64) (int, error) {
+	moscowTime := utils.FormatMoscowTime(utils.GetMoscowTime())
+	var n int
+	err := d.db.QueryRow(`
+		UPDATE message_log
+		SET solved_tasks_count = COALESCE(solved_tasks_count, 0) + 1,
+		    updated_at = $3
+		WHERE user_id = $1 AND chat_id = $2 AND is_deleted = FALSE
+		RETURNING solved_tasks_count`,
+		userID, chatID, moscowTime).Scan(&n)
+	return n, err
+}
+
 // GetUsersByChatID получает всех пользователей в чате
 func (d *Database) GetUsersByChatID(chatID int64) ([]*domain.MessageLog, error) {
 	query := `

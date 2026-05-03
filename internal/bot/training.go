@@ -468,6 +468,18 @@ func getWordForm(count int) string {
 	}
 }
 
+// formatSolvedTasksTotalLine — строка с суммарным числом принятых отчётов в подтверждении бота.
+func formatSolvedTasksTotalLine(chatType string, n int) string {
+	switch chatType {
+	case "writing":
+		return fmt.Sprintf("📝 Всего принятых отчётов: %d", n)
+	case "coding":
+		return fmt.Sprintf("💻 Всего решённых задач (сессий): %d", n)
+	default:
+		return fmt.Sprintf("💪 Всего тренировок (отчётов): %d", n)
+	}
+}
+
 // russianPlural — одна из форм (ед., неск. 2–4, много) для положительного целого count.
 func russianPlural(count int, one, few, many string) string {
 	if count < 0 {
