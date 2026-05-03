@@ -9,6 +9,7 @@ import { RulesScreen } from "./components/RulesScreen";
 import { sendMiniappPrivateText, sendMiniappTrainingWithPhoto } from "./lib/miniappPrivateSend";
 import { fetchLeoPendingCount } from "./lib/leoPersonalInbox";
 import { clearFeedThreadUnread, fetchFeedThreadUnreadCount } from "./lib/feedThreadUnread";
+import { miniappLevelFromXp } from "./lib/miniappLevel";
 import { ensureMiniappOnboarding } from "./lib/miniappOnboarding";
 import "./App.css";
 
@@ -133,6 +134,7 @@ export function App() {
       {tab === "feed" && (
         <FeedScreen
           name={name}
+          level={miniappLevelFromXp(xp)}
           streak={streak}
           userId={userId}
           initData={initData}

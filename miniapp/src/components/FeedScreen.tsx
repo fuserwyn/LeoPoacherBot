@@ -24,6 +24,8 @@ const apiBase = (import.meta.env.VITE_MINIAPP_API_URL as string | undefined)?.re
 
 type Props = {
   name: string;
+  /** Уровень пользователя (ленточная шапка), считается в App от кубков (XP). */
+  level: number;
   streak: number;
   userId: number;
   initData: string;
@@ -49,14 +51,8 @@ function mockFallback(_name: string, streak: number): ActivityCardProps[] {
   ];
 }
 
-export function FeedScreen({ name, streak, userId, initData, inTelegram, showAlert, refreshToken = 0 }: Props) {
+export function FeedScreen({ name, level, streak, userId, initData, inTelegram, showAlert, refreshToken = 0 }: Props) {
   const [sub, setSub] = useState<Sub>("activity");
-  const subtitle =
-    streak === 0
-      ? "Две вкладки: чужие отчёты и общий чат с @leo"
-      : streak === 1
-        ? "Лента отчётов и комната стаи: Лео отвечает только с @leo"
-        : "Стая: кто тренировался, и чат с упоминанием бота.";
 
   const [feedItems, setFeedItems] = useState<PackFeedItemDTO[]>([]);
   const [useMockFeed, setUseMockFeed] = useState(false);
@@ -172,7 +168,7 @@ export function FeedScreen({ name, streak, userId, initData, inTelegram, showAle
     } finally {
       setLoading(false);
     }
-  }, [inTelegram, initData, name, streak]);
+  }, [inTelegram, initData]);
 
   const postTrainingReact = useCallback(
     async (userMessageId: number, emoji: string) => {
@@ -329,9 +325,13 @@ export function FeedScreen({ name, streak, userId, initData, inTelegram, showAle
   return (
     <div className="feed">
       <header className="feed__header">
-        <div>
-          <h1 className="feed__greet">Стая, {name}</h1>
-          <p className="feed__sub muted">{subtitle}</p>
+        <div
+          className="feed__level"
+          aria-label={`Уровень ${level}`}
+          title={`Уровень ${level} (по кубкам в профиле)`}
+        >
+          <span className="feed__level-k">Ур.</span>
+          <span className="feed__level-v">{level}</span>
         </div>
         <div className="feed__streak" aria-label={streakStreakAriaLabel(streak)} title={streakStreakAriaLabel(streak)}>
           <span className="feed__streak-emoji" aria-hidden>

@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
+import { miniappLevelFromXp } from "../lib/miniappLevel";
 import { cupsWordRu } from "../lib/streakLabel";
 import "./ProfileScreen.css";
 
@@ -251,7 +252,9 @@ export function ProfileScreen({
         </div>
         <div>
           <h1 className="profile__name">{(profile.displayName || name).trim() || "Стая"}</h1>
-          <p className="profile__level muted">Уровень 1 · Новичок</p>
+          <p className="profile__level muted">
+            Уровень {miniappLevelFromXp(xp)} · Новичок
+          </p>
           {onSick ? (
             <button
               type="button"
@@ -285,11 +288,11 @@ export function ProfileScreen({
           </div>
         </div>
         <div className="stat-card">
-          <div className="stat-card__label">Рекорд подряд</div>
+          <div className="stat-card__label">Рекорд стрика</div>
           <div className="stat-card__val">{recordStreak}</div>
         </div>
         <div className="stat-card">
-          <div className="stat-card__label">ТРЕНИРОВОК</div>
+          <div className="stat-card__label">Всего тренировок</div>
           <div className="stat-card__val">{workouts}</div>
         </div>
       </div>
