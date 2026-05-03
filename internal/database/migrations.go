@@ -245,6 +245,17 @@ var Migrations = []Migration{
 			DROP COLUMN IF EXISTS solved_tasks_count;
 		`,
 	},
+	{
+		Version:     13,
+		Description: "Remove writing chat type: map writing to training in chat_types",
+		UpSQL: `
+			UPDATE chat_types SET chat_type = 'training' WHERE chat_type = 'writing';
+		`,
+		DownSQL: `
+			-- Не восстанавливаем прежний тип чата по строкам
+			SELECT 1;
+		`,
+	},
 }
 
 // MigrationRecord представляет запись о выполненной миграции

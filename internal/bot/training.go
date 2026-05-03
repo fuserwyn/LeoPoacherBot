@@ -471,8 +471,6 @@ func getWordForm(count int) string {
 // formatSolvedTasksTotalLine — строка с суммарным числом принятых отчётов в подтверждении бота.
 func formatSolvedTasksTotalLine(chatType string, n int) string {
 	switch chatType {
-	case "writing":
-		return fmt.Sprintf("📝 Всего принятых отчётов: %d", n)
 	case "coding":
 		return fmt.Sprintf("💻 Всего решённых задач (сессий): %d", n)
 	default:
@@ -503,9 +501,9 @@ func trainingsWordForm(count int) string {
 	return russianPlural(count, "тренировка", "тренировки", "тренировок")
 }
 
-// writingSessionsWordForm — «писательская сессия» / «писательские сессии» / «писательских сессий».
-func writingSessionsWordForm(count int) string {
-	return russianPlural(count, "писательская сессия", "писательские сессии", "писательских сессий")
+// codingSessionsWordForm — «кодинг-сессия» / «кодинг-сессии» / «кодинг-сессий».
+func codingSessionsWordForm(count int) string {
+	return russianPlural(count, "кодинг-сессия", "кодинг-сессии", "кодинг-сессий")
 }
 
 func cupsWordForm(count int) string {
@@ -807,7 +805,7 @@ func (b *Bot) sendSuperLevelMessage(msg *tgbotapi.Message, username string, tota
 	forms := b.getGenderForms(userGender)
 
 	var messageText string
-	if chatType == "writing" {
+	if chatType == "coding" {
 		messageText = fmt.Sprintf(`🌟⚡️ СУПЕР-УРОВЕНЬ ДОСТИГНУТ! ⚡️🌟
 
 %s, ты %s %d кубков! 
@@ -827,9 +825,9 @@ func (b *Bot) sendSuperLevelMessage(msg *tgbotapi.Message, username string, tota
 👑 Мотивация не верит, что такое бывает!
 🌟 Ты сияешь ярче всех!
 
-🎯 Продолжай писать, супер-леопард!
+🎯 Продолжай кодить, супер-леопард!
 
-#super_level #%d_cups #writing_master`,
+#super_level #%d_cups #coding_master`,
 			username, forms.Accumulated, totalCups, forms.Champion, strings.ToUpper(forms.Champion), totalCups)
 	} else {
 		messageText = fmt.Sprintf(`🌟⚡️ СУПЕР-УРОВЕНЬ ДОСТИГНУТ! ⚡️🌟

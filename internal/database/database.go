@@ -188,7 +188,7 @@ func (d *Database) GetMessageLog(userID, chatID int64) (*domain.MessageLog, erro
 	return &msg, nil
 }
 
-// IncrementSolvedTasksCount увеличивает счётчик принятых отчётов (#training_done / #writing_done / #coding_done) на 1 и возвращает новое значение.
+// IncrementSolvedTasksCount увеличивает счётчик принятых отчётов (#training_done / #coding_done) на 1 и возвращает новое значение.
 func (d *Database) IncrementSolvedTasksCount(userID, chatID int64) (int, error) {
 	moscowTime := utils.FormatMoscowTime(utils.GetMoscowTime())
 	var n int
@@ -670,7 +670,7 @@ func (d *Database) GetChatContext(chatID int64, excludeUserID int64, limit int) 
 	return users, nil
 }
 
-// GetChatType получает тип чата (training/writing/coding), по умолчанию возвращает "training"
+// GetChatType получает тип чата (training/coding), по умолчанию возвращает "training"
 func (d *Database) GetChatType(chatID int64) (string, error) {
 	query := `SELECT chat_type FROM chat_types WHERE chat_id = $1`
 	var chatType string
@@ -679,13 +679,16 @@ func (d *Database) GetChatType(chatID int64) (string, error) {
 		// Если запись не найдена, возвращаем тип по умолчанию
 		return "training", nil
 	}
+	if chatType == "writing" {
+		return "training", nil
+	}
 	return chatType, nil
 }
 
-// SetChatType устанавливает тип чата (training/writing/coding)
+// SetChatType устанавливает тип чата (training/coding)
 func (d *Database) SetChatType(chatID int64, chatType string) error {
-	if chatType != "training" && chatType != "writing" && chatType != "coding" {
-		return fmt.Errorf("invalid chat type: %s (must be 'training', 'writing' or 'coding')", chatType)
+	if chatType != "training" && chatType != "coding" {
+		return fmt.Errorf("invalid chat type: %s (must be 'training' or 'coding')", chatType)
 	}
 
 	query := `
@@ -697,74 +700,4 @@ func (d *Database) SetChatType(chatID int64, chatType string) error {
 
 	_, err := d.db.Exec(query, chatID, chatType)
 	return err
-}
-
-// GetChatWritingContext получает полный контекст переписки для чата писательства
-// Возвращает последние сообщения из user_messages (до limit сообщений)
-func (d *Database) GetChatWritingContext(chatID int64, excludeUserID int64, limit int) ([]*domain.UserMessage, error) {
-	query := `
-		SELECT id, user_id, chat_id, username, message_text, message_type, created_at
-		FROM user_messages
-		WHERE chat_id = $1 AND user_id != $2
-		ORDER BY created_at DESC
-		LIMIT $3
-	`
-
-	rows, err := d.db.Query(query, chatID, excludeUserID, limit)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-
-	var messages []*domain.UserMessage
-	for rows.Next() {
-		var msg domain.UserMessage
-		err := rows.Scan(&msg.ID, &msg.UserID, &msg.ChatID, &msg.Username, &msg.MessageText, &msg.MessageType, &msg.CreatedAt)
-		if err != nil {
-			continue
-		}
-		messages = append(messages, &msg)
-	}
-
-	// Разворачиваем список для хронологического порядка (от старых к новым)
-	for i, j := 0, len(messages)-1; i < j; i, j = i+1, j-1 {
-		messages[i], messages[j] = messages[j], messages[i]
-	}
-
-	return messages, nil
-}
-
-// GetUserWritingMessages получает последние сообщения пользователя для чата писательства
-// Возвращает последние сообщения из user_messages (до limit сообщений)
-func (d *Database) GetUserWritingMessages(userID, chatID int64, limit int) ([]*domain.UserMessage, error) {
-	query := `
-		SELECT id, user_id, chat_id, username, message_text, message_type, created_at
-		FROM user_messages
-		WHERE user_id = $1 AND chat_id = $2
-		ORDER BY created_at DESC
-		LIMIT $3
-	`
-
-	rows, err := d.db.Query(query, userID, chatID, limit)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-
-	var messages []*domain.UserMessage
-	for rows.Next() {
-		var msg domain.UserMessage
-		err := rows.Scan(&msg.ID, &msg.UserID, &msg.ChatID, &msg.Username, &msg.MessageText, &msg.MessageType, &msg.CreatedAt)
-		if err != nil {
-			continue
-		}
-		messages = append(messages, &msg)
-	}
-
-	// Разворачиваем список для хронологического порядка (от старых к новым)
-	for i, j := 0, len(messages)-1; i < j; i, j = i+1, j-1 {
-		messages[i], messages[j] = messages[j], messages[i]
-	}
-
-	return messages, nil
 }

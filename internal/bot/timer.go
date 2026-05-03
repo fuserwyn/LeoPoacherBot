@@ -226,10 +226,7 @@ func (b *Bot) sendWarning(userID, chatID int64, username string) {
 	}
 	reportTag := "#training_done"
 	activityLabel := "тренировке"
-	if chatType == "writing" {
-		reportTag = "#writing_done"
-		activityLabel = "писательской сессии"
-	} else if chatType == "coding" {
+	if chatType == "coding" {
 		reportTag = "#coding_done"
 		activityLabel = "кодинг-сессии"
 	}
@@ -310,9 +307,7 @@ func (b *Bot) sendCriticalWarning(userID, chatID int64, username string) {
 		chatType = "training"
 	}
 	reportTag := "#training_done"
-	if chatType == "writing" {
-		reportTag = "#writing_done"
-	} else if chatType == "coding" {
+	if chatType == "coding" {
 		reportTag = "#coding_done"
 	}
 	messageText := fmt.Sprintf("🚨 КРИТИЧЕСКОЕ ПРЕДУПРЕЖДЕНИЕ! 🚨\n\n%s, я уже готовлюсь к обеду! Расставляю тарелки, накрываю на стол... Осталось всего 3 ЧАСА до удаления из чата!\n\n⏰ Это твой последний шанс!\n\n🎯 Отправь %s ПРЯМО СЕЙЧАС — или станешь главным блюдом! 😬", who, reportTag)

@@ -368,29 +368,29 @@ func (b *Bot) sendWelcomeMessage(chatID int64, username string, userID int64) {
 
 	// Создаем приветственное сообщение с упоминанием пользователя
 	var welcomeText string
-	if chatType == "writing" {
-		welcomeText = fmt.Sprintf(`%s, добро пожаловать в стаю писателей! 🦁
+	if chatType == "coding" {
+		welcomeText = fmt.Sprintf(`%s, добро пожаловать в стаю разработчиков! 🦁
 
-Я ваш хладнокровный литературный наставник, который следит за писательством всегда, я все вижу и не оставляю в стае тех, кто не пишет больше 7 дней!
+Я слежу за регулярными отчётами о коде: таймер, кубки и серии — как в спорт-режиме, но фокус только на программировании.
 
-📝 Отчеты о писательской работе:
-• #writing_done — Отправить отчет о писательской сессии
+💻 Отчёты о кодинг-сессии:
+• #coding_done — Отправить отчёт о кодинг-сессии
 
 🏥 Больничный:
 • #sick_leave — Взять больничный (приостанавливает таймер)
 • #healthy — Выздороветь (возобновляет таймер)
 
 🔄 Обмен:
-• #change — Обменять слова на кубки (100 слов = 42 кубка)
+• #change — Обменять калории на кубки (100 калорий = 42 кубка)
 
-⏰ Как я слежу за писательством:
-• Таймер уже запущен! У тебя есть 7 дней на первую писательскую сессию
-• При получении #writing_done таймер перезапускается на 7 дней
-• Через 6 дней без #writing_done - предупреждение
-• Через 7 дней без #writing_done - удаление из чата
+⏰ Как это работает:
+• Таймер уже запущен! У тебя есть 7 дней на первый отчёт
+• При получении #coding_done таймер перезапускается на 7 дней
+• Через 6 дней без отчёта — предупреждение
+• Через 7 дней без отчёта — удаление из чата
 
-🏆 Награды за писательские сессии:
-• 🏆 За каждую писательскую сессию = 1 КУБОК! 🏆
+🏆 Награды (те же рубежи, что и в тренировочном режиме):
+• 🏆 За каждую кодинг-сессию = 1 КУБОК! 🏆
 • 🏆 7 дней подряд = 42 КУБКА! 🏆
 • 🏆🏆 14 дней подряд = 42 КУБКА! 🏆🏆
 • 🏆🏆🏆 21 день подряд = 42 КУБКА! 🏆🏆🏆
@@ -402,13 +402,11 @@ func (b *Bot) sendWelcomeMessage(chatID int64, username string, userID int64) {
 • 🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆 100 дней подряд = 4200 КУБКОВ! 🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆
 
 📋 Правила:
-• Отчётом считается любое сообщение с тегом #writing_done
+• Отчётом считается любое сообщение с тегом #coding_done
 • Если заболели — отправь #sick_leave
 • После выздоровления — отправь #healthy
-• Через 6 дней без отчёта — предупреждение
-• Через 7 дней без отчёта — удаление из чата
 
-🎯 Начни прямо сейчас — отправь #writing_done!`, username)
+🎯 Начни прямо сейчас — отправь #coding_done!`, username)
 	} else {
 		welcomeText = fmt.Sprintf(`%s, добро пожаловать в стаю! 🦁
 
@@ -476,7 +474,7 @@ func (b *Bot) handleMessage(msg *tgbotapi.Message) {
 
 	b.tryHandleSickApprovalReply(msg, text)
 
-	// КРИТИЧЕСКИ ВАЖНО: Сначала проверяем хештеги команд (#training_done, #writing_done, #coding_done, #sick_leave, и т.д.)
+	// КРИТИЧЕСКИ ВАЖНО: Сначала проверяем хештеги команд (#training_done, #coding_done, #sick_leave, и т.д.)
 	// Команды имеют приоритет над ИИ-обработкой
 	// Проверяем тип чата для определения правильного хештега
 	chatTypeForCommand, err := b.db.GetChatType(msg.Chat.ID)
@@ -485,17 +483,14 @@ func (b *Bot) handleMessage(msg *tgbotapi.Message) {
 	}
 
 	hasTrainingDone := strings.Contains(strings.ToLower(text), "#training_done")
-	hasWritingDone := strings.Contains(strings.ToLower(text), "#writing_done")
 	hasCodingDone := strings.Contains(strings.ToLower(text), "#coding_done")
-	// Для чатов писательства принимаем оба хештега для совместимости, но приоритет у #writing_done
-	hasTrainingDone = hasTrainingDone || (hasWritingDone && chatTypeForCommand == "writing")
-	// Для чатов программирования принимаем оба хештега для совместимости, но приоритет у #coding_done
+	// В чате coding #training_done тоже засчитывается как отчёт (как и #coding_done)
 	hasTrainingDone = hasTrainingDone || (hasCodingDone && chatTypeForCommand == "coding")
 	hasSickLeave := strings.Contains(strings.ToLower(text), "#sick_leave")
 	hasHealthy := strings.Contains(strings.ToLower(text), "#healthy")
 	hasChange := strings.Contains(strings.ToLower(text), "#change")
 	hasTimeZone := strings.Contains(strings.ToLower(text), "#timezone")
-	hasCommand := hasTrainingDone || hasWritingDone || hasCodingDone || hasSickLeave || hasHealthy || hasChange || hasTimeZone
+	hasCommand := hasTrainingDone || hasCodingDone || hasSickLeave || hasHealthy || hasChange || hasTimeZone
 
 	// Если есть команда, обрабатываем её и НЕ обрабатываем через ИИ
 	if hasCommand {
@@ -515,7 +510,7 @@ func (b *Bot) handleMessage(msg *tgbotapi.Message) {
 		// Сохраняем сообщение в БД для RAG контекста
 		if text != "" {
 			messageType := "general"
-			if hasTrainingDone || hasWritingDone || hasCodingDone {
+			if hasTrainingDone || hasCodingDone {
 				messageType = "training_done" // Используем единый тип для всех отчетных хештегов
 			} else if hasSickLeave {
 				messageType = "sick_leave"
@@ -579,7 +574,7 @@ func (b *Bot) handleMessage(msg *tgbotapi.Message) {
 		// Обрабатываем хештеги
 		if hasTimeZone {
 			b.handleTimezoneCommand(msg, text)
-		} else if hasTrainingDone || hasWritingDone || hasCodingDone {
+		} else if hasTrainingDone || hasCodingDone {
 			b.handleTrainingDone(msg)
 		} else if hasSickLeave {
 			b.handleSickLeave(msg)
@@ -771,37 +766,10 @@ func (b *Bot) handleTrainingDone(msg *tgbotapi.Message) {
 		}
 	}
 
-	// Автоматически определяем тип чата на основе содержимого сообщения
+	// Текст отчёта (для аналитики / сессий)
 	text := msg.Text
 	if text == "" && msg.Caption != "" {
 		text = msg.Caption
-	}
-
-	// Проверяем текущий тип чата перед проверкой содержимого
-	currentType, err := b.db.GetChatType(msg.Chat.ID)
-	if err != nil {
-		currentType = "training" // По умолчанию
-	}
-
-	// Автоматически переключаем тип чата только если еще не "writing"
-	if currentType != "writing" && b.shouldDetectChatTypeAsWriting(text, msg.Chat.ID) {
-		// Автоматически устанавливаем тип чата как "writing", если в сообщении есть контекст писательства
-		if err := b.db.SetChatType(msg.Chat.ID, "writing"); err != nil {
-			b.logger.Warnf("Failed to auto-set chat type to writing: %v", err)
-		} else {
-			b.logger.Infof("Auto-detected chat type as 'writing' for chat %d based on message content", msg.Chat.ID)
-			// Уведомляем участников чата об автоматическом переключении типа (только один раз при переключении)
-			notification := tgbotapi.NewMessage(msg.Chat.ID, `🦁 Fat Leopard обнаружил контекст писательства в ваших сообщениях!
-
-✅ Тип чата автоматически переключен на "писательство"
-
-Теперь я буду вести отдельный контекст для лучшего понимания вашего литературного творчества.
-
-📝 Я готов помочь с развитием сюжета, персонажей и стиля!
-
-💡 Теперь используйте #writing_done вместо #training_done для отчетов о писательской работе!`)
-			b.api.Send(notification)
-		}
 	}
 
 	// Рассчитываем калории и серию
@@ -832,8 +800,8 @@ func (b *Bot) handleTrainingDone(msg *tgbotapi.Message) {
 			}
 			// Пользователь только что достиг 100 калорий/слов
 			var messageText string
-			if chatTypeForExchange == "writing" {
-				messageText = fmt.Sprintf("🎉 Поздравляю! 🎉\n\n%s, достигнуто %d %s!\n\n🔄 Теперь можешь совершить обмен!\n💡 Напиши #change для обмена 100 %s на 42 кубка!", username, updatedCalories, getWordForm(updatedCalories), getWordForm(100))
+			if chatTypeForExchange == "coding" {
+				messageText = fmt.Sprintf("🎉 Поздравляю! 🎉\n\n%s, достигнуто %d калорий (очков прогресса)!\n\n🔄 Теперь можешь совершить обмен!\n💡 Напиши #change для обмена 100 калорий на 42 кубка!", username, updatedCalories)
 			} else {
 				messageText = fmt.Sprintf("🎉 Поздравляю! 🎉\n\n%s, достигнуто %d калорий!\n\n🔄 Теперь можешь совершить обмен!\n💡 Напиши #change для обмена 100 калорий на 42 кубка!", username, updatedCalories)
 			}
@@ -859,8 +827,8 @@ func (b *Bot) handleTrainingDone(msg *tgbotapi.Message) {
 
 				totalCups, _ := b.db.GetUserCups(msg.From.ID, msg.Chat.ID)
 				var q string
-				if chatTypeForExchange == "writing" {
-					q = "Сделай короткую приписку (1–2 предложения): дружелюбно и по делу предложи обмен через #change. Обязательно поясни, что после обмена СЛОВА обнулятся и начнут накапливаться заново; обмен имеет смысл, если ожидается перерыв в писательстве. Укажи, что серия и кубки продолжаются как обычно. КРИТИЧЕСКИ ВАЖНО: используй ТОЛЬКО слово 'слова', НЕ упоминай 'калории', 'тренировки' или 'спорт'. Не повторяй цифры из текста, без Markdown."
+				if chatTypeForExchange == "coding" {
+					q = "Сделай короткую приписку (1–2 предложения): дружелюбно предложи обмен через #change. Поясни, что после обмена счётчик калорий/очков обнулится; обмен уместен перед длинным перерывом в отчётах. Серия дней и кубки не сбрасываются. НЕ переводи тему в спорт и зал. Не повторяй цифры из текста, без Markdown."
 				} else {
 					q = "Сделай короткую приписку (1–2 предложения): дружелюбно и по делу предложи обмен через #change. Обязательно поясни, что после обмена калории обнулятся и начнут накапливаться заново; обмен имеет смысл, если ожидается перерыв в тренировках. Укажи, что серия и кубки продолжаются как обычно. Не повторяй цифры из текста, без Markdown."
 				}
@@ -1090,9 +1058,7 @@ func (b *Bot) handleTrainingDone(msg *tgbotapi.Message) {
 		// Новая тренировка БЕЗ achievement - готовим базовый текст
 		// Адаптируем текст в зависимости от типа чата
 		var messageText string
-		if chatType == "writing" {
-			messageText = fmt.Sprintf("✅ Отчёт принят! 💪\n\n🦁 Ты пишешь дней подряд: %d\n🏆 +1 кубок за писательскую сессию!\n🏆 Всего кубков: %d\n%s\n\n⏰ Таймер перезапускается на 7 дней", newStreakDays, currentCups, solvedLine)
-		} else if chatType == "coding" {
+		if chatType == "coding" {
 			messageText = fmt.Sprintf("✅ Отчёт принят! 💪\n\n🦁 Ты кодишь дней подряд: %d\n🏆 +1 кубок за кодинг-сессию!\n🏆 Всего кубков: %d\n%s\n\n⏰ Таймер перезапускается на 7 дней", newStreakDays, currentCups, solvedLine)
 		} else {
 			messageText = fmt.Sprintf("✅ Отчёт принят! 💪\n\n🦁 Ты тренируешься дней подряд: %d\n🏆 +1 кубок за тренировку!\n🏆 Всего кубков: %d\n%s\n\n⏰ Таймер перезапускается на 7 дней", newStreakDays, currentCups, solvedLine)
@@ -1151,9 +1117,7 @@ func (b *Bot) handleTrainingDone(msg *tgbotapi.Message) {
 				trainingTextClean = strings.ReplaceAll(trainingTextClean, "#coding_done", "")
 				trainingTextClean = strings.TrimSpace(trainingTextClean)
 				if trainingTextClean != "" {
-					if chatType == "writing" {
-						ctxBuilder.WriteString(fmt.Sprintf("Сообщение о писательской работе: %s\n", trainingTextClean))
-					} else if chatType == "coding" {
+					if chatType == "coding" {
 						ctxBuilder.WriteString(fmt.Sprintf("Сообщение о кодинг-сессии: %s\n", trainingTextClean))
 					} else {
 						ctxBuilder.WriteString(fmt.Sprintf("Сообщение о тренировке: %s\n", trainingTextClean))
@@ -1168,9 +1132,7 @@ func (b *Bot) handleTrainingDone(msg *tgbotapi.Message) {
 			hour := now.Hour()
 			weekday := now.Weekday()
 			weekdayNames := []string{"воскресенье", "понедельник", "вторник", "среда", "четверг", "пятница", "суббота"}
-			if chatType == "writing" {
-				ctxBuilder.WriteString(fmt.Sprintf("Время писательской сессии: %s, %d:00\n", weekdayNames[weekday], hour))
-			} else if chatType == "coding" {
+			if chatType == "coding" {
 				ctxBuilder.WriteString(fmt.Sprintf("Время кодинг-сессии: %s, %d:00\n", weekdayNames[weekday], hour))
 			} else {
 				ctxBuilder.WriteString(fmt.Sprintf("Время тренировки: %s, %d:00\n", weekdayNames[weekday], hour))
@@ -1190,18 +1152,15 @@ func (b *Bot) handleTrainingDone(msg *tgbotapi.Message) {
 			ctxBuilder.WriteString(fmt.Sprintf("Время суток: %s\n", timeOfDay))
 
 			if wasOnSickLeave {
-				if chatType == "writing" {
-					ctxBuilder.WriteString("Недавно был больничный, теперь снова за писательством.\n")
-				} else if chatType == "coding" {
+				if chatType == "coding" {
 					ctxBuilder.WriteString("Недавно был больничный, теперь снова в кодинге.\n")
 				} else {
 					ctxBuilder.WriteString("Недавно был больничный, теперь снова в строю.\n")
 				}
 			}
 
-			// Вычисляем, сколько дней прошло с последней тренировки/писательской сессии
-			// ТОЛЬКО для чатов тренировок — не для писательства и не для coding (там без шуток «обед»/спорт)
-			if chatType != "writing" && chatType != "coding" && messageLog.LastTrainingDate != nil {
+			// Вычисляем, сколько дней прошло с последней тренировки — только для спорт-чата (не coding)
+			if chatType != "coding" && messageLog.LastTrainingDate != nil {
 				lastTrainingDate, err := time.Parse("2006-01-02", *messageLog.LastTrainingDate)
 				if err == nil {
 					today := b.getUserLocalNow(messageLog.TimezoneOffsetFromMoscow)
@@ -1217,25 +1176,19 @@ func (b *Bot) handleTrainingDone(msg *tgbotapi.Message) {
 
 			// Добавляем информацию о приближении к достижениям для мотивации
 			if newStreakDays == 6 {
-				if chatType == "writing" {
-					ctxBuilder.WriteString("ВАЖНО: Завтра будет 7 дней подряд писательства — важный рубеж! Можешь мягко намекнуть на это.\n")
-				} else if chatType == "coding" {
+				if chatType == "coding" {
 					ctxBuilder.WriteString("ВАЖНО: Завтра будет 7 дней подряд coding — важный рубеж! Намекни в духе инженерной дисциплины и качества кода, без спорта.\n")
 				} else {
 					ctxBuilder.WriteString("ВАЖНО: Завтра будет 7 дней подряд — важный рубеж! Можешь мягко намекнуть на это.\n")
 				}
 			} else if newStreakDays == 13 {
-				if chatType == "writing" {
-					ctxBuilder.WriteString("ВАЖНО: Завтра будет 14 дней подряд писательства — отличный результат! Можешь мягко намекнуть на это.\n")
-				} else if chatType == "coding" {
+				if chatType == "coding" {
 					ctxBuilder.WriteString("ВАЖНО: Завтра будет 14 дней подряд coding — отличный результат! Намекни про устойчивый ритм разработки, без спорта.\n")
 				} else {
 					ctxBuilder.WriteString("ВАЖНО: Завтра будет 14 дней подряд — отличный результат! Можешь мягко намекнуть на это.\n")
 				}
 			} else if newStreakDays == 20 {
-				if chatType == "writing" {
-					ctxBuilder.WriteString("ВАЖНО: Завтра будет 21 день подряд писательства — впечатляющая серия! Можешь мягко намекнуть на это.\n")
-				} else if chatType == "coding" {
+				if chatType == "coding" {
 					ctxBuilder.WriteString("ВАЖНО: Завтра будет 21 день подряд coding — впечатляющая серия! Намекни про глубину практики в коде, без спорта.\n")
 				} else {
 					ctxBuilder.WriteString("ВАЖНО: Завтра будет 21 день подряд — впечатляющая серия! Можешь мягко намекнуть на это.\n")
@@ -1255,10 +1208,8 @@ func (b *Bot) handleTrainingDone(msg *tgbotapi.Message) {
 			}
 		}
 
-		// Добавляем фразу о продолжении тренировок/писательства в самом конце
-		if chatType == "writing" {
-			messageText = messageText + "\n\n🎯 Продолжай писать и не забывай отправлять #writing_done!"
-		} else if chatType == "coding" {
+		// Добавляем фразу о продолжении в самом конце
+		if chatType == "coding" {
 			messageText = messageText + "\n\n🎯 Продолжай кодить и не забывай отправлять #coding_done!"
 		} else {
 			messageText = messageText + "\n\n🎯 Продолжай тренироваться и не забывай отправлять #training_done!"
@@ -1296,11 +1247,9 @@ func (b *Bot) handleTrainingDone(msg *tgbotapi.Message) {
 			currentCups = 0
 		}
 
-		// Адаптируем текст для дополнительной тренировки/писательской сессии
+		// Адаптируем текст для дополнительной сессии за день
 		var messageText string
-		if chatType == "writing" {
-			messageText = fmt.Sprintf("🦁 Какой мотивированный леопард! Еще одна писательская сессия сегодня! 💪\n\n🔥 Твоя мотивация впечатляет\n🏆 +1 кубок за дополнительную писательскую сессию!\n🏆 Всего кубков: %d\n%s\n\n⏰ Таймер уже перезапущен на 7 дней\n\n🎯 Завтра снова отправляй #writing_done для продолжения серии!", currentCups, solvedLine)
-		} else if chatType == "coding" {
+		if chatType == "coding" {
 			messageText = fmt.Sprintf("🦁 Какой мотивированный леопард! Еще одна кодинг-сессия сегодня! 💪\n\n🔥 Твоя мотивация впечатляет\n🏆 +1 кубок за дополнительную кодинг-сессию!\n🏆 Всего кубков: %d\n%s\n\n⏰ Таймер уже перезапущен на 7 дней\n\n🎯 Завтра снова отправляй #coding_done для продолжения серии!", currentCups, solvedLine)
 		} else {
 			messageText = fmt.Sprintf("🦁 Какой мотивированный леопард! Еще одна тренировка сегодня! 💪\n\n🔥 Твоя мотивация впечатляет\n🏆 +1 кубок за дополнительную тренировку!\n🏆 Всего кубков: %d\n%s\n\n⏰ Таймер уже перезапущен на 7 дней\n\n🎯 Завтра снова отправляй #training_done для продолжения серии!", currentCups, solvedLine)
@@ -1327,12 +1276,7 @@ func (b *Bot) handleTrainingDone(msg *tgbotapi.Message) {
 
 			// Единое сообщение для дополнительной тренировки/писательской сессии (объединяем приписку и мудрость) - БЕЗ общих фраз
 			var doubleTrainingPrompts []string
-			if chatType == "writing" {
-				doubleTrainingPrompts = []string{
-					"Двойная писательская сессия за день — особое вдохновение! Напиши 2-3 предложения: первое — отметь упорство и писательскую работу, второе — короткое практическое замечание. Используй ТОЛЬКО этот отчёт. Без Markdown.",
-					"Вторая писательская сессия за день. Напиши 2-3 предложения: первое — похвали за энергию и отметь работу, второе — конкретное наблюдение. Используй ТОЛЬКО этот отчёт. Без Markdown.",
-				}
-			} else if chatType == "coding" {
+			if chatType == "coding" {
 				doubleTrainingPrompts = []string{
 					"Вторая coding-сессия за день. Напиши 2-3 предложения: первое — конкретно по задаче/коду из отчёта, второе — короткий инженерный совет (тесты, рефакторинг, читаемость). НИКАКОГО спорта и «физической разгрузки». Только про разработку. Без Markdown.",
 					"Двойной фокус на код за день — редкость. 2-3 предложения: похвала по сути отчёта и один практический следующий шаг в коде. Запрещены зал, бег, растяжка, тренировки. Без Markdown.",
@@ -1379,27 +1323,21 @@ func (b *Bot) handleTrainingDone(msg *tgbotapi.Message) {
 				trainingTextClean = strings.ReplaceAll(trainingTextClean, "#coding_done", "")
 				trainingTextClean = strings.TrimSpace(trainingTextClean)
 				if trainingTextClean != "" {
-					if chatType == "writing" {
-						ctxBuilder.WriteString(fmt.Sprintf("Сообщение о писательской работе: %s\n", trainingTextClean))
-					} else if chatType == "coding" {
+					if chatType == "coding" {
 						ctxBuilder.WriteString(fmt.Sprintf("Сообщение о кодинг-сессии: %s\n", trainingTextClean))
 					} else {
 						ctxBuilder.WriteString(fmt.Sprintf("Сообщение о тренировке: %s\n", trainingTextClean))
 					}
 				}
 			}
-			if chatType == "writing" {
-				ctxBuilder.WriteString("Уже была писательская сессия сегодня, это повторная.\n")
-			} else if chatType == "coding" {
+			if chatType == "coding" {
 				ctxBuilder.WriteString("Уже была coding-сессия сегодня, это повторный отчёт за день.\n")
 			} else {
 				ctxBuilder.WriteString("Уже была тренировка сегодня, это повторная.\n")
 			}
 			ctxBuilder.WriteString(fmt.Sprintf("Кубков всего: %d\n", currentCups))
 			if wasOnSickLeave {
-				if chatType == "writing" {
-					ctxBuilder.WriteString("Недавно был больничный, теперь снова за писательством.\n")
-				} else if chatType == "coding" {
+				if chatType == "coding" {
 					ctxBuilder.WriteString("Недавно был больничный, теперь снова в коде.\n")
 				} else {
 					ctxBuilder.WriteString("Недавно был больничный, теперь снова в строю.\n")
@@ -1710,32 +1648,19 @@ func (b *Bot) handleChange(msg *tgbotapi.Message) {
 	exchangesCanMake := currentCalories / exchangeRate
 
 	if exchangesCanMake == 0 {
-		// Недостаточно калорий/слов для обмена
 		var replyText string
-		if chatType == "writing" {
-			replyText = fmt.Sprintf("💪 %s, у тебя %d %s\n\n🔄 Для обмена нужно минимум %d %s\n🏆 За %d %s можно получить %d кубков\n\n⏰ Пока рано! Еще попиши!\n\n🎯 Продолжай писать и накапливай слова!", username, currentCalories, getWordForm(currentCalories), exchangeRate, getWordForm(exchangeRate), exchangeRate, getWordForm(exchangeRate), cupsPerExchange)
+		if chatType == "coding" {
+			replyText = fmt.Sprintf("💪 %s, у тебя %d калорий (очков прогресса)\n\n🔄 Для обмена нужно минимум %d калорий\n🏆 За %d калорий можно получить %d кубков\n\n⏰ Пока рано! Еще немного отчётов с #coding_done.\n\n🎯 Продолжай накапливать калории!", username, currentCalories, exchangeRate, exchangeRate, cupsPerExchange)
 		} else {
 			replyText = fmt.Sprintf("💪 %s, у тебя %d калорий\n\n🔄 Для обмена нужно минимум %d калорий\n🏆 За %d калорий можно получить %d кубков\n\n⏰ Пока рано! Еще потренируйся!\n\n🎯 Продолжай тренироваться и накапливай калории!", username, currentCalories, exchangeRate, exchangeRate, cupsPerExchange)
 		}
 		reply := tgbotapi.NewMessage(msg.Chat.ID, replyText)
-		if chatType == "writing" {
-			b.logger.Infof("Sending insufficient words message to chat %d", msg.Chat.ID)
-		} else {
-			b.logger.Infof("Sending insufficient calories message to chat %d", msg.Chat.ID)
-		}
+		b.logger.Infof("Sending insufficient calories message to chat %d", msg.Chat.ID)
 		_, err = b.api.Send(reply)
 		if err != nil {
-			if chatType == "writing" {
-				b.logger.Errorf("Failed to send insufficient words message: %v", err)
-			} else {
-				b.logger.Errorf("Failed to send insufficient calories message: %v", err)
-			}
+			b.logger.Errorf("Failed to send insufficient calories message: %v", err)
 		} else {
-			if chatType == "writing" {
-				b.logger.Infof("Successfully sent insufficient words message to chat %d", msg.Chat.ID)
-			} else {
-				b.logger.Infof("Successfully sent insufficient calories message to chat %d", msg.Chat.ID)
-			}
+			b.logger.Infof("Successfully sent insufficient calories message to chat %d", msg.Chat.ID)
 		}
 		return
 	}
@@ -1744,15 +1669,10 @@ func (b *Bot) handleChange(msg *tgbotapi.Message) {
 	caloriesToSpend := exchangesCanMake * exchangeRate
 	cupsToAdd := exchangesCanMake * cupsPerExchange
 
-	// Списываем калории/слова
-	var spendErrorMsg string
-	if chatType == "writing" {
-		spendErrorMsg = "❌ Ошибка при списании слов"
-	} else {
-		spendErrorMsg = "❌ Ошибка при списании калорий"
-	}
+	// Списываем калории
+	spendErrorMsg := "❌ Ошибка при списании калорий"
 	if err := b.db.AddCalories(msg.From.ID, msg.Chat.ID, -caloriesToSpend); err != nil {
-		b.logger.Errorf("Failed to spend calories/words: %v", err)
+		b.logger.Errorf("Failed to spend calories: %v", err)
 		reply := tgbotapi.NewMessage(msg.Chat.ID, spendErrorMsg)
 		b.api.Send(reply)
 		return
@@ -1783,8 +1703,8 @@ func (b *Bot) handleChange(msg *tgbotapi.Message) {
 
 	// Отправляем сообщение об успешном обмене
 	var replyText string
-	if chatType == "writing" {
-		replyText = fmt.Sprintf("🔄 Обмен выполнен! 💪\n\n%s написано 📝 %d %s → 🏆 %d кубка\n\n📊 Твой баланс:\n📝 Слова: %d\n🏆 Кубки: %d\n\n💡 Курс: %d %s = %d кубка", username, caloriesToSpend, getWordForm(caloriesToSpend), cupsToAdd, newCalories, newCups, exchangeRate, getWordForm(exchangeRate), cupsPerExchange)
+	if chatType == "coding" {
+		replyText = fmt.Sprintf("🔄 Обмен выполнен! 💪\n\n%s обменяно 🔥 %d калорий → 🏆 %d кубка\n\n📊 Твой баланс:\n🔥 Калории: %d\n🏆 Кубки: %d\n\n💡 Курс: %d калорий = %d кубка", username, caloriesToSpend, cupsToAdd, newCalories, newCups, exchangeRate, cupsPerExchange)
 	} else {
 		replyText = fmt.Sprintf("🔄 Обмен выполнен! 💪\n\n%s сожжено 🔥 %d калорий → 🏆 %d кубка\n\n📊 Твой баланс:\n🔥 Калории: %d\n🏆 Кубки: %d\n\n💡 Курс: %d калорий = %d кубка", username, caloriesToSpend, cupsToAdd, newCalories, newCups, exchangeRate, cupsPerExchange)
 	}
@@ -1845,8 +1765,8 @@ func (b *Bot) handleHelp(msg *tgbotapi.Message) {
 	}
 
 	var helpText string
-	if chatType == "writing" {
-		helpText = `🤖 LeoPoacherBot - Команды (Чат писательства):
+	if chatType == "coding" {
+		helpText = `🤖 LeoPoacherBot - Команды (Чат программирования):
 
 📝 Команды администратора:
 • /start_timer — Запустить таймеры для всех пользователей
@@ -1856,47 +1776,28 @@ func (b *Bot) handleHelp(msg *tgbotapi.Message) {
 🤖 ИИ-помощник:
 • Отметьте меня @LeoPoacherBot в сообщении для общения
 • Или ответьте (reply) на любое мое сообщение
-• Я могу давать советы, показывать статистику и мотивировать!
 
 🏆 Команды пользователей:
-• /top — Показать топ пользователей по словам
-• /points — Показать ваши слова
+• /top — Показать топ по калориям (очкам прогресса)
+• /points — Показать ваши калории
 • /cups — Показать ваши заработанные кубки
 
-📝 Отчеты о писательской работе:
-• #writing_done — Отправить отчет о писательской сессии
+💻 Отчёты о кодинг-сессии:
+• #coding_done — отчёт за сессию (в этом режиме можно и #training_done)
 
 🏥 Больничный:
 • #sick_leave — Взять больничный (приостанавливает таймер)
 • #healthy — Выздороветь (возобновляет таймер)
 
 🔄 Обмен:
-• #change — Обменять слова на кубки (100 слов = 42 кубка)
+• #change — Обменять калории на кубки (100 калорий = 42 кубка)
 
 ⏰ Как работает бот:
-• При добавлении бота в чат запускаются таймеры для всех участников
-• При получении #writing_done таймер перезапускается на 7 дней
-• Через 6 дней без #writing_done - предупреждение
-• Через 7 дней без #writing_done - удаление из чата
-• 🏆 За каждую писательскую сессию = 1 КУБОК! 🏆
-• 🏆 7 дней подряд = 42 КУБКА! 🏆
-• 🏆🏆 14 дней подряд = 42 КУБКА! 🏆🏆
-• 🏆🏆🏆 21 день подряд = 42 КУБКА! 🏆🏆🏆
-• 🏆🏆🏆 30 дней подряд = 420 КУБКОВ! 🏆🏆🏆
-• 🏆🏆🏆🏆 42 дня подряд = 42 КУБКА! 🏆🏆🏆🏆
-• 🏆🏆🏆🏆🏆 50 дней подряд = 42 КУБКА! 🏆🏆🏆🏆🏆
-• 🏆🏆🏆🏆🏆🏆 60 дней подряд = 420 КУБКОВ! 🏆🏆🏆🏆🏆🏆
-• 🏆🏆🏆🏆🏆🏆🏆🏆 90 дней подряд = 420 КУБКОВ! 🏆🏆🏆🏆🏆🏆🏆🏆
-• 🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆 100 дней подряд = 4200 КУБКОВ! 🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆
+• Таймер и кубки — как в тренировочном режиме, но ответы и напоминания про код, не про спорт
+• При отчёте таймер перезапускается на 7 дней
+• Через 6 дней без отчёта — предупреждение, через 7 — удаление из чата
 
-📋 Правила:
-• Отчётом считается любое сообщение с тегом #writing_done
-• Если заболели — отправь #sick_leave
-• После выздоровления — отправь #healthy
-• Через 6 дней без отчёта — предупреждение
-• Через 7 дней без отчёта — удаление из чата
-
-Оставайся активным и не становись жирным леопардом! 🦁`
+Оставайся в ритме и не становись жирным леопардом! 🦁`
 	} else {
 		helpText = `🤖 LeoPoacherBot - Команды:
 
@@ -1970,43 +1871,27 @@ func (b *Bot) handleStart(msg *tgbotapi.Message) {
 	}
 
 	var welcomeText string
-	if chatType == "writing" {
+	if chatType == "coding" {
 		welcomeText = `🦁 **Добро пожаловать в LeoPoacherBot!** 🦁
 
-📝 **Этот бот поможет вам оставаться активным в писательстве и не стать жирным леопардом!**
+💻 **Режим программирования:** таймеры, кубки и серии как в тренировках, но фокус на коде.
 
 📋 **Основные команды:**
 • /start — Показать это приветствие
 • /help — Показать полную справку
 • /start_timer — Запустить таймеры (только для администраторов)
 
-📝 **Отчеты о писательской работе:**
-• #writing_done — Отправить отчет о писательской сессии
+💻 **Отчёты:**
+• #coding_done — отчёт о кодинг-сессии (допускается и #training_done)
 
 🏥 **Больничный:**
-• #sick_leave — Взять больничный (приостанавливает таймер)
-• #healthy — Выздороветь (возобновляет таймер)
+• #sick_leave — Взять больничный
+• #healthy — Выздороветь
 
 🔄 **Обмен:**
-• #change — Обменять слова на кубки (100 слов = 42 кубка)
+• #change — 100 калорий на 42 кубка
 
-⏰ **Как это работает:**
-• При добавлении бота в чат запускаются таймеры для всех участников
-• Каждый отчет с #writing_done перезапускает таймер на 7 дней
-• Через 6 дней без отчета — предупреждение
-• Через 7 дней без отчета — удаление из чата
-• 🏆 За каждую писательскую сессию = 1 КУБОК! 🏆
-• 🏆 7 дней подряд = 42 КУБКА! 🏆
-• 🏆🏆 14 дней подряд = 42 КУБКА! 🏆🏆
-• 🏆🏆🏆 21 день подряд = 42 КУБКА! 🏆🏆🏆
-• 🏆🏆🏆 30 дней подряд = 420 КУБКОВ! 🏆🏆🏆
-• 🏆🏆🏆🏆 42 дня подряд = 42 КУБКА! 🏆🏆🏆🏆
-• 🏆🏆🏆🏆🏆 50 дней подряд = 42 КУБКА! 🏆🏆🏆🏆🏆
-• 🏆🏆🏆🏆🏆🏆 60 дней подряд = 420 КУБКОВ! 🏆🏆🏆🏆🏆🏆
-• 🏆🏆🏆🏆🏆🏆🏆🏆 90 дней подряд = 420 КУБКОВ! 🏆🏆🏆🏆🏆🏆🏆🏆
-• 🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆 100 дней подряд = 4200 КУБКОВ! 🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆
-
-🎯 **Начни прямо сейчас — отправь #writing_done!**`
+🎯 **Начни — отправь #coding_done!**`
 	} else {
 		welcomeText = `🦁 **Добро пожаловать в LeoPoacherBot!** 🦁
 
@@ -2107,8 +1992,8 @@ func (b *Bot) handleTop(msg *tgbotapi.Message) {
 
 	if len(topUsers) == 0 {
 		var emptyText string
-		if chatType == "writing" {
-			emptyText = "🏆 **Топ пользователей:**\n\n📊 Пока нет данных о писательских сессиях"
+		if chatType == "coding" {
+			emptyText = "🏆 **Топ пользователей:**\n\n📊 Пока нет данных о кодинг-сессиях"
 		} else {
 			emptyText = "🏆 **Топ пользователей:**\n\n📊 Пока нет данных о тренировках"
 		}
@@ -2119,12 +2004,7 @@ func (b *Bot) handleTop(msg *tgbotapi.Message) {
 	}
 
 	// Формируем топ
-	var topText string
-	if chatType == "writing" {
-		topText = "🏆 Топ пользователей по очкам (слов):\n\n"
-	} else {
-		topText = "🏆 Топ пользователей по очкам (калорий):\n\n"
-	}
+	topText := "🏆 Топ пользователей по очкам (калорий):\n\n"
 	for i, user := range topUsers {
 		emoji := "🥇"
 		if i == 1 {
@@ -2134,11 +2014,7 @@ func (b *Bot) handleTop(msg *tgbotapi.Message) {
 		} else {
 			emoji = fmt.Sprintf("%d️⃣", i+1)
 		}
-		if chatType == "writing" {
-			topText += fmt.Sprintf("%s %s - %d %s\n", emoji, user.Username, user.Calories, getWordForm(user.Calories))
-		} else {
-			topText += fmt.Sprintf("%s %s - %d калорий\n", emoji, user.Username, user.Calories)
-		}
+		topText += fmt.Sprintf("%s %s - %d калорий\n", emoji, user.Username, user.Calories)
 	}
 
 	reply := tgbotapi.NewMessage(msg.Chat.ID, topText)
@@ -2183,8 +2059,8 @@ func (b *Bot) handlePoints(msg *tgbotapi.Message) {
 
 	// Формируем сообщение
 	var caloriesText string
-	if chatType == "writing" {
-		caloriesText = fmt.Sprintf("📝 Ваши слова:\n\n👤 %s\n🎯 Всего написано %s: %d\n\n💡 Отправляйте #writing_done для написания слов!", username, getWordForm(calories), calories)
+	if chatType == "coding" {
+		caloriesText = fmt.Sprintf("💻 Ваш прогресс (калории):\n\n👤 %s\n🎯 Всего накоплено: %d\n\n💡 Отправляйте #coding_done или #training_done за сессию!", username, calories)
 	} else {
 		caloriesText = fmt.Sprintf("🔥 Ваши калории:\n\n👤 %s\n🎯 Всего сожжено калорий: %d\n\n💡 Отправляйте #training_done для сжигания калорий!", username, calories)
 	}
@@ -2245,14 +2121,14 @@ func (b *Bot) handleCups(msg *tgbotapi.Message) {
 	if cups > 420 {
 		cupsText = fmt.Sprintf("🌟⚡ СУПЕР-УРОВЕНЬ! ⚡🌟\n\n👤 %s\n🎯 Всего заработано кубков: %d\n\n🎊 ВСЕ ОЖИДАНИЯ ПРЕВЗОЙДЕНЫ! 🎊\n\n🦁 Fat Leopard в полном восторге!\n💪 Ты не просто чемпион - ты СУПЕР-ЧЕМПИОН!\n🔥 Твоя сила и мощь безграничны!\n⭐️ Ты вдохновляешь всю стаю!\n👑 Мотивация не верит, что такое бывает!\n🌟 Ты сияешь ярче всех!\n\n🎯 Продолжай в том же духе, супер-леопард!", username, cups)
 	} else if cups >= 420 {
-		if chatType == "writing" {
-			cupsText = fmt.Sprintf("🎊 ПОЗДРАВЛЯЕМ! 🎊\n\n👤 %s\n🎯 Всего заработано кубков: %d\n\n🏆 ТЫ %s ЦЕЛИ РОЗЫГРЫША!\n🎁 Участвуешь в розыгрыше футболки Fat Leopard!\n💪 Ты настоящая %s!\n🔥 Продолжай писать!", username, cups, strings.ToUpper(forms.Reached), forms.Champion)
+		if chatType == "coding" {
+			cupsText = fmt.Sprintf("🎊 ПОЗДРАВЛЯЕМ! 🎊\n\n👤 %s\n🎯 Всего заработано кубков: %d\n\n🏆 ТЫ %s ЦЕЛИ РОЗЫГРЫША!\n🎁 Участвуешь в розыгрыше футболки Fat Leopard!\n💪 Ты настоящий %s!\n🔥 Продолжай кодить!", username, cups, strings.ToUpper(forms.Reached), forms.Champion)
 		} else {
 			cupsText = fmt.Sprintf("🎊 ПОЗДРАВЛЯЕМ! 🎊\n\n👤 %s\n🎯 Всего заработано кубков: %d\n\n🏆 ТЫ %s ЦЕЛИ РОЗЫГРЫША!\n🎁 Участвуешь в розыгрыше футболки Fat Leopard!\n💪 Ты настоящий %s!\n🔥 Продолжай тренироваться!", username, cups, strings.ToUpper(forms.Reached), forms.Champion)
 		}
 	} else {
-		if chatType == "writing" {
-			cupsText = fmt.Sprintf("🏆 Ваши кубки:\n\n👤 %s\n🎯 Всего заработано кубков: %d\n\n💡 Отправляйте #writing_done для получения кубков!\n\n🎊 Розыгрыш футболки Fat Leopard при достижении 420 кубков!", username, cups)
+		if chatType == "coding" {
+			cupsText = fmt.Sprintf("🏆 Ваши кубки:\n\n👤 %s\n🎯 Всего заработано кубков: %d\n\n💡 Отправляйте #coding_done или #training_done за сессию!\n\n🎊 Розыгрыш футболки Fat Leopard при достижении 420 кубков!", username, cups)
 		} else {
 			cupsText = fmt.Sprintf("🏆 Ваши кубки:\n\n👤 %s\n🎯 Всего заработано кубков: %d\n\n💡 Отправляйте #training_done для получения кубков!\n\n🎊 Розыгрыш футболки Fat Leopard при достижении 420 кубков!", username, cups)
 		}
@@ -2816,7 +2692,7 @@ func (b *Bot) generateAndSendDailyWisdom() {
 	}
 
 	// Группируем чаты по типу для генерации разных мудростей
-	writingChats := []int64{}
+	codingChats := []int64{}
 	trainingChats := []int64{}
 
 	for _, chatID := range chatIDs {
@@ -2824,8 +2700,8 @@ func (b *Bot) generateAndSendDailyWisdom() {
 		if err != nil {
 			chatType = "training" // По умолчанию
 		}
-		if chatType == "writing" {
-			writingChats = append(writingChats, chatID)
+		if chatType == "coding" {
+			codingChats = append(codingChats, chatID)
 		} else {
 			trainingChats = append(trainingChats, chatID)
 		}
@@ -2858,27 +2734,26 @@ func (b *Bot) generateAndSendDailyWisdom() {
 		}
 	}
 
-	// Генерируем мудрость для чатов писательства
-	if len(writingChats) > 0 {
-		wisdom, err := b.aiClient.GenerateDailyWisdom("writing")
+	// Генерируем мудрость для чатов программирования
+	if len(codingChats) > 0 {
+		wisdom, err := b.aiClient.GenerateDailyWisdom("coding")
 		if err != nil {
-			b.logger.Errorf("Failed to generate daily wisdom for writing: %v", err)
-			// Фолбэк на статическую мудрость для писательства
+			b.logger.Errorf("Failed to generate daily wisdom for coding: %v", err)
 			candidates := []string{
-				"Тишина внутри сильнее шума вокруг. Дисциплина письма — это форма заботы о творчестве. Начни с малого и будь верен тексту.",
-				"Сила слова рождается в простых предложениях. Выбери одну мысль сегодня — и вырази её спокойно.",
-				"Перо слушает разум. Разум слушает вдохновение. Ровное дыхание — ровный текст.",
-				"Пусть писательская сессия будет краткой, но честной. Постоянство сильнее порывов.",
-				"Не ищи идеального момента. Создай его. Терпение и слово — союзники."}
+				"Маленький чистый шаг в коде сегодня — меньше сюрпризов завтра. Дисциплина в деталях — это забота о будущем себе.",
+				"Сложность растёт не от строк, а от неясности. Сформулируй задачу — и половина пути уже пройдена.",
+				"Компилятор слушает точность. Ты слушай факты. Ровная проверка гипотез — ровный прогресс.",
+				"Пусть сессия будет короткой, но честной: один осмысленный коммит лучше длинного хаоса.",
+				"Не жди идеальной архитектуры. Сделай следующий шаг и укрепи его тестом."}
 			idx := int(time.Now().Unix() % int64(len(candidates)))
 			wisdom = candidates[idx]
 		} else {
 			wisdom = strings.ReplaceAll(wisdom, "**", "")
 		}
 
-		for _, chatID := range writingChats {
+		for _, chatID := range codingChats {
 			msg := tgbotapi.NewMessage(chatID, wisdom)
-			b.logger.Infof("Sending daily wisdom to writing chat %d", chatID)
+			b.logger.Infof("Sending daily wisdom to coding chat %d", chatID)
 			if _, err := b.api.Send(msg); err != nil {
 				b.logger.Errorf("Failed to send daily wisdom to chat %d: %v", chatID, err)
 			}
@@ -2966,9 +2841,7 @@ func (b *Bot) auditProcessTrainingDone(um *domain.UserMessage) {
 		}
 		solvedLine := formatSolvedTasksTotalLine(chatType, solvedShown)
 		var text string
-		if chatType == "writing" {
-			text = fmt.Sprintf("✅ Отчёт принят! 💪\n\n🦁 Я вижу твою писательскую сессию за %s.\n%s\n\n⏰ Бот был перезапущен — отправляю подтверждение сейчас.", um.CreatedAt.In(loc).Format("02.01 15:04"), solvedLine)
-		} else if chatType == "coding" {
+		if chatType == "coding" {
 			text = fmt.Sprintf("✅ Отчёт принят! 💪\n\n🦁 Я вижу твою кодинг-сессию за %s.\n%s\n\n⏰ Бот был перезапущен — отправляю подтверждение сейчас.", um.CreatedAt.In(loc).Format("02.01 15:04"), solvedLine)
 		} else {
 			text = fmt.Sprintf("✅ Отчёт принят! 💪\n\n🦁 Я вижу твою тренировку за %s.\n%s\n\n⏰ Бот был перезапущен — отправляю подтверждение сейчас.", um.CreatedAt.In(loc).Format("02.01 15:04"), solvedLine)
@@ -3033,9 +2906,7 @@ func (b *Bot) auditProcessTrainingDone(um *domain.UserMessage) {
 		}
 		solvedLine := formatSolvedTasksTotalLine(chatType, solvedTotal)
 		var text string
-		if chatType == "writing" {
-			text = fmt.Sprintf("✅ Отчёт принят! 💪\n\n🦁 Ты пишешь дней подряд: %d\n🏆 +1 кубок за писательскую сессию!\n🏆 Всего кубков: %d\n%s\n\n⏰ Таймер перезапускается на 7 дней", newStreakDays, currentCups, solvedLine)
-		} else if chatType == "coding" {
+		if chatType == "coding" {
 			text = fmt.Sprintf("✅ Отчёт принят! 💪\n\n🦁 Ты кодишь дней подряд: %d\n🏆 +1 кубок за кодинг-сессию!\n🏆 Всего кубков: %d\n%s\n\n⏰ Таймер перезапускается на 7 дней", newStreakDays, currentCups, solvedLine)
 		} else {
 			text = fmt.Sprintf("✅ Отчёт принят! 💪\n\n🦁 Ты тренируешься дней подряд: %d\n🏆 +1 кубок за тренировку!\n🏆 Всего кубков: %d\n%s\n\n⏰ Таймер перезапускается на 7 дней", newStreakDays, currentCups, solvedLine)
@@ -3055,9 +2926,7 @@ func (b *Bot) auditProcessTrainingDone(um *domain.UserMessage) {
 		_ = b.db.AddCups(um.UserID, um.ChatID, 1)
 		currentCups, _ := b.db.GetUserCups(um.UserID, um.ChatID)
 		var text string
-		if chatType == "writing" {
-			text = fmt.Sprintf("🦁 Какой мотивированный леопард! Еще одна писательская сессия сегодня! 💪\n\n🏆 +1 кубок за дополнительную писательскую сессию!\n🏆 Всего кубков: %d\n%s", currentCups, solvedLine)
-		} else if chatType == "coding" {
+		if chatType == "coding" {
 			text = fmt.Sprintf("🦁 Какой мотивированный леопард! Еще одна кодинг-сессия сегодня! 💪\n\n🏆 +1 кубок за дополнительную кодинг-сессию!\n🏆 Всего кубков: %d\n%s", currentCups, solvedLine)
 		} else {
 			text = fmt.Sprintf("🦁 Какой мотивированный леопард! Еще одна тренировка сегодня! 💪\n\n🏆 +1 кубок за дополнительную тренировку!\n🏆 Всего кубков: %d\n%s", currentCups, solvedLine)
@@ -3190,8 +3059,8 @@ func (b *Bot) generateMonthlySummaryForChat(chatID int64, month time.Time) {
 	}
 	if maxTrainings > 0 {
 		var maxLabel string
-		if chatType == "writing" {
-			maxLabel = writingSessionsWordForm(maxTrainings)
+		if chatType == "coding" {
+			maxLabel = codingSessionsWordForm(maxTrainings)
 		} else {
 			maxLabel = trainingsWordForm(maxTrainings)
 		}
@@ -3206,18 +3075,14 @@ func (b *Bot) generateMonthlySummaryForChat(chatID int64, month time.Time) {
 		}
 
 		var lineWorkLabel string
-		if chatType == "writing" {
-			lineWorkLabel = writingSessionsWordForm(u.TrainingCount)
+		if chatType == "coding" {
+			lineWorkLabel = codingSessionsWordForm(u.TrainingCount)
 		} else {
 			lineWorkLabel = trainingsWordForm(u.TrainingCount)
 		}
 		sb.WriteString(fmt.Sprintf("• %s: %d %s", name, u.TrainingCount, lineWorkLabel))
 		sb.WriteString(fmt.Sprintf(", серия на момент отчёта: %d дн.", u.StreakDays))
-		if chatType == "writing" {
-			sb.WriteString(fmt.Sprintf(", %d %s, %d %s", u.Calories, getWordForm(u.Calories), u.Cups, cupsWordForm(u.Cups)))
-		} else {
-			sb.WriteString(fmt.Sprintf(", %d калорий, %d %s", u.Calories, u.Cups, cupsWordForm(u.Cups)))
-		}
+		sb.WriteString(fmt.Sprintf(", %d калорий, %d %s", u.Calories, u.Cups, cupsWordForm(u.Cups)))
 
 		var flags []string
 		if u.HasSickLeave {
@@ -3242,8 +3107,8 @@ func (b *Bot) generateMonthlySummaryForChat(chatID int64, month time.Time) {
 		}
 	}
 	if anyTraining {
-		if chatType == "writing" {
-			sb.WriteString("Я бы съел пирог. Вы — пишете. Продолжаем в том же духе! 💪🦁")
+		if chatType == "coding" {
+			sb.WriteString("Я бы съел пиццу. Вы — коммиты. Продолжаем в том же духе! 💪🦁")
 		} else {
 			sb.WriteString("Я бы съел пиццу. Вы — тренировки. Продолжаем в том же духе! 💪🦁")
 		}
@@ -3312,9 +3177,9 @@ func (b *Bot) handleAIQuestion(msg *tgbotapi.Message, questionText string) {
 		chatType = "training" // По умолчанию
 	}
 
-	if chatType == "writing" {
-		contextText.WriteString("=== КОНТЕКСТ ЧАТА ПИСАТЕЛЬСТВА ===\n\n")
-		contextText.WriteString("Это чат для писательства. Веди себя как мудрый литературный наставник. Помни всю переписку в этом чате и используй её для контекста при ответе.\n\n")
+	if chatType == "coding" {
+		contextText.WriteString("=== КОНТЕКСТ ЧАТА ПРОГРАММИРОВАНИЯ ===\n\n")
+		contextText.WriteString("Это чат про код и разработку. Веди себя как техлид-наставник: ясно, по делу, без спортивных метафор, если их не просят.\n\n")
 	} else {
 		contextText.WriteString("=== ИСТОРИЯ ТРЕНИРОВОК ПОЛЬЗОВАТЕЛЯ ===\n\n")
 	}
@@ -3419,49 +3284,25 @@ func (b *Bot) handleAIQuestion(msg *tgbotapi.Message, questionText string) {
 		contextText.WriteString("\n⚠️ Данные пользователя не найдены\n")
 	}
 
-	// Недавний контекст беседы (зависит от типа чата)
+	// Недавний контекст беседы (последние 2 часа)
 	{
-		if chatType == "writing" {
-			// Для чатов писательства используем полную историю переписки
-			writingContext, err := b.db.GetChatWritingContext(msg.Chat.ID, msg.From.ID, 420)
-			if err == nil && len(writingContext) > 0 {
-				contextText.WriteString("\n=== КОНТЕКСТ ПЕРЕПИСКИ (писательство, последние 420 сообщений) ===\n")
-				for _, msg := range writingContext {
-					text := strings.TrimSpace(msg.MessageText)
-					if text == "" {
-						continue
-					}
-					if len(text) > 300 {
-						text = text[:300] + "…"
-					}
-					ts := msg.CreatedAt.In(time.FixedZone("MSK", 3*3600)).Format("2006-01-02 15:04")
-					messageType := ""
-					if msg.MessageType == "ai_reply" {
-						messageType = " [БОТ]"
-					}
-					contextText.WriteString(fmt.Sprintf("• [%s]%s %s: %s\n", ts, messageType, msg.Username, text))
+		end := time.Now()
+		start := end.Add(-2 * time.Hour)
+		recentChat, err := b.db.GetMessagesInRange(msg.Chat.ID, start, end)
+		if err == nil && len(recentChat) > 0 {
+			contextText.WriteString("\n=== НЕДАВНИЙ КОНТЕКСТ БЕСЕДЫ (2 часа) ===\n")
+			count := 0
+			for i := len(recentChat) - 1; i >= 0 && count < 10; i-- {
+				text := strings.TrimSpace(recentChat[i].MessageText)
+				if text == "" {
+					continue
 				}
-			}
-		} else {
-			// Для чатов тренировок используем последние 2 часа
-			end := time.Now()
-			start := end.Add(-2 * time.Hour)
-			recentChat, err := b.db.GetMessagesInRange(msg.Chat.ID, start, end)
-			if err == nil && len(recentChat) > 0 {
-				contextText.WriteString("\n=== НЕДАВНИЙ КОНТЕКСТ БЕСЕДЫ (2 часа) ===\n")
-				count := 0
-				for i := len(recentChat) - 1; i >= 0 && count < 10; i-- {
-					text := strings.TrimSpace(recentChat[i].MessageText)
-					if text == "" {
-						continue
-					}
-					if len(text) > 300 {
-						text = text[:300] + "…"
-					}
-					ts := recentChat[i].CreatedAt.In(time.FixedZone("MSK", 3*3600)).Format("15:04")
-					contextText.WriteString("• [" + ts + "] " + text + "\n")
-					count++
+				if len(text) > 300 {
+					text = text[:300] + "…"
 				}
+				ts := recentChat[i].CreatedAt.In(time.FixedZone("MSK", 3*3600)).Format("15:04")
+				contextText.WriteString("• [" + ts + "] " + text + "\n")
+				count++
 			}
 		}
 	}
@@ -3773,8 +3614,8 @@ func (b *Bot) handleAIQuestion(msg *tgbotapi.Message, questionText string) {
 		)
 	}
 
-	if chatType == "writing" {
-		finalQuestion += "\n\nВАЖНО: Это чат для писательства. Ты мудрый литературный наставник Fat Leopard. Используй весь контекст переписки из этого чата для понимания темы и сюжета. Отвечай в контексте писательства, поддерживай обсуждение литературных тем, помогай с развитием сюжета, персонажей и стиля. Не переходи на темы тренировок, если об этом явно не спрашивают."
+	if chatType == "coding" {
+		finalQuestion += "\n\nВАЖНО: Это чат про программирование. Отвечай как наставник по разработке: код, инструменты, архитектура, отладка. Не уводи в спорт и «тренировки», если пользователь явно не просит."
 	} else {
 		finalQuestion += "\n\nОТВЕЧАЙ СТРОГО ПО СУТИ ВОПРОСА ПОЛЬЗОВАТЕЛЯ. СНАЧАЛА ДАЙ ПОЛНЫЙ, ПОДРОБНЫЙ ОТВЕТ ПО ВОПРОСУ. ЕСЛИ ВОПРОС НЕ ПРО ТРЕНИРОВКИ ИЛИ БОЛЬНИЧНЫЙ, НЕ ПЕРЕХОДИ К ЭТИМ ТЕМАМ БЕЗ ЯВНОГО ЗАПРОСА И НЕ ВЫПОЛНЯЙ НЕПРОСИМЫЕ ПРЕДУПРЕЖДЕНИЯ. ЛЮБЫЕ МОТИВИРУЮЩИЕ ДОПОЛНЕНИЯ МОЖНО ДАВАТЬ ТОЛЬКО В КОНЦЕ И ТОЛЬКО ЕСЛИ ОНИ ПОДЧЕРКИВАЮТ СУТЬ ОТВЕТА."
 	}
@@ -4190,109 +4031,59 @@ func (b *Bot) getUnifiedTrainingPrompt(streakDays, totalCalories, totalCups int,
 		return selectedPrompt
 	}
 
-	// Разные промпты для чатов писательства и тренировок
-	if chatType == "writing" {
-		// Промпты для чатов писательства - ТОЛЬКО про писательство, ТОЛЬКО на этот отчёт
-		prompts = []string{
-			"Напиши одно связное сообщение (2-3 предложения) после отчёта #training_done: дружелюбно, как литературный наставник. Первое предложение — конкретный комментарий к писательской работе из сообщения (что пишешь, над чем работаешь), второе — короткое наблюдение или совет по писательству. НЕ упоминай тренировки, спорт или физическую активность. НЕ используй фразы типа 'помни', 'укрепление духа', 'сила воли'. НЕ повторяй цифры из сообщения. КРИТИЧЕСКИ ВАЖНО: отвечай ТОЛЬКО на этот отчёт. НЕ используй никакой другой контекст из чата, историю сообщений или сообщения других участников. Используй ТОЛЬКО детали из сообщения пользователя. Без Markdown.",
+	// Базовые промпты для тренировок (coding обрабатывается ранним return)
+	prompts = []string{
+		"Ты Fat Leopard — строгий тренер, который сам любит поесть. Напиши 2-3 предложения после отчёта о тренировке: первое — конкретный комментарий к упражнениям из сообщения, второе — короткое замечание или совет. Можно лёгкий намёк, что ты «не съешь» того, кто тренируется. Используй ТОЛЬКО упражнения из сообщения. Не повторяй цифры. Без Markdown.",
 
-			"Сделай одно цельное сообщение (2-3 предложения) после писательской сессии: первое — отметь конкретные детали писательской работы из сообщения (что пишешь, над чем работаешь, какие проблемы решаешь), второе — короткий практический совет или наблюдение по писательству. НЕ упоминай тренировки, спорт или физическую активность. Избегай общих фраз про 'дух', 'волю', 'помни'. Будь конкретным про писательскую работу, но не упоминай цифры. КРИТИЧЕСКИ ВАЖНО: отвечай ТОЛЬКО на этот отчёт. НЕ смотри на другие сообщения в чате. Без Markdown.",
+		"Ты Fat Leopard — ленивый, но справедливый. Ответь на отчёт о тренировке (2-3 предложения): первое — отметь упражнения, второе — короткий совет. Тон: немного завидуешь дисциплине, но признаёшь результат. Используй ТОЛЬКО этот отчёт. Без Markdown.",
 
-			"Напиши одно связное сообщение (2-3 предложения) от лица литературного наставника Fat Leopard: первое — оценка писательской работы с упоминанием конкретных деталей из сообщения, второе — конкретное замечание или совет по писательству. НЕ упоминай тренировки, спорт или физическую активность. НЕ используй абстрактные фразы про 'дух', 'волю', 'помни'. КРИТИЧЕСКИ ВАЖНО: отвечай ТОЛЬКО на этот отчёт. НЕ используй контекст других сообщений. Используй ТОЛЬКО детали из сообщения пользователя. Без Markdown.",
+		"Ответь как тренер после тренировки (2-3 предложения): первое — искренний комментарий к упражнениям из сообщения (без шаблонов), второе — один практический совет. Пиши живым языком. Используй ТОЛЬКО этот отчёт. Не повторяй цифры. Без Markdown.",
 
-			"Сделай одно цельное сообщение (2-3 предложения) после #training_done: первое — поддерживающий комментарий про писательскую работу из сообщения, второе — практический совет или наблюдение по писательству. НЕ упоминай тренировки, спорт или физическую активность. Избегай фраз 'помни', 'укрепление', 'дух', 'воля'. Не повторяй цифры. КРИТИЧЕСКИ ВАЖНО: отвечай ТОЛЬКО на этот отчёт. НЕ смешивай с другими сообщениями чата. Без Markdown.",
+		"Ты Fat Leopard. Напиши 2-3 предложения после отчёта: первое — оценка тренировки с упоминанием упражнений, второе — конкретное замечание. Можно лёгкий юмор в духе «я бы уже спал, а ты ещё в деле». Используй ТОЛЬКО упражнения из сообщения. Без Markdown.",
 
-			"Напиши одно связное сообщение (2-3 предложения) в стиле литературного наставника: первое — конкретный комментарий к писательской работе из сообщения (что пишешь, какие сцены, персонажи, сюжет), второе — короткое практическое замечание по писательству. НЕ упоминай тренировки, спорт или физическую активность. НЕ используй общие фразы про 'дух', 'волю', 'помни'. Будь конкретным, но не упоминай цифры. КРИТИЧЕСКИ ВАЖНО: отвечай ТОЛЬКО на этот отчёт. Без Markdown.",
+		"Ответь как наставник после тренировки (2-3 предложения): первое — что именно понравилось в отчёте, второе — один конкретный совет. Избегай общих фраз про 'дух', 'волю', 'помни'. Используй ТОЛЬКО этот отчёт. Без Markdown.",
 
-			"Сделай одно цельное сообщение (2-3 предложения) после писательской сессии: первое — отметь детали писательской работы из сообщения, второе — короткий комментарий о процессе написания или развитии текста. НЕ упоминай тренировки, спорт или физическую активность. Избегай абстрактных фраз про 'дух', 'волю', 'помни'. КРИТИЧЕСКИ ВАЖНО: используй ТОЛЬКО этот отчёт. НЕ используй историю чата или сообщения других людей. Без Markdown.",
+		"Напиши 2-3 предложения после #training_done: первое — отметь конкретные упражнения, второе — короткое наблюдение о технике или подходе. Тон: поддерживающий, но с лёгкой строгостью. Используй ТОЛЬКО этот отчёт. Не повторяй цифры. Без Markdown.",
 
-			"Напиши одно связное сообщение (2-3 предложения): первое — конкретная оценка писательской работы из сообщения (что написано, над чем работаешь), второе — короткое замечание о процессе писательства. НЕ упоминай тренировки, спорт или физическую активность. НЕ используй фразы 'помни', 'укрепление духа', 'сила воли'. Будь конкретным про писательскую работу, не упоминай цифры. КРИТИЧЕСКИ ВАЖНО: отвечай ТОЛЬКО на этот отчёт. Без Markdown.",
+		"Fat Leopard одобряет. Напиши 2-3 предложения: первое — комментарий к упражнениям из сообщения, второе — короткое замечание. Тон: дружелюбно-строгий. Используй ТОЛЬКО этот отчёт. Без Markdown.",
 
-			"Сделай одно цельное сообщение (2-3 предложения) после #training_done: первое — комментарий к писательской работе, второе — короткое наблюдение о процессе писательства или развитии произведения. НЕ упоминай тренировки, спорт или физическую активность. Избегай общих фраз про 'дух', 'волю', 'помни'. КРИТИЧЕСКИ ВАЖНО: используй ТОЛЬКО этот отчёт. НЕ смотри на последние сообщения или других участников. Без Markdown.",
-		}
-	} else {
-		// Базовые промпты для тренировок — живой тон, характер Fat Leopard, отвечай ТОЛЬКО на этот отчёт
-		prompts = []string{
-			"Ты Fat Leopard — строгий тренер, который сам любит поесть. Напиши 2-3 предложения после отчёта о тренировке: первое — конкретный комментарий к упражнениям из сообщения, второе — короткое замечание или совет. Можно лёгкий намёк, что ты «не съешь» того, кто тренируется. Используй ТОЛЬКО упражнения из сообщения. Не повторяй цифры. Без Markdown.",
-
-			"Ты Fat Leopard — ленивый, но справедливый. Ответь на отчёт о тренировке (2-3 предложения): первое — отметь упражнения, второе — короткий совет. Тон: немного завидуешь дисциплине, но признаёшь результат. Используй ТОЛЬКО этот отчёт. Без Markdown.",
-
-			"Ответь как тренер после тренировки (2-3 предложения): первое — искренний комментарий к упражнениям из сообщения (без шаблонов), второе — один практический совет. Пиши живым языком. Используй ТОЛЬКО этот отчёт. Не повторяй цифры. Без Markdown.",
-
-			"Ты Fat Leopard. Напиши 2-3 предложения после отчёта: первое — оценка тренировки с упоминанием упражнений, второе — конкретное замечание. Можно лёгкий юмор в духе «я бы уже спал, а ты ещё в деле». Используй ТОЛЬКО упражнения из сообщения. Без Markdown.",
-
-			"Ответь как наставник после тренировки (2-3 предложения): первое — что именно понравилось в отчёте, второе — один конкретный совет. Избегай общих фраз про 'дух', 'волю', 'помни'. Используй ТОЛЬКО этот отчёт. Без Markdown.",
-
-			"Напиши 2-3 предложения после #training_done: первое — отметь конкретные упражнения, второе — короткое наблюдение о технике или подходе. Тон: поддерживающий, но с лёгкой строгостью. Используй ТОЛЬКО этот отчёт. Не повторяй цифры. Без Markdown.",
-
-			"Fat Leopard одобряет. Напиши 2-3 предложения: первое — комментарий к упражнениям из сообщения, второе — короткое замечание. Тон: дружелюбно-строгий. Используй ТОЛЬКО этот отчёт. Без Markdown.",
-
-			"Ответь на отчёт о тренировке (2-3 предложения): первое — конкретная оценка упражнений, второе — практический совет. Будь конкретным, не используй абстрактные фразы. Используй ТОЛЬКО этот отчёт. Без Markdown.",
-		}
+		"Ответь на отчёт о тренировке (2-3 предложения): первое — конкретная оценка упражнений, второе — практический совет. Будь конкретным, не используй абстрактные фразы. Используй ТОЛЬКО этот отчёт. Без Markdown.",
 	}
 
 	// Специальные промпты в зависимости от контекста - БЕЗ общих фраз
 	if wasOnSickLeave {
-		if chatType == "writing" {
-			prompts = append(prompts, "Напиши одно связное сообщение (2-3 предложения) после писательской сессии: пользователь недавно вернулся после больничного. Первое — похвали за возвращение к писательству и отметь писательскую работу, второе — короткий практический совет по писательству. НЕ упоминай тренировки, спорт или физическую активность. НЕ используй фразы 'помни', 'дух', 'воля'. Используй ТОЛЬКО детали о писательской работе из сообщения. Без Markdown.")
-		} else {
-			prompts = append(prompts, "Напиши одно связное сообщение (2-3 предложения) после тренировки: пользователь недавно вернулся после больничного. Первое — похвали за возвращение и отметь упражнения, второе — короткий практический совет. НЕ используй фразы 'помни', 'дух', 'воля'. Используй ТОЛЬКО упражнения из сообщения. Без Markdown.")
-		}
+		prompts = append(prompts, "Напиши одно связное сообщение (2-3 предложения) после тренировки: пользователь недавно вернулся после больничного. Первое — похвали за возвращение и отметь упражнения, второе — короткий практический совет. НЕ используй фразы 'помни', 'дух', 'воля'. Используй ТОЛЬКО упражнения из сообщения. Без Markdown.")
 	}
 
 	if streakDays >= 7 && streakDays < 14 {
-		if chatType == "writing" {
-			prompts = append(prompts, "Сделай одно цельное сообщение (2-3 предложения): пользователь уже неделю пишет подряд — это важный рубеж! Первое — отметь это и писательскую работу, второе — короткое наблюдение по писательству. НЕ упоминай тренировки, спорт или физическую активность. Избегай фраз 'помни', 'дух', 'воля'. Используй детали о писательской работе из сообщения. Без Markdown.")
-		} else {
-			prompts = append(prompts, "Сделай одно цельное сообщение (2-3 предложения): пользователь уже неделю тренируется подряд — это важный рубеж! Первое — отметь это и упражнения, второе — короткое наблюдение. Избегай фраз 'помни', 'дух', 'воля'. Используй упражнения из сообщения. Без Markdown.")
-		}
+		prompts = append(prompts, "Сделай одно цельное сообщение (2-3 предложения): пользователь уже неделю тренируется подряд — это важный рубеж! Первое — отметь это и упражнения, второе — короткое наблюдение. Избегай фраз 'помни', 'дух', 'воля'. Используй упражнения из сообщения. Без Markdown.")
 	}
 
 	if streakDays >= 21 {
-		if chatType == "writing" {
-			prompts = append(prompts, "Напиши одно связное сообщение (2-3 предложения): пользователь показывает отличную дисциплину с длинной серией писательства. Первое — признай это и отметь писательскую работу, второе — конкретное замечание о процессе писательства. НЕ упоминай тренировки, спорт или физическую активность. НЕ используй абстрактные фразы про 'дух', 'волю', 'помни'. Используй детали о писательской работе из сообщения. Без Markdown.")
-		} else {
-			prompts = append(prompts, "Напиши одно связное сообщение (2-3 предложения): пользователь показывает отличную дисциплину с длинной серией. Первое — признай это и отметь упражнения, второе — конкретное замечание о тренировке. НЕ используй абстрактные фразы про 'дух', 'волю', 'помни'. Используй упражнения из сообщения. Без Markdown.")
-		}
+		prompts = append(prompts, "Напиши одно связное сообщение (2-3 предложения): пользователь показывает отличную дисциплину с длинной серией. Первое — признай это и отметь упражнения, второе — конкретное замечание о тренировке. НЕ используй абстрактные фразы про 'дух', 'волю', 'помни'. Используй упражнения из сообщения. Без Markdown.")
 	}
 
 	// Вечер (17-22): конец дня, тренировка после работы
 	if hour >= 17 && hour < 22 {
-		if chatType == "writing" {
-			prompts = append(prompts, "Писательская сессия в конце дня — ты закрыл его правильно. Напиши 2-3 предложения: первое — отметь писательскую работу из сообщения, второе — короткое наблюдение. Используй ТОЛЬКО этот отчёт. Без Markdown.")
-		} else {
-			prompts = append(prompts,
-				"Тренировка в конце дня — ты закрыл его правильно. Напиши 2-3 предложения: первое — отметь упражнения из сообщения, второе — короткое наблюдение (например про восстановление или сон). Тон: поддерживающий, без пафоса. Используй ТОЛЬКО этот отчёт. Без Markdown.",
-				"Вечерняя тренировка — не все на это способны. Напиши 2-3 предложения: первое — комментарий к упражнениям, второе — лёгкий намёк, что завтра будет легче. Fat Leopard одобряет. Используй ТОЛЬКО этот отчёт. Без Markdown.",
-				"Конец дня, а он всё ещё тренируется. Напиши 2-3 предложения: первое — конкретный комментарий к отчёту, второе — короткий совет (восстановление, сон, завтра). Используй ТОЛЬКО этот отчёт. Без Markdown.")
-		}
+		prompts = append(prompts,
+			"Тренировка в конце дня — ты закрыл его правильно. Напиши 2-3 предложения: первое — отметь упражнения из сообщения, второе — короткое наблюдение (например про восстановление или сон). Тон: поддерживающий, без пафоса. Используй ТОЛЬКО этот отчёт. Без Markdown.",
+			"Вечерняя тренировка — не все на это способны. Напиши 2-3 предложения: первое — комментарий к упражнениям, второе — лёгкий намёк, что завтра будет легче. Fat Leopard одобряет. Используй ТОЛЬКО этот отчёт. Без Markdown.",
+			"Конец дня, а он всё ещё тренируется. Напиши 2-3 предложения: первое — конкретный комментарий к отчёту, второе — короткий совет (восстановление, сон, завтра). Используй ТОЛЬКО этот отчёт. Без Markdown.")
 	}
 
 	// Поздний вечер / ночь (22-6)
 	if hour >= 22 || hour < 6 {
-		if chatType == "writing" {
-			prompts = append(prompts, "Сделай одно цельное сообщение (2-3 предложения): писательская сессия поздним вечером или ночью — это особое вдохновение! Первое — отметь это и писательскую работу, второе — короткий комментарий по писательству. НЕ упоминай тренировки, спорт или физическую активность. Избегай фраз 'помни', 'дух', 'воля'. Используй ТОЛЬКО детали о писательской работе из сообщения. Без Markdown.")
-		} else {
-			prompts = append(prompts,
-				"Тренировка в конце дня — ты не сдался. Напиши 2-3 предложения: первое — отметь упражнения, второе — короткий комментарий. Можно лёгкий юмор: Fat Leopard уже спал, а ты ещё в деле. Используй ТОЛЬКО этот отчёт. Без Markdown.",
-				"Поздняя тренировка — особое упорство. Напиши 2-3 предложения: первое — комментарий к упражнениям, второе — совет про сон и восстановление. Используй ТОЛЬКО этот отчёт. Без Markdown.")
-		}
+		prompts = append(prompts,
+			"Тренировка в конце дня — ты не сдался. Напиши 2-3 предложения: первое — отметь упражнения, второе — короткий комментарий. Можно лёгкий юмор: Fat Leopard уже спал, а ты ещё в деле. Используй ТОЛЬКО этот отчёт. Без Markdown.",
+			"Поздняя тренировка — особое упорство. Напиши 2-3 предложения: первое — комментарий к упражнениям, второе — совет про сон и восстановление. Используй ТОЛЬКО этот отчёт. Без Markdown.")
 	}
 
 	if weekday == time.Saturday || weekday == time.Sunday {
-		if chatType == "writing" {
-			prompts = append(prompts, "Напиши одно связное сообщение (2-3 предложения): писательская работа в выходной день — это настоящая преданность творчеству! Первое — похвали и отметь писательскую работу, второе — практическое замечание по писательству. НЕ упоминай тренировки, спорт или физическую активность. НЕ используй фразы 'помни', 'дух', 'воля'. Используй детали о писательской работе из сообщения. Без Markdown.")
-		} else {
-			prompts = append(prompts, "Напиши одно связное сообщение (2-3 предложения): тренировка в выходной день — это настоящая преданность! Первое — похвали и отметь упражнения, второе — практическое замечание. НЕ используй фразы 'помни', 'дух', 'воля'. Используй упражнения из сообщения. Без Markdown.")
-		}
+		prompts = append(prompts, "Напиши одно связное сообщение (2-3 предложения): тренировка в выходной день — это настоящая преданность! Первое — похвали и отметь упражнения, второе — практическое замечание. НЕ используй фразы 'помни', 'дух', 'воля'. Используй упражнения из сообщения. Без Markdown.")
 	}
 
 	if totalCups >= 1000 {
-		if chatType == "writing" {
-			prompts = append(prompts, "Сделай одно цельное сообщение (2-3 предложения): пользователь накопил много кубков — это опытный писатель. Первое — обратись как к ветерану писательства, отметь писательскую работу, второе — конкретное наблюдение по писательству. НЕ упоминай тренировки, спорт или физическую активность. Избегай абстрактных фраз про 'дух', 'волю', 'помни'. Используй детали о писательской работе из сообщения. Без Markdown.")
-		} else {
-			prompts = append(prompts, "Сделай одно цельное сообщение (2-3 предложения): пользователь накопил много кубков — это опытный участник. Первое — обратись как к ветерану, отметь упражнения, второе — конкретное наблюдение. Избегай абстрактных фраз про 'дух', 'волю', 'помни'. Используй упражнения из сообщения. Без Markdown.")
-		}
+		prompts = append(prompts, "Сделай одно цельное сообщение (2-3 предложения): пользователь накопил много кубков — это опытный участник. Первое — обратись как к ветерану, отметь упражнения, второе — конкретное наблюдение. Избегай абстрактных фраз про 'дух', 'волю', 'помни'. Используй упражнения из сообщения. Без Markdown.")
 	}
 
 	// Выбираем случайный промпт
@@ -4400,44 +4191,24 @@ func (b *Bot) updateUserGender(userID, chatID int64, gender string) error {
 	return nil
 }
 
-// shouldDetectChatTypeAsWriting определяет, нужно ли автоматически установить тип чата как "writing"
-// на основе содержимого сообщения
-func (b *Bot) shouldDetectChatTypeAsWriting(text string, chatID int64) bool {
-	// Проверяем, не установлен ли уже тип чата
-	currentType, err := b.db.GetChatType(chatID)
-	if err == nil && currentType == "writing" {
-		return false // Уже установлен как writing
-	}
-
-	// Ключевые слова, указывающие на писательство
-	writingKeywords := []string{
-		"editingssssss",
-	}
-
-	textLower := strings.ToLower(text)
-	for _, keyword := range writingKeywords {
-		if strings.Contains(textLower, keyword) {
-			b.logger.Infof("Detected writing keyword '%s' in message, will set chat type to 'writing'", keyword)
-			return true
-		}
-	}
-
-	return false
-}
-
-// handleSetChatType устанавливает тип чата (training/writing/coding)
-// Использование: /set_chat_type <training|writing|coding>
+// handleSetChatType устанавливает тип чата (training/coding)
+// Использование: /set_chat_type <training|coding>
 func (b *Bot) handleSetChatType(msg *tgbotapi.Message) {
 	args := strings.Fields(msg.CommandArguments())
 	if len(args) < 1 {
-		reply := tgbotapi.NewMessage(msg.Chat.ID, "❌ Использование: /set_chat_type <training|writing|coding>")
+		reply := tgbotapi.NewMessage(msg.Chat.ID, "❌ Использование: /set_chat_type <training|coding>")
 		b.api.Send(reply)
 		return
 	}
 
 	chatType := strings.ToLower(strings.TrimSpace(args[0]))
-	if chatType != "training" && chatType != "writing" && chatType != "coding" {
-		reply := tgbotapi.NewMessage(msg.Chat.ID, "❌ Тип чата должен быть 'training', 'writing' или 'coding'")
+	if chatType == "writing" {
+		reply := tgbotapi.NewMessage(msg.Chat.ID, "❌ Режим писательства больше не поддерживается. Используйте: /set_chat_type training или /set_chat_type coding")
+		b.api.Send(reply)
+		return
+	}
+	if chatType != "training" && chatType != "coding" {
+		reply := tgbotapi.NewMessage(msg.Chat.ID, "❌ Тип чата должен быть 'training' или 'coding'")
 		b.api.Send(reply)
 		return
 	}
@@ -4450,9 +4221,7 @@ func (b *Bot) handleSetChatType(msg *tgbotapi.Message) {
 	}
 
 	chatTypeText := "тренировок"
-	if chatType == "writing" {
-		chatTypeText = "писательства"
-	} else if chatType == "coding" {
+	if chatType == "coding" {
 		chatTypeText = "программирования"
 	}
 
