@@ -1299,11 +1299,11 @@ func (b *Bot) handleTrainingDone(msg *tgbotapi.Message) {
 		// Адаптируем текст для дополнительной тренировки/писательской сессии
 		var messageText string
 		if chatType == "writing" {
-			messageText = fmt.Sprintf("🦁 Какой мотивированный леопард! Еще одна писательская сессия сегодня! 💪\n\n🔥 Твоя мотивация впечатляет\n🏆 +1 кубок за дополнительную писательскую сессию!\n🏆 Всего кубков: %d\n\n⏰ Таймер уже перезапущен на 7 дней\n\n🎯 Завтра снова отправляй #writing_done для продолжения серии!", currentCups)
+			messageText = fmt.Sprintf("🦁 Какой мотивированный леопард! Еще одна писательская сессия сегодня! 💪\n\n🔥 Твоя мотивация впечатляет\n🏆 +1 кубок за дополнительную писательскую сессию!\n🏆 Всего кубков: %d\n%s\n\n⏰ Таймер уже перезапущен на 7 дней\n\n🎯 Завтра снова отправляй #writing_done для продолжения серии!", currentCups, solvedLine)
 		} else if chatType == "coding" {
-			messageText = fmt.Sprintf("🦁 Какой мотивированный леопард! Еще одна кодинг-сессия сегодня! 💪\n\n🔥 Твоя мотивация впечатляет\n🏆 +1 кубок за дополнительную кодинг-сессию!\n🏆 Всего кубков: %d\n\n⏰ Таймер уже перезапущен на 7 дней\n\n🎯 Завтра снова отправляй #coding_done для продолжения серии!", currentCups)
+			messageText = fmt.Sprintf("🦁 Какой мотивированный леопард! Еще одна кодинг-сессия сегодня! 💪\n\n🔥 Твоя мотивация впечатляет\n🏆 +1 кубок за дополнительную кодинг-сессию!\n🏆 Всего кубков: %d\n%s\n\n⏰ Таймер уже перезапущен на 7 дней\n\n🎯 Завтра снова отправляй #coding_done для продолжения серии!", currentCups, solvedLine)
 		} else {
-			messageText = fmt.Sprintf("🦁 Какой мотивированный леопард! Еще одна тренировка сегодня! 💪\n\n🔥 Твоя мотивация впечатляет\n🏆 +1 кубок за дополнительную тренировку!\n🏆 Всего кубков: %d\n\n⏰ Таймер уже перезапущен на 7 дней\n\n🎯 Завтра снова отправляй #training_done для продолжения серии!", currentCups)
+			messageText = fmt.Sprintf("🦁 Какой мотивированный леопард! Еще одна тренировка сегодня! 💪\n\n🔥 Твоя мотивация впечатляет\n🏆 +1 кубок за дополнительную тренировку!\n🏆 Всего кубков: %d\n%s\n\n⏰ Таймер уже перезапущен на 7 дней\n\n🎯 Завтра снова отправляй #training_done для продолжения серии!", currentCups, solvedLine)
 		}
 
 		// Короткая ИИ-приписка и здесь
@@ -2959,11 +2959,19 @@ func (b *Bot) auditProcessTrainingDone(um *domain.UserMessage) {
 		if err != nil {
 			chatType = "training" // По умолчанию
 		}
+		mlFresh, refreshErr := b.db.GetMessageLog(um.UserID, um.ChatID)
+		solvedShown := messageLog.SolvedTasksCount
+		if refreshErr == nil && mlFresh != nil {
+			solvedShown = mlFresh.SolvedTasksCount
+		}
+		solvedLine := formatSolvedTasksTotalLine(chatType, solvedShown)
 		var text string
 		if chatType == "writing" {
-			text = fmt.Sprintf("✅ Отчёт принят! 💪\n\n🦁 Я вижу твою писательскую сессию за %s.\n\n⏰ Бот был перезапущен — отправляю подтверждение сейчас.", um.CreatedAt.In(loc).Format("02.01 15:04"))
+			text = fmt.Sprintf("✅ Отчёт принят! 💪\n\n🦁 Я вижу твою писательскую сессию за %s.\n%s\n\n⏰ Бот был перезапущен — отправляю подтверждение сейчас.", um.CreatedAt.In(loc).Format("02.01 15:04"), solvedLine)
+		} else if chatType == "coding" {
+			text = fmt.Sprintf("✅ Отчёт принят! 💪\n\n🦁 Я вижу твою кодинг-сессию за %s.\n%s\n\n⏰ Бот был перезапущен — отправляю подтверждение сейчас.", um.CreatedAt.In(loc).Format("02.01 15:04"), solvedLine)
 		} else {
-			text = fmt.Sprintf("✅ Отчёт принят! 💪\n\n🦁 Я вижу твою тренировку за %s.\n\n⏰ Бот был перезапущен — отправляю подтверждение сейчас.", um.CreatedAt.In(loc).Format("02.01 15:04"))
+			text = fmt.Sprintf("✅ Отчёт принят! 💪\n\n🦁 Я вижу твою тренировку за %s.\n%s\n\n⏰ Бот был перезапущен — отправляю подтверждение сейчас.", um.CreatedAt.In(loc).Format("02.01 15:04"), solvedLine)
 		}
 		b.api.Send(tgbotapi.NewMessage(um.ChatID, text))
 		return
@@ -3014,33 +3022,45 @@ func (b *Bot) auditProcessTrainingDone(um *domain.UserMessage) {
 		}
 
 		currentCups, _ := b.db.GetUserCups(um.UserID, um.ChatID)
-		// Определяем тип чата для адаптации текста
-		chatType, err := b.db.GetChatType(um.ChatID)
-		if err != nil {
-			chatType = "training" // По умолчанию
+		chatType, chatErr := b.db.GetChatType(um.ChatID)
+		if chatErr != nil {
+			chatType = "training"
 		}
+		solvedTotal, incErr := b.db.IncrementSolvedTasksCount(um.UserID, um.ChatID)
+		if incErr != nil {
+			b.logger.Warnf("audit IncrementSolvedTasksCount: %v", incErr)
+			solvedTotal = messageLog.SolvedTasksCount
+		}
+		solvedLine := formatSolvedTasksTotalLine(chatType, solvedTotal)
 		var text string
 		if chatType == "writing" {
-			text = fmt.Sprintf("✅ Отчёт принят! 💪\n\n🦁 Ты пишешь дней подряд: %d\n🏆 +1 кубок за писательскую сессию!\n🏆 Всего кубков: %d\n\n⏰ Таймер перезапускается на 7 дней", newStreakDays, currentCups)
+			text = fmt.Sprintf("✅ Отчёт принят! 💪\n\n🦁 Ты пишешь дней подряд: %d\n🏆 +1 кубок за писательскую сессию!\n🏆 Всего кубков: %d\n%s\n\n⏰ Таймер перезапускается на 7 дней", newStreakDays, currentCups, solvedLine)
 		} else if chatType == "coding" {
-			text = fmt.Sprintf("✅ Отчёт принят! 💪\n\n🦁 Ты кодишь дней подряд: %d\n🏆 +1 кубок за кодинг-сессию!\n🏆 Всего кубков: %d\n\n⏰ Таймер перезапускается на 7 дней", newStreakDays, currentCups)
+			text = fmt.Sprintf("✅ Отчёт принят! 💪\n\n🦁 Ты кодишь дней подряд: %d\n🏆 +1 кубок за кодинг-сессию!\n🏆 Всего кубков: %d\n%s\n\n⏰ Таймер перезапускается на 7 дней", newStreakDays, currentCups, solvedLine)
 		} else {
-			text = fmt.Sprintf("✅ Отчёт принят! 💪\n\n🦁 Ты тренируешься дней подряд: %d\n🏆 +1 кубок за тренировку!\n🏆 Всего кубков: %d\n\n⏰ Таймер перезапускается на 7 дней", newStreakDays, currentCups)
+			text = fmt.Sprintf("✅ Отчёт принят! 💪\n\n🦁 Ты тренируешься дней подряд: %d\n🏆 +1 кубок за тренировку!\n🏆 Всего кубков: %d\n%s\n\n⏰ Таймер перезапускается на 7 дней", newStreakDays, currentCups, solvedLine)
 		}
 		b.api.Send(tgbotapi.NewMessage(um.ChatID, text))
 	} else {
+		chatType, chatErr := b.db.GetChatType(um.ChatID)
+		if chatErr != nil {
+			chatType = "training"
+		}
+		solvedTotal, incErr := b.db.IncrementSolvedTasksCount(um.UserID, um.ChatID)
+		if incErr != nil {
+			b.logger.Warnf("audit IncrementSolvedTasksCount (double): %v", incErr)
+			solvedTotal = messageLog.SolvedTasksCount
+		}
+		solvedLine := formatSolvedTasksTotalLine(chatType, solvedTotal)
 		_ = b.db.AddCups(um.UserID, um.ChatID, 1)
 		currentCups, _ := b.db.GetUserCups(um.UserID, um.ChatID)
-		// Определяем тип чата для адаптации текста
-		chatType, err := b.db.GetChatType(um.ChatID)
-		if err != nil {
-			chatType = "training" // По умолчанию
-		}
 		var text string
 		if chatType == "writing" {
-			text = fmt.Sprintf("🦁 Какой мотивированный леопард! Еще одна писательская сессия сегодня! 💪\n\n🏆 +1 кубок за дополнительную писательскую сессию!\n🏆 Всего кубков: %d", currentCups)
+			text = fmt.Sprintf("🦁 Какой мотивированный леопард! Еще одна писательская сессия сегодня! 💪\n\n🏆 +1 кубок за дополнительную писательскую сессию!\n🏆 Всего кубков: %d\n%s", currentCups, solvedLine)
+		} else if chatType == "coding" {
+			text = fmt.Sprintf("🦁 Какой мотивированный леопард! Еще одна кодинг-сессия сегодня! 💪\n\n🏆 +1 кубок за дополнительную кодинг-сессию!\n🏆 Всего кубков: %d\n%s", currentCups, solvedLine)
 		} else {
-			text = fmt.Sprintf("🦁 Какой мотивированный леопард! Еще одна тренировка сегодня! 💪\n\n🏆 +1 кубок за дополнительную тренировку!\n🏆 Всего кубков: %d", currentCups)
+			text = fmt.Sprintf("🦁 Какой мотивированный леопард! Еще одна тренировка сегодня! 💪\n\n🏆 +1 кубок за дополнительную тренировку!\n🏆 Всего кубков: %d\n%s", currentCups, solvedLine)
 		}
 		b.api.Send(tgbotapi.NewMessage(um.ChatID, text))
 	}
