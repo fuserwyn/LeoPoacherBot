@@ -107,8 +107,8 @@ func (d *Database) CreateTables() error {
 // SaveMessageLog сохраняет информацию о сообщении
 func (d *Database) SaveMessageLog(msg *domain.MessageLog) error {
 	query := `
-		INSERT INTO message_log (user_id, username, chat_id, calories, streak_days, calorie_streak_days, cups_earned, last_training_date, last_message, has_training_done, has_sick_leave, has_healthy, is_deleted, is_exempt_from_deletion, timer_start_time, sick_leave_start_time, sick_leave_end_time, sick_time, rest_time_till_del, gender, timezone_offset_from_moscow, sick_approval_pending, sick_approval_deadline, sick_approval_message_id, updated_at)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25)
+		INSERT INTO message_log (user_id, username, chat_id, calories, streak_days, calorie_streak_days, cups_earned, last_training_date, last_message, has_training_done, has_sick_leave, has_healthy, is_deleted, is_exempt_from_deletion, timer_start_time, sick_leave_start_time, sick_leave_end_time, sick_time, rest_time_till_del, gender, timezone_offset_from_moscow, sick_approval_pending, sick_approval_deadline, sick_approval_message_id, solved_tasks_count, updated_at)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26)
 		ON CONFLICT (user_id, chat_id) 
 		DO UPDATE SET 
 			username = EXCLUDED.username,
@@ -133,7 +133,8 @@ func (d *Database) SaveMessageLog(msg *domain.MessageLog) error {
 			sick_approval_pending = EXCLUDED.sick_approval_pending,
 			sick_approval_deadline = EXCLUDED.sick_approval_deadline,
 			sick_approval_message_id = EXCLUDED.sick_approval_message_id,
-			updated_at = $25
+			solved_tasks_count = message_log.solved_tasks_count,
+			updated_at = $26
 	`
 
 	// Используем московское время
@@ -146,7 +147,7 @@ func (d *Database) SaveMessageLog(msg *domain.MessageLog) error {
 	result, err := d.db.Exec(query,
 		msg.UserID, msg.Username, msg.ChatID, msg.Calories, msg.StreakDays, msg.CalorieStreakDays, msg.CupsEarned, msg.LastTrainingDate, msg.LastMessage, msg.HasTrainingDone,
 		msg.HasSickLeave, msg.HasHealthy, msg.IsDeleted, msg.IsExemptFromDeletion, msg.TimerStartTime, msg.SickLeaveStartTime, msg.SickLeaveEndTime, msg.SickTime, msg.RestTimeTillDel, msg.Gender, msg.TimezoneOffsetFromMoscow,
-		msg.SickApprovalPending, msg.SickApprovalDeadline, msg.SickApprovalMessageID, moscowTime)
+		msg.SickApprovalPending, msg.SickApprovalDeadline, msg.SickApprovalMessageID, msg.SolvedTasksCount, moscowTime)
 
 	if err != nil {
 		fmt.Printf("DEBUG: Save error: %v\n", err)
