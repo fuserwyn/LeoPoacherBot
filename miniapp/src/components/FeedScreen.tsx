@@ -369,17 +369,17 @@ export function FeedScreen({ name, level, streak, userId, initData, inTelegram, 
             <div className="feed__filter-cats" role="group" aria-label="Тип тренировки">
               <button
                 type="button"
-                className={`feed__filter-chip${feedCategory === null ? " is-active" : ""}`}
-                onClick={() => setFeedCategory(null)}
+                className={`feed__filter-chip${feedCategoryIds.length === 0 ? " is-active" : ""}`}
+                onClick={() => void clearFeedCategories()}
               >
                 Все типы
               </button>
-              {WORKOUT_CATEGORY_OPTIONS.map((c) => (
+              {WORKOUT_CATEGORY_OPTIONS_ALPHABETICAL.map((c) => (
                 <button
                   key={c.id}
                   type="button"
-                  className={`feed__filter-chip${feedCategory === c.id ? " is-active" : ""}`}
-                  onClick={() => setFeedCategory((prev) => (prev === c.id ? null : c.id))}
+                  className={`feed__filter-chip${feedCategoryIds.includes(c.id) ? " is-active" : ""}`}
+                  onClick={() => toggleFeedCategory(c.id)}
                   title={c.label}
                 >
                   <span className="feed__filter-chip-emoji" aria-hidden>
