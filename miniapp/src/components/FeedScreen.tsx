@@ -68,18 +68,8 @@ export function FeedScreen({ name, level, streak, userId, initData, inTelegram, 
   const [feedOnlyMine, setFeedOnlyMine] = useState(false);
   /** Мультивыбор типов тренировок (пусто = «все типы»). */
   const [feedCategoryIds, setFeedCategoryIds] = useState<WorkoutCategoryId[]>([]);
-  const [typeSheetOpen, setTypeSheetOpen] = useState(false);
-  const [typeSheetQuery, setTypeSheetQuery] = useState("");
 
   const categoryFilterSet = useMemo(() => new Set(feedCategoryIds), [feedCategoryIds]);
-
-  const typeSheetOptions = useMemo(() => {
-    const q = typeSheetQuery.trim().toLowerCase();
-    if (!q) return WORKOUT_CATEGORY_OPTIONS_ALPHABETICAL;
-    return WORKOUT_CATEGORY_OPTIONS_ALPHABETICAL.filter(
-      (o) => o.label.toLowerCase().includes(q) || o.id.toLowerCase().includes(q),
-    );
-  }, [typeSheetQuery]);
 
   const visibleFeedItems = useMemo(() => {
     return feedItems.filter((it) => {
@@ -114,24 +104,6 @@ export function FeedScreen({ name, level, streak, userId, initData, inTelegram, 
     hapticLight();
     setFeedCategoryIds([]);
   }, [hapticLight]);
-
-  useEffect(() => {
-    if (!typeSheetOpen) return;
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") setTypeSheetOpen(false);
-    };
-    document.addEventListener("keydown", onKey);
-    return () => document.removeEventListener("keydown", onKey);
-  }, [typeSheetOpen]);
-
-  useEffect(() => {
-    if (!typeSheetOpen) return;
-    const prev = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
-    return () => {
-      document.body.style.overflow = prev;
-    };
-  }, [typeSheetOpen]);
 
   const load = useCallback(async () => {
     if (!apiBase || !inTelegram || !initData) {
