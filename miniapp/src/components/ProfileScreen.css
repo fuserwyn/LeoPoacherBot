@@ -69,6 +69,16 @@
   cursor: not-allowed;
 }
 
+.profile__xp-caption {
+  display: block;
+  font-size: 0.65rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-muted, #8b8b9a);
+  margin-bottom: 4px;
+}
+
 .profile__xp {
   display: flex;
   flex-direction: column;

@@ -247,10 +247,8 @@ export function ActivityCard({
                 title={streakStreakAriaLabel(streak)}
               >
                 <span aria-hidden>🔥</span>
+                <span className="pill__streak-word">Стрик</span>
                 <span className="pill__streak-num">{streak}</span>
-                <span className="pill__streak-unit" aria-hidden>
-                  дн.
-                </span>
               </span>
             )}
           </div>

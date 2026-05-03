@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { formatStreakDaysRu } from "../lib/streakLabel";
+import { cupsWordRu } from "../lib/streakLabel";
 import "./ProfileScreen.css";
 
 const api = (import.meta.env.VITE_MINIAPP_API_URL as string | undefined)?.replace(/\/$/, "") ?? "";
@@ -263,7 +263,8 @@ export function ProfileScreen({
             </button>
           ) : null}
         </div>
-        <div className="profile__xp">
+        <div className="profile__xp" aria-label={`Кубки: ${xp} ${cupsWordRu(xp)} из ${LEVELS[0]}`}>
+          <span className="profile__xp-caption">Кубки</span>
           <div className="profile__xp-bar">
             <div
               className="profile__xp-fill"
@@ -271,21 +272,21 @@ export function ProfileScreen({
             />
           </div>
           <span className="profile__xp-txt">
-            {xp} XP / {LEVELS[0]}
+            {xp} {cupsWordRu(xp)} / {LEVELS[0]}
           </span>
         </div>
       </header>
 
       <div className="profile__grid3">
         <div className="stat-card">
-          <div className="stat-card__label">Серия дней</div>
+          <div className="stat-card__label">Дней подряд</div>
           <div className="stat-card__val">
-            <span className="stat-card__streak-ico">🔥</span> {formatStreakDaysRu(streak)}
+            <span className="stat-card__streak-ico">🔥</span> {streak}
           </div>
         </div>
         <div className="stat-card">
-          <div className="stat-card__label">РЕКОРД</div>
-          <div className="stat-card__val">{recordStreak} д</div>
+          <div className="stat-card__label">Рекорд подряд</div>
+          <div className="stat-card__val">{recordStreak}</div>
         </div>
         <div className="stat-card">
           <div className="stat-card__label">ТРЕНИРОВОК</div>
@@ -312,7 +313,7 @@ export function ProfileScreen({
       <div className="profile__grid2">
         {ACHIEVEMENT_MILESTONES.map((d, i) => (
           <div key={d} className="wide-card">
-            <div className="wide-card__label">Серия {d} дней</div>
+            <div className="wide-card__label">{d} дней подряд</div>
             <div className="wide-card__val">{i < achievementCount ? "✅" : "⏳"}</div>
           </div>
         ))}
@@ -381,7 +382,7 @@ export function ProfileScreen({
           </select>
         </label>
         <p className="profile__form-hint muted">
-          По нему считаются «сегодня/вчера» для тренировок и стрика. Если живёшь в Москве — оставь «МСК (+0)».
+          По нему считаются «сегодня/вчера» для тренировок и дней подряд. Если живёшь в Москве — оставь «МСК (+0)».
         </p>
         <button
           type="button"

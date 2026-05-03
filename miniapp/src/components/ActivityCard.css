@@ -53,15 +53,17 @@
   gap: 3px;
 }
 
-.pill__streak-num {
+.pill__streak-word {
+  font-size: 0.62rem;
   font-weight: 700;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  opacity: 0.88;
 }
 
-.pill__streak-unit {
-  font-size: 0.72em;
-  font-weight: 600;
-  opacity: 0.82;
-  margin-left: 1px;
+.pill__streak-num {
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
 }
 
 .act-card__meta {
