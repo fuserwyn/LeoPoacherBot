@@ -210,7 +210,7 @@ export function App() {
             const base = `#training_done — ${kind}, ${min} мин, инт. ${intensity}/5`;
             const line = note ? `${base}\n\n${note}` : base;
             tg?.HapticFeedback?.impactOccurred?.("medium");
-            // Ждём poll: сервер кладёт тот же summary, что уходит в личку (серия, кубки, ачивки, таймер).
+            // #training_done: сервер отдаёт reply_text сразу (серия, кубки, ачивки; без блока про неактивность).
             const result = photo
               ? await sendMiniappTrainingWithPhoto(initData, line, photo)
               : await sendMiniappPrivateText(initData, line);

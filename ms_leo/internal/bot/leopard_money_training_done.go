@@ -330,46 +330,58 @@ func (b *Bot) handleLeopardMoneyTrainingDone(msg *tgbotapi.Message, personalRepl
 		}
 	}
 
-	messageText := fmt.Sprintf(
+	statsBlock := fmt.Sprintf(
 		"✅ Отчёт принят! 💪\n\n"+
 			"🦁 Серия: %d %s\n"+
 			"🏆 +%d %s (всего: %d)\n"+
-			"🎖 Ачивок: %d/%d\n\n"+
-			"⏰ Неактивность: семь суток без отчёта — удаление в 00:00 МСК следующего календарного дня; напоминания за 48 ч и за 24 ч до этого момента.\n\n"+
-			"🎯 Отчёт с %s",
+			"🎖 Ачивок: %d/%d",
 		newStreak, daysWordForm(newStreak),
 		cupsAdd, ruCupsWord(cupsAdd), totalCups,
 		ach, leopardmoney.MaxAchievements,
-		tag,
 	)
+	inactiveBlock := "⏰ Неактивность: семь суток без отчёта — удаление в 00:00 МСК следующего календарного дня; напоминания за 48 ч и за 24 ч до этого момента."
+	tail := fmt.Sprintf("🎯 Отчёт с %s", tag)
+	messageTextMiniapp := statsBlock + "\n\n" + tail
+	messageTextPrivate := statsBlock + "\n\n" + inactiveBlock + "\n\n" + tail
 
 	if personalReplyCh != nil {
-		// Mini-app: только в очередь приложения, в TG-личку НЕ дублируем.
+		// Mini-app: без блока про неактивность (он только в личке); коммент Лео в ленте — позже, асинхронно.
 		select {
-		case personalReplyCh <- messageText:
+		case personalReplyCh <- messageTextMiniapp:
 		default:
 		}
 	} else {
-		privateReply := tgbotapi.NewMessage(msg.From.ID, messageText)
+		privateReply := tgbotapi.NewMessage(msg.From.ID, messageTextPrivate)
 		if _, err := b.api.Send(privateReply); err != nil {
 			b.logger.Warnf("send training private summary: %v", err)
 		}
 	}
 
 	if trainingUserMessageID > 0 && b.config.MonetizedChatID != 0 {
-		threadText := ""
-		profName, profAge := b.LeoUserProfileForFeedPrompt(msg.From.ID)
-		if extra := b.generateLeoTrainingFeedEncouragement(
-			username, text, newStreak, totalCups, ach, gapEmptyDays, userGender, wasOnSickLeave, profName, profAge,
-		); extra != "" {
-			threadText = extra
-		}
-		if strings.TrimSpace(threadText) == "" {
-			threadText = b.generateShortLeopardChatAck(username, text, newStreak, totalCups, ach)
-		}
-		if _, err := b.db.InsertTrainingFeedThreadReply(b.config.MonetizedChatID, trainingUserMessageID, 0, "Лео", threadText, 0); err != nil {
-			b.logger.Warnf("training feed leo thread reply: %v", err)
-		}
+		uid := msg.From.ID
+		packID := b.config.MonetizedChatID
+		un := username
+		txt := text
+		ns, tc, a := newStreak, totalCups, ach
+		gap := gapEmptyDays
+		ug := userGender
+		was := wasOnSickLeave
+		tid := trainingUserMessageID
+		go func() {
+			threadText := ""
+			profName, profAge := b.LeoUserProfileForFeedPrompt(uid)
+			if extra := b.generateLeoTrainingFeedEncouragement(
+				un, txt, ns, tc, a, gap, ug, was, profName, profAge,
+			); extra != "" {
+				threadText = extra
+			}
+			if strings.TrimSpace(threadText) == "" {
+				threadText = b.generateShortLeopardChatAck(un, txt, ns, tc, a)
+			}
+			if _, err := b.db.InsertTrainingFeedThreadReply(packID, tid, 0, "Лео", threadText, 0); err != nil {
+				b.logger.Warnf("training feed leo thread reply: %v", err)
+			}
+		}()
 	}
 
 }

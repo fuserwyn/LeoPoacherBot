@@ -49,10 +49,14 @@ func privateChatForUser(u *tgbotapi.User) *tgbotapi.Chat {
 	}
 }
 
-// MiniAppTextProcessResult — ответ бота в личку: либо сразу reply_text (редко), либо pending + poll очереди.
+// MiniAppTextProcessResult — ответ бота в личку: сразу reply_text, либо pending + poll очереди.
 type MiniAppTextProcessResult struct {
 	ReplyText string `json:"reply_text,omitempty"`
 	Pending   bool   `json:"pending,omitempty"`
+}
+
+func isMiniappLineTrainingDone(text string) bool {
+	return strings.HasPrefix(strings.ToLower(strings.TrimSpace(text)), "#training_done")
 }
 
 // ProcessMiniAppPrivateText — валидация initData; обработка в фоне, HTTP не ждёт ИИ.
@@ -82,6 +86,47 @@ func (b *Bot) processMiniAppPrivateCore(d initdata.InitData, text string, traini
 	_ = PrivateTextMessageFromInitUser(d, text)
 	b.miniappPersonalClear(d.User.ID)
 	b.savePersonalChatMessage(d.User.ID, "user", text)
+
+	// #training_done из мини-аппа: один синхронный проход dispatch → reply_text сразу (без poll);
+	// коммент Лео в тред ленты пишется асинхронно в handleLeopardMoneyTrainingDone.
+	if isMiniappLineTrainingDone(text) {
+		msg := PrivateTextMessageFromInitUser(d, text)
+		ch := make(chan string, 32)
+		b.markMiniappOrigin(d.User.ID, ch)
+		var syncReply string
+		func() {
+			defer b.unmarkMiniappOrigin(d.User.ID)
+			defer func() {
+				if r := recover(); r != nil {
+					b.logger.Errorf("miniapp training sync dispatch panic: %v", r)
+				}
+			}()
+			b.dispatchTextMessageFromUser(msg, ch, trainingPhotoURL)
+			for {
+				select {
+				case t := <-ch:
+					if tr := strings.TrimSpace(t); tr != "" {
+						b.savePersonalChatMessage(d.User.ID, "leo", tr)
+						if syncReply == "" {
+							syncReply = tr
+						} else {
+							syncReply = syncReply + "\n\n" + tr
+						}
+					}
+				default:
+					return
+				}
+			}
+		}()
+		if strings.TrimSpace(syncReply) != "" {
+			out.ReplyText = syncReply
+			return out
+		}
+		b.logger.Warnf("miniapp training_done: empty reply after dispatch user=%d", d.User.ID)
+		out.ReplyText = "✅ Отчёт принят. Если не видишь сводку с кубками и серией — загляни в личку с ботом в Telegram."
+		return out
+	}
+
 	go b.runMiniAppPrivateTextWorker(d, text, trainingPhotoURL)
 	out.Pending = true
 	return out
