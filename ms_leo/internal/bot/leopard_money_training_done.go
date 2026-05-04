@@ -264,16 +264,6 @@ func (b *Bot) handleLeopardMoneyTrainingDone(msg *tgbotapi.Message, personalRepl
 		}
 	}
 
-	newCalStreak := 1
-	if messageLog.LastTrainingDate != nil && *messageLog.LastTrainingDate == today {
-		newCalStreak = messageLog.CalorieStreakDays
-	} else if messageLog.LastTrainingDate != nil {
-		yesterdayStr := localNow.AddDate(0, 0, -1).Format("2006-01-02")
-		if *messageLog.LastTrainingDate == yesterdayStr {
-			newCalStreak = messageLog.CalorieStreakDays + 1
-		}
-	}
-
 	cupsAdd := leopardmoney.TrainingCupsFromReportText(text)
 	if err := b.db.AddCups(msg.From.ID, packChatID, cupsAdd); err != nil {
 		b.logger.Errorf("add cups: %v", err)
@@ -281,9 +271,6 @@ func (b *Bot) handleLeopardMoneyTrainingDone(msg *tgbotapi.Message, personalRepl
 
 	if err := b.db.UpdateStreak(msg.From.ID, packChatID, newStreak, today); err != nil {
 		b.logger.Errorf("update streak: %v", err)
-	}
-	if err := b.db.UpdateCalorieStreakWithDate(msg.From.ID, packChatID, newCalStreak, today); err != nil {
-		b.logger.Errorf("update cal streak: %v", err)
 	}
 
 	msgLog2, _ := b.db.GetMessageLog(msg.From.ID, packChatID)
@@ -348,12 +335,11 @@ func (b *Bot) handleLeopardMoneyTrainingDone(msg *tgbotapi.Message, personalRepl
 			"🦁 Серия: %d %s\n"+
 			"🏆 +%d %s (всего: %d)\n"+
 			"🎖 Ачивок: %d/%d\n\n"+
-			"⏰ Таймер неактивности: %d %s (день %d — удаление)\n\n"+
+			"⏰ Неактивность: семь суток без отчёта — удаление в 00:00 МСК следующего календарного дня; напоминания за 48 ч и за 24 ч до этого момента.\n\n"+
 			"🎯 Отчёт с %s",
 		newStreak, daysWordForm(newStreak),
 		cupsAdd, ruCupsWord(cupsAdd), totalCups,
 		ach, leopardmoney.MaxAchievements,
-		leopardmoney.InactiveRemovalDays, daysWordForm(leopardmoney.InactiveRemovalDays), leopardmoney.InactiveRemovalDays,
 		tag,
 	)
 

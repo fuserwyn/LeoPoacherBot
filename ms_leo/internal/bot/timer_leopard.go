@@ -13,6 +13,16 @@ import (
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 )
 
+func formatRemovalAtMSKHuman(removalAt time.Time) string {
+	loc := utils.GetMoscowTime().Location()
+	d := removalAt.In(loc)
+	months := []string{
+		"", "января", "февраля", "марта", "апреля", "мая", "июня",
+		"июля", "августа", "сентября", "октября", "ноября", "декабря",
+	}
+	return fmt.Sprintf("%d %s в 00:00 МСК", d.Day(), months[int(d.Month())])
+}
+
 func (b *Bot) startTimer(userID, chatID int64, username string) {
 	b.startTimerWithDuration(userID, chatID, username, leopardmoney.FullTimerDuration)
 }
@@ -26,21 +36,19 @@ func (b *Bot) startTimerWithDuration(userID, chatID int64, username string, _ ti
 
 	b.cancelTimer(userID)
 
-	ch5 := make(chan bool)
-	ch6 := make(chan bool)
-	ch7 := make(chan bool)
-	ch8 := make(chan bool)
+	ch48 := make(chan bool)
+	ch24 := make(chan bool)
+	chRem := make(chan bool)
 
 	timerStartTime := utils.FormatMoscowTime(utils.GetMoscowTime())
 	timerInfo := &domain.TimerInfo{
-		UserID:          userID,
-		ChatID:          chatID,
-		Username:        username,
-		Day5WarningTask: ch5,
-		Day6WarningTask: ch6,
-		Day7ZeroXPTask:  ch7,
-		RemovalTask:     ch8,
-		TimerStartTime:  timerStartTime,
+		UserID:         userID,
+		ChatID:         chatID,
+		Username:       username,
+		Warning48hTask: ch48,
+		Warning24hTask: ch24,
+		RemovalTask:    chRem,
+		TimerStartTime: timerStartTime,
 	}
 	b.timers[userID] = timerInfo
 
@@ -59,27 +67,25 @@ func (b *Bot) startTimerWithDuration(userID, chatID int64, username string, _ ti
 		b.logger.Errorf("parse timer start: %v", err)
 		return
 	}
-	b.scheduleLeopardMilestones(userID, chatID, username, timerStart, ch5, ch6, ch7, ch8)
+	b.scheduleLeopardMilestones(userID, chatID, username, timerStart, ch48, ch24, chRem)
 	b.logger.Infof("Started Leopard inactive chain for user %d (%s) from %s", userID, username, timerStartTime)
 }
 
 func (b *Bot) restoreTimerWithDuration(userID, chatID int64, username string, remaining time.Duration, existingTimerStartTime string) {
 	b.cancelTimer(userID)
 
-	ch5 := make(chan bool)
-	ch6 := make(chan bool)
-	ch7 := make(chan bool)
-	ch8 := make(chan bool)
+	ch48 := make(chan bool)
+	ch24 := make(chan bool)
+	chRem := make(chan bool)
 
 	timerInfo := &domain.TimerInfo{
-		UserID:          userID,
-		ChatID:          chatID,
-		Username:        username,
-		Day5WarningTask: ch5,
-		Day6WarningTask: ch6,
-		Day7ZeroXPTask:  ch7,
-		RemovalTask:     ch8,
-		TimerStartTime:  existingTimerStartTime,
+		UserID:         userID,
+		ChatID:         chatID,
+		Username:       username,
+		Warning48hTask: ch48,
+		Warning24hTask: ch24,
+		RemovalTask:    chRem,
+		TimerStartTime: existingTimerStartTime,
 	}
 	b.timers[userID] = timerInfo
 
@@ -88,38 +94,48 @@ func (b *Bot) restoreTimerWithDuration(userID, chatID int64, username string, re
 		b.logger.Errorf("restore timer parse: %v", err)
 		return
 	}
-	b.scheduleLeopardMilestones(userID, chatID, username, timerStart, ch5, ch6, ch7, ch8)
+	b.scheduleLeopardMilestones(userID, chatID, username, timerStart, ch48, ch24, chRem)
 	b.logger.Infof("Restored Leopard inactive chain for user %d (%s), remaining until removal ~ %v", userID, username, remaining)
 }
 
-func (b *Bot) scheduleLeopardMilestones(userID, chatID int64, username string, timerStart time.Time, ch5, ch6, ch7, ch8 chan bool) {
+func (b *Bot) scheduleLeopardMilestones(userID, chatID int64, username string, timerStart time.Time, ch48, ch24, chRem chan bool) {
 	now := utils.GetMoscowTime()
-	days := []struct {
-		n      int
-		ch     chan bool
-		action func()
-	}{
-		{5, ch5, func() { b.sendInactiveWarning(userID, chatID, username, 5) }},
-		{6, ch6, func() { b.sendInactiveWarning(userID, chatID, username, 6) }},
-		{7, ch7, func() { b.sendInactiveDay7ZeroXP(userID, chatID, username) }},
-		{8, ch8, func() { b.removeUser(userID, chatID, username) }},
-	}
 	removalAt := removalDeadlineMoscow(timerStart)
-	for _, d := range days {
-		n := d.n
-		ch := d.ch
-		fn := d.action
-		var target time.Time
-		if n == leopardmoney.InactiveRemovalDays {
-			target = removalAt
-		} else {
-			target = timerStart.Add(time.Duration(n) * 24 * time.Hour)
-		}
-		delay := target.Sub(now)
-		removal := n == leopardmoney.InactiveRemovalDays
+	type milestone struct {
+		at      time.Time
+		ch      chan bool
+		fn      func()
+		removal bool
+	}
+	ms := []milestone{
+		{
+			at: removalAt.Add(-48 * time.Hour),
+			ch: ch48,
+			fn: func() {
+				b.sendInactiveRemovalWarning(userID, chatID, username, 48, removalAt)
+			},
+			removal: false,
+		},
+		{
+			at: removalAt.Add(-24 * time.Hour),
+			ch: ch24,
+			fn: func() {
+				b.sendInactiveRemovalWarning(userID, chatID, username, 24, removalAt)
+			},
+			removal: false,
+		},
+		{
+			at:      removalAt,
+			ch:      chRem,
+			fn:      func() { b.removeUser(userID, chatID, username) },
+			removal: true,
+		},
+	}
+	for _, m := range ms {
+		delay := m.at.Sub(now)
+		removal := m.removal
 		go func(delay time.Duration, ch chan bool, fn func(), removal bool) {
-			// Дни 5–7 в прошлом — пропускаем предупреждения. День 8 (кик): если дедлайн уже
-			// прошёл, нельзя молча выйти — иначе removeUser никогда не вызовется из этой горутины.
+			// Предупреждения в прошлом — не шлём задним числом. Кик: если дедлайн уже прошёл — выполнить.
 			if delay <= 0 {
 				if !removal {
 					return
@@ -145,25 +161,44 @@ func (b *Bot) scheduleLeopardMilestones(userID, chatID int64, username string, t
 					fn()
 				}
 			}
-		}(delay, ch, fn, removal)
+		}(delay, m.ch, m.fn, removal)
 	}
 }
 
 func (b *Bot) cancelTimer(userID int64) {
 	if timer, exists := b.timers[userID]; exists {
-		close(timer.Day5WarningTask)
-		close(timer.Day6WarningTask)
-		close(timer.Day7ZeroXPTask)
+		close(timer.Warning48hTask)
+		close(timer.Warning24hTask)
 		close(timer.RemovalTask)
 		delete(b.timers, userID)
 		b.logger.Infof("Cancelled timer for user %d", userID)
 	}
 }
 
-func (b *Bot) sendInactiveWarning(userID, chatID int64, username string, day int) {
+// sendInactiveRemovalWarning — за 48 ч или за 24 ч до кика в 00:00 МСК (см. removalDeadlineMoscow).
+func (b *Bot) sendInactiveRemovalWarning(userID, chatID int64, username string, hoursBefore int, removalAt time.Time) {
 	who := normalizeUserDisplayName(username)
 	tag := "#training_done"
-	messageText := fmt.Sprintf("⚠️ Предупреждение (день %d без отчёта)\n\n%s, прошло уже %d %s без отчёта с хэштегом.\n\n🎯 Отправь %s, чтобы остаться в игре.", day, who, day, daysWordForm(day), tag)
+	deadlineHuman := formatRemovalAtMSKHuman(removalAt)
+	var windowRU string
+	switch hoursBefore {
+	case 48:
+		windowRU = "примерно двое суток"
+	case 24:
+		windowRU = "примерно сутки"
+	default:
+		windowRU = fmt.Sprintf("примерно %d ч.", hoursBefore)
+	}
+	messageText := fmt.Sprintf(
+		"⚠️ Предупреждение о неактивности\n\n"+
+			"До возможного удаления из стаи осталось %s.\n\n"+
+			"%s, без отчёта с %s кик произойдёт в %s (прогресс — по правилам возврата).\n\n"+
+			"В последний календарный день до этой полуночи отчёт ещё можно сдать до 23:59 МСК.",
+		windowRU,
+		who,
+		tag,
+		deadlineHuman,
+	)
 
 	typingChat := chatID
 	if chatID != userID {
@@ -172,7 +207,7 @@ func (b *Bot) sendInactiveWarning(userID, chatID int64, username string, day int
 	if b.aiClient != nil {
 		b.api.Send(tgbotapi.NewChatAction(typingChat, tgbotapi.ChatTyping))
 		var ctxBuilder strings.Builder
-		ctxBuilder.WriteString(fmt.Sprintf("Пользователь: %s\nДень без отчёта: %d\n", username, day))
+		ctxBuilder.WriteString(fmt.Sprintf("Пользователь: %s\nДо удаления за неактивность осталось около %d ч.\nДедлайн (МСК): %s\n", username, hoursBefore, deadlineHuman))
 		if addendum, err := b.aiClient.AnswerUserQuestion(b.config.Prompts.WarningTimerQuestion, ctxBuilder.String()); err == nil {
 			addendum = ai.SanitizeTextForUser(addendum)
 			if addendum != "" {
@@ -181,11 +216,9 @@ func (b *Bot) sendInactiveWarning(userID, chatID int64, username string, day int
 		}
 	}
 
-	if day == 5 || day == 6 {
-		b.miniappPersonalPush(userID, messageText)
-	}
+	b.miniappPersonalPush(userID, messageText)
 
-	feedLine := fmt.Sprintf("⏳ %s — день %d без отчёта #training_done.\n\nПолное сообщение ушло от Лео в личку; стая видит здесь только отметку.", who, day)
+	feedLine := fmt.Sprintf("⏳ %s — предупреждение за %d ч. до возможного кика за неактивность. Подробности в ЛС с Лео; стая видит отметку.", who, hoursBefore)
 	b.saveInactiveNoticePackFeed(userID, username, feedLine)
 
 	if chatID == userID {
@@ -195,35 +228,7 @@ func (b *Bot) sendInactiveWarning(userID, chatID int64, username string, day int
 
 	_, dmErr := b.api.Send(tgbotapi.NewMessage(userID, messageText))
 	if dmErr != nil {
-		b.logger.Warnf("send inactive warning DM user=%d: %v", userID, dmErr)
+		b.logger.Warnf("send inactive removal warning DM user=%d: %v", userID, dmErr)
 		return
-	}
-}
-
-func (b *Bot) sendInactiveDay7ZeroXP(userID, chatID int64, username string) {
-	log, err := b.db.GetMessageLog(userID, chatID)
-	if err == nil {
-		log.XP = 0
-		log.CupsEarned = 0
-		_ = b.db.SaveMessageLog(log)
-	}
-	who := normalizeUserDisplayName(username)
-	txt := fmt.Sprintf("🔴 День 7 без отчёта\n\n%s, твои кубки и калории обнулены. Последний шанс: отправь #training_done до 00:00 МСК дня после семи суток с последнего отчёта — иначе удаление из стаи.", who)
-	if b.aiClient != nil {
-		if add, err := b.aiClient.AnswerUserQuestion(b.config.Prompts.CriticalTimerQuestion, "День 7: кубки и калории = 0, последний шанс.\nПользователь: "+username); err == nil {
-			add = ai.SanitizeTextForUser(add)
-			if add != "" {
-				txt = txt + "\n\n" + add
-			}
-		}
-	}
-
-	b.miniappPersonalPush(userID, txt)
-
-	feed7 := fmt.Sprintf("🔴 %s — день 7 без #training_done: кубки обнулены. Детали в ЛС с Лео; стая видит отметку.", who)
-	b.saveInactiveNoticePackFeed(userID, username, feed7)
-
-	if _, dmErr := b.api.Send(tgbotapi.NewMessage(userID, txt)); dmErr != nil {
-		b.logger.Warnf("send inactive day7 DM user=%d: %v", userID, dmErr)
 	}
 }

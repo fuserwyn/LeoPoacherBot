@@ -20,17 +20,9 @@ const (
 	StarterXP               = 42
 	StarterAchievementTitle = "Первый след"
 
-	// InactiveRemovalDays — дней без отчёта до удаления (день 8).
+	// InactiveRemovalDays — условное «окно» ~8 календарных суток; фактический кик — 00:00 МСК после 7×24ч от последнего отчёта (см. removalDeadlineMoscow).
 	InactiveRemovalDays = 8
 
-	// FullTimerDuration — окно с момента последнего отчёта до удаления.
+	// FullTimerDuration — верхняя оценка окна до кика (для fallback restore и UI).
 	FullTimerDuration = time.Duration(InactiveRemovalDays) * 24 * time.Hour
 )
-
-// MilestoneOffset — задержка от момента последнего #training_done до события (дни 5–8).
-func MilestoneOffset(day int) time.Duration {
-	if day < 5 || day > InactiveRemovalDays {
-		return 0
-	}
-	return time.Duration(day) * 24 * time.Hour
-}

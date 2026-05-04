@@ -52,17 +52,13 @@ const leopardOnboardingBodyText = `Добро пожаловать в стаю, 
 ⚡️ КАК ОТМЕТИТЬ ТРЕНИРОВКУ
 Отправь любое сообщение с тегом #training_done — бот засчитает активный день. Одного тега в день достаточно.
 
-🔥 КАК РАБОТАЕТ XP
-Стартовый баланс — 42 XP
-- Активный день → +6 XP
-- День без тренировки → −6 XP
-
-XP не обнуляется сразу — он медленно тает. Но стая всё видит.
+🏆 КУБКИ И СЕРИЯ
+За отчёт #training_done начисляются кубки по формуле (длина и суть тренировки). Дни подряд без пропуска растят серию и открывают ачивки.
 
 ⏰ ЧТО БУДЕТ, ЕСЛИ ПРОПУСКАТЬ
 - День 5 без #training_done — предупреждение в личку
 - День 6 — второе предупреждение
-- День 7 — XP обнуляется
+- День 7 — кубки обнуляются
 - День 8 — удаление из стаи
 
 Чтобы получать предупреждения, открой диалог с ботом: /start в личке
@@ -72,13 +68,13 @@ XP не обнуляется сразу — он медленно тает. Но
 
 Ачивку можно потратить на:
 - Заморозку — серия под защитой 7 дней
-- Спасение — если XP на нуле, ачивка не даёт тебя удалить
+- Спасение — в критический момент ачивка не даёт тебя удалить
 
 ❄️ ПЛАТНАЯ ЗАМОРОЗКА
 Нет ачивок, но нужна пауза? 42 ₽ за 7 дней.
 
 🔄 ВЕРНУТЬСЯ В СТАЮ
-Был удалён — возвращайся за 210 ₽. Стартовые 42 XP, ачивки не сохраняются.
+Был удалён — возвращайся за 210 ₽. Кубки и ачивки не сохраняются.
 
 🎯 Начни прямо сейчас — отправь #training_done`
 
@@ -400,8 +396,6 @@ func (b *Bot) handleCommand(msg *tgbotapi.Message) {
 		b.handleDB(msg)
 	case "top":
 		b.handleTop(msg)
-	case "points":
-		b.handlePoints(msg)
 	case "scan_history":
 		b.handleScanHistory(msg)
 	case "ai_memory", "memory":
@@ -444,9 +438,8 @@ func (b *Bot) handleMessage(msg *tgbotapi.Message, personalReplyCh chan<- string
 	hasTrainingDone := strings.Contains(strings.ToLower(text), "#training_done")
 	hasSickLeave := strings.Contains(strings.ToLower(text), "#sick_leave")
 	hasHealthy := strings.Contains(strings.ToLower(text), "#healthy")
-	hasChange := strings.Contains(strings.ToLower(text), "#change")
 	hasTimeZone := strings.Contains(strings.ToLower(text), "#timezone")
-	hasCommand := hasTrainingDone || hasSickLeave || hasHealthy || hasChange || hasTimeZone
+	hasCommand := hasTrainingDone || hasSickLeave || hasHealthy || hasTimeZone
 
 	// Если есть команда, обрабатываем её и НЕ обрабатываем через ИИ
 	if hasCommand {
@@ -594,8 +587,6 @@ func (b *Bot) handleMessage(msg *tgbotapi.Message, personalReplyCh chan<- string
 			b.handleSickLeave(msg)
 		} else if hasHealthy {
 			b.handleHealthy(msg)
-		} else if hasChange {
-			b.handleChange(msg)
 		}
 		return // Выходим, не обрабатывая через ИИ
 	}
@@ -762,7 +753,6 @@ func (b *Bot) evaluateSickLeaveJustification(text string, messageLog *domain.Mes
 	if messageLog != nil {
 		ctxBuilder.WriteString(fmt.Sprintf("Пользователь: %s\n", messageLog.Username))
 		ctxBuilder.WriteString(fmt.Sprintf("StreakDays: %d\n", messageLog.StreakDays))
-		ctxBuilder.WriteString(fmt.Sprintf("CalorieStreakDays: %d\n", messageLog.CalorieStreakDays))
 		ctxBuilder.WriteString(fmt.Sprintf("HasSickLeave: %t\n", messageLog.HasSickLeave))
 		ctxBuilder.WriteString(fmt.Sprintf("HasHealthy: %t\n", messageLog.HasHealthy))
 	}
@@ -788,86 +778,6 @@ func (b *Bot) evaluateSickLeaveJustification(text string, messageLog *domain.Mes
 	}
 
 	return false
-}
-
-func (b *Bot) handleChange(msg *tgbotapi.Message) {
-	// Получаем никнейм пользователя
-	username := ""
-	if msg.From.UserName != "" {
-		username = "@" + msg.From.UserName
-	} else if msg.From.FirstName != "" {
-		username = msg.From.FirstName
-		if msg.From.LastName != "" {
-			username += " " + msg.From.LastName
-		}
-	} else {
-		username = fmt.Sprintf("User%d", msg.From.ID)
-	}
-
-	rowChat := b.packTrainingStateChatID(msg)
-
-	// Получаем текущие данные пользователя
-	messageLog, err := b.db.GetMessageLog(msg.From.ID, rowChat)
-	if err != nil {
-		b.logger.Errorf("Failed to get message log: %v", err)
-		b.notifyUserText(msg, "❌ Ошибка получения данных пользователя", "", 0)
-		return
-	}
-
-	// Получаем текущие калории и кубки
-	currentCalories := messageLog.XP
-	currentCups, err := b.db.GetUserCups(msg.From.ID, rowChat)
-	if err != nil {
-		b.logger.Errorf("Failed to get user cups: %v", err)
-		currentCups = 0
-	}
-
-	// Курс обмена: 100 калорий/слов = 42 кубка
-	exchangeRate := 100
-	cupsPerExchange := 42
-	exchangesCanMake := currentCalories / exchangeRate
-
-	if exchangesCanMake == 0 {
-		replyText := fmt.Sprintf("💪 %s, у тебя %d калорий\n\n🔄 Для обмена нужно минимум %d калорий\n🏆 За %d калорий можно получить %d %s\n\n⏰ Пока рано! Еще потренируйся!\n\n🎯 Продолжай тренироваться и накапливай калории!", username, currentCalories, exchangeRate, exchangeRate, cupsPerExchange, cupsWordForm(cupsPerExchange))
-		b.notifyUserText(msg, replyText, "", 0)
-		return
-	}
-
-	// Выполняем обмен (только полные обмены)
-	caloriesToSpend := exchangesCanMake * exchangeRate
-	cupsToAdd := exchangesCanMake * cupsPerExchange
-
-	if err := b.db.AddXP(msg.From.ID, rowChat, -caloriesToSpend); err != nil {
-		b.logger.Errorf("Failed to spend calories/words: %v", err)
-		b.notifyUserText(msg, "❌ Ошибка при списании калорий", "", 0)
-		return
-	}
-
-	// Добавляем кубки
-	if err := b.db.AddCups(msg.From.ID, rowChat, cupsToAdd); err != nil {
-		b.logger.Errorf("Failed to add cups: %v", err)
-		b.notifyUserText(msg, "❌ Ошибка при добавлении кубков", "", 0)
-		return
-	}
-
-	// Обмен калорий НЕ сбрасывает streak_days
-	// streak_days нужен для подсчета серии дней для получения кубков (7 дней = 42 кубка)
-	// Обмен калорий - это просто обмен накопленных калорий на кубки
-
-	// Сбрасываем calorie_streak_days после обмена калорий
-	if err := b.db.ResetCalorieStreak(msg.From.ID, rowChat); err != nil {
-		b.logger.Errorf("Failed to reset calorie streak: %v", err)
-	} else {
-		b.logger.Infof("Successfully reset calorie streak after exchange")
-	}
-
-	// Получаем обновленные значения
-	newCalories := currentCalories - caloriesToSpend
-	newCups := currentCups + cupsToAdd
-
-	replyText := fmt.Sprintf("🔄 Обмен выполнен! 💪\n\n%s сожжено 🔥 %d калорий → 🏆 %d %s\n\n📊 Твой баланс:\n🔥 Калории: %d\n🏆 Кубки: %d\n\n💡 Курс: %d калорий = %d %s", username, caloriesToSpend, cupsToAdd, cupsWordForm(cupsToAdd), newCalories, newCups, exchangeRate, cupsPerExchange, cupsWordForm(cupsPerExchange))
-	b.logger.Infof("Sending exchange success message to chat %d (mini-app origin: %v)", msg.Chat.ID, b.isMiniappOriginActive(msg.From.ID))
-	b.notifyUserText(msg, replyText, "", 0)
 }
 
 func (b *Bot) handleStartTimer(msg *tgbotapi.Message) {
@@ -947,8 +857,7 @@ func (b *Bot) handleHelp(msg *tgbotapi.Message) {
 • Я могу давать советы, показывать статистику и мотивировать!
 
 🏆 Команды пользователей:
-• /top — Показать топ пользователей по калориям
-• /points — Показать ваши калории
+• /top — Топ участников по кубкам
 • /cups — Показать ваши заработанные кубки
 
 💪 Отчеты о тренировке:
@@ -957,9 +866,6 @@ func (b *Bot) handleHelp(msg *tgbotapi.Message) {
 🏥 Больничный:
 • #sick_leave — Взять больничный (приостанавливает таймер)
 • #healthy — Выздороветь (возобновляет таймер)
-
-🔄 Обмен:
-• #change — Обменять калории на кубки (100 калорий = 42 кубка)
 
 ⏰ Как работает бот:
 • При добавлении бота в чат запускаются таймеры для всех участников
@@ -1105,7 +1011,7 @@ func (b *Bot) handleTop(msg *tgbotapi.Message) {
 		return
 	}
 
-	topText := "🏆 Топ пользователей по очкам (калорий):\n\n"
+	topText := "🏆 Топ пользователей по кубкам:\n\n"
 	for i, user := range topUsers {
 		emoji := "🥇"
 		if i == 1 {
@@ -1115,7 +1021,7 @@ func (b *Bot) handleTop(msg *tgbotapi.Message) {
 		} else {
 			emoji = fmt.Sprintf("%d️⃣", i+1)
 		}
-		topText += fmt.Sprintf("%s %s - %d калорий\n", emoji, user.Username, user.XP)
+		topText += fmt.Sprintf("%s %s — %d %s\n", emoji, user.Username, user.CupsEarned, cupsWordForm(user.CupsEarned))
 	}
 
 	reply := tgbotapi.NewMessage(msg.Chat.ID, topText)
@@ -1126,43 +1032,6 @@ func (b *Bot) handleTop(msg *tgbotapi.Message) {
 		b.logger.Errorf("Failed to send top users message: %v", err)
 	} else {
 		b.logger.Infof("Successfully sent top users message to chat %d", msg.Chat.ID)
-	}
-}
-
-func (b *Bot) handlePoints(msg *tgbotapi.Message) {
-	rowChat := b.packTrainingStateChatID(msg)
-	// Получаем калории/слова пользователя
-	calories, err := b.db.GetUserXP(msg.From.ID, rowChat)
-	if err != nil {
-		b.logger.Errorf("Failed to get user calories: %v", err)
-		reply := tgbotapi.NewMessage(msg.Chat.ID, "❌ Ошибка при получении данных")
-		b.api.Send(reply)
-		return
-	}
-
-	// Получаем никнейм пользователя
-	username := ""
-	if msg.From.UserName != "" {
-		username = "@" + msg.From.UserName
-	} else if msg.From.FirstName != "" {
-		username = msg.From.FirstName
-		if msg.From.LastName != "" {
-			username += " " + msg.From.LastName
-		}
-	} else {
-		username = fmt.Sprintf("User%d", msg.From.ID)
-	}
-
-	caloriesText := fmt.Sprintf("🔥 Ваши калории:\n\n👤 %s\n🎯 Всего сожжено калорий: %d\n\n💡 Отправляйте #training_done для сжигания калорий!", username, calories)
-
-	reply := tgbotapi.NewMessage(msg.Chat.ID, caloriesText)
-
-	b.logger.Infof("Sending calories message to chat %d", msg.Chat.ID)
-	_, err = b.api.Send(reply)
-	if err != nil {
-		b.logger.Errorf("Failed to send calories message: %v", err)
-	} else {
-		b.logger.Infof("Successfully sent calories message to chat %d", msg.Chat.ID)
 	}
 }
 
@@ -1801,12 +1670,10 @@ func (b *Bot) auditProcessTrainingDone(um *domain.UserMessage) {
 		return
 	}
 
-	caloriesToAdd, newStreakDays, newCalorieStreakDays, weeklyAchievement, twoWeekAchievement, threeWeekAchievement, monthlyAchievement, fortyTwoDayAchievement, fiftyDayAchievement, sixtyDayAchievement, quarterlyAchievement, hundredDayAchievement, oneHundredEightyDayAchievement, twoHundredDayAchievement, twoHundredFortyDayAchievement := b.calculateCalories(messageLog)
+	earnRewards, newStreakDays, weeklyAchievement, twoWeekAchievement, threeWeekAchievement, monthlyAchievement, fortyTwoDayAchievement, fiftyDayAchievement, sixtyDayAchievement, quarterlyAchievement, hundredDayAchievement, oneHundredEightyDayAchievement, twoHundredDayAchievement, twoHundredFortyDayAchievement := b.calculateTrainingDayOutcome(messageLog)
 
-	if caloriesToAdd > 0 {
-		_ = b.db.AddXP(um.UserID, um.ChatID, caloriesToAdd)
+	if earnRewards {
 		_ = b.db.UpdateStreak(um.UserID, um.ChatID, newStreakDays, dateStr)
-		_ = b.db.UpdateCalorieStreakWithDate(um.UserID, um.ChatID, newCalorieStreakDays, dateStr)
 		_ = b.db.AddCups(um.UserID, um.ChatID, 1)
 		if weeklyAchievement {
 			_ = b.db.AddCups(um.UserID, um.ChatID, 42)
@@ -1845,9 +1712,8 @@ func (b *Bot) auditProcessTrainingDone(um *domain.UserMessage) {
 			_ = b.db.AddCups(um.UserID, um.ChatID, 4200)
 		}
 
-		totalCalories, _ := b.db.GetUserXP(um.UserID, um.ChatID)
 		currentCups, _ := b.db.GetUserCups(um.UserID, um.ChatID)
-		text := fmt.Sprintf("✅ Отчёт принят! 💪\n\n🦁 Ты тренируешься %d %s подряд\n🔥 +%d калорий\n🔥 Всего калорий: %d\n🏆 +1 кубок за тренировку!\n🏆 Всего кубков: %d\n\n⏰ Таймер перезапускается на 7 %s", newStreakDays, daysWordForm(newStreakDays), caloriesToAdd, totalCalories, currentCups, daysWordForm(7))
+		text := fmt.Sprintf("✅ Отчёт принят! 💪\n\n🦁 Ты тренируешься %d %s подряд\n🏆 +1 кубок за тренировку!\n🏆 Всего кубков: %d\n\n⏰ Таймер перезапускается на 7 %s", newStreakDays, daysWordForm(newStreakDays), currentCups, daysWordForm(7))
 		b.api.Send(tgbotapi.NewMessage(um.ChatID, text))
 	} else {
 		_ = b.db.AddCups(um.UserID, um.ChatID, 1)
@@ -1886,7 +1752,6 @@ type monthlyReportUser struct {
 	HasSickLeave  bool
 	HasHealthy    bool
 	StreakDays    int
-	XP            int
 	Cups          int
 }
 
@@ -1919,7 +1784,6 @@ func (b *Bot) generateMonthlySummaryForChat(chatID int64, month time.Time) {
 				HasSickLeave:  false,
 				HasHealthy:    false,
 				StreakDays:    userLog.StreakDays,
-				XP:            userLog.XP,
 				Cups:          cups,
 			}
 		}
@@ -1988,7 +1852,7 @@ func (b *Bot) generateMonthlySummaryForChat(chatID int64, month time.Time) {
 		lineWorkLabel := trainingsWordForm(u.TrainingCount)
 		sb.WriteString(fmt.Sprintf("• %s: %d %s", name, u.TrainingCount, lineWorkLabel))
 		sb.WriteString(fmt.Sprintf(", серия на момент отчёта: %d %s", u.StreakDays, daysWordForm(u.StreakDays)))
-		sb.WriteString(fmt.Sprintf(", %d калорий, %d %s", u.XP, u.Cups, cupsWordForm(u.Cups)))
+		sb.WriteString(fmt.Sprintf(", %d %s", u.Cups, cupsWordForm(u.Cups)))
 
 		var flags []string
 		if u.HasSickLeave {
@@ -2142,10 +2006,8 @@ func (b *Bot) handleAIQuestion(msg *tgbotapi.Message, questionText string, perso
 
 		contextText.WriteString("\n=== ТЕКУЩАЯ СТАТИСТИКА ===\n")
 		contextText.WriteString(fmt.Sprintf("👤 Пользователь: %s\n", userLog.Username))
-		contextText.WriteString(fmt.Sprintf("🔥 Всего калорий: %d\n", userLog.XP))
 		contextText.WriteString(fmt.Sprintf("🏆 Всего кубков: %d\n", cups))
 		contextText.WriteString(fmt.Sprintf("💪 Серия тренировок: %d %s подряд\n", userLog.StreakDays, daysWordForm(userLog.StreakDays)))
-		contextText.WriteString(fmt.Sprintf("📈 Серия калорий: %d %s подряд\n", userLog.CalorieStreakDays, daysWordForm(userLog.CalorieStreakDays)))
 
 		if userLog.LastTrainingDate != nil {
 			contextText.WriteString(fmt.Sprintf("📅 Последняя тренировка: %s\n", *userLog.LastTrainingDate))
@@ -2337,7 +2199,7 @@ func (b *Bot) handleAIQuestion(msg *tgbotapi.Message, questionText string, perso
 
 	// Если упоминаний нет, ищем по словам после ключевых фраз (например, "какого пола Tester" или "про Tester")
 	questionLower := strings.ToLower(questionText)
-	if len(mentionedUsernames) == 0 && (strings.Contains(questionLower, "пол") || strings.Contains(questionLower, "статистик") || strings.Contains(questionLower, "сколько") || strings.Contains(questionLower, "калори") || strings.Contains(questionLower, "кубк") || strings.Contains(questionLower, "про ") || strings.Contains(questionLower, "расскажи") || strings.Contains(questionLower, "достижен") || strings.Contains(questionLower, "у него") || strings.Contains(questionLower, "у неё") || strings.Contains(questionLower, "его") || strings.Contains(questionLower, "её")) {
+	if len(mentionedUsernames) == 0 && (strings.Contains(questionLower, "пол") || strings.Contains(questionLower, "статистик") || strings.Contains(questionLower, "сколько") || strings.Contains(questionLower, "кубк") || strings.Contains(questionLower, "про ") || strings.Contains(questionLower, "расскажи") || strings.Contains(questionLower, "достижен") || strings.Contains(questionLower, "у него") || strings.Contains(questionLower, "у неё") || strings.Contains(questionLower, "его") || strings.Contains(questionLower, "её")) {
 		// Ищем потенциальные имена пользователей (слова с заглавной буквы или после ключевых фраз)
 		for _, word := range words {
 			word = strings.Trim(word, ".,!?;:")
@@ -2426,10 +2288,8 @@ func (b *Bot) handleAIQuestion(msg *tgbotapi.Message, questionText string, perso
 
 				// Статистика
 				cups, _ := b.db.GetUserCups(userID, stateChat)
-				contextText.WriteString(fmt.Sprintf("🔥 Всего калорий: %d\n", otherUserLog.XP))
 				contextText.WriteString(fmt.Sprintf("🏆 Всего кубков: %d\n", cups))
 				contextText.WriteString(fmt.Sprintf("💪 Серия тренировок: %d %s подряд\n", otherUserLog.StreakDays, daysWordForm(otherUserLog.StreakDays)))
-				contextText.WriteString(fmt.Sprintf("📈 Серия калорий: %d %s подряд\n", otherUserLog.CalorieStreakDays, daysWordForm(otherUserLog.CalorieStreakDays)))
 
 				if otherUserLog.LastTrainingDate != nil {
 					contextText.WriteString(fmt.Sprintf("📅 Последняя тренировка: %s\n", *otherUserLog.LastTrainingDate))
@@ -2498,10 +2358,8 @@ func (b *Bot) handleAIQuestion(msg *tgbotapi.Message, questionText string, perso
 
 				// Статистика
 				cups, _ := b.db.GetUserCups(user.UserID, stateChat)
-				contextText.WriteString(fmt.Sprintf("🔥 Всего калорий: %d\n", user.XP))
 				contextText.WriteString(fmt.Sprintf("🏆 Всего кубков: %d\n", cups))
 				contextText.WriteString(fmt.Sprintf("💪 Серия тренировок: %d %s подряд\n", user.StreakDays, daysWordForm(user.StreakDays)))
-				contextText.WriteString(fmt.Sprintf("📈 Серия калорий: %d %s подряд\n", user.CalorieStreakDays, daysWordForm(user.CalorieStreakDays)))
 
 				if user.LastTrainingDate != nil {
 					contextText.WriteString(fmt.Sprintf("📅 Последняя тренировка: %s\n", *user.LastTrainingDate))
@@ -2873,8 +2731,7 @@ func (b *Bot) handleCallbackQuery(callback *tgbotapi.CallbackQuery) {
 
 Доступные команды:
 /help - Помощь
-/top - Топ пользователей
-/points - Статистика по калориям
+/top - Топ пользователей по кубкам
 /cups - Статистика по кубкам
 
 💪 Для тренировки используйте:
@@ -2956,7 +2813,7 @@ func (b *Bot) detectGenderFromMessage(text string) string {
 }
 
 // getUnifiedTrainingPrompt генерирует единый промпт для AI после #training_done
-func (b *Bot) getUnifiedTrainingPrompt(streakDays, totalXP, achievementCount int, wasOnSickLeave bool) string {
+func (b *Bot) getUnifiedTrainingPrompt(streakDays, _ int, achievementCount int, wasOnSickLeave bool) string {
 	now := utils.GetMoscowTime()
 	hour := now.Hour()
 	weekday := now.Weekday()
@@ -3016,7 +2873,7 @@ func (b *Bot) getUnifiedTrainingPrompt(streakDays, totalXP, achievementCount int
 }
 
 // getVariedTrainingPrompt генерирует разнообразные промпты для AI в зависимости от контекста (оставлено для совместимости)
-func (b *Bot) getVariedTrainingPrompt(streakDays, totalCalories, totalCups int, wasOnSickLeave bool) string {
+func (b *Bot) getVariedTrainingPrompt(streakDays, _, totalCups int, wasOnSickLeave bool) string {
 	now := utils.GetMoscowTime()
 	hour := now.Hour()
 	weekday := now.Weekday()
@@ -3065,7 +2922,7 @@ func (b *Bot) getVariedTrainingPrompt(streakDays, totalCalories, totalCups int, 
 }
 
 // getVariedWisdomPrompt генерирует разнообразные промпты для мудрости
-func (b *Bot) getVariedWisdomPrompt(streakDays, totalCalories, totalCups int) string {
+func (b *Bot) getVariedWisdomPrompt(streakDays, _, totalCups int) string {
 	now := utils.GetMoscowTime()
 
 	// Базовые стили мудрости

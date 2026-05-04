@@ -12,8 +12,8 @@ func TestStory1RemovalDMContentAndButton(t *testing.T) {
 	if !strings.Contains(text, "7 дней без движения") {
 		t.Fatalf("expected removal DM to mention 7 days, got: %q", text)
 	}
-	if !strings.Contains(text, "XP сгорел") {
-		t.Fatalf("expected removal DM to mention XP burn, got: %q", text)
+	if !strings.Contains(text, "Прогресс в стае сброшен") {
+		t.Fatalf("expected removal DM to mention progress reset, got: %q", text)
 	}
 
 	markup := removalDMReplyMarkup()
@@ -47,7 +47,7 @@ func TestStory2ReturnKeyboardVariants(t *testing.T) {
 				PaymentCurrency:         "RUB",
 				PaymentAmountMinorUnits: 21000,
 			},
-			wantButtonsByText: []string{"💳 Оплатить картой (Telegram) — 210 ₽", "⭐ Оплатить Stars — 210 ⭐"},
+			wantButtonsByText: []string{"💳 Оплатить картой (Telegram) — 210 ₽", "⭐ Звёздами Telegram — 210 ⭐"},
 		},
 		{
 			name: "stars only",
@@ -55,7 +55,7 @@ func TestStory2ReturnKeyboardVariants(t *testing.T) {
 				PaymentCurrency:         "XTR",
 				PaymentAmountMinorUnits: 210,
 			},
-			wantButtonsByText: []string{"⭐ Оплатить Stars — 210 ⭐"},
+			wantButtonsByText: []string{"⭐ Звёздами Telegram — 210 ⭐"},
 		},
 		{
 			name: "card only yookassa",
@@ -66,7 +66,7 @@ func TestStory2ReturnKeyboardVariants(t *testing.T) {
 				YookassaCurrency:    "RUB",
 				PaymentCurrency:     "RUB",
 			},
-			wantButtonsByText: []string{"💳 Оплатить картой (ЮKassa) — 210 ₽"},
+			wantButtonsByText: []string{"💳 Банковской картой — для РФ — 210 ₽"},
 		},
 	}
 

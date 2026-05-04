@@ -413,7 +413,7 @@ func (d *Database) ResetStreakDays(userID, chatID int64) error {
 	return err
 }
 
-// UpdateCalorieStreak обновляет серию дней для калорий
+// UpdateCalorieStreak обновляет поле calorie_streak_days (legacy).
 func (d *Database) UpdateCalorieStreak(userID, chatID int64, calorieStreakDays int) error {
 	query := `
 		UPDATE training_state 
@@ -426,7 +426,7 @@ func (d *Database) UpdateCalorieStreak(userID, chatID int64, calorieStreakDays i
 	return err
 }
 
-// UpdateCalorieStreakWithDate обновляет серию дней для калорий с датой последней тренировки
+// UpdateCalorieStreakWithDate обновляет calorie_streak_days и дату (legacy).
 func (d *Database) UpdateCalorieStreakWithDate(userID, chatID int64, calorieStreakDays int, lastTrainingDate string) error {
 	query := `
 		UPDATE training_state 
@@ -439,7 +439,7 @@ func (d *Database) UpdateCalorieStreakWithDate(userID, chatID int64, calorieStre
 	return err
 }
 
-// ResetCalorieStreak сбрасывает серию дней для калорий
+// ResetCalorieStreak сбрасывает calorie_streak_days (legacy).
 func (d *Database) ResetCalorieStreak(userID, chatID int64) error {
 	query := `
 		UPDATE training_state 
@@ -586,14 +586,14 @@ func (d *Database) GetUserReturnCount(userID, chatID int64) (int, error) {
 	return cnt, nil
 }
 
-// GetTopUsers получает топ пользователей по калориям
+// GetTopUsers получает топ пользователей по кубкам
 func (d *Database) GetTopUsers(chatID int64, limit int) ([]*domain.MessageLog, error) {
 	query := `
 		SELECT user_id, username, chat_id, xp, streak_days, max_streak_days, calorie_streak_days, cups_earned, last_training_date, last_message, has_training_done, has_sick_leave, has_healthy, is_deleted, is_exempt_from_deletion,
 		       timer_start_time, sick_leave_start_time, sick_leave_end_time, sick_time, timezone_offset_from_moscow, sick_approval_pending, sick_approval_deadline, sick_approval_message_id, created_at, updated_at
 		FROM training_state 
-		WHERE chat_id = $1 AND xp > 0 AND is_deleted = FALSE
-		ORDER BY xp DESC, last_message DESC
+		WHERE chat_id = $1 AND cups_earned > 0 AND is_deleted = FALSE
+		ORDER BY cups_earned DESC, last_message DESC
 		LIMIT $2
 	`
 

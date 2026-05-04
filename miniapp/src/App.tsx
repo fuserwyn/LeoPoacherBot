@@ -210,10 +210,10 @@ export function App() {
             const base = `#training_done — ${kind}, ${min} мин, инт. ${intensity}/5`;
             const line = note ? `${base}\n\n${note}` : base;
             tg?.HapticFeedback?.impactOccurred?.("medium");
-            const sendFast = { awaitReply: false as const };
+            // Ждём poll: сервер кладёт тот же summary, что уходит в личку (серия, кубки, ачивки, таймер).
             const result = photo
-              ? await sendMiniappTrainingWithPhoto(initData, line, photo, sendFast)
-              : await sendMiniappPrivateText(initData, line, sendFast);
+              ? await sendMiniappTrainingWithPhoto(initData, line, photo)
+              : await sendMiniappPrivateText(initData, line);
             if (!result.ok) {
               showAlert(result.error);
               return false;
@@ -226,12 +226,10 @@ export function App() {
             window.setTimeout(() => setFeedRefreshToken((v) => v + 1), 10000);
             window.setTimeout(() => setFeedRefreshToken((v) => v + 1), 20000);
             window.setTimeout(() => void refreshTabBadges(), 6000);
-            const immediate = result.replyParts.filter(Boolean).join("\n\n").trim();
-            const headline = "Отчёт принят.";
-            const hint = "Комментарий Лео скоро появится в ленте.";
-            const msg = immediate
-              ? `${headline}\n\n${immediate.length > 320 ? `${immediate.slice(0, 317)}…` : immediate}`
-              : `${headline} ${hint}`;
+            const summary = result.replyParts.filter(Boolean).join("\n\n").trim();
+            const fallback =
+              "Отчёт принят. Комментарий Лео скоро появится в ленте.";
+            const msg = summary.length > 0 ? summary : fallback;
             showAlert(msg.length > 400 ? `${msg.slice(0, 397)}…` : msg);
             return true;
           }}

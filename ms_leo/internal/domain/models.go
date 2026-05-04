@@ -47,16 +47,15 @@ type ChatMember struct {
 	Status   string `json:"status"`
 }
 
-// TimerInfo представляет информацию о таймере (день 5–6 предупреждения, день 7 обнуление XP, день 8 удаление).
+// TimerInfo — цепочка неактивности: предупреждения за 48 ч и за 24 ч до дедлайна (00:00 МСК), затем удаление.
 type TimerInfo struct {
-	UserID          int64
-	ChatID          int64
-	Username        string
-	Day5WarningTask chan bool
-	Day6WarningTask chan bool
-	Day7ZeroXPTask  chan bool
-	RemovalTask     chan bool
-	TimerStartTime  string
+	UserID         int64
+	ChatID         int64
+	Username       string
+	Warning48hTask chan bool
+	Warning24hTask chan bool
+	RemovalTask    chan bool
+	TimerStartTime string
 }
 
 // UserMessage представляет сообщение пользователя для RAG контекста

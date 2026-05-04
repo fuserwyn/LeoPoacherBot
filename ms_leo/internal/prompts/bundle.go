@@ -15,7 +15,7 @@ type Bundle struct {
 	DailyWisdomUserTemplate string
 	TrainingChatSuffix      string
 	CriticalTimerQuestion   string
-	WarningTimerQuestion    string // предупреждение за 6 дней без отчёта
+	WarningTimerQuestion    string // предупреждение за 48/24 ч до кика за неактивность
 	// PackFeedParticipantRemoved — карточка в ленте мини‑аппа, когда человек уже не видит её: текст для стаи.
 	PackFeedParticipantRemoved string
 }

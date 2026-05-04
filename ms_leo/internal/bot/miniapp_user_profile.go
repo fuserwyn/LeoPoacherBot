@@ -194,7 +194,7 @@ func (b *Bot) GetMiniappProfileStatsForAPI(userID, packChatID int64) MiniappProf
 		if err != nil || ml == nil {
 			return
 		}
-		// В мини-аппе поле `xp` в JSON — накопленные кубки (шкала 1), не калории из training_state.xp.
+		// В мини-аппе поле `xp` в JSON — накопленные кубки (шкала 1), не колонка training_state.xp.
 		out.XP = int(math.Max(float64(out.XP), float64(ml.CupsEarned)))
 		out.StreakDays = int(math.Max(float64(out.StreakDays), float64(ml.StreakDays)))
 		maxStreak := ml.MaxStreakDays
