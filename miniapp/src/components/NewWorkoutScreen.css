@@ -1,6 +1,7 @@
-/* Полноэкранная форма: высота из JS (visualViewport). Один размер шрифта на весь экран (16px — iOS не зумит input/textarea). */
+/* Полноэкранная форма: высота из JS (visualViewport). Кегль/начертание как у чипов «вид спорта» (--nwo-font, 600, 1.25). */
 .nwo {
   --nwo-font: 16px;
+  --nwo-type-lh: 1.25;
   position: fixed;
   left: 0;
   right: 0;
@@ -13,8 +14,10 @@
   overflow: hidden;
   padding-top: var(--safe-top);
   box-sizing: border-box;
+  font-family: var(--font);
   font-size: var(--nwo-font);
-  line-height: 1.25;
+  font-weight: 400;
+  line-height: var(--nwo-type-lh);
 }
 
 /* Поверх глобального `.chip` в index.css (14px) */
@@ -25,14 +28,13 @@
 .nwo button,
 .nwo input,
 .nwo textarea {
+  font-family: var(--font);
   font-size: var(--nwo-font);
 }
 
 .nwo .nwo__file::file-selector-button,
 .nwo .nwo__file::-webkit-file-upload-button {
-  font-size: var(--nwo-font);
-  font-weight: 600;
-  font-family: inherit;
+  font: 600 var(--nwo-font) / var(--nwo-type-lh) var(--font);
 }
 
 .nwo__head {
@@ -56,15 +58,14 @@
   align-items: center;
   justify-content: center;
   color: var(--text-muted);
-  font-size: var(--nwo-font);
+  font: 600 var(--nwo-font) / 1 var(--font);
   background: rgba(255, 255, 255, 0.05);
   border: none;
   cursor: pointer;
 }
 
 .nwo__title {
-  font-size: var(--nwo-font);
-  font-weight: 600;
+  font: 600 var(--nwo-font) / var(--nwo-type-lh) var(--font);
   flex: 1;
   text-align: center;
   padding: 0 2px;
@@ -101,13 +102,11 @@
 }
 
 .nwo__sec {
-  font-size: var(--nwo-font);
-  font-weight: 600;
-  letter-spacing: 0.06em;
+  font: 600 var(--nwo-font) / var(--nwo-type-lh) var(--font);
+  letter-spacing: 0.04em;
   text-transform: uppercase;
   color: var(--text-label, #6b6b7a);
   margin: 0 0 2px;
-  line-height: 1.2;
 }
 
 .nwo__sec--inline {
@@ -130,9 +129,7 @@
   align-items: center;
   gap: 4px;
   padding: 5px 9px;
-  font-size: var(--nwo-font);
-  font-weight: 600;
-  line-height: 1.25;
+  font: 600 var(--nwo-font) / var(--nwo-type-lh) var(--font);
   border-radius: 999px;
   border: 1px solid transparent;
   background: rgba(255, 255, 255, 0.06);
@@ -184,16 +181,13 @@
 }
 
 .nwo__big-min {
-  font-size: var(--nwo-font);
-  font-weight: 600;
+  font: 600 var(--nwo-font) / var(--nwo-type-lh) var(--font);
   letter-spacing: -0.02em;
-  line-height: 1.25;
   color: var(--text);
 }
 
 .nwo__big-suf {
-  font-size: var(--nwo-font);
-  font-weight: 600;
+  font: 600 var(--nwo-font) / var(--nwo-type-lh) var(--font);
   color: var(--text-muted);
 }
 
@@ -212,8 +206,7 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: var(--nwo-font);
-  font-weight: 600;
+  font: 600 var(--nwo-font) / var(--nwo-type-lh) var(--font);
   color: var(--text);
   background: rgba(255, 255, 255, 0.06);
   border: 1.5px solid transparent;
@@ -237,8 +230,7 @@
   padding: 6px 2px;
   border-radius: var(--radius-sm);
   background: rgba(255, 255, 255, 0.08);
-  font-size: var(--nwo-font);
-  font-weight: 600;
+  font: 600 var(--nwo-font) / var(--nwo-type-lh) var(--font);
   border: none;
   color: inherit;
   cursor: pointer;
@@ -263,8 +255,7 @@
   border: 1.5px solid transparent;
   background: rgba(255, 255, 255, 0.07);
   color: var(--text);
-  font-size: var(--nwo-font);
-  font-weight: 600;
+  font: 600 var(--nwo-font) / var(--nwo-type-lh) var(--font);
   cursor: pointer;
   padding: 0;
 }
@@ -286,13 +277,13 @@
 }
 
 .nwo__file {
-  font-size: var(--nwo-font);
+  font: 600 var(--nwo-font) / var(--nwo-type-lh) var(--font);
   max-width: min(48vw, 10rem);
   flex: 0 1 auto;
 }
 
 .nwo__photo-name {
-  font-size: var(--nwo-font);
+  font: 600 var(--nwo-font) / var(--nwo-type-lh) var(--font);
   flex: 1 1 auto;
   min-width: 0;
   overflow: hidden;
@@ -325,10 +316,9 @@
   border: 1.5px solid var(--border-subtle, rgba(255, 255, 255, 0.1));
   background: rgba(255, 255, 255, 0.05);
   color: var(--text);
-  font-size: var(--nwo-font);
-  line-height: 1.3;
+  /* Тот же кегль и гарнитура, начертание обычное — длинный текст комфортнее читать */
+  font: 400 var(--nwo-font) / var(--nwo-type-lh) var(--font);
   resize: none;
-  font-family: inherit;
   height: 116px;
   min-height: 116px;
   max-height: 116px;
@@ -337,8 +327,13 @@
 }
 
 .nwo__note::placeholder {
+  font: 400 var(--nwo-font) / var(--nwo-type-lh) var(--font);
   color: var(--text-muted, rgba(255, 255, 255, 0.4));
-  font-size: var(--nwo-font);
+}
+
+.nwo__note::-webkit-input-placeholder {
+  font: 400 var(--nwo-font) / var(--nwo-type-lh) var(--font);
+  color: var(--text-muted, rgba(255, 255, 255, 0.4));
 }
 
 .nwo__note:focus {
@@ -348,12 +343,11 @@
 }
 
 .nwo__note-cnt {
-  font-size: var(--nwo-font);
+  font: 600 var(--nwo-font) / var(--nwo-type-lh) var(--font);
   text-align: right;
   margin: 0;
   flex-shrink: 0;
   min-height: 12px;
-  line-height: 1.2;
 }
 
 .nwo__note-cnt-inner {
@@ -382,8 +376,7 @@
   border: none;
   background: linear-gradient(180deg, #ff6a35, #e54a15);
   color: #fff;
-  font-size: var(--nwo-font);
-  font-weight: 600;
+  font: 600 var(--nwo-font) / var(--nwo-type-lh) var(--font);
   box-shadow: 0 3px 12px rgba(255, 90, 31, 0.25);
   cursor: pointer;
 }
@@ -405,7 +398,7 @@
 
 .nwo__other-label {
   display: block;
-  font-size: var(--nwo-font);
+  font: 600 var(--nwo-font) / var(--nwo-type-lh) var(--font);
   margin-bottom: 2px;
 }
 
@@ -417,8 +410,7 @@
   border: 1.5px solid var(--border-subtle, rgba(255, 255, 255, 0.1));
   background: rgba(255, 255, 255, 0.05);
   color: var(--text);
-  font-size: var(--nwo-font);
-  font-family: inherit;
+  font: 600 var(--nwo-font) / var(--nwo-type-lh) var(--font);
 }
 
 .nwo__other-input:focus {
@@ -428,6 +420,11 @@
 }
 
 .nwo__other-input::placeholder {
+  font: 600 var(--nwo-font) / var(--nwo-type-lh) var(--font);
   color: var(--text-muted, rgba(255, 255, 255, 0.4));
-  font-size: var(--nwo-font);
+}
+
+.nwo__other-input::-webkit-input-placeholder {
+  font: 600 var(--nwo-font) / var(--nwo-type-lh) var(--font);
+  color: var(--text-muted, rgba(255, 255, 255, 0.4));
 }
