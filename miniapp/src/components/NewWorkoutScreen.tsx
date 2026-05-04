@@ -209,30 +209,58 @@ export function NewWorkoutScreen({ onClose, onSave, showAlert }: Props) {
                 <span className="nwo__big-min">{min}</span>
                 <span className="nwo__big-suf">мин</span>
               </div>
-              <div className="nwo__presets">
-                {PRESET_MIN.map((p) => (
-                  <button
-                    key={p}
-                    type="button"
-                    className={`nwo__circle ${min === p ? "is-on" : ""}`}
-                    aria-pressed={min === p}
-                    onClick={() => setMin(p)}
-                  >
-                    {p}
-                  </button>
-                ))}
+              <div className="nwo__presets-row">
+                <div className="nwo__presets" role="group" aria-label="Быстрый выбор минут">
+                  {PRESET_MIN.map((p) => (
+                    <button
+                      key={p}
+                      type="button"
+                      className={`nwo__circle ${min === p ? "is-on" : ""}`}
+                      aria-pressed={min === p}
+                      onClick={() => applyMinutes(p)}
+                    >
+                      {p}
+                    </button>
+                  ))}
+                </div>
+                <div className="nwo__min-custom">
+                  <label className="nwo__min-custom-lbl" htmlFor="nwo-min-custom">
+                    Своё
+                  </label>
+                  <input
+                    id="nwo-min-custom"
+                    className="nwo__min-custom-input"
+                    type="text"
+                    inputMode="numeric"
+                    autoComplete="off"
+                    enterKeyHint="done"
+                    maxLength={3}
+                    aria-label={`Минуты, от ${WORKOUT_MIN_MIN} до ${WORKOUT_MIN_MAX}`}
+                    placeholder={`${WORKOUT_MIN_MIN}–${WORKOUT_MIN_MAX}`}
+                    value={minDraft}
+                    onChange={(e) => {
+                      const s = e.target.value.replace(/\D/g, "").slice(0, 3);
+                      setMinDraft(s);
+                      if (s !== "") applyMinutes(parseInt(s, 10));
+                    }}
+                    onBlur={() => {
+                      if (minDraft === "") applyMinutes(min);
+                      else applyMinutes(parseInt(minDraft, 10) || min);
+                    }}
+                  />
+                </div>
               </div>
               <div className="nwo__stepper">
-                <button type="button" className="nwo__step" onClick={() => dec(-5)}>
+                <button type="button" className="nwo__step" onClick={() => bumpMinutes(-5)}>
                   −5
                 </button>
-                <button type="button" className="nwo__step" onClick={() => dec(-1)}>
+                <button type="button" className="nwo__step" onClick={() => bumpMinutes(-1)}>
                   −1
                 </button>
-                <button type="button" className="nwo__step" onClick={() => dec(1)}>
+                <button type="button" className="nwo__step" onClick={() => bumpMinutes(1)}>
                   +1
                 </button>
-                <button type="button" className="nwo__step" onClick={() => dec(5)}>
+                <button type="button" className="nwo__step" onClick={() => bumpMinutes(5)}>
                   +5
                 </button>
               </div>
