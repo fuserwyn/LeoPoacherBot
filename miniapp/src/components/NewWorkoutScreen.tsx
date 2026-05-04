@@ -55,10 +55,15 @@ const INTENSITIES: { v: 1 | 2 | 3 | 4 | 5; label: string }[] = [
   { v: 5, label: "5 · Макс" },
 ];
 
-/** Быстрый выбор до 120 мин; больше — через поле «Своё» или ± (до 480). */
-const PRESET_MIN = [5, 10, 15, 20, 30, 45, 60, 75, 90, 105, 120] as const;
-const PRESET_MIN_SET = new Set<number>(PRESET_MIN);
-const MIN_CAP = 480;
+/** Пресеты минут (до 120); произвольное значение — поле «Своё», кламп как на сервере 1–480. */
+const PRESET_MINUTES = [5, 15, 30, 45, 60, 75, 90, 105, 120] as const;
+const MINUTES_MIN = 1;
+const MINUTES_MAX = 480;
+
+function clampWorkoutMinutes(n: number): number {
+  if (!Number.isFinite(n)) return MINUTES_MIN;
+  return Math.min(MINUTES_MAX, Math.max(MINUTES_MIN, Math.round(n)));
+}
 
 type Props = {
   onClose: () => void;
@@ -88,13 +93,12 @@ export function NewWorkoutScreen({ onClose, onSave, showAlert }: Props) {
 
   const [type, setType] = useState<string>("strength");
   const [min, setMin] = useState(15);
+  const [minDraft, setMinDraft] = useState("15");
   const [intensity, setIntensity] = useState<1 | 2 | 3 | 4 | 5>(3);
   const [note, setNote] = useState("");
   const [otherLabel, setOtherLabel] = useState("");
   const [busy, setBusy] = useState(false);
   const [photo, setPhoto] = useState<File | null>(null);
-  const [minCustomFocused, setMinCustomFocused] = useState(false);
-  const [minCustomText, setMinCustomText] = useState("");
 
   /** Поднимаем блок с полем к верху скролла — так textarea остаётся в видимой области над клавиатурой. */
   const bumpScrollToNote = useCallback(() => {
@@ -136,14 +140,32 @@ export function NewWorkoutScreen({ onClose, onSave, showAlert }: Props) {
     };
   }, [bumpScrollToNote]);
 
-  const dec = (d: number) => setMin((m) => Math.max(1, Math.min(MIN_CAP, m + d)));
+  const applyMinutes = useCallback((v: number) => {
+    const next = clampWorkoutMinutes(v);
+    setMin(next);
+    setMinDraft(String(next));
+  }, []);
 
-  const applyCustomMinutes = (raw: string) => {
-    const digits = raw.replace(/\D/g, "");
-    if (digits === "") return;
-    const n = parseInt(digits, 10);
-    if (Number.isNaN(n)) return;
-    setMin(Math.min(MIN_CAP, Math.max(1, n)));
+  const dec = (d: number) => {
+    setMin((m) => {
+      const next = clampWorkoutMinutes(m + d);
+      setMinDraft(String(next));
+      return next;
+    });
+  };
+
+  const commitMinDraft = () => {
+    const t = minDraft.trim();
+    if (t === "") {
+      setMinDraft(String(min));
+      return;
+    }
+    const n = parseInt(t, 10);
+    if (!Number.isFinite(n)) {
+      setMinDraft(String(min));
+      return;
+    }
+    applyMinutes(n);
   };
   return (
     <div className="nwo" style={{ height: viewportH, maxHeight: viewportH }}>
@@ -201,52 +223,18 @@ export function NewWorkoutScreen({ onClose, onSave, showAlert }: Props) {
                 <span className="nwo__big-min">{min}</span>
                 <span className="nwo__big-suf">мин</span>
               </div>
-              <div className="nwo__presets-row">
-                <div className="nwo__presets" role="group" aria-label="Быстрый выбор минут">
-                  {PRESET_MIN.map((p) => (
-                    <button
-                      key={p}
-                      type="button"
-                      className={`nwo__circle ${min === p ? "is-on" : ""}`}
-                      aria-pressed={min === p}
-                      onClick={() => setMin(p)}
-                    >
-                      {p}
-                    </button>
-                  ))}
-                </div>
-                <div className="nwo__min-custom-wrap">
-                  <label className="nwo__min-custom-label" htmlFor="nwo-min-custom">
-                    Своё
-                  </label>
-                  <input
-                    id="nwo-min-custom"
-                    className="nwo__min-custom"
-                    type="text"
-                    inputMode="numeric"
-                    autoComplete="off"
-                    enterKeyHint="done"
-                    placeholder="…"
-                    aria-label="Свои минуты, 1–480"
-                    value={
-                      minCustomFocused ? minCustomText : PRESET_MIN_SET.has(min) ? "" : String(min)
-                    }
-                    onFocus={() => {
-                      setMinCustomFocused(true);
-                      setMinCustomText(String(min));
-                    }}
-                    onChange={(e) => setMinCustomText(e.target.value.replace(/\D/g, "").slice(0, 3))}
-                    onBlur={() => {
-                      setMinCustomFocused(false);
-                      applyCustomMinutes(minCustomText);
-                    }}
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter") {
-                        (e.target as HTMLInputElement).blur();
-                      }
-                    }}
-                  />
-                </div>
+              <div className="nwo__presets">
+                {PRESET_MINUTES.map((p) => (
+                  <button
+                    key={p}
+                    type="button"
+                    className={`nwo__circle ${min === p ? "is-on" : ""}`}
+                    aria-pressed={min === p}
+                    onClick={() => applyMinutes(p)}
+                  >
+                    {p}
+                  </button>
+                ))}
               </div>
               <div className="nwo__stepper">
                 <button type="button" className="nwo__step" onClick={() => dec(-5)}>
@@ -261,6 +249,38 @@ export function NewWorkoutScreen({ onClose, onSave, showAlert }: Props) {
                 <button type="button" className="nwo__step" onClick={() => dec(5)}>
                   +5
                 </button>
+              </div>
+              <div className="nwo__dur-custom">
+                <label className="nwo__dur-custom-label" htmlFor="nwo-min-custom">
+                  Своё
+                </label>
+                <input
+                  id="nwo-min-custom"
+                  className="nwo__min-custom"
+                  type="text"
+                  inputMode="numeric"
+                  pattern="[0-9]*"
+                  autoComplete="off"
+                  enterKeyHint="done"
+                  maxLength={3}
+                  value={minDraft}
+                  onChange={(e) => setMinDraft(e.target.value.replace(/\D/g, "").slice(0, 3))}
+                  onFocus={(e) => {
+                    setMinDraft(String(min));
+                    e.target.select();
+                  }}
+                  onBlur={() => commitMinDraft()}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") {
+                      e.preventDefault();
+                      (e.target as HTMLInputElement).blur();
+                    }
+                  }}
+                  aria-label="Свои минуты, от 1 до 480"
+                />
+                <span className="nwo__dur-custom-suf" aria-hidden>
+                  мин
+                </span>
               </div>
             </div>
 
