@@ -181,7 +181,7 @@ export function NewWorkoutScreen({ onClose, onSave, showAlert }: Props) {
           </div>
           {type === "other" && (
             <div className="nwo__other-field">
-              <label className="nwo__other-label muted" htmlFor="nwo-other-type">
+              <label className="nwo__other-label" htmlFor="nwo-other-type">
                 Свой тип
               </label>
               <input
@@ -278,7 +278,7 @@ export function NewWorkoutScreen({ onClose, onSave, showAlert }: Props) {
               onChange={(e) => setPhoto(e.target.files?.[0] ?? null)}
             />
             {photo ? (
-              <span className="nwo__photo-name muted" aria-live="polite">
+              <span className="nwo__photo-name" aria-live="polite">
                 {photo.name.length > 18 ? `${photo.name.slice(0, 16)}…` : photo.name}
               </span>
             ) : null}
@@ -306,7 +306,7 @@ export function NewWorkoutScreen({ onClose, onSave, showAlert }: Props) {
               noteFocusedRef.current = false;
             }}
           />
-          <p className="nwo__note-cnt muted" aria-live="polite">
+          <p className="nwo__note-cnt" aria-live="polite">
             <span className="nwo__note-cnt-inner">
               {note.length}/{NOTE_MAX}
             </span>
