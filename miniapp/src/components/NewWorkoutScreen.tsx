@@ -55,7 +55,10 @@ const INTENSITIES: { v: 1 | 2 | 3 | 4 | 5; label: string }[] = [
   { v: 5, label: "5 · Макс" },
 ];
 
-const PRESET_MIN = [5, 15, 30, 45, 60] as const;
+/** Быстрый выбор до 120 мин; больше — через поле «Своё» или ± (до 480). */
+const PRESET_MIN = [5, 10, 15, 20, 30, 45, 60, 75, 90, 105, 120] as const;
+const PRESET_MIN_SET = new Set<number>(PRESET_MIN);
+const MIN_CAP = 480;
 
 type Props = {
   onClose: () => void;
@@ -90,6 +93,8 @@ export function NewWorkoutScreen({ onClose, onSave, showAlert }: Props) {
   const [otherLabel, setOtherLabel] = useState("");
   const [busy, setBusy] = useState(false);
   const [photo, setPhoto] = useState<File | null>(null);
+  const [minCustomFocused, setMinCustomFocused] = useState(false);
+  const [minCustomText, setMinCustomText] = useState("");
 
   /** Поднимаем блок с полем к верху скролла — так textarea остаётся в видимой области над клавиатурой. */
   const bumpScrollToNote = useCallback(() => {
@@ -131,7 +136,15 @@ export function NewWorkoutScreen({ onClose, onSave, showAlert }: Props) {
     };
   }, [bumpScrollToNote]);
 
-  const dec = (d: number) => setMin((m) => Math.max(1, m + d));
+  const dec = (d: number) => setMin((m) => Math.max(1, Math.min(MIN_CAP, m + d)));
+
+  const applyCustomMinutes = (raw: string) => {
+    const digits = raw.replace(/\D/g, "");
+    if (digits === "") return;
+    const n = parseInt(digits, 10);
+    if (Number.isNaN(n)) return;
+    setMin(Math.min(MIN_CAP, Math.max(1, n)));
+  };
   return (
     <div className="nwo" style={{ height: viewportH, maxHeight: viewportH }}>
       <header className="nwo__head">
@@ -188,18 +201,52 @@ export function NewWorkoutScreen({ onClose, onSave, showAlert }: Props) {
                 <span className="nwo__big-min">{min}</span>
                 <span className="nwo__big-suf">мин</span>
               </div>
-              <div className="nwo__presets">
-                {PRESET_MIN.map((p) => (
-                  <button
-                    key={p}
-                    type="button"
-                    className={`nwo__circle ${min === p ? "is-on" : ""}`}
-                    aria-pressed={min === p}
-                    onClick={() => setMin(p)}
-                  >
-                    {p}
-                  </button>
-                ))}
+              <div className="nwo__presets-row">
+                <div className="nwo__presets" role="group" aria-label="Быстрый выбор минут">
+                  {PRESET_MIN.map((p) => (
+                    <button
+                      key={p}
+                      type="button"
+                      className={`nwo__circle ${min === p ? "is-on" : ""}`}
+                      aria-pressed={min === p}
+                      onClick={() => setMin(p)}
+                    >
+                      {p}
+                    </button>
+                  ))}
+                </div>
+                <div className="nwo__min-custom-wrap">
+                  <label className="nwo__min-custom-label" htmlFor="nwo-min-custom">
+                    Своё
+                  </label>
+                  <input
+                    id="nwo-min-custom"
+                    className="nwo__min-custom"
+                    type="text"
+                    inputMode="numeric"
+                    autoComplete="off"
+                    enterKeyHint="done"
+                    placeholder="…"
+                    aria-label="Свои минуты, 1–480"
+                    value={
+                      minCustomFocused ? minCustomText : PRESET_MIN_SET.has(min) ? "" : String(min)
+                    }
+                    onFocus={() => {
+                      setMinCustomFocused(true);
+                      setMinCustomText(String(min));
+                    }}
+                    onChange={(e) => setMinCustomText(e.target.value.replace(/\D/g, "").slice(0, 3))}
+                    onBlur={() => {
+                      setMinCustomFocused(false);
+                      applyCustomMinutes(minCustomText);
+                    }}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") {
+                        (e.target as HTMLInputElement).blur();
+                      }
+                    }}
+                  />
+                </div>
               </div>
               <div className="nwo__stepper">
                 <button type="button" className="nwo__step" onClick={() => dec(-5)}>
