@@ -828,7 +828,7 @@ func (b *Bot) handleChange(msg *tgbotapi.Message) {
 	exchangesCanMake := currentCalories / exchangeRate
 
 	if exchangesCanMake == 0 {
-		replyText := fmt.Sprintf("💪 %s, у тебя %d калорий\n\n🔄 Для обмена нужно минимум %d калорий\n🏆 За %d калорий можно получить %d кубков\n\n⏰ Пока рано! Еще потренируйся!\n\n🎯 Продолжай тренироваться и накапливай калории!", username, currentCalories, exchangeRate, exchangeRate, cupsPerExchange)
+		replyText := fmt.Sprintf("💪 %s, у тебя %d калорий\n\n🔄 Для обмена нужно минимум %d калорий\n🏆 За %d калорий можно получить %d %s\n\n⏰ Пока рано! Еще потренируйся!\n\n🎯 Продолжай тренироваться и накапливай калории!", username, currentCalories, exchangeRate, exchangeRate, cupsPerExchange, cupsWordForm(cupsPerExchange))
 		b.notifyUserText(msg, replyText, "", 0)
 		return
 	}
@@ -865,7 +865,7 @@ func (b *Bot) handleChange(msg *tgbotapi.Message) {
 	newCalories := currentCalories - caloriesToSpend
 	newCups := currentCups + cupsToAdd
 
-	replyText := fmt.Sprintf("🔄 Обмен выполнен! 💪\n\n%s сожжено 🔥 %d калорий → 🏆 %d кубка\n\n📊 Твой баланс:\n🔥 Калории: %d\n🏆 Кубки: %d\n\n💡 Курс: %d калорий = %d кубка", username, caloriesToSpend, cupsToAdd, newCalories, newCups, exchangeRate, cupsPerExchange)
+	replyText := fmt.Sprintf("🔄 Обмен выполнен! 💪\n\n%s сожжено 🔥 %d калорий → 🏆 %d %s\n\n📊 Твой баланс:\n🔥 Калории: %d\n🏆 Кубки: %d\n\n💡 Курс: %d калорий = %d %s", username, caloriesToSpend, cupsToAdd, cupsWordForm(cupsToAdd), newCalories, newCups, exchangeRate, cupsPerExchange, cupsWordForm(cupsPerExchange))
 	b.logger.Infof("Sending exchange success message to chat %d (mini-app origin: %v)", msg.Chat.ID, b.isMiniappOriginActive(msg.From.ID))
 	b.notifyUserText(msg, replyText, "", 0)
 }
@@ -1581,9 +1581,9 @@ func (b *Bot) formatDurationToDays(duration time.Duration) string {
 
 	if days > 0 {
 		if hours > 0 {
-			return fmt.Sprintf("%d дн. %d ч.", days, hours)
+			return fmt.Sprintf("%d %s %d ч.", days, daysWordForm(days), hours)
 		}
-		return fmt.Sprintf("%d дн.", days)
+		return fmt.Sprintf("%d %s", days, daysWordForm(days))
 	} else if hours > 0 {
 		if minutes > 0 {
 			return fmt.Sprintf("%d ч. %d мин.", hours, minutes)
@@ -1847,7 +1847,7 @@ func (b *Bot) auditProcessTrainingDone(um *domain.UserMessage) {
 
 		totalCalories, _ := b.db.GetUserXP(um.UserID, um.ChatID)
 		currentCups, _ := b.db.GetUserCups(um.UserID, um.ChatID)
-		text := fmt.Sprintf("✅ Отчёт принят! 💪\n\n🦁 Ты тренируешься дней подряд: %d\n🔥 +%d калорий\n🔥 Всего калорий: %d\n🏆 +1 кубок за тренировку!\n🏆 Всего кубков: %d\n\n⏰ Таймер перезапускается на 7 дней", newStreakDays, caloriesToAdd, totalCalories, currentCups)
+		text := fmt.Sprintf("✅ Отчёт принят! 💪\n\n🦁 Ты тренируешься %d %s подряд\n🔥 +%d калорий\n🔥 Всего калорий: %d\n🏆 +1 кубок за тренировку!\n🏆 Всего кубков: %d\n\n⏰ Таймер перезапускается на 7 %s", newStreakDays, daysWordForm(newStreakDays), caloriesToAdd, totalCalories, currentCups, daysWordForm(7))
 		b.api.Send(tgbotapi.NewMessage(um.ChatID, text))
 	} else {
 		_ = b.db.AddCups(um.UserID, um.ChatID, 1)
@@ -1987,7 +1987,7 @@ func (b *Bot) generateMonthlySummaryForChat(chatID int64, month time.Time) {
 
 		lineWorkLabel := trainingsWordForm(u.TrainingCount)
 		sb.WriteString(fmt.Sprintf("• %s: %d %s", name, u.TrainingCount, lineWorkLabel))
-		sb.WriteString(fmt.Sprintf(", серия на момент отчёта: %d дн.", u.StreakDays))
+		sb.WriteString(fmt.Sprintf(", серия на момент отчёта: %d %s", u.StreakDays, daysWordForm(u.StreakDays)))
 		sb.WriteString(fmt.Sprintf(", %d калорий, %d %s", u.XP, u.Cups, cupsWordForm(u.Cups)))
 
 		var flags []string
@@ -2144,8 +2144,8 @@ func (b *Bot) handleAIQuestion(msg *tgbotapi.Message, questionText string, perso
 		contextText.WriteString(fmt.Sprintf("👤 Пользователь: %s\n", userLog.Username))
 		contextText.WriteString(fmt.Sprintf("🔥 Всего калорий: %d\n", userLog.XP))
 		contextText.WriteString(fmt.Sprintf("🏆 Всего кубков: %d\n", cups))
-		contextText.WriteString(fmt.Sprintf("💪 Серия тренировок: %d дней подряд\n", userLog.StreakDays))
-		contextText.WriteString(fmt.Sprintf("📈 Серия калорий: %d дней подряд\n", userLog.CalorieStreakDays))
+		contextText.WriteString(fmt.Sprintf("💪 Серия тренировок: %d %s подряд\n", userLog.StreakDays, daysWordForm(userLog.StreakDays)))
+		contextText.WriteString(fmt.Sprintf("📈 Серия калорий: %d %s подряд\n", userLog.CalorieStreakDays, daysWordForm(userLog.CalorieStreakDays)))
 
 		if userLog.LastTrainingDate != nil {
 			contextText.WriteString(fmt.Sprintf("📅 Последняя тренировка: %s\n", *userLog.LastTrainingDate))
@@ -2428,8 +2428,8 @@ func (b *Bot) handleAIQuestion(msg *tgbotapi.Message, questionText string, perso
 				cups, _ := b.db.GetUserCups(userID, stateChat)
 				contextText.WriteString(fmt.Sprintf("🔥 Всего калорий: %d\n", otherUserLog.XP))
 				contextText.WriteString(fmt.Sprintf("🏆 Всего кубков: %d\n", cups))
-				contextText.WriteString(fmt.Sprintf("💪 Серия тренировок: %d дней подряд\n", otherUserLog.StreakDays))
-				contextText.WriteString(fmt.Sprintf("📈 Серия калорий: %d дней подряд\n", otherUserLog.CalorieStreakDays))
+				contextText.WriteString(fmt.Sprintf("💪 Серия тренировок: %d %s подряд\n", otherUserLog.StreakDays, daysWordForm(otherUserLog.StreakDays)))
+				contextText.WriteString(fmt.Sprintf("📈 Серия калорий: %d %s подряд\n", otherUserLog.CalorieStreakDays, daysWordForm(otherUserLog.CalorieStreakDays)))
 
 				if otherUserLog.LastTrainingDate != nil {
 					contextText.WriteString(fmt.Sprintf("📅 Последняя тренировка: %s\n", *otherUserLog.LastTrainingDate))
@@ -2500,8 +2500,8 @@ func (b *Bot) handleAIQuestion(msg *tgbotapi.Message, questionText string, perso
 				cups, _ := b.db.GetUserCups(user.UserID, stateChat)
 				contextText.WriteString(fmt.Sprintf("🔥 Всего калорий: %d\n", user.XP))
 				contextText.WriteString(fmt.Sprintf("🏆 Всего кубков: %d\n", cups))
-				contextText.WriteString(fmt.Sprintf("💪 Серия тренировок: %d дней подряд\n", user.StreakDays))
-				contextText.WriteString(fmt.Sprintf("📈 Серия калорий: %d дней подряд\n", user.CalorieStreakDays))
+				contextText.WriteString(fmt.Sprintf("💪 Серия тренировок: %d %s подряд\n", user.StreakDays, daysWordForm(user.StreakDays)))
+				contextText.WriteString(fmt.Sprintf("📈 Серия калорий: %d %s подряд\n", user.CalorieStreakDays, daysWordForm(user.CalorieStreakDays)))
 
 				if user.LastTrainingDate != nil {
 					contextText.WriteString(fmt.Sprintf("📅 Последняя тренировка: %s\n", *user.LastTrainingDate))

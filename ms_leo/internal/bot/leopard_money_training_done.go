@@ -23,7 +23,7 @@ func (b *Bot) generateShortLeopardChatAck(username, text string, streak, totalCu
 	var ctxBuilder strings.Builder
 	ctxBuilder.WriteString("Контекст отчёта тренировки.\n")
 	ctxBuilder.WriteString(fmt.Sprintf("Пользователь: %s\n", username))
-	ctxBuilder.WriteString(fmt.Sprintf("Серия: %d дней\n", streak))
+	ctxBuilder.WriteString(fmt.Sprintf("Серия: %d %s\n", streak, daysWordForm(streak)))
 	ctxBuilder.WriteString(fmt.Sprintf("Кубки всего: %d\n", totalCups))
 	ctxBuilder.WriteString(fmt.Sprintf("Ачивки: %d\n", ach))
 	ctxBuilder.WriteString(fmt.Sprintf("Текст отчёта: %s\n", text))
@@ -159,6 +159,25 @@ func (b *Bot) generateLeoTrainingFeedEncouragement(
 		enc = string([]rune(enc)[:620]) + "…"
 	}
 	return enc
+}
+
+// ruCupsWord — «1 кубок», «2 кубка», «5 кубков» (только для текста подтверждения отчёта).
+func ruCupsWord(n int) string {
+	if n < 0 {
+		n = -n
+	}
+	m := n % 100
+	if m >= 11 && m <= 14 {
+		return "кубков"
+	}
+	switch n % 10 {
+	case 1:
+		return "кубок"
+	case 2, 3, 4:
+		return "кубка"
+	default:
+		return "кубков"
+	}
 }
 
 // handleLeopardMoneyTrainingDone — отчёт #training_done по модели Leopard Money (кубки по формуле, ачивки, таймер 8 дней).
@@ -324,7 +343,19 @@ func (b *Bot) handleLeopardMoneyTrainingDone(msg *tgbotapi.Message, personalRepl
 		}
 	}
 
-	messageText := fmt.Sprintf("✅ Отчёт принят! 💪\n\n🦁 Серия: %d дн.\n🏆 +%d кубков (всего: %d)\n🎖 Ачивок: %d/%d\n\n⏰ Таймер неактивности: %d дней (день 8 — удаление)\n\n🎯 Отчёт с %s", newStreak, cupsAdd, totalCups, ach, leopardmoney.MaxAchievements, leopardmoney.InactiveRemovalDays, tag)
+	messageText := fmt.Sprintf(
+		"✅ Отчёт принят! 💪\n\n"+
+			"🦁 Серия: %d %s\n"+
+			"🏆 +%d %s (всего: %d)\n"+
+			"🎖 Ачивок: %d/%d\n\n"+
+			"⏰ Таймер неактивности: %d %s (день %d — удаление)\n\n"+
+			"🎯 Отчёт с %s",
+		newStreak, daysWordForm(newStreak),
+		cupsAdd, ruCupsWord(cupsAdd), totalCups,
+		ach, leopardmoney.MaxAchievements,
+		leopardmoney.InactiveRemovalDays, daysWordForm(leopardmoney.InactiveRemovalDays), leopardmoney.InactiveRemovalDays,
+		tag,
+	)
 
 	if personalReplyCh != nil {
 		// Mini-app: только в очередь приложения, в TG-личку НЕ дублируем.

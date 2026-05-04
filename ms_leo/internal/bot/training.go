@@ -66,7 +66,7 @@ func (b *Bot) processTrainingDone(msg *tgbotapi.Message) {
 		if err != nil {
 			b.logger.Errorf("Failed to get updated calories: %v", err)
 		} else if updatedCalories >= 100 && updatedCalories-caloriesToAdd < 100 {
-			messageText := fmt.Sprintf("🎉 Поздравляю! 🎉\n\n%s, достигнуто %d калорий!\n\n🔄 Теперь можешь совершить обмен!\n💡 Напиши #change для обмена 100 калорий на 42 кубка!", username, updatedCalories)
+			messageText := fmt.Sprintf("🎉 Поздравляю! 🎉\n\n%s, достигнуто %d калорий!\n\n🔄 Теперь можешь совершить обмен!\n💡 Напиши #change для обмена 100 калорий на 42 %s!", username, updatedCalories, cupsWordForm(42))
 
 			if b.aiClient != nil {
 				action := tgbotapi.NewChatAction(msg.Chat.ID, tgbotapi.ChatTyping)
@@ -360,18 +360,20 @@ func (b *Bot) sendStreakReward(
 
 	messageText := fmt.Sprintf(`%s!
 
-%s, серия: %d дней подряд.
+%s, серия: %d %s подряд.
 %s
 
 🔥 +%d калорий (всего: %d)
-🏆 +%d кубков (всего: %d)`,
+🏆 +%d %s (всего: %d)`,
 		title,
 		username,
 		streakDays,
+		daysWordForm(streakDays),
 		subtitle,
 		caloriesAdded,
 		totalCalories,
 		rewardCups,
+		cupsWordForm(rewardCups),
 		totalCups,
 	)
 
@@ -485,6 +487,10 @@ func cupsWordForm(count int) string {
 	return russianPlural(count, "кубок", "кубка", "кубков")
 }
 
+func daysWordForm(count int) string {
+	return russianPlural(count, "день", "дня", "дней")
+}
+
 func (b *Bot) sendWeeklyCupsReward(msg *tgbotapi.Message, username string, streakDays int, caloriesAdded int, userGender string) {
 	totalCalories, _ := b.db.GetUserXP(msg.From.ID, b.packTrainingStateChatID(msg))
 	totalCups, _ := b.db.GetUserCups(msg.From.ID, b.packTrainingStateChatID(msg))
@@ -493,17 +499,17 @@ func (b *Bot) sendWeeklyCupsReward(msg *tgbotapi.Message, username string, strea
 
 	messageText := fmt.Sprintf(`🏆🏆🏆 НЕВЕРОЯТНО! 🏆🏆🏆
 
-%s, ты тренируешься уже %d дней подряд! 
+%s, ты тренируешься уже %d %s подряд! 
 
 🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆
 🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆
 🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆
 
-🎯 +%d КУБКОВ ЗА ТВОЮ СЕРИЮ %d ДНЕЙ! 🎯
+🎯 +%d %s ЗА ТВОЮ СЕРИЮ %d ДНЕЙ! 🎯
 
 🔥 +%d калорий
 🔥 Всего калорий: %d
-🏆 +%d кубков
+🏆 +%d %s
 🏆 Всего кубков: %d
 🦁 Fat Leopard гордится твоей дисциплиной! 
 💪 Ты %s намерение в привычку — это первый шаг к победе!
@@ -513,7 +519,7 @@ func (b *Bot) sendWeeklyCupsReward(msg *tgbotapi.Message, username string, strea
 🌟 Продолжай в том же духе — впереди ещё большие достижения!
 
 #seven_days_warrior #42_cups #training_start`,
-		username, streakDays, rewardCups, streakDays, caloriesAdded, totalCalories, rewardCups, totalCups, forms.Transformed, forms.Ruler)
+		username, streakDays, daysWordForm(streakDays), rewardCups, strings.ToUpper(cupsWordForm(rewardCups)), streakDays, caloriesAdded, totalCalories, rewardCups, cupsWordForm(rewardCups), totalCups, forms.Transformed, forms.Ruler)
 
 	reply := tgbotapi.NewMessage(msg.Chat.ID, messageText)
 	b.api.Send(reply)
@@ -528,17 +534,17 @@ func (b *Bot) sendTwoWeekCupsReward(msg *tgbotapi.Message, username string, stre
 
 	messageText := fmt.Sprintf(`🏆🏆🏆🏆 ВПЕЧАТЛЯЮЩЕ! 🏆🏆🏆🏆
 
-%s, ты тренируешься уже %d дней подряд! 
+%s, ты тренируешься уже %d %s подряд! 
 
 🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆
 🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆
 🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆
 
-🎯 +%d КУБКОВ ЗА ТВОЮ СЕРИЮ %d ДНЕЙ! 🎯
+🎯 +%d %s ЗА ТВОЮ СЕРИЮ %d ДНЕЙ! 🎯
 
 🔥 +%d калорий
 🔥 Всего калорий: %d
-🏆 +%d кубков
+🏆 +%d %s
 🏆 Всего кубков: %d
 🦁 Fat Leopard видит в тебе настоящую %s! 
 💪 Две недели без пропусков — мощный рывок!
@@ -548,7 +554,7 @@ func (b *Bot) sendTwoWeekCupsReward(msg *tgbotapi.Message, username string, stre
 🌟 Продолжай в том же духе — ты на пути к величию!
 
 #fourteen_days_champion #42_cups #training_momentum`,
-		username, streakDays, rewardCups, streakDays, caloriesAdded, totalCalories, rewardCups, totalCups, forms.Warrior)
+		username, streakDays, daysWordForm(streakDays), rewardCups, strings.ToUpper(cupsWordForm(rewardCups)), streakDays, caloriesAdded, totalCalories, rewardCups, cupsWordForm(rewardCups), totalCups, forms.Warrior)
 
 	reply := tgbotapi.NewMessage(msg.Chat.ID, messageText)
 	b.api.Send(reply)
@@ -563,17 +569,17 @@ func (b *Bot) sendThreeWeekCupsReward(msg *tgbotapi.Message, username string, st
 
 	messageText := fmt.Sprintf(`🏆🏆🏆🏆🏆 ВЕЛИКОЛЕПНО! 🏆🏆🏆🏆🏆
 
-%s, ты тренируешься уже %d дней подряд! 
+%s, ты тренируешься уже %d %s подряд! 
 
 🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆
 🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆
 🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆
 
-🎯 +%d КУБКОВ ЗА ТВОЮ СЕРИЮ %d ДНЕЙ! 🎯
+🎯 +%d %s ЗА ТВОЮ СЕРИЮ %d ДНЕЙ! 🎯
 
 🔥 +%d калорий
 🔥 Всего калорий: %d
-🏆 +%d кубков
+🏆 +%d %s
 🏆 Всего кубков: %d
 🦁 Fat Leopard восхищается твоей дисциплиной! 
 💪 Три недели абсолютной преданности — ты %s в топ 5%%!
@@ -583,7 +589,7 @@ func (b *Bot) sendThreeWeekCupsReward(msg *tgbotapi.Message, username string, st
 🌟 Впереди ещё больше побед — не сбавляй темп!
 
 #twenty_one_days_elite #42_cups #training_lifestyle`,
-		username, streakDays, rewardCups, streakDays, caloriesAdded, totalCalories, rewardCups, totalCups, forms.Entered, forms.Proved)
+		username, streakDays, daysWordForm(streakDays), rewardCups, strings.ToUpper(cupsWordForm(rewardCups)), streakDays, caloriesAdded, totalCalories, rewardCups, cupsWordForm(rewardCups), totalCups, forms.Entered, forms.Proved)
 
 	reply := tgbotapi.NewMessage(msg.Chat.ID, messageText)
 	b.api.Send(reply)
@@ -597,17 +603,17 @@ func (b *Bot) sendMonthlyCupsReward(msg *tgbotapi.Message, username string, stre
 
 	messageText := fmt.Sprintf(`🏆🏆🏆🏆🏆🏆 МЕСЯЦ ПОБЕДЫ! 🏆🏆🏆🏆🏆🏆
 
-%s, ты тренируешься уже %d дней подряд! 
+%s, ты тренируешься уже %d %s подряд! 
 
 🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆
 🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆
 🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆
 
-🎯 +%d КУБКОВ ЗА ТВОЮ СЕРИЮ %d ДНЕЙ! 🎯
+🎯 +%d %s ЗА ТВОЮ СЕРИЮ %d ДНЕЙ! 🎯
 
 🔥 +%d калорий
 🔥 Всего калорий: %d
-🏆 +%d кубков
+🏆 +%d %s
 🏆 Всего кубков: %d
 🦁 Fat Leopard не может поверить в твою силу воли! 
 💪 Ты %s %s дисциплины!
@@ -618,7 +624,7 @@ func (b *Bot) sendMonthlyCupsReward(msg *tgbotapi.Message, username string, stre
 💎 Ты %s, что можешь достичь ЛЮБОЙ цели — небо не предел!
 
 #thirty_days_champion #420_cups #training_perfection`,
-		username, streakDays, rewardCups, streakDays, caloriesAdded, totalCalories, rewardCups, totalCups, forms.Invincible, forms.Titan, forms.Became, forms.Champion, forms.Proved)
+		username, streakDays, daysWordForm(streakDays), rewardCups, strings.ToUpper(cupsWordForm(rewardCups)), streakDays, caloriesAdded, totalCalories, rewardCups, cupsWordForm(rewardCups), totalCups, forms.Invincible, forms.Titan, forms.Became, forms.Champion, forms.Proved)
 
 	reply := tgbotapi.NewMessage(msg.Chat.ID, messageText)
 	b.api.Send(reply)
@@ -632,17 +638,17 @@ func (b *Bot) sendFortyTwoDayCupsReward(msg *tgbotapi.Message, username string, 
 
 	messageText := fmt.Sprintf(`🏆🏆🏆🏆🏆🏆 ЛЕГЕНДАРНО! 🏆🏆🏆🏆🏆🏆
 
-%s, ты тренируешься уже %d дней подряд! 
+%s, ты тренируешься уже %d %s подряд! 
 
 🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆
 🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆
 🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆
 
-🎯 +%d КУБКОВ ЗА ТВОЮ СЕРИЮ %d ДНЕЙ! 🎯
+🎯 +%d %s ЗА ТВОЮ СЕРИЮ %d ДНЕЙ! 🎯
 
 🔥 +%d калорий
 🔥 Всего калорий: %d
-🏆 +%d кубков
+🏆 +%d %s
 🏆 Всего кубков: %d
 🦁 Fat Leopard признаёт тебя символом стаи! 
 💪 42 дня — это легендарная отметка чемпионов!
@@ -652,7 +658,7 @@ func (b *Bot) sendFortyTwoDayCupsReward(msg *tgbotapi.Message, username string, 
 🌟 Продолжай — ты на пути к легенде!
 
 #forty_two_days_legend #42_cups #training_mastery`,
-		username, streakDays, rewardCups, streakDays, caloriesAdded, totalCalories, rewardCups, totalCups, forms.Deserved)
+		username, streakDays, daysWordForm(streakDays), rewardCups, strings.ToUpper(cupsWordForm(rewardCups)), streakDays, caloriesAdded, totalCalories, rewardCups, cupsWordForm(rewardCups), totalCups, forms.Deserved)
 
 	reply := tgbotapi.NewMessage(msg.Chat.ID, messageText)
 	b.api.Send(reply)
@@ -667,17 +673,17 @@ func (b *Bot) sendFiftyDayCupsReward(msg *tgbotapi.Message, username string, str
 
 	messageText := fmt.Sprintf(`🏆🏆🏆🏆🏆🏆🏆 ЭЛИТА! 🏆🏆🏆🏆🏆🏆🏆
 
-%s, ты тренируешься уже %d дней подряд! 
+%s, ты тренируешься уже %d %s подряд! 
 
 🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆
 🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆
 🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆
 
-🎯 +%d КУБКОВ ЗА ТВОЮ СЕРИЮ %d ДНЕЙ! 🎯
+🎯 +%d %s ЗА ТВОЮ СЕРИЮ %d ДНЕЙ! 🎯
 
 🔥 +%d калорий
 🔥 Всего калорий: %d
-🏆 +%d кубков
+🏆 +%d %s
 🏆 Всего кубков: %d
 🦁 Fat Leopard видит в тебе %s! 
 💪 Полсотни дней без пропусков — ты %s в элиту!
@@ -687,7 +693,7 @@ func (b *Bot) sendFiftyDayCupsReward(msg *tgbotapi.Message, username string, str
 🌟 Не останавливайся — впереди ещё больше возможностей!
 
 #fifty_days_olympian #42_cups #training_excellence`,
-		username, streakDays, rewardCups, streakDays, caloriesAdded, totalCalories, rewardCups, totalCups, forms.Olympian, forms.Entered)
+		username, streakDays, daysWordForm(streakDays), rewardCups, strings.ToUpper(cupsWordForm(rewardCups)), streakDays, caloriesAdded, totalCalories, rewardCups, cupsWordForm(rewardCups), totalCups, forms.Olympian, forms.Entered)
 
 	reply := tgbotapi.NewMessage(msg.Chat.ID, messageText)
 	b.api.Send(reply)
@@ -709,7 +715,7 @@ func (b *Bot) sendHundredDayCupsReward(msg *tgbotapi.Message, username string, s
 
 	messageText := fmt.Sprintf(`🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆 БЕССМЕРТНАЯ ЛЕГЕНДА! 🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆
 
-%s, ты тренируешься уже %d дней подряд! 
+%s, ты тренируешься уже %d %s подряд! 
 
 🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆
 🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆
@@ -717,11 +723,11 @@ func (b *Bot) sendHundredDayCupsReward(msg *tgbotapi.Message, username string, s
 🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆
 🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆
 
-🎯 +%d КУБКОВ ЗА ТВОЮ СЕРИЮ %d ДНЕЙ! 🎯
+🎯 +%d %s ЗА ТВОЮ СЕРИЮ %d ДНЕЙ! 🎯
 
 🔥 +%d калорий
 🔥 Всего калорий: %d
-🏆 +%d кубков
+🏆 +%d %s
 🏆 Всего кубков: %d
 🦁 Fat Leopard не может поверить в твою силу воли! 
 💪 Ты %s %s дисциплины!
@@ -732,14 +738,14 @@ func (b *Bot) sendHundredDayCupsReward(msg *tgbotapi.Message, username string, s
 💎 Ты %s, что можешь достичь ЛЮБОЙ цели — небо не предел!
 
 #hundred_days_immortal #4200_cups #training_perfection`,
-		username, streakDays, rewardCups, streakDays, caloriesAdded, totalCalories, rewardCups, totalCups, forms.Invincible, forms.Titan, forms.Became, forms.Champion, forms.Proved)
+		username, streakDays, daysWordForm(streakDays), rewardCups, strings.ToUpper(cupsWordForm(rewardCups)), streakDays, caloriesAdded, totalCalories, rewardCups, cupsWordForm(rewardCups), totalCups, forms.Invincible, forms.Titan, forms.Became, forms.Champion, forms.Proved)
 
 	reply := tgbotapi.NewMessage(msg.Chat.ID, messageText)
 	b.api.Send(reply)
 }
 
 func (b *Bot) sendOneHundredEightyDayCupsReward(msg *tgbotapi.Message, username string, streakDays int, caloriesAdded int, userGender string) {
-	b.sendStreakReward(msg, username, streakDays, caloriesAdded, 420, "🏆 180 дней!", "🔥 Полгода серии — +420 кубков!")
+	b.sendStreakReward(msg, username, streakDays, caloriesAdded, 420, "🏆 180 дней!", fmt.Sprintf("🔥 Полгода серии — +420 %s!", cupsWordForm(420)))
 }
 
 func (b *Bot) sendTwoHundredDayCupsReward(msg *tgbotapi.Message, username string, streakDays int, caloriesAdded int, userGender string) {
@@ -748,20 +754,20 @@ func (b *Bot) sendTwoHundredDayCupsReward(msg *tgbotapi.Message, username string
 	rewardCups := 4200
 	messageText := fmt.Sprintf(`🌸 БУКЕТ ИЗ КУБКОВ! 🌸
 
-%s, 200 дней подряд!
+%s, %d %s подряд!
 
 🏆🌸🏆🌸🏆🌸🏆🌸🏆🌸🏆🌸🏆
 🌸🏆🌸🏆🌸🏆🌸🏆🌸🏆🌸🏆🌸
 🏆🌸🏆🌸🏆🌸🏆🌸🏆🌸🏆🌸🏆
 
-🎯 +%d кубков — букет из кубков за твою серию %d дней!
+🎯 +%d %s — букет из кубков за твою серию %d %s!
 
 🔥 +%d калорий (всего: %d)
-🏆 +%d кубков (всего: %d)
+🏆 +%d %s (всего: %d)
 🦁 Fat Leopard дарит тебе этот букет — ты легенда!
 
 #two_hundred_days #bouquet_of_cups #4200_cups`,
-		username, rewardCups, streakDays, caloriesAdded, totalCalories, rewardCups, totalCups)
+		username, 200, daysWordForm(200), rewardCups, strings.ToUpper(cupsWordForm(rewardCups)), streakDays, daysWordForm(streakDays), caloriesAdded, totalCalories, rewardCups, cupsWordForm(rewardCups), totalCups)
 	reply := tgbotapi.NewMessage(msg.Chat.ID, messageText)
 	b.api.Send(reply)
 }
@@ -775,7 +781,7 @@ func (b *Bot) sendSuperLevelMessage(msg *tgbotapi.Message, username string, tota
 
 	messageText := fmt.Sprintf(`🌟⚡️ СУПЕР-УРОВЕНЬ ДОСТИГНУТ! ⚡️🌟
 
-%s, ты %s %d кубков! 
+%s, ты %s %d %s! 
 
 🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆
 🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆
@@ -795,7 +801,7 @@ func (b *Bot) sendSuperLevelMessage(msg *tgbotapi.Message, username string, tota
 🎯 Продолжай в том же духе, супер-леопард!
 
 #super_level #%d_cups #motivation_king`,
-		username, forms.Accumulated, totalCups, forms.Champion, strings.ToUpper(forms.Champion), totalCups)
+		username, forms.Accumulated, totalCups, cupsWordForm(totalCups), forms.Champion, strings.ToUpper(forms.Champion), totalCups)
 
 	reply := tgbotapi.NewMessage(msg.Chat.ID, messageText)
 	if _, err := b.api.Send(reply); err != nil {

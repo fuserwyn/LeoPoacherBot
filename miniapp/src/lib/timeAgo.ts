@@ -1,3 +1,5 @@
+import { daysWordRu } from "./streakLabel";
+
 /** Разница от now до даты, по-русски (грубая). */
 export function timeAgoFromISO(iso: string, now = Date.now()): string {
   const t = new Date(iso).getTime();
@@ -9,7 +11,7 @@ export function timeAgoFromISO(iso: string, now = Date.now()): string {
   const h = Math.floor(m / 60);
   if (h < 24) return `${h} ч назад`;
   const d = Math.floor(h / 24);
-  if (d < 7) return `${d} дн. назад`;
+  if (d < 7) return `${d} ${daysWordRu(d)} назад`;
   return new Date(t).toLocaleString("ru-RU", { day: "2-digit", month: "2-digit" });
 }
 

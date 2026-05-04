@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { miniappCupsLevelProgress, miniappLevelFromCups } from "../lib/miniappLevel";
 import { formatInactivityRemovalHint } from "../lib/formatInactivityRemoval";
-import { cupsWordRu } from "../lib/streakLabel";
+import { cupsWordRu, daysWordRu } from "../lib/streakLabel";
 import "./ProfileScreen.css";
 
 const api = (import.meta.env.VITE_MINIAPP_API_URL as string | undefined)?.replace(/\/$/, "") ?? "";
@@ -333,7 +333,9 @@ export function ProfileScreen({
       <div className="profile__grid2">
         {ACHIEVEMENT_MILESTONES.map((d, i) => (
           <div key={d} className="wide-card">
-            <div className="wide-card__label">{d} дней подряд</div>
+            <div className="wide-card__label">
+              {d} {daysWordRu(d)} подряд
+            </div>
             <div className="wide-card__val">{i < achievementCount ? "✅" : "⏳"}</div>
           </div>
         ))}

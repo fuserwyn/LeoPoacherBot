@@ -163,7 +163,7 @@ func (b *Bot) cancelTimer(userID int64) {
 func (b *Bot) sendInactiveWarning(userID, chatID int64, username string, day int) {
 	who := normalizeUserDisplayName(username)
 	tag := "#training_done"
-	messageText := fmt.Sprintf("⚠️ Предупреждение (день %d без отчёта)\n\n%s, прошло уже %d дней без отчёта с хэштегом.\n\n🎯 Отправь %s, чтобы остаться в игре.", day, who, day, tag)
+	messageText := fmt.Sprintf("⚠️ Предупреждение (день %d без отчёта)\n\n%s, прошло уже %d %s без отчёта с хэштегом.\n\n🎯 Отправь %s, чтобы остаться в игре.", day, who, day, daysWordForm(day), tag)
 
 	typingChat := chatID
 	if chatID != userID {
