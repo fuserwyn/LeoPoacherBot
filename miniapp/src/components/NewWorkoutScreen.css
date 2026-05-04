@@ -193,18 +193,17 @@
 
 .nwo__presets {
   display: flex;
-  flex-wrap: wrap;
-  gap: 6px 5px;
+  flex-wrap: nowrap;
+  gap: 4px;
   margin-bottom: 4px;
-  justify-content: center;
+  justify-content: space-between;
 }
 
 .nwo__circle {
-  min-width: 2.5rem;
+  width: 34px;
   height: 34px;
-  padding: 0 7px;
-  border-radius: 999px;
-  display: inline-flex;
+  border-radius: 50%;
+  display: flex;
   align-items: center;
   justify-content: center;
   font: 600 var(--nwo-font) / var(--nwo-type-lh) var(--font);

@@ -55,14 +55,14 @@ const INTENSITIES: { v: 1 | 2 | 3 | 4 | 5; label: string }[] = [
   { v: 5, label: "5 · Макс" },
 ];
 
-/** Пресеты минут (до 120); произвольное значение — поле «Своё», кламп как на сервере 1–480. */
-const PRESET_MINUTES = [5, 15, 30, 45, 60, 75, 90, 105, 120] as const;
-const MINUTES_MIN = 1;
-const MINUTES_MAX = 480;
+/** Пресеты минут (до 120); произвольное значение — поле «Своё», лимит как в формуле кубков на бэке. */
+const PRESET_MIN = [5, 15, 30, 45, 60, 75, 90, 105, 120] as const;
+const WORKOUT_MIN_MIN = 1;
+const WORKOUT_MIN_MAX = 480;
 
 function clampWorkoutMinutes(n: number): number {
-  if (!Number.isFinite(n)) return MINUTES_MIN;
-  return Math.min(MINUTES_MAX, Math.max(MINUTES_MIN, Math.round(n)));
+  if (!Number.isFinite(n)) return WORKOUT_MIN_MIN;
+  return Math.min(WORKOUT_MIN_MAX, Math.max(WORKOUT_MIN_MIN, Math.floor(n)));
 }
 
 type Props = {
@@ -140,33 +140,19 @@ export function NewWorkoutScreen({ onClose, onSave, showAlert }: Props) {
     };
   }, [bumpScrollToNote]);
 
-  const applyMinutes = useCallback((v: number) => {
-    const next = clampWorkoutMinutes(v);
-    setMin(next);
-    setMinDraft(String(next));
+  const applyMinutes = useCallback((n: number) => {
+    const m = clampWorkoutMinutes(n);
+    setMin(m);
+    setMinDraft(String(m));
   }, []);
 
-  const dec = (d: number) => {
-    setMin((m) => {
-      const next = clampWorkoutMinutes(m + d);
-      setMinDraft(String(next));
-      return next;
+  const bumpMinutes = useCallback((delta: number) => {
+    setMin((prev) => {
+      const m = clampWorkoutMinutes(prev + delta);
+      setMinDraft(String(m));
+      return m;
     });
-  };
-
-  const commitMinDraft = () => {
-    const t = minDraft.trim();
-    if (t === "") {
-      setMinDraft(String(min));
-      return;
-    }
-    const n = parseInt(t, 10);
-    if (!Number.isFinite(n)) {
-      setMinDraft(String(min));
-      return;
-    }
-    applyMinutes(n);
-  };
+  }, []);
   return (
     <div className="nwo" style={{ height: viewportH, maxHeight: viewportH }}>
       <header className="nwo__head">
@@ -224,13 +210,13 @@ export function NewWorkoutScreen({ onClose, onSave, showAlert }: Props) {
                 <span className="nwo__big-suf">мин</span>
               </div>
               <div className="nwo__presets">
-                {PRESET_MINUTES.map((p) => (
+                {PRESET_MIN.map((p) => (
                   <button
                     key={p}
                     type="button"
                     className={`nwo__circle ${min === p ? "is-on" : ""}`}
                     aria-pressed={min === p}
-                    onClick={() => applyMinutes(p)}
+                    onClick={() => setMin(p)}
                   >
                     {p}
                   </button>
@@ -249,38 +235,6 @@ export function NewWorkoutScreen({ onClose, onSave, showAlert }: Props) {
                 <button type="button" className="nwo__step" onClick={() => dec(5)}>
                   +5
                 </button>
-              </div>
-              <div className="nwo__dur-custom">
-                <label className="nwo__dur-custom-label" htmlFor="nwo-min-custom">
-                  Своё
-                </label>
-                <input
-                  id="nwo-min-custom"
-                  className="nwo__min-custom"
-                  type="text"
-                  inputMode="numeric"
-                  pattern="[0-9]*"
-                  autoComplete="off"
-                  enterKeyHint="done"
-                  maxLength={3}
-                  value={minDraft}
-                  onChange={(e) => setMinDraft(e.target.value.replace(/\D/g, "").slice(0, 3))}
-                  onFocus={(e) => {
-                    setMinDraft(String(min));
-                    e.target.select();
-                  }}
-                  onBlur={() => commitMinDraft()}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter") {
-                      e.preventDefault();
-                      (e.target as HTMLInputElement).blur();
-                    }
-                  }}
-                  aria-label="Свои минуты, от 1 до 480"
-                />
-                <span className="nwo__dur-custom-suf" aria-hidden>
-                  мин
-                </span>
               </div>
             </div>
 
