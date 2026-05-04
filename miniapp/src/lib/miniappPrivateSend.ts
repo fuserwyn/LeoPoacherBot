@@ -4,6 +4,15 @@ const apiBase = (import.meta.env.VITE_MINIAPP_API_URL as string | undefined)?.re
 
 export type MiniappSendResult = { ok: true; replyParts: string[] } | { ok: false; error: string };
 
+export type MiniappSendOptions = {
+  /**
+   * Если false и сервер вернул pending без reply_text — не ждать ответ через poll
+   * (быстрый UI; комментарий Лео появится в ленте позже).
+   * По умолчанию true (как в чате: дождаться текста).
+   */
+  awaitReply?: boolean;
+};
+
 async function pollPendingReplies(initData: string): Promise<string[]> {
   const parts: string[] = [];
   const deadline = Date.now() + 4 * 60 * 1000;
@@ -39,7 +48,12 @@ async function pollPendingReplies(initData: string): Promise<string[]> {
 /**
  * Собирает ответы бота (сразу или через poll), как в ChatScreen.
  */
-export async function sendMiniappPrivateText(initData: string, text: string): Promise<MiniappSendResult> {
+export async function sendMiniappPrivateText(
+  initData: string,
+  text: string,
+  opts?: MiniappSendOptions,
+): Promise<MiniappSendResult> {
+  const awaitReply = opts?.awaitReply !== false;
   if (!apiBase) {
     return { ok: false, error: "Нет VITE_MINIAPP_API_URL в сборке." };
   }
@@ -73,6 +87,9 @@ export async function sendMiniappPrivateText(initData: string, text: string): Pr
     return { ok: true, replyParts: [replyNow] };
   }
   if (j.pending) {
+    if (!awaitReply) {
+      return { ok: true, replyParts: [] };
+    }
     try {
       const parts = await pollPendingReplies(initData);
       return { ok: true, replyParts: parts };
@@ -84,7 +101,13 @@ export async function sendMiniappPrivateText(initData: string, text: string): Pr
 }
 
 /** То же для отчёта с фото: POST multipart /api/miniapp/workout. */
-export async function sendMiniappTrainingWithPhoto(initData: string, text: string, photo: File): Promise<MiniappSendResult> {
+export async function sendMiniappTrainingWithPhoto(
+  initData: string,
+  text: string,
+  photo: File,
+  opts?: MiniappSendOptions,
+): Promise<MiniappSendResult> {
+  const awaitReply = opts?.awaitReply !== false;
   if (!apiBase) {
     return { ok: false, error: "Нет VITE_MINIAPP_API_URL в сборке." };
   }
@@ -127,6 +150,9 @@ export async function sendMiniappTrainingWithPhoto(initData: string, text: strin
     return { ok: true, replyParts: [replyNow] };
   }
   if (j.pending) {
+    if (!awaitReply) {
+      return { ok: true, replyParts: [] };
+    }
     try {
       const parts = await pollPendingReplies(initData);
       return { ok: true, replyParts: parts };

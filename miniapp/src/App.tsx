@@ -210,9 +210,10 @@ export function App() {
             const base = `#training_done — ${kind}, ${min} мин, инт. ${intensity}/5`;
             const line = note ? `${base}\n\n${note}` : base;
             tg?.HapticFeedback?.impactOccurred?.("medium");
+            const sendFast = { awaitReply: false as const };
             const result = photo
-              ? await sendMiniappTrainingWithPhoto(initData, line, photo)
-              : await sendMiniappPrivateText(initData, line);
+              ? await sendMiniappTrainingWithPhoto(initData, line, photo, sendFast)
+              : await sendMiniappPrivateText(initData, line, sendFast);
             if (!result.ok) {
               showAlert(result.error);
               return false;
@@ -222,8 +223,16 @@ export function App() {
             setTab("feed");
             setFeedRefreshToken((v) => v + 1);
             window.setTimeout(() => setFeedRefreshToken((v) => v + 1), 4000);
-            const msg = result.replyParts.filter(Boolean).join("\n\n").trim() || "Отчёт отправлен.";
-            showAlert(msg.length > 350 ? `${msg.slice(0, 347)}…` : msg);
+            window.setTimeout(() => setFeedRefreshToken((v) => v + 1), 10000);
+            window.setTimeout(() => setFeedRefreshToken((v) => v + 1), 20000);
+            window.setTimeout(() => void refreshTabBadges(), 6000);
+            const immediate = result.replyParts.filter(Boolean).join("\n\n").trim();
+            const headline = "Отчёт принят.";
+            const hint = "Комментарий Лео скоро появится в ленте.";
+            const msg = immediate
+              ? `${headline}\n\n${immediate.length > 320 ? `${immediate.slice(0, 317)}…` : immediate}`
+              : `${headline} ${hint}`;
+            showAlert(msg.length > 400 ? `${msg.slice(0, 397)}…` : msg);
             return true;
           }}
         />
