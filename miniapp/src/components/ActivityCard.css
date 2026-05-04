@@ -256,6 +256,9 @@
 }
 
 .act-card__thread {
+  /* Один кегль для текста комментария и поля ввода (плейсхолдер в WebKit не всегда наследует font-size). */
+  --act-thread-font-size: 12px;
+  --act-thread-line-height: 1.4;
   margin-top: 6px;
   padding-top: 6px;
   border-top: 1px solid var(--border-subtle);
@@ -300,7 +303,7 @@
 .act-card__thread-item {
   padding: 5px 0;
   border-bottom: 1px solid var(--border-subtle);
-  font-size: 12px;
+  font-size: var(--act-thread-font-size);
 }
 
 .act-card__thread-item-inner {
@@ -510,7 +513,8 @@
 
 .act-card__thread-text {
   margin: 4px 0 0;
-  line-height: 1.4;
+  font-size: var(--act-thread-font-size);
+  line-height: var(--act-thread-line-height);
   white-space: pre-wrap;
   word-break: break-word;
 }
@@ -531,7 +535,21 @@
   border: 1px solid var(--border-subtle);
   background: var(--card-inner);
   color: var(--text);
-  font: inherit;
+  font-weight: 400;
+  /* Явный font как у .act-card__thread-text — иначе WebView рисует плейсхолдер крупнее текста комментария */
+  font: 400 var(--act-thread-font-size) / var(--act-thread-line-height) var(--font);
+}
+
+.act-card__thread-input::placeholder {
+  font: 400 var(--act-thread-font-size) / var(--act-thread-line-height) var(--font);
+  color: var(--text-muted);
+  opacity: 1;
+}
+
+.act-card__thread-input::-webkit-input-placeholder {
+  font: 400 var(--act-thread-font-size) / var(--act-thread-line-height) var(--font);
+  color: var(--text-muted);
+  opacity: 1;
 }
 
 .act-card__thread-send {
