@@ -149,13 +149,6 @@ export function NewWorkoutScreen({ onClose, onSave, showAlert }: Props) {
     setMinDraft(String(m));
   }, []);
 
-  const bumpMinutes = useCallback((delta: number) => {
-    setMin((prev) => {
-      const m = clampWorkoutMinutes(prev + delta);
-      setMinDraft(String(m));
-      return m;
-    });
-  }, []);
   return (
     <div className="nwo" style={{ height: viewportH, maxHeight: viewportH }}>
       <header className="nwo__head">
@@ -252,20 +245,6 @@ export function NewWorkoutScreen({ onClose, onSave, showAlert }: Props) {
                     }}
                   />
                 </div>
-              </div>
-              <div className="nwo__stepper">
-                <button type="button" className="nwo__step" onClick={() => bumpMinutes(-5)}>
-                  −5
-                </button>
-                <button type="button" className="nwo__step" onClick={() => bumpMinutes(-1)}>
-                  −1
-                </button>
-                <button type="button" className="nwo__step" onClick={() => bumpMinutes(1)}>
-                  +1
-                </button>
-                <button type="button" className="nwo__step" onClick={() => bumpMinutes(5)}>
-                  +5
-                </button>
               </div>
             </div>
 
