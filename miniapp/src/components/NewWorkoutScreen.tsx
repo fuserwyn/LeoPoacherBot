@@ -88,7 +88,7 @@ const OTHER_LABEL_MAX = 80;
 export function NewWorkoutScreen({ onClose, onSave, showAlert }: Props) {
   const viewportH = useVisibleViewportHeight();
   const bodyRef = useRef<HTMLDivElement>(null);
-  const noteBlockRef = useRef<HTMLDivElement>(null);
+  const noteTaRef = useRef<HTMLTextAreaElement>(null);
   const noteFocusedRef = useRef(false);
 
   const [type, setType] = useState<string>("strength");
@@ -100,32 +100,34 @@ export function NewWorkoutScreen({ onClose, onSave, showAlert }: Props) {
   const [busy, setBusy] = useState(false);
   const [photo, setPhoto] = useState<File | null>(null);
 
-  /** Поднимаем блок с полем к верху скролла — так textarea остаётся в видимой области над клавиатурой. */
-  const bumpScrollToNote = useCallback(() => {
-    const block = noteBlockRef.current;
+  /** Только если низ textarea ушёл под низ скролла — чуть увеличить scrollTop. Без scrollIntoView(start): иначе прыжок к началу формы. */
+  const nudgeTextareaIntoView = useCallback(() => {
+    const ta = noteTaRef.current;
     const body = bodyRef.current;
-    if (!block || !body) return;
-    block.scrollIntoView({ block: "start", inline: "nearest", behavior: "auto" });
-    requestAnimationFrame(() => {
-      const bodyRect = body.getBoundingClientRect();
-      const blockRect = block.getBoundingClientRect();
-      const margin = 4;
-      if (blockRect.bottom > bodyRect.bottom - margin) {
-        body.scrollTop += blockRect.bottom - (bodyRect.bottom - margin);
-      }
-    });
+    if (!ta || !body) return;
+    const bodyRect = body.getBoundingClientRect();
+    const taRect = ta.getBoundingClientRect();
+    const pad = 10;
+    if (taRect.bottom > bodyRect.bottom - pad) {
+      body.scrollTop += taRect.bottom - (bodyRect.bottom - pad);
+    }
   }, []);
 
   useEffect(() => {
     if (!noteFocusedRef.current) return;
-    const t = window.setTimeout(bumpScrollToNote, 60);
+    const t = window.setTimeout(nudgeTextareaIntoView, 120);
     return () => window.clearTimeout(t);
-  }, [viewportH, bumpScrollToNote]);
+  }, [viewportH, nudgeTextareaIntoView]);
 
   useEffect(() => {
+    let raf = 0;
     const onVV = () => {
       if (!noteFocusedRef.current) return;
-      bumpScrollToNote();
+      if (raf) cancelAnimationFrame(raf);
+      raf = requestAnimationFrame(() => {
+        raf = 0;
+        nudgeTextareaIntoView();
+      });
     };
     const vv = window.visualViewport;
     vv?.addEventListener("resize", onVV);
@@ -133,12 +135,13 @@ export function NewWorkoutScreen({ onClose, onSave, showAlert }: Props) {
     const tg = window.Telegram?.WebApp as { onEvent?: (e: string, fn: () => void) => void } | undefined;
     tg?.onEvent?.("viewportChanged", onVV);
     return () => {
+      if (raf) cancelAnimationFrame(raf);
       vv?.removeEventListener("resize", onVV);
       vv?.removeEventListener("scroll", onVV);
       const tgOff = window.Telegram?.WebApp as { offEvent?: (e: string, fn: () => void) => void } | undefined;
       tgOff?.offEvent?.("viewportChanged", onVV);
     };
-  }, [bumpScrollToNote]);
+  }, [nudgeTextareaIntoView]);
 
   const applyMinutes = useCallback((n: number) => {
     const m = clampWorkoutMinutes(n);
@@ -303,9 +306,10 @@ export function NewWorkoutScreen({ onClose, onSave, showAlert }: Props) {
           </div>
         </div>
 
-        <div className="nwo__note-block" ref={noteBlockRef}>
+        <div className="nwo__note-block">
           <h2 className="nwo__sec">Что сделал</h2>
           <textarea
+            ref={noteTaRef}
             className="nwo__note"
             value={note}
             rows={6}
@@ -317,10 +321,7 @@ export function NewWorkoutScreen({ onClose, onSave, showAlert }: Props) {
             spellCheck
             onFocus={() => {
               noteFocusedRef.current = true;
-              const run = () => bumpScrollToNote();
-              requestAnimationFrame(run);
-              window.setTimeout(run, 120);
-              window.setTimeout(run, 320);
+              window.setTimeout(nudgeTextareaIntoView, 180);
             }}
             onBlur={() => {
               noteFocusedRef.current = false;
