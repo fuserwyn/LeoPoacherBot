@@ -16,7 +16,6 @@
   --nwo-display-sub-fs: 0.72rem;
   --nwo-title-fs: 0.82rem;
   --nwo-pill-fs: 0.72rem;
-  --nwo-input-fs: 16px;
   --nwo-action-fs: 0.9rem;
   position: fixed;
   left: 0;
@@ -240,7 +239,7 @@
   background: var(--nwo-chip-bg);
   color: var(--text, #e8e8f0);
   text-align: center;
-  font: 600 var(--nwo-input-fs) / var(--nwo-chip-lh) var(--font);
+  font: 600 var(--nwo-chip-fs) / var(--nwo-chip-lh) var(--font);
 }
 
 .nwo__min-custom-input:focus {
@@ -250,7 +249,7 @@
 }
 
 .nwo__min-custom-input::placeholder {
-  font: 600 var(--nwo-input-fs) / var(--nwo-chip-lh) var(--font);
+  font: 600 var(--nwo-chip-fs) / var(--nwo-chip-lh) var(--font);
   color: var(--muted, #8b8b9a);
   opacity: 0.85;
 }
@@ -350,7 +349,7 @@
   border: 1px solid var(--border-subtle, #2a2a36);
   background: var(--nwo-chip-bg);
   color: var(--text, #e8e8f0);
-  font: 400 var(--nwo-input-fs) / 1.35 var(--font);
+  font: 600 var(--nwo-chip-fs) / 1.35 var(--font);
   resize: none;
   height: 116px;
   min-height: 116px;
@@ -360,12 +359,12 @@
 }
 
 .nwo__note::placeholder {
-  font: 400 var(--nwo-input-fs) / 1.35 var(--font);
+  font: 600 var(--nwo-chip-fs) / 1.35 var(--font);
   color: var(--muted, #8b8b9a);
 }
 
 .nwo__note::-webkit-input-placeholder {
-  font: 400 var(--nwo-input-fs) / 1.35 var(--font);
+  font: 600 var(--nwo-chip-fs) / 1.35 var(--font);
   color: var(--muted, #8b8b9a);
 }
 
@@ -449,7 +448,7 @@
   border: 1px solid var(--border-subtle, #2a2a36);
   background: var(--nwo-chip-bg);
   color: var(--text, #e8e8f0);
-  font: 600 var(--nwo-input-fs) / var(--nwo-chip-lh) var(--font);
+  font: 600 var(--nwo-chip-fs) / var(--nwo-chip-lh) var(--font);
 }
 
 .nwo__other-input:focus {
@@ -459,11 +458,11 @@
 }
 
 .nwo__other-input::placeholder {
-  font: 600 var(--nwo-input-fs) / var(--nwo-chip-lh) var(--font);
+  font: 600 var(--nwo-chip-fs) / var(--nwo-chip-lh) var(--font);
   color: var(--muted, #8b8b9a);
 }
 
 .nwo__other-input::-webkit-input-placeholder {
-  font: 600 var(--nwo-input-fs) / var(--nwo-chip-lh) var(--font);
+  font: 600 var(--nwo-chip-fs) / var(--nwo-chip-lh) var(--font);
   color: var(--muted, #8b8b9a);
 }
