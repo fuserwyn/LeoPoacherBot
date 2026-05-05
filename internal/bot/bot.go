@@ -99,9 +99,7 @@ func (b *Bot) Start(ctx context.Context) error {
 		b.logger.Info("SCAN_HISTORY_ON_START=false, skipping history scan. New messages will be saved automatically.")
 	}
 
-	// Запускаем ежемесячную сводку (1-го числа 16:20) и «мудрость дня» (ежедневно 04:20)
-	go b.startDailySummaryScheduler(ctx)
-	go b.startDailyWisdomScheduler(ctx)
+	// Ежемесячная сводка отключена по запросу.
 
 	u := tgbotapi.NewUpdate(0)
 	u.Timeout = 60
@@ -297,8 +295,8 @@ func (b *Bot) handleCommand(msg *tgbotapi.Message) {
 	case "announce_ai":
 		b.handleAnnounceAI(msg)
 	case "send_wisdom":
-		// Ручной запуск рассылки мудрости дня
-		b.generateAndSendDailyWisdom()
+		reply := tgbotapi.NewMessage(msg.Chat.ID, "ℹ️ Рассылка мудрости дня отключена.")
+		b.api.Send(reply)
 	case "admin":
 		b.handleAdmin(msg)
 	case "audit_last24":
@@ -772,123 +770,20 @@ func (b *Bot) handleTrainingDone(msg *tgbotapi.Message) {
 		text = msg.Caption
 	}
 
-	// Рассчитываем калории и серию
-	caloriesToAdd, newStreakDays, newCalorieStreakDays, weeklyAchievement, twoWeekAchievement, threeWeekAchievement, monthlyAchievement, fortyTwoDayAchievement, fiftyDayAchievement, sixtyDayAchievement, quarterlyAchievement, hundredDayAchievement, oneHundredEightyDayAchievement, twoHundredDayAchievement, twoHundredFortyDayAchievement := b.calculateCalories(messageLog)
+	// Рассчитываем факт нового отчёта и серию
+	caloriesToAdd, newStreakDays, _, weeklyAchievement, twoWeekAchievement, threeWeekAchievement, monthlyAchievement, fortyTwoDayAchievement, fiftyDayAchievement, sixtyDayAchievement, quarterlyAchievement, hundredDayAchievement, oneHundredEightyDayAchievement, twoHundredDayAchievement, twoHundredFortyDayAchievement := b.calculateCalories(messageLog)
 
 	// ДЕБАГ: Логируем результат расчета
-	b.logger.Infof("DEBUG handleTrainingDone: caloriesToAdd=%d, newStreakDays=%d, newCalorieStreakDays=%d, weeklyAchievement=%t, twoWeekAchievement=%t, threeWeekAchievement=%t, monthlyAchievement=%t, fortyTwoDayAchievement=%t, fiftyDayAchievement=%t, sixtyDayAchievement=%t, quarterlyAchievement=%t, hundredDayAchievement=%t, oneHundredEightyDayAchievement=%t, twoHundredDayAchievement=%t, twoHundredFortyDayAchievement=%t",
-		caloriesToAdd, newStreakDays, newCalorieStreakDays, weeklyAchievement, twoWeekAchievement, threeWeekAchievement, monthlyAchievement, fortyTwoDayAchievement, fiftyDayAchievement, sixtyDayAchievement, quarterlyAchievement, hundredDayAchievement, oneHundredEightyDayAchievement, twoHundredDayAchievement, twoHundredFortyDayAchievement)
+	b.logger.Infof("DEBUG handleTrainingDone: reportsToAdd=%d, newStreakDays=%d", caloriesToAdd, newStreakDays)
 
-	// Начисляем калории
-	if err := b.db.AddCalories(msg.From.ID, msg.Chat.ID, caloriesToAdd); err != nil {
-		b.logger.Errorf("Failed to add calories: %v", err)
-	} else {
-		b.logger.Infof("DEBUG: Successfully added %d calories", caloriesToAdd)
-	}
-
-	// Проверяем, достиг ли пользователь 100 калорий/слов для обмена
-	if caloriesToAdd > 0 {
-		// Получаем обновленное количество калорий/слов
-		updatedCalories, err := b.db.GetUserCalories(msg.From.ID, msg.Chat.ID)
-		if err != nil {
-			b.logger.Errorf("Failed to get updated calories: %v", err)
-		} else if updatedCalories >= 100 && updatedCalories-caloriesToAdd < 100 {
-			// Определяем тип чата для адаптации текста
-			chatTypeForExchange, err := b.db.GetChatType(msg.Chat.ID)
-			if err != nil {
-				chatTypeForExchange = "training" // По умолчанию
-			}
-			// Пользователь только что достиг 100 калорий/слов
-			var messageText string
-			if chatTypeForExchange == "coding" {
-				messageText = fmt.Sprintf("🎉 Поздравляю! 🎉\n\n%s, достигнуто %d калорий (очков прогресса)!\n\n🔄 Теперь можешь совершить обмен!\n💡 Напиши #change для обмена 100 калорий на 42 кубка!", username, updatedCalories)
-			} else {
-				messageText = fmt.Sprintf("🎉 Поздравляю! 🎉\n\n%s, достигнуто %d калорий!\n\n🔄 Теперь можешь совершить обмен!\n💡 Напиши #change для обмена 100 калорий на 42 кубка!", username, updatedCalories)
-			}
-
-			// Короткая ИИ‑приписка про обмен
-			if b.aiClient != nil {
-				action := tgbotapi.NewChatAction(msg.Chat.ID, tgbotapi.ChatTyping)
-				b.api.Send(action)
-				stopTyping := make(chan struct{})
-				defer close(stopTyping)
-				go func() {
-					ticker := time.NewTicker(4 * time.Second)
-					defer ticker.Stop()
-					for {
-						select {
-						case <-ticker.C:
-							b.api.Send(action)
-						case <-stopTyping:
-							return
-						}
-					}
-				}()
-
-				totalCups, _ := b.db.GetUserCups(msg.From.ID, msg.Chat.ID)
-				var q string
-				if chatTypeForExchange == "coding" {
-					q = "Сделай короткую приписку (1–2 предложения): дружелюбно предложи обмен через #change. Поясни, что после обмена счётчик калорий/очков обнулится; обмен уместен перед длинным перерывом в отчётах. Серия дней и кубки не сбрасываются. НЕ переводи тему в спорт и зал. Не повторяй цифры из текста, без Markdown."
-				} else {
-					q = "Сделай короткую приписку (1–2 предложения): дружелюбно и по делу предложи обмен через #change. Обязательно поясни, что после обмена калории обнулятся и начнут накапливаться заново; обмен имеет смысл, если ожидается перерыв в тренировках. Укажи, что серия и кубки продолжаются как обычно. Не повторяй цифры из текста, без Markdown."
-				}
-				var ctxBuilder strings.Builder
-				ctxBuilder.WriteString(fmt.Sprintf("Пользователь: %s\n", username))
-				// Добавляем пол пользователя в контекст
-				genderNormalized := strings.TrimSpace(strings.ToLower(userGender))
-				if genderNormalized != "" {
-					var genderText string
-					if genderNormalized == "f" {
-						genderText = "женский"
-					} else if genderNormalized == "m" {
-						genderText = "мужской"
-					}
-					if genderText != "" {
-						ctxBuilder.WriteString(fmt.Sprintf("Пол: %s\n", genderText))
-					}
-				}
-				ctxBuilder.WriteString(fmt.Sprintf("Текущие калории: %d\n", updatedCalories))
-				ctxBuilder.WriteString(fmt.Sprintf("Текущие кубки: %d\n", totalCups))
-				if add, err := b.aiClient.AnswerUserQuestion(q, ctxBuilder.String()); err == nil {
-					add = strings.TrimSpace(strings.ReplaceAll(add, "**", ""))
-					if add != "" {
-						messageText = messageText + "\n\n" + add
-					}
-				} else {
-					b.logger.Warnf("AI addendum generation (exchange) failed: %v", err)
-				}
-			}
-
-			exchangeMessage := tgbotapi.NewMessage(msg.Chat.ID, messageText)
-
-			b.logger.Infof("Sending 100 calories achievement message to chat %d", msg.Chat.ID)
-			_, err = b.api.Send(exchangeMessage)
-			if err != nil {
-				b.logger.Errorf("Failed to send 100 calories achievement message: %v", err)
-			} else {
-				b.logger.Infof("Successfully sent 100 calories achievement message to chat %d", msg.Chat.ID)
-			}
-		}
-	}
-
-	// Обновляем серию только если была добавлена новая тренировка
+	// Логика калорий отключена: сохраняем только серию/кубки и отчёты.
 	if caloriesToAdd > 0 {
 		today := b.getUserLocalDate(messageLog.TimezoneOffsetFromMoscow)
-
-		// Обновляем streak_days для кубков
 		b.logger.Infof("DEBUG: Updating streak to %d with date %s", newStreakDays, today)
 		if err := b.db.UpdateStreak(msg.From.ID, msg.Chat.ID, newStreakDays, today); err != nil {
 			b.logger.Errorf("Failed to update streak: %v", err)
 		} else {
 			b.logger.Infof("DEBUG: Successfully updated streak to %d", newStreakDays)
-		}
-
-		// Обновляем серию дней для калорий
-		b.logger.Infof("DEBUG: Updating calorie streak to %d with date %s", newCalorieStreakDays, today)
-		if err := b.db.UpdateCalorieStreakWithDate(msg.From.ID, msg.Chat.ID, newCalorieStreakDays, today); err != nil {
-			b.logger.Errorf("Failed to update calorie streak: %v", err)
-		} else {
-			b.logger.Infof("DEBUG: Successfully updated calorie streak to %d", newCalorieStreakDays)
 		}
 	} else {
 		b.logger.Infof("DEBUG: Skipping streak update (caloriesToAdd = 0)")
@@ -1048,20 +943,13 @@ func (b *Bot) handleTrainingDone(msg *tgbotapi.Message) {
 		}
 		solvedLine := formatSolvedTasksTotalLine(chatType, solvedTotal)
 
-		// Получаем общее количество калорий для отображения
-		totalCalories, err := b.db.GetUserCalories(msg.From.ID, msg.Chat.ID)
-		if err != nil {
-			b.logger.Errorf("Failed to get total calories for message: %v", err)
-			totalCalories = 0
-		}
-
 		// Новая тренировка БЕЗ achievement - готовим базовый текст
 		// Адаптируем текст в зависимости от типа чата
 		var messageText string
 		if chatType == "coding" {
-			messageText = fmt.Sprintf("✅ Отчёт принят! 💪\n\n🦁 Ты кодишь дней подряд: %d\n🏆 +1 кубок за кодинг-сессию!\n🏆 Всего кубков: %d\n%s\n\n⏰ Таймер перезапускается на 7 дней", newStreakDays, currentCups, solvedLine)
+			messageText = fmt.Sprintf("✅ Отчёт принят! 💪\n\n🦁 Ты кодишь дней подряд: %d\n🏆 +1 кубок за кодинг-сессию!\n🏆 Всего кубков: %d\n📊 Всего отчётов: %d\n%s\n\n⏰ Таймер перезапускается на 7 дней", newStreakDays, currentCups, solvedTotal, solvedLine)
 		} else {
-			messageText = fmt.Sprintf("✅ Отчёт принят! 💪\n\n🦁 Ты тренируешься дней подряд: %d\n🏆 +1 кубок за тренировку!\n🏆 Всего кубков: %d\n%s\n\n⏰ Таймер перезапускается на 7 дней", newStreakDays, currentCups, solvedLine)
+			messageText = fmt.Sprintf("✅ Отчёт принят! 💪\n\n🦁 Ты тренируешься дней подряд: %d\n🏆 +1 кубок за тренировку!\n🏆 Всего кубков: %d\n📊 Всего тренировок: %d\n%s\n\n⏰ Таймер перезапускается на 7 дней", newStreakDays, currentCups, solvedTotal, solvedLine)
 		}
 
 		// Дополняем короткой ИИ-припиской по текущему контексту
@@ -1085,7 +973,7 @@ func (b *Bot) handleTrainingDone(msg *tgbotapi.Message) {
 			}()
 
 			// Формируем вопрос для единого AI-сообщения (объединяем приписку и мудрость в одно)
-			question := b.getUnifiedTrainingPrompt(newStreakDays, totalCalories, currentCups, wasOnSickLeave, chatType)
+			question := b.getUnifiedTrainingPrompt(newStreakDays, 0, currentCups, wasOnSickLeave, chatType)
 			var ctxBuilder strings.Builder
 			ctxBuilder.WriteString("КРИТИЧЕСКИ ВАЖНО: Отвечай ТОЛЬКО на этот отчёт. НЕ используй историю чата, последние сообщения или сообщения других участников. Комментируй исключительно то, что написано в этом сообщении.\n\n")
 			if chatType == "coding" {
@@ -1368,86 +1256,7 @@ func (b *Bot) handleTrainingDone(msg *tgbotapi.Message) {
 		}
 	}
 
-	// Дополняем поздравлениями о рубежах (после обычного отчёта, если он был)
-	if hasAnyAchievement {
-		b.logger.Infof("Sending achievement messages after regular confirmation")
-
-		// Получаем пол пользователя для правильных форм слов
-		messageLog, err := b.db.GetMessageLog(msg.From.ID, msg.Chat.ID)
-		userGender := ""
-		if err == nil {
-			userGender = strings.TrimSpace(strings.ToLower(messageLog.Gender))
-			if userGender == "" {
-				userGender = b.detectGenderFromName(msg.From.FirstName)
-			}
-		}
-
-		if weeklyAchievement {
-			b.sendWeeklyCupsReward(msg, username, newStreakDays, caloriesToAdd, userGender)
-		}
-		if twoWeekAchievement {
-			b.sendTwoWeekCupsReward(msg, username, newStreakDays, caloriesToAdd, userGender)
-		}
-		if threeWeekAchievement {
-			b.sendThreeWeekCupsReward(msg, username, newStreakDays, caloriesToAdd, userGender)
-		}
-		if monthlyAchievement {
-			b.sendMonthlyCupsReward(msg, username, newStreakDays, caloriesToAdd, userGender)
-		}
-		if fortyTwoDayAchievement {
-			b.sendFortyTwoDayCupsReward(msg, username, newStreakDays, caloriesToAdd, userGender)
-		}
-		if fiftyDayAchievement {
-			b.sendFiftyDayCupsReward(msg, username, newStreakDays, caloriesToAdd, userGender)
-		}
-		if sixtyDayAchievement {
-			b.sendSixtyDayCupsReward(msg, username, newStreakDays, caloriesToAdd, userGender)
-		}
-		if quarterlyAchievement {
-			b.sendQuarterlyCupsReward(msg, username, newStreakDays, caloriesToAdd, userGender)
-		}
-		if hundredDayAchievement {
-			b.sendHundredDayCupsReward(msg, username, newStreakDays, caloriesToAdd, userGender)
-		}
-		if oneHundredEightyDayAchievement {
-			b.sendOneHundredEightyDayCupsReward(msg, username, newStreakDays, caloriesToAdd, userGender)
-		}
-		if twoHundredDayAchievement {
-			b.sendTwoHundredDayCupsReward(msg, username, newStreakDays, caloriesToAdd, userGender)
-		}
-		if twoHundredFortyDayAchievement {
-			b.sendTwoHundredFortyDayCupsReward(msg, username, newStreakDays, caloriesToAdd, userGender)
-		}
-
-		// Проверяем супер-уровень после начисления кубков
-		totalCups, err := b.db.GetUserCups(msg.From.ID, msg.Chat.ID)
-		if err != nil {
-			b.logger.Errorf("Failed to get user cups for super level check: %v", err)
-		} else if totalCups >= 420 {
-			// Проверяем, является ли этот пользователь 3-м с 420+ кубками
-			usersWith420Cups, err := b.db.CountUsersWithCups(msg.Chat.ID, 420)
-			if err != nil {
-				b.logger.Errorf("Failed to count users with 420+ cups: %v", err)
-			} else if usersWith420Cups == 3 {
-				// 3-й участник достиг 420 кубков - розыгрыш завершен
-				merchMessage := tgbotapi.NewMessage(msg.Chat.ID, `🎉🎊 РОЗЫГРЫШ ЗАВЕРШЕН! 🎊🎉
-				
-Третий участник достиг 420 кубков! 
-				
-🏆 Розыгрыш футболки Fat Leopard официально закрыт!
-				
-Поздравляем всех участников, которые набрали 420+ кубков! 🦁💪`)
-				if _, err := b.api.Send(merchMessage); err != nil {
-					b.logger.Errorf("Failed to send merch giveaway completion message: %v", err)
-				}
-			}
-
-			// Отправляем сообщение о супер-уровне (если еще не достигли 10000)
-			if totalCups < 10000 {
-				b.sendSuperLevelMessage(msg, username, totalCups, userGender)
-			}
-		}
-	}
+	// Длинные наградные сообщения за серии отключены по запросу.
 
 	// Если пользователь был на больничном, сбрасываем флаги больничного и помечаем как здорового
 	if wasOnSickLeave {
@@ -2850,12 +2659,10 @@ func (b *Bot) auditProcessTrainingDone(um *domain.UserMessage) {
 		return
 	}
 
-	caloriesToAdd, newStreakDays, newCalorieStreakDays, weeklyAchievement, twoWeekAchievement, threeWeekAchievement, monthlyAchievement, fortyTwoDayAchievement, fiftyDayAchievement, sixtyDayAchievement, quarterlyAchievement, hundredDayAchievement, oneHundredEightyDayAchievement, twoHundredDayAchievement, twoHundredFortyDayAchievement := b.calculateCalories(messageLog)
+	caloriesToAdd, newStreakDays, _, weeklyAchievement, twoWeekAchievement, threeWeekAchievement, monthlyAchievement, fortyTwoDayAchievement, fiftyDayAchievement, sixtyDayAchievement, quarterlyAchievement, hundredDayAchievement, oneHundredEightyDayAchievement, twoHundredDayAchievement, twoHundredFortyDayAchievement := b.calculateCalories(messageLog)
 
 	if caloriesToAdd > 0 {
-		_ = b.db.AddCalories(um.UserID, um.ChatID, caloriesToAdd)
 		_ = b.db.UpdateStreak(um.UserID, um.ChatID, newStreakDays, dateStr)
-		_ = b.db.UpdateCalorieStreakWithDate(um.UserID, um.ChatID, newCalorieStreakDays, dateStr)
 		_ = b.db.AddCups(um.UserID, um.ChatID, 1)
 		if weeklyAchievement {
 			_ = b.db.AddCups(um.UserID, um.ChatID, 42)
@@ -2907,9 +2714,9 @@ func (b *Bot) auditProcessTrainingDone(um *domain.UserMessage) {
 		solvedLine := formatSolvedTasksTotalLine(chatType, solvedTotal)
 		var text string
 		if chatType == "coding" {
-			text = fmt.Sprintf("✅ Отчёт принят! 💪\n\n🦁 Ты кодишь дней подряд: %d\n🏆 +1 кубок за кодинг-сессию!\n🏆 Всего кубков: %d\n%s\n\n⏰ Таймер перезапускается на 7 дней", newStreakDays, currentCups, solvedLine)
+			text = fmt.Sprintf("✅ Отчёт принят! 💪\n\n🦁 Ты кодишь дней подряд: %d\n🏆 +1 кубок за кодинг-сессию!\n🏆 Всего кубков: %d\n📊 Всего отчётов: %d\n%s\n\n⏰ Таймер перезапускается на 7 дней", newStreakDays, currentCups, solvedTotal, solvedLine)
 		} else {
-			text = fmt.Sprintf("✅ Отчёт принят! 💪\n\n🦁 Ты тренируешься дней подряд: %d\n🏆 +1 кубок за тренировку!\n🏆 Всего кубков: %d\n%s\n\n⏰ Таймер перезапускается на 7 дней", newStreakDays, currentCups, solvedLine)
+			text = fmt.Sprintf("✅ Отчёт принят! 💪\n\n🦁 Ты тренируешься дней подряд: %d\n🏆 +1 кубок за тренировку!\n🏆 Всего кубков: %d\n📊 Всего тренировок: %d\n%s\n\n⏰ Таймер перезапускается на 7 дней", newStreakDays, currentCups, solvedTotal, solvedLine)
 		}
 		b.api.Send(tgbotapi.NewMessage(um.ChatID, text))
 	} else {
