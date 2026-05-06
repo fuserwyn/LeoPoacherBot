@@ -947,7 +947,7 @@ func (b *Bot) handleTrainingDone(msg *tgbotapi.Message) {
 		// Адаптируем текст в зависимости от типа чата
 		var messageText string
 		if chatType == "coding" {
-			messageText = fmt.Sprintf("✅ Отчёт принят! 💪\n\n🦁 Ты кодишь дней подряд: %d\n🏆 +1 кубок за кодинг-сессию!\n🏆 Всего кубков: %d\n📊 Всего отчётов: %d\n%s\n\n⏰ Таймер перезапускается на 7 дней", newStreakDays, currentCups, solvedTotal, solvedLine)
+			messageText = fmt.Sprintf("✅ Отчёт принят!\n\n🦁 Серия coding-сессий: %d дней\n🏆 +1 кубок за coding-сессию\n🏆 Всего кубков: %d\n📊 Всего отчётов: %d\n%s\n\n⏰ Таймер перезапускается на 7 дней", newStreakDays, currentCups, solvedTotal, solvedLine)
 		} else {
 			messageText = fmt.Sprintf("✅ Отчёт принят! 💪\n\n🦁 Ты тренируешься дней подряд: %d\n🏆 +1 кубок за тренировку!\n🏆 Всего кубков: %d\n📊 Всего тренировок: %d\n%s\n\n⏰ Таймер перезапускается на 7 дней", newStreakDays, currentCups, solvedTotal, solvedLine)
 		}
@@ -1138,7 +1138,7 @@ func (b *Bot) handleTrainingDone(msg *tgbotapi.Message) {
 		// Адаптируем текст для дополнительной сессии за день
 		var messageText string
 		if chatType == "coding" {
-			messageText = fmt.Sprintf("🦁 Какой мотивированный леопард! Еще одна кодинг-сессия сегодня! 💪\n\n🔥 Твоя мотивация впечатляет\n🏆 +1 кубок за дополнительную кодинг-сессию!\n🏆 Всего кубков: %d\n%s\n\n⏰ Таймер уже перезапущен на 7 дней\n\n🎯 Завтра снова отправляй #coding_done для продолжения серии!", currentCups, solvedLine)
+			messageText = fmt.Sprintf("🦁 Отличный темп: ещё одна coding-сессия сегодня.\n\n🏆 +1 кубок за дополнительную coding-сессию\n🏆 Всего кубков: %d\n%s\n\n⏰ Таймер уже перезапущен на 7 дней\n\n🎯 Завтра снова отправляй #coding_done для продолжения серии.", currentCups, solvedLine)
 		} else {
 			messageText = fmt.Sprintf("🦁 Какой мотивированный леопард! Еще одна тренировка сегодня! 💪\n\n🔥 Твоя мотивация впечатляет\n🏆 +1 кубок за дополнительную тренировку!\n🏆 Всего кубков: %d\n%s\n\n⏰ Таймер уже перезапущен на 7 дней\n\n🎯 Завтра снова отправляй #training_done для продолжения серии!", currentCups, solvedLine)
 		}
@@ -2457,117 +2457,15 @@ func (b *Bot) startDailySummaryScheduler(ctx context.Context) {
 	}
 }
 
-// startDailyWisdomScheduler отправляет «мудрость дня» ежедневно в 04:20 (МСК)
+// startDailyWisdomScheduler intentionally disabled.
 func (b *Bot) startDailyWisdomScheduler(ctx context.Context) {
-	if b.aiClient == nil {
-		b.logger.Warn("AI client not available, daily wisdom scheduler disabled")
-		return
-	}
-
-	loc, _ := time.LoadLocation("Europe/Moscow")
-	lastSentDate := ""
-	ticker := time.NewTicker(1 * time.Minute)
-	defer ticker.Stop()
-
-	for {
-		select {
-		case <-ctx.Done():
-			return
-		case <-ticker.C:
-			now := time.Now().In(loc)
-			hour := now.Hour()
-			minute := now.Minute()
-			if hour == 4 && minute == 20 {
-				today := now.Format("2006-01-02")
-				if lastSentDate != today {
-					b.logger.Infof("Generating daily wisdom for %s 04:20 MSK", today)
-					b.generateAndSendDailyWisdom()
-					lastSentDate = today
-				}
-			}
-		}
-	}
+	_ = ctx
+	b.logger.Info("Daily wisdom scheduler is disabled")
 }
 
+// generateAndSendDailyWisdom intentionally disabled.
 func (b *Bot) generateAndSendDailyWisdom() {
-	// Получаем все чаты
-	chatIDs, err := b.db.GetAllChatIDs()
-	if err != nil {
-		b.logger.Errorf("Failed to get chat IDs for daily wisdom: %v", err)
-		return
-	}
-	if len(chatIDs) == 0 {
-		return
-	}
-
-	// Группируем чаты по типу для генерации разных мудростей
-	codingChats := []int64{}
-	trainingChats := []int64{}
-
-	for _, chatID := range chatIDs {
-		chatType, err := b.db.GetChatType(chatID)
-		if err != nil {
-			chatType = "training" // По умолчанию
-		}
-		if chatType == "coding" {
-			codingChats = append(codingChats, chatID)
-		} else {
-			trainingChats = append(trainingChats, chatID)
-		}
-	}
-
-	// Генерируем мудрость для чатов тренировок
-	if len(trainingChats) > 0 {
-		wisdom, err := b.aiClient.GenerateDailyWisdom("training")
-		if err != nil {
-			b.logger.Errorf("Failed to generate daily wisdom for training: %v", err)
-			// Фолбэк на статическую мудрость
-			candidates := []string{
-				"Тишина внутри сильнее шума вокруг. Дисциплина — это форма заботы о себе. Начни с малого и будь верен пути.",
-				"Сила духа рождается в простых шагах. Выбери одно действие сегодня — и сделай его спокойно.",
-				"Тело слушает разум. Разум слушает дыхание. Ровное дыхание — ровный прогресс.",
-				"Пусть тренировка будет краткой, но честной. Постоянство сильнее порывов.",
-				"Не ищи идеального момента. Сделай его. Терпение и движение — союзники."}
-			idx := int(time.Now().Unix() % int64(len(candidates)))
-			wisdom = candidates[idx]
-		} else {
-			wisdom = strings.ReplaceAll(wisdom, "**", "")
-		}
-
-		for _, chatID := range trainingChats {
-			msg := tgbotapi.NewMessage(chatID, wisdom)
-			b.logger.Infof("Sending daily wisdom to training chat %d", chatID)
-			if _, err := b.api.Send(msg); err != nil {
-				b.logger.Errorf("Failed to send daily wisdom to chat %d: %v", chatID, err)
-			}
-		}
-	}
-
-	// Генерируем мудрость для чатов программирования
-	if len(codingChats) > 0 {
-		wisdom, err := b.aiClient.GenerateDailyWisdom("coding")
-		if err != nil {
-			b.logger.Errorf("Failed to generate daily wisdom for coding: %v", err)
-			candidates := []string{
-				"Маленький чистый шаг в коде сегодня — меньше сюрпризов завтра. Дисциплина в деталях — это забота о будущем себе.",
-				"Сложность растёт не от строк, а от неясности. Сформулируй задачу — и половина пути уже пройдена.",
-				"Компилятор слушает точность. Ты слушай факты. Ровная проверка гипотез — ровный прогресс.",
-				"Пусть сессия будет короткой, но честной: один осмысленный коммит лучше длинного хаоса.",
-				"Не жди идеальной архитектуры. Сделай следующий шаг и укрепи его тестом."}
-			idx := int(time.Now().Unix() % int64(len(candidates)))
-			wisdom = candidates[idx]
-		} else {
-			wisdom = strings.ReplaceAll(wisdom, "**", "")
-		}
-
-		for _, chatID := range codingChats {
-			msg := tgbotapi.NewMessage(chatID, wisdom)
-			b.logger.Infof("Sending daily wisdom to coding chat %d", chatID)
-			if _, err := b.api.Send(msg); err != nil {
-				b.logger.Errorf("Failed to send daily wisdom to chat %d: %v", chatID, err)
-			}
-		}
-	}
+	b.logger.Info("Daily wisdom broadcast is disabled")
 }
 
 // auditLast24h проверяет сообщения за последние 24 часа и отправляет пропущенные подтверждения (без повторных начислений)
@@ -2714,7 +2612,7 @@ func (b *Bot) auditProcessTrainingDone(um *domain.UserMessage) {
 		solvedLine := formatSolvedTasksTotalLine(chatType, solvedTotal)
 		var text string
 		if chatType == "coding" {
-			text = fmt.Sprintf("✅ Отчёт принят! 💪\n\n🦁 Ты кодишь дней подряд: %d\n🏆 +1 кубок за кодинг-сессию!\n🏆 Всего кубков: %d\n📊 Всего отчётов: %d\n%s\n\n⏰ Таймер перезапускается на 7 дней", newStreakDays, currentCups, solvedTotal, solvedLine)
+			text = fmt.Sprintf("✅ Отчёт принят!\n\n🦁 Серия coding-сессий: %d дней\n🏆 +1 кубок за coding-сессию\n🏆 Всего кубков: %d\n📊 Всего отчётов: %d\n%s\n\n⏰ Таймер перезапускается на 7 дней", newStreakDays, currentCups, solvedTotal, solvedLine)
 		} else {
 			text = fmt.Sprintf("✅ Отчёт принят! 💪\n\n🦁 Ты тренируешься дней подряд: %d\n🏆 +1 кубок за тренировку!\n🏆 Всего кубков: %d\n📊 Всего тренировок: %d\n%s\n\n⏰ Таймер перезапускается на 7 дней", newStreakDays, currentCups, solvedTotal, solvedLine)
 		}
@@ -2734,7 +2632,7 @@ func (b *Bot) auditProcessTrainingDone(um *domain.UserMessage) {
 		currentCups, _ := b.db.GetUserCups(um.UserID, um.ChatID)
 		var text string
 		if chatType == "coding" {
-			text = fmt.Sprintf("🦁 Какой мотивированный леопард! Еще одна кодинг-сессия сегодня! 💪\n\n🏆 +1 кубок за дополнительную кодинг-сессию!\n🏆 Всего кубков: %d\n%s", currentCups, solvedLine)
+			text = fmt.Sprintf("🦁 Отличный темп: ещё одна coding-сессия сегодня.\n\n🏆 +1 кубок за дополнительную coding-сессию\n🏆 Всего кубков: %d\n%s", currentCups, solvedLine)
 		} else {
 			text = fmt.Sprintf("🦁 Какой мотивированный леопард! Еще одна тренировка сегодня! 💪\n\n🏆 +1 кубок за дополнительную тренировку!\n🏆 Всего кубков: %d\n%s", currentCups, solvedLine)
 		}
