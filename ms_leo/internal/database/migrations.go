@@ -331,14 +331,26 @@ var Migrations = []Migration{
 		Version:     15,
 		Description: "training_log: composite PK (user_id, chat_id); legacy rows chat_id=0",
 		UpSQL: `
-			ALTER TABLE training_log ADD COLUMN IF NOT EXISTS chat_id BIGINT NOT NULL DEFAULT 0;
-			ALTER TABLE training_log DROP CONSTRAINT IF EXISTS training_log_pkey;
-			ALTER TABLE training_log ADD PRIMARY KEY (user_id, chat_id);
+			DO $migrate15$
+			BEGIN
+				IF to_regclass('public.training_log') IS NOT NULL THEN
+					ALTER TABLE training_log ADD COLUMN IF NOT EXISTS chat_id BIGINT NOT NULL DEFAULT 0;
+					ALTER TABLE training_log DROP CONSTRAINT IF EXISTS training_log_pkey;
+					ALTER TABLE training_log ADD PRIMARY KEY (user_id, chat_id);
+				END IF;
+			END
+			$migrate15$;
 		`,
 		DownSQL: `
-			ALTER TABLE training_log DROP CONSTRAINT IF EXISTS training_log_pkey;
-			ALTER TABLE training_log DROP COLUMN IF EXISTS chat_id;
-			ALTER TABLE training_log ADD PRIMARY KEY (user_id);
+			DO $migrate15down$
+			BEGIN
+				IF to_regclass('public.training_log') IS NOT NULL THEN
+					ALTER TABLE training_log DROP CONSTRAINT IF EXISTS training_log_pkey;
+					ALTER TABLE training_log DROP COLUMN IF EXISTS chat_id;
+					ALTER TABLE training_log ADD PRIMARY KEY (user_id);
+				END IF;
+			END
+			$migrate15down$;
 		`,
 	},
 	{
