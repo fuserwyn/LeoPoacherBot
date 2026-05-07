@@ -167,9 +167,6 @@ func (d *Database) SaveMessageLog(msg *domain.MessageLog) error {
 
 	moscowTime := utils.FormatMoscowTime(utils.GetMoscowTime())
 
-	fmt.Printf("DEBUG: Saving to DB - UserID: %d, TimerStartTime: %v, SickLeaveStartTime: %v\n",
-		msg.UserID, msg.TimerStartTime, msg.SickLeaveStartTime)
-
 	result, err := d.db.Exec(query,
 		msg.UserID, msg.Username, msg.ChatID, msg.XP, msg.StreakDays, msg.MaxStreakDays, msg.CalorieStreakDays, msg.CupsEarned, msg.LastTrainingDate, msg.LastMessage, msg.HasTrainingDone,
 		msg.HasSickLeave, msg.HasHealthy, msg.IsDeleted, msg.IsExemptFromDeletion, msg.TimerStartTime, msg.SickLeaveStartTime, msg.SickLeaveEndTime, msg.SickTime, msg.Gender, msg.TimezoneOffsetFromMoscow,
@@ -178,15 +175,10 @@ func (d *Database) SaveMessageLog(msg *domain.MessageLog) error {
 		moscowTime)
 
 	if err != nil {
-		fmt.Printf("DEBUG: Save error: %v\n", err)
 		return err
 	}
-
-	// Проверяем, что именно произошло (INSERT или UPDATE)
-	rowsAffected, _ := result.RowsAffected()
-	fmt.Printf("DEBUG: Rows affected: %d\n", rowsAffected)
-
-	return err
+	_ = result
+	return nil
 }
 
 // GetMessageLog получает информацию о сообщении пользователя
@@ -215,10 +207,6 @@ func (d *Database) GetMessageLog(userID, chatID int64) (*domain.MessageLog, erro
 	if err != nil {
 		return nil, err
 	}
-
-	fmt.Printf("DEBUG: Retrieved from DB - UserID: %d, Username: %s, Gender: '%s', HasSickLeave: %t, TimerStartTime: %v, SickLeaveStartTime: %v\n",
-		msg.UserID, msg.Username, msg.Gender, msg.HasSickLeave, msg.TimerStartTime, msg.SickLeaveStartTime)
-
 	return &msg, nil
 }
 
