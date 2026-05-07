@@ -51,9 +51,16 @@ var Migrations = []Migration{
 			ALTER COLUMN created_at SET DEFAULT (NOW() AT TIME ZONE 'Europe/Moscow'),
 			ALTER COLUMN updated_at SET DEFAULT (NOW() AT TIME ZONE 'Europe/Moscow');
 
-			ALTER TABLE training_log
-			ALTER COLUMN created_at SET DEFAULT (NOW() AT TIME ZONE 'Europe/Moscow'),
-			ALTER COLUMN updated_at SET DEFAULT (NOW() AT TIME ZONE 'Europe/Moscow');
+			DO $migrate1_defaults$
+			BEGIN
+				-- training_log — легаси таблица; после полной очистки схемы может отсутствовать.
+				IF to_regclass('public.training_log') IS NOT NULL THEN
+					ALTER TABLE training_log
+					ALTER COLUMN created_at SET DEFAULT (NOW() AT TIME ZONE 'Europe/Moscow'),
+					ALTER COLUMN updated_at SET DEFAULT (NOW() AT TIME ZONE 'Europe/Moscow');
+				END IF;
+			END
+			$migrate1_defaults$;
 		`,
 		DownSQL: `
 			DO $migrate1down$
@@ -89,9 +96,15 @@ var Migrations = []Migration{
 			ALTER COLUMN created_at SET DEFAULT CURRENT_TIMESTAMP,
 			ALTER COLUMN updated_at SET DEFAULT CURRENT_TIMESTAMP;
 
-			ALTER TABLE training_log
-			ALTER COLUMN created_at SET DEFAULT CURRENT_TIMESTAMP,
-			ALTER COLUMN updated_at SET DEFAULT CURRENT_TIMESTAMP;
+			DO $migrate1down_defaults$
+			BEGIN
+				IF to_regclass('public.training_log') IS NOT NULL THEN
+					ALTER TABLE training_log
+					ALTER COLUMN created_at SET DEFAULT CURRENT_TIMESTAMP,
+					ALTER COLUMN updated_at SET DEFAULT CURRENT_TIMESTAMP;
+				END IF;
+			END
+			$migrate1down_defaults$;
 		`,
 	},
 	{
