@@ -47,13 +47,14 @@ type ChatMember struct {
 	Status   string `json:"status"`
 }
 
-// TimerInfo — цепочка неактивности: предупреждения за 48 ч и за 24 ч до дедлайна (00:00 МСК), затем удаление.
+// TimerInfo — цепочка неактивности: предупреждения день 5 (72 ч), день 6 (48 ч), день 7 (24 ч) до дедлайна в локальном TZ юзера, затем удаление.
 type TimerInfo struct {
 	UserID         int64
 	ChatID         int64
 	Username       string
-	Warning48hTask chan bool
-	Warning24hTask chan bool
+	Warning72hTask chan bool // день 5: первое предупреждение
+	Warning48hTask chan bool // день 6: предупреждение + 2 опции спасения в мини-аппе
+	Warning24hTask chan bool // день 7: финальное предупреждение
 	RemovalTask    chan bool
 	TimerStartTime string
 }

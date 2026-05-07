@@ -274,12 +274,14 @@ func (b *Bot) handleLeopardMoneyTrainingDone(msg *tgbotapi.Message, personalRepl
 	}
 
 	msgLog2, _ := b.db.GetMessageLog(msg.From.ID, packChatID)
-	if msgLog2 != nil && newStreak > 0 && newStreak%7 == 0 && newStreak <= 28 {
-		want := newStreak / 7
-		if msgLog2.AchievementCount < want && want <= leopardmoney.MaxAchievements {
-			msgLog2.AchievementCount = want
-			msgLog2.LastAchievementStreakLevel = newStreak
-			_ = b.db.SaveMessageLog(msgLog2)
+	if msgLog2 != nil {
+		if idx := leopardmoney.StreakAchievementIndex(newStreak); idx >= 0 {
+			want := idx + 1
+			if msgLog2.AchievementCount < want && want <= leopardmoney.MaxAchievements {
+				msgLog2.AchievementCount = want
+				msgLog2.LastAchievementStreakLevel = newStreak
+				_ = b.db.SaveMessageLog(msgLog2)
+			}
 		}
 	}
 

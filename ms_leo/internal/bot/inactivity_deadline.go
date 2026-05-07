@@ -7,10 +7,15 @@ import (
 	"leo-bot/internal/utils"
 )
 
-// removalDeadlineMoscow — момент кика за неактивность: 00:00 МСК **следующего** календарного дня
-// после дня, в который попадает (последняя_тренировка + 7×24ч). Пример: тренировка 1 мая 10:00 → 8 мая 10:00 +7d → день 8 мая → кик 9 мая 00:00 МСК.
-func removalDeadlineMoscow(lastTraining time.Time) time.Time {
-	loc := utils.GetMoscowTime().Location()
+// userLocalLoc — фиксированная зона юзера: UTC+3 (МСК) + смещение относительно МСК.
+func userLocalLoc(tzOffsetFromMoscow int) *time.Location {
+	return time.FixedZone("UserLocal", (3+tzOffsetFromMoscow)*3600)
+}
+
+// removalDeadlineLocal — момент кика за неактивность: 00:00 локального TZ юзера
+// **следующего** календарного дня после дня, на который приходится (lastTraining + 7×24ч).
+func removalDeadlineLocal(lastTraining time.Time, tzOffsetFromMoscow int) time.Time {
+	loc := userLocalLoc(tzOffsetFromMoscow)
 	t := lastTraining.In(loc).Add(7 * 24 * time.Hour)
 	y, m, d := t.Date()
 	startOfThatCalendarDay := time.Date(y, m, d, 0, 0, 0, 0, loc)
@@ -42,7 +47,7 @@ func inactivityKickDeadline(ml *domain.MessageLog, now time.Time) (time.Time, bo
 	if err != nil {
 		return time.Time{}, false
 	}
-	D0 := removalDeadlineMoscow(timerStart)
+	D0 := removalDeadlineLocal(timerStart, ml.TimezoneOffsetFromMoscow)
 
 	// Активный больничный: дедлайн сдвигается на время болезни (таймер «заморожен»).
 	if ml.HasSickLeave && !ml.HasHealthy && ml.SickLeaveStartTime != nil {

@@ -13,14 +13,13 @@ import (
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 )
 
-func formatRemovalAtMSKHuman(removalAt time.Time) string {
-	loc := utils.GetMoscowTime().Location()
+func formatRemovalAtLocalHuman(removalAt time.Time, loc *time.Location) string {
 	d := removalAt.In(loc)
 	months := []string{
 		"", "января", "февраля", "марта", "апреля", "мая", "июня",
 		"июля", "августа", "сентября", "октября", "ноября", "декабря",
 	}
-	return fmt.Sprintf("%d %s в 00:00 МСК", d.Day(), months[int(d.Month())])
+	return fmt.Sprintf("%d %s в 00:00 (ваше время)", d.Day(), months[int(d.Month())])
 }
 
 func (b *Bot) startTimer(userID, chatID int64, username string) {
@@ -36,6 +35,7 @@ func (b *Bot) startTimerWithDuration(userID, chatID int64, username string, _ ti
 
 	b.cancelTimer(userID)
 
+	ch72 := make(chan bool)
 	ch48 := make(chan bool)
 	ch24 := make(chan bool)
 	chRem := make(chan bool)
@@ -45,6 +45,7 @@ func (b *Bot) startTimerWithDuration(userID, chatID int64, username string, _ ti
 		UserID:         userID,
 		ChatID:         chatID,
 		Username:       username,
+		Warning72hTask: ch72,
 		Warning48hTask: ch48,
 		Warning24hTask: ch24,
 		RemovalTask:    chRem,
@@ -52,10 +53,12 @@ func (b *Bot) startTimerWithDuration(userID, chatID int64, username string, _ ti
 	}
 	b.timers[userID] = timerInfo
 
+	tzOffset := 0
 	messageLog, err = b.db.GetMessageLog(userID, chatID)
 	if err != nil {
 		b.logger.Errorf("Failed to get message log for timer start: %v", err)
 	} else {
+		tzOffset = messageLog.TimezoneOffsetFromMoscow
 		messageLog.TimerStartTime = &timerStartTime
 		if err := b.db.SaveMessageLog(messageLog); err != nil {
 			b.logger.Errorf("Failed to save timer start time: %v", err)
@@ -67,13 +70,14 @@ func (b *Bot) startTimerWithDuration(userID, chatID int64, username string, _ ti
 		b.logger.Errorf("parse timer start: %v", err)
 		return
 	}
-	b.scheduleLeopardMilestones(userID, chatID, username, timerStart, ch48, ch24, chRem)
+	b.scheduleLeopardMilestones(userID, chatID, username, timerStart, tzOffset, ch72, ch48, ch24, chRem)
 	b.logger.Infof("Started Leopard inactive chain for user %d (%s) from %s", userID, username, timerStartTime)
 }
 
-func (b *Bot) restoreTimerWithDuration(userID, chatID int64, username string, remaining time.Duration, existingTimerStartTime string) {
+func (b *Bot) restoreTimerWithDuration(userID, chatID int64, username string, remaining time.Duration, existingTimerStartTime string, tzOffsetFromMoscow int) {
 	b.cancelTimer(userID)
 
+	ch72 := make(chan bool)
 	ch48 := make(chan bool)
 	ch24 := make(chan bool)
 	chRem := make(chan bool)
@@ -82,6 +86,7 @@ func (b *Bot) restoreTimerWithDuration(userID, chatID int64, username string, re
 		UserID:         userID,
 		ChatID:         chatID,
 		Username:       username,
+		Warning72hTask: ch72,
 		Warning48hTask: ch48,
 		Warning24hTask: ch24,
 		RemovalTask:    chRem,
@@ -94,13 +99,14 @@ func (b *Bot) restoreTimerWithDuration(userID, chatID int64, username string, re
 		b.logger.Errorf("restore timer parse: %v", err)
 		return
 	}
-	b.scheduleLeopardMilestones(userID, chatID, username, timerStart, ch48, ch24, chRem)
+	b.scheduleLeopardMilestones(userID, chatID, username, timerStart, tzOffsetFromMoscow, ch72, ch48, ch24, chRem)
 	b.logger.Infof("Restored Leopard inactive chain for user %d (%s), remaining until removal ~ %v", userID, username, remaining)
 }
 
-func (b *Bot) scheduleLeopardMilestones(userID, chatID int64, username string, timerStart time.Time, ch48, ch24, chRem chan bool) {
+func (b *Bot) scheduleLeopardMilestones(userID, chatID int64, username string, timerStart time.Time, tzOffsetFromMoscow int, ch72, ch48, ch24, chRem chan bool) {
 	now := utils.GetMoscowTime()
-	removalAt := removalDeadlineMoscow(timerStart)
+	loc := userLocalLoc(tzOffsetFromMoscow)
+	removalAt := removalDeadlineLocal(timerStart, tzOffsetFromMoscow)
 	type milestone struct {
 		at      time.Time
 		ch      chan bool
@@ -109,10 +115,18 @@ func (b *Bot) scheduleLeopardMilestones(userID, chatID int64, username string, t
 	}
 	ms := []milestone{
 		{
+			at: removalAt.Add(-72 * time.Hour),
+			ch: ch72,
+			fn: func() {
+				b.sendInactiveRemovalWarning(userID, chatID, username, 72, removalAt, loc)
+			},
+			removal: false,
+		},
+		{
 			at: removalAt.Add(-48 * time.Hour),
 			ch: ch48,
 			fn: func() {
-				b.sendInactiveRemovalWarning(userID, chatID, username, 48, removalAt)
+				b.sendInactiveRemovalWarning(userID, chatID, username, 48, removalAt, loc)
 			},
 			removal: false,
 		},
@@ -120,7 +134,7 @@ func (b *Bot) scheduleLeopardMilestones(userID, chatID int64, username string, t
 			at: removalAt.Add(-24 * time.Hour),
 			ch: ch24,
 			fn: func() {
-				b.sendInactiveRemovalWarning(userID, chatID, username, 24, removalAt)
+				b.sendInactiveRemovalWarning(userID, chatID, username, 24, removalAt, loc)
 			},
 			removal: false,
 		},
@@ -167,6 +181,7 @@ func (b *Bot) scheduleLeopardMilestones(userID, chatID int64, username string, t
 
 func (b *Bot) cancelTimer(userID int64) {
 	if timer, exists := b.timers[userID]; exists {
+		close(timer.Warning72hTask)
 		close(timer.Warning48hTask)
 		close(timer.Warning24hTask)
 		close(timer.RemovalTask)
@@ -175,13 +190,15 @@ func (b *Bot) cancelTimer(userID int64) {
 	}
 }
 
-// sendInactiveRemovalWarning — за 48 ч или за 24 ч до кика в 00:00 МСК (см. removalDeadlineMoscow).
-func (b *Bot) sendInactiveRemovalWarning(userID, chatID int64, username string, hoursBefore int, removalAt time.Time) {
+// sendInactiveRemovalWarning — предупреждение за 72 ч (день 5), 48 ч (день 6) или 24 ч (день 7) до кика в 00:00 локального TZ юзера.
+func (b *Bot) sendInactiveRemovalWarning(userID, chatID int64, username string, hoursBefore int, removalAt time.Time, loc *time.Location) {
 	who := normalizeUserDisplayName(username)
 	tag := "#training_done"
-	deadlineHuman := formatRemovalAtMSKHuman(removalAt)
+	deadlineHuman := formatRemovalAtLocalHuman(removalAt, loc)
 	var windowRU string
 	switch hoursBefore {
+	case 72:
+		windowRU = "примерно трое суток"
 	case 48:
 		windowRU = "примерно двое суток"
 	case 24:

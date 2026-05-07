@@ -10,6 +10,19 @@ import (
 // Пороги накопленных кубков (нижняя граница уровня): L1 с 0, L2 с 420, … (§2.5 спеки).
 var LevelStartCups = []int{0, 420, 1260, 2940, 6300, 13020, 26460}
 
+// StreakAchievementMilestones — пороги серии (дней подряд) для получения ачивки (MVP).
+var StreakAchievementMilestones = []int{7, 14, 30, 60}
+
+// StreakAchievementIndex — 0-based индекс ачивки для данного стрика; -1 если не совпадает ни с одним порогом.
+func StreakAchievementIndex(streak int) int {
+	for i, m := range StreakAchievementMilestones {
+		if streak == m {
+			return i
+		}
+	}
+	return -1
+}
+
 // LevelFromTotalCups — уровень 1…7+ по накопленным кубкам.
 func LevelFromTotalCups(total int) int {
 	if total < 0 {

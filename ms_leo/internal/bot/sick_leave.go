@@ -75,7 +75,7 @@ func (b *Bot) activateSickLeave(msg *tgbotapi.Message, messageLog *domain.Messag
 		if err == nil {
 			sickStart, err := utils.ParseMoscowTime(sickLeaveStartTime)
 			if err == nil {
-				deadline := removalDeadlineMoscow(timerStart)
+				deadline := removalDeadlineLocal(timerStart, messageLog.TimezoneOffsetFromMoscow)
 				remainingTime = deadline.Sub(sickStart)
 				if remainingTime <= 0 {
 					remainingTime = 0
