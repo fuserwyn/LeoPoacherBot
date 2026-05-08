@@ -483,7 +483,7 @@ func (b *Bot) handleHealthy(msg *tgbotapi.Message) {
 		b.startTimerWithDuration(msg.From.ID, b.kickChatIDForMessage(msg), messageLog.Username, remainingTime)
 	} else {
 		ts := strings.TrimSpace(*messageLog.TimerStartTime)
-		b.restoreTimerWithDuration(msg.From.ID, b.kickChatIDForMessage(msg), messageLog.Username, remainingTime, ts)
+		b.restoreTimerWithDuration(msg.From.ID, b.kickChatIDForMessage(msg), messageLog.Username, remainingTime, ts, messageLog.TimezoneOffsetFromMoscow)
 	}
 
 	// Форматируем оставшееся время

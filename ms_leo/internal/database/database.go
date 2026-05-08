@@ -490,12 +490,16 @@ func (d *Database) CountUsersWithCups(chatID int64, minCups int) (int, error) {
 
 // MarkUserAsDeleted помечает пользователя как удаленного
 func (d *Database) MarkUserAsDeleted(userID, chatID int64) error {
+	// cups_earned = 0: кубки сгорают при удалении из стаи (per правил).
+	// streak_days = 0: серия сбрасывается. max_streak_days — пожизненный рекорд, не трогаем.
 	query := `
-		UPDATE training_state 
-		SET is_deleted = TRUE, updated_at = $3
+		UPDATE training_state
+		SET is_deleted  = TRUE,
+		    cups_earned = 0,
+		    streak_days = 0,
+		    updated_at  = $3
 		WHERE user_id = $1 AND chat_id = $2
 	`
-	// Используем московское время
 	moscowTime := utils.FormatMoscowTime(utils.GetMoscowTime())
 	_, err := d.db.Exec(query, userID, chatID, moscowTime)
 	return err

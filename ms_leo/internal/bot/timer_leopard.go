@@ -223,8 +223,15 @@ func (b *Bot) sendInactiveRemovalWarning(userID, chatID int64, username string, 
 	}
 	if b.aiClient != nil {
 		b.api.Send(tgbotapi.NewChatAction(typingChat, tgbotapi.ChatTyping))
+		stage := "day_5"
+		switch hoursBefore {
+		case 48:
+			stage = "day_6"
+		case 24:
+			stage = "day_7"
+		}
 		var ctxBuilder strings.Builder
-		ctxBuilder.WriteString(fmt.Sprintf("Пользователь: %s\nДо удаления за неактивность осталось около %d ч.\nДедлайн (МСК): %s\n", username, hoursBefore, deadlineHuman))
+		ctxBuilder.WriteString(fmt.Sprintf("Пользователь: %s\nstage: %s\nДо удаления за неактивность осталось около %d ч.\nДедлайн: %s\n", username, stage, hoursBefore, deadlineHuman))
 		if addendum, err := b.aiClient.AnswerUserQuestion(b.config.Prompts.WarningTimerQuestion, ctxBuilder.String()); err == nil {
 			addendum = ai.SanitizeTextForUser(addendum)
 			if addendum != "" {

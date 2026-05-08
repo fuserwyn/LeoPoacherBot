@@ -23,6 +23,14 @@ func StreakAchievementIndex(streak int) int {
 	return -1
 }
 
+// LevelName — имя уровня по его номеру (1-based). Возвращает пустую строку для неизвестного уровня.
+func LevelName(level int) string {
+	if level < 1 || level >= len(LevelNames) {
+		return ""
+	}
+	return LevelNames[level]
+}
+
 // LevelFromTotalCups — уровень 1…7+ по накопленным кубкам.
 func LevelFromTotalCups(total int) int {
 	if total < 0 {

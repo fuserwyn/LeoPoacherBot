@@ -1,6 +1,7 @@
 package bot
 
 import (
+	"encoding/json"
 	"fmt"
 	"strings"
 	"time"
@@ -273,6 +274,7 @@ func (b *Bot) handleLeopardMoneyTrainingDone(msg *tgbotapi.Message, personalRepl
 		b.logger.Errorf("update streak: %v", err)
 	}
 
+	achievementAwarded := false
 	msgLog2, _ := b.db.GetMessageLog(msg.From.ID, packChatID)
 	if msgLog2 != nil {
 		if idx := leopardmoney.StreakAchievementIndex(newStreak); idx >= 0 {
@@ -281,6 +283,7 @@ func (b *Bot) handleLeopardMoneyTrainingDone(msg *tgbotapi.Message, personalRepl
 				msgLog2.AchievementCount = want
 				msgLog2.LastAchievementStreakLevel = newStreak
 				_ = b.db.SaveMessageLog(msgLog2)
+				achievementAwarded = true
 			}
 		}
 	}
@@ -341,7 +344,7 @@ func (b *Bot) handleLeopardMoneyTrainingDone(msg *tgbotapi.Message, personalRepl
 		cupsAdd, ruCupsWord(cupsAdd), totalCups,
 		ach, leopardmoney.MaxAchievements,
 	)
-	inactiveBlock := "⏰ Неактивность: семь суток без отчёта — удаление в 00:00 МСК следующего календарного дня; напоминания за 48 ч и за 24 ч до этого момента."
+	inactiveBlock := "⏰ Неактивность: 8 дней без отчёта — удаление в 00:00 вашего часового пояса; предупреждения на 5-й, 6-й и 7-й день."
 	tail := fmt.Sprintf("🎯 Отчёт с %s", tag)
 	messageTextMiniapp := statsBlock + "\n\n" + tail
 	messageTextPrivate := statsBlock + "\n\n" + inactiveBlock + "\n\n" + tail
@@ -357,6 +360,47 @@ func (b *Bot) handleLeopardMoneyTrainingDone(msg *tgbotapi.Message, personalRepl
 		if _, err := b.api.Send(privateReply); err != nil {
 			b.logger.Warnf("send training private summary: %v", err)
 		}
+	}
+
+	if achievementAwarded && b.aiClient != nil && b.config.Prompts.AchievementMilestone != "" {
+		uid := msg.From.ID
+		un := username
+		streak := newStreak
+		achCount := ach
+		isRecord := msgLog2 != nil && streak >= msgLog2.MaxStreakDays
+		isFirst := achCount == 1
+		levelName := leopardmoney.LevelName(leopardmoney.LevelFromTotalCups(int(totalCups)))
+		go func() {
+			tier := 1
+			for i, m := range leopardmoney.StreakAchievementMilestones {
+				if streak >= m {
+					tier = i + 1
+				}
+			}
+			ctx := fmt.Sprintf(
+				"Пользователь: @%s\nСтрик: %d дней (milestone)\nТier: %d\nУровень: %s\nis_record: %v\nis_first_achievement: %v",
+				strings.TrimPrefix(un, "@"), streak, tier, levelName, isRecord, isFirst,
+			)
+			raw, err := b.aiClient.AnswerUserQuestion(b.config.Prompts.AchievementMilestone, ctx)
+			if err != nil {
+				b.logger.Warnf("achievement milestone AI: %v", err)
+				return
+			}
+			raw = ai.SanitizeTextForUser(raw)
+			var resp struct {
+				InAppText  string `json:"in_app_text"`
+				LeoMessage string `json:"leo_message"`
+			}
+			if err := json.Unmarshal([]byte(raw), &resp); err != nil {
+				b.logger.Warnf("achievement milestone parse: %v", err)
+				return
+			}
+			leoMsg := strings.TrimSpace(resp.LeoMessage)
+			if leoMsg == "" {
+				return
+			}
+			b.miniappPersonalPush(uid, "🏅 "+leoMsg)
+		}()
 	}
 
 	if trainingUserMessageID > 0 && b.config.MonetizedChatID != 0 {

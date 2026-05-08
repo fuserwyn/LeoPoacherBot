@@ -15,7 +15,8 @@ type Bundle struct {
 	DailyWisdomUserTemplate string
 	TrainingChatSuffix      string
 	CriticalTimerQuestion   string
-	WarningTimerQuestion    string // предупреждение за 48/24 ч до кика за неактивность
+	WarningTimerQuestion    string // предупреждение день 5/6/7 до кика за неактивность (stage-aware)
+	AchievementMilestone    string // milestone-ачивка: in_app_text + leo_message (Промт 5)
 	// PackFeedParticipantRemoved — карточка в ленте мини‑аппа, когда человек уже не видит её: текст для стаи.
 	PackFeedParticipantRemoved string
 }
@@ -47,6 +48,9 @@ var embeddedCriticalTimerQuestion string
 //go:embed data/warning_timer_question.txt
 var embeddedWarningTimerQuestion string
 
+//go:embed data/achievement_milestone.txt
+var embeddedAchievementMilestone string
+
 //go:embed data/pack_feed_removed.txt
 var embeddedPackFeedParticipantRemoved string
 
@@ -62,6 +66,7 @@ func DefaultBundle() Bundle {
 		TrainingChatSuffix:         embeddedTrainingChatSuffix,
 		CriticalTimerQuestion:      embeddedCriticalTimerQuestion,
 		WarningTimerQuestion:       embeddedWarningTimerQuestion,
+		AchievementMilestone:       embeddedAchievementMilestone,
 		PackFeedParticipantRemoved: embeddedPackFeedParticipantRemoved,
 	}
 }

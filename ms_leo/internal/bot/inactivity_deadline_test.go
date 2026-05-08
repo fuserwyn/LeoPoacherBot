@@ -1,0 +1,67 @@
+package bot
+
+import (
+	"testing"
+	"time"
+)
+
+func TestRemovalDeadlineLocal(t *testing.T) {
+	moscowLoc := time.FixedZone("MSK", 3*3600)
+
+	cases := []struct {
+		name        string
+		lastTraining time.Time
+		tzOffset    int // hours relative to Moscow
+		wantDay     int // expected day-of-month of deadline (00:00 local)
+		wantMonth   time.Month
+		wantHour    int // must be 0 (midnight)
+	}{
+		{
+			name:        "MSK noon → kick 9th at 00:00 MSK",
+			lastTraining: time.Date(2024, 1, 1, 12, 0, 0, 0, moscowLoc),
+			tzOffset:    0,
+			wantDay:     9,
+			wantMonth:   time.January,
+			wantHour:    0,
+		},
+		{
+			name:        "MSK 23:30 → still kicks 9th (same 7-day window)",
+			lastTraining: time.Date(2024, 1, 1, 23, 30, 0, 0, moscowLoc),
+			tzOffset:    0,
+			wantDay:     9,
+			wantMonth:   time.January,
+			wantHour:    0,
+		},
+		{
+			name:        "UTC+5 user (tzOffset=+2), training noon local → kicks 9th at 00:00 UTC+5",
+			lastTraining: time.Date(2024, 1, 1, 12, 0, 0, 0, time.FixedZone("UTC+5", 5*3600)),
+			tzOffset:    2, // UTC+5 = MSK+2
+			wantDay:     9,
+			wantMonth:   time.January,
+			wantHour:    0,
+		},
+		{
+			name:        "month boundary: Jan 25 training → kicks Feb 2",
+			lastTraining: time.Date(2024, 1, 25, 10, 0, 0, 0, moscowLoc),
+			tzOffset:    0,
+			wantDay:     2,
+			wantMonth:   time.February,
+			wantHour:    0,
+		},
+	}
+
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			got := removalDeadlineLocal(c.lastTraining, c.tzOffset)
+			loc := userLocalLoc(c.tzOffset)
+			gotLocal := got.In(loc)
+
+			if gotLocal.Hour() != c.wantHour || gotLocal.Minute() != 0 || gotLocal.Second() != 0 {
+				t.Errorf("expected midnight, got %v", gotLocal)
+			}
+			if gotLocal.Day() != c.wantDay || gotLocal.Month() != c.wantMonth {
+				t.Errorf("got %v, want %d %s", gotLocal, c.wantDay, c.wantMonth)
+			}
+		})
+	}
+}

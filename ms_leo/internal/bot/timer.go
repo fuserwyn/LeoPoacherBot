@@ -213,7 +213,7 @@ func (b *Bot) recoverTimersFromDatabase() error {
 
 		// Восстанавливаем таймер без обновления timer_start_time в БД
 		if user.TimerStartTime != nil {
-			b.restoreTimerWithDuration(user.UserID, user.ChatID, user.Username, remainingTime, *user.TimerStartTime)
+			b.restoreTimerWithDuration(user.UserID, user.ChatID, user.Username, remainingTime, *user.TimerStartTime, user.TimezoneOffsetFromMoscow)
 		} else {
 			// Fallback - если timer_start_time отсутствует, используем обычный старт
 			b.startTimerWithDuration(user.UserID, user.ChatID, user.Username, remainingTime)
