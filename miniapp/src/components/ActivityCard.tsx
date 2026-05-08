@@ -235,6 +235,25 @@ export function ActivityCard({
     }
     prevThreadLen.current = threadReplies.length;
   }, [threadReplies.length]);
+
+  // Scroll textarea into view when keyboard opens (visualViewport shrinks on iOS).
+  useEffect(() => {
+    const vv = window.visualViewport;
+    if (!vv) return;
+    const onResize = () => {
+      const el = threadInputRef.current;
+      if (!el || document.activeElement !== el) return;
+      requestAnimationFrame(() => {
+        const rect = el.getBoundingClientRect();
+        const vvBottom = vv.offsetTop + vv.height;
+        if (rect.bottom > vvBottom - 8) {
+          window.scrollTo({ top: window.scrollY + (rect.bottom - vvBottom) + 16, behavior: "smooth" });
+        }
+      });
+    };
+    vv.addEventListener("resize", onResize);
+    return () => vv.removeEventListener("resize", onResize);
+  }, []);
   const showReact = reactions.length > 0 || onReactionClick != null;
   const hasThread = threadReplies.length > 0 || threadComposer != null;
   const threadCount = threadReplies.length;
@@ -442,10 +461,13 @@ export function ActivityCard({
                       onChange={(e) => threadComposer.onDraftChange(e.target.value)}
                       maxLength={2000}
                       onFocus={() => {
-                        // Ждём открытия клавиатуры (iOS ~300 мс), потом доскролливаем поле.
-                        window.setTimeout(() => {
-                          threadInputRef.current?.scrollIntoView({ behavior: "smooth", block: "nearest" });
-                        }, 300);
+                        // visualViewport resize handler scrolls into view when keyboard opens.
+                        // Fallback for non-visualViewport environments.
+                        if (!window.visualViewport) {
+                          window.setTimeout(() => {
+                            threadInputRef.current?.scrollIntoView({ behavior: "smooth", block: "nearest" });
+                          }, 400);
+                        }
                       }}
                       onKeyDown={(e) => {
                         if (e.key !== "Enter" || (!e.ctrlKey && !e.metaKey)) return;
