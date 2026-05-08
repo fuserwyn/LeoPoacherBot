@@ -416,7 +416,24 @@ export function FeedScreen({
               ))}
             </div>
           </div>
-          <h2 className="section-title">Кто что постит</h2>
+          <div className="feed__section-row">
+            <h2 className="section-title">Кто что постит</h2>
+            {apiBase && inTelegram && initData && (
+              <button
+                type="button"
+                className="feed__refresh-btn"
+                disabled={loading}
+                onClick={() => {
+                  window.scrollTo({ top: 0, behavior: "smooth" });
+                  void load();
+                }}
+                aria-label="Обновить ленту"
+                title="Обновить"
+              >
+                {loading ? "…" : "↻"}
+              </button>
+            )}
+          </div>
           {err && <p className="feed__err">{err}</p>}
           {loading && <p className="feed__load muted">Загрузка…</p>}
           <div className="feed__list">
@@ -523,13 +540,6 @@ export function FeedScreen({
                 );
               })}
           </div>
-          {!loading && !err && apiBase && inTelegram && initData && (
-            <div className="feed__actions">
-              <button type="button" className="feed__btn" onClick={() => void load()}>
-                Обновить
-              </button>
-            </div>
-          )}
         </>
       )}
     </div>

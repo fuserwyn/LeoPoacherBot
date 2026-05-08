@@ -112,19 +112,39 @@ export function ChatScreen({ name, initData, inTelegram, showAlert, onInboxDrain
   const logRef = useRef<HTMLDivElement | null>(null);
   const endRef = useRef<HTMLDivElement | null>(null);
   const didInitialScrollRef = useRef(false);
+  /** true — после отправки сообщения пользователем: всегда скроллим вниз, даже если был наверху */
+  const forceScrollRef = useRef(false);
   /** max(server_id) перед отправкой пользователя — новый ответ Лео с id выше этого. */
   const baselineMaxForPendingLeoRef = useRef(0);
+  /** Высота видимой области (с учётом клавиатуры) из visualViewport API */
+  const [viewportH, setViewportH] = useState<number | undefined>(undefined);
+
+  // Следим за visualViewport чтобы корректно ужать чат когда открывается клавиатура.
+  useEffect(() => {
+    const vv = window.visualViewport;
+    if (!vv) return;
+    const update = () => setViewportH(Math.floor(vv.height));
+    vv.addEventListener("resize", update);
+    update();
+    return () => vv.removeEventListener("resize", update);
+  }, []);
 
   useEffect(() => {
     const el = logRef.current;
-    if (!el) return;
-    if (loaded && items.length > 0 && !didInitialScrollRef.current) {
+    if (!el || !loaded) return;
+    if (!didInitialScrollRef.current) {
       el.scrollTop = el.scrollHeight;
       didInitialScrollRef.current = true;
       return;
     }
+    // Пользователь отправил сообщение — всегда показываем его, даже если был наверху.
+    if (forceScrollRef.current) {
+      forceScrollRef.current = false;
+      el.scrollTop = el.scrollHeight;
+      return;
+    }
     const nearBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 120;
-    if (nearBottom || !loaded) {
+    if (nearBottom) {
       el.scrollTop = el.scrollHeight;
     }
   }, [items, sending, leoTyping, loaded]);
@@ -235,6 +255,7 @@ export function ChatScreen({ name, initData, inTelegram, showAlert, onInboxDrain
       return;
     }
 
+    forceScrollRef.current = true;
     /** Макс. server id до оптимистичного сообщения — так отличим новый ответ Лео от старых. */
     let baselineMaxBeforeSend = 0;
     setItems((prev) => {
@@ -307,8 +328,10 @@ export function ChatScreen({ name, initData, inTelegram, showAlert, onInboxDrain
 
   const showTypingCue = sending || leoTyping;
 
+  const chatStyle = viewportH != null ? { height: viewportH - 8, maxHeight: viewportH - 8, minHeight: viewportH - 8 } : undefined;
+
   return (
-    <div className="chat">
+    <div className="chat" style={chatStyle}>
       {!import.meta.env.VITE_MINIAPP_API_URL && (
         <div className="chat__configwarn" role="status">
           Нет <code className="chat__code">VITE_MINIAPP_API_URL</code> при сборке. В Railway → сервис

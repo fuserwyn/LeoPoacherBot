@@ -29,6 +29,10 @@ export function PackGroupChatPanel({ initData, inTelegram, meId, showAlert, onHa
   const [sending, setSending] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const endRef = useRef<HTMLDivElement | null>(null);
+  const logRef = useRef<HTMLDivElement | null>(null);
+  /** true когда пользователь прокрутил вверх — не перебиваем позицию при поллинге */
+  const userScrolledUpRef = useRef(false);
+  const initialLoadedRef = useRef(false);
 
   const load = useCallback(async () => {
     if (!apiBase || !inTelegram || !initData) return;
@@ -65,8 +69,31 @@ export function PackGroupChatPanel({ initData, inTelegram, meId, showAlert, onHa
     return () => clearInterval(t);
   }, [load, inTelegram, initData]);
 
+  // Отслеживаем, прокрутил ли пользователь вверх, чтобы не перебивать позицию при поллинге.
   useEffect(() => {
-    endRef.current?.scrollIntoView({ behavior: "smooth" });
+    const el = logRef.current;
+    if (!el) return;
+    const onScroll = () => {
+      const nearBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 80;
+      userScrolledUpRef.current = !nearBottom;
+    };
+    el.addEventListener("scroll", onScroll, { passive: true });
+    return () => el.removeEventListener("scroll", onScroll);
+  }, []);
+
+  useEffect(() => {
+    const el = logRef.current;
+    if (!el || items.length === 0) return;
+    if (!initialLoadedRef.current) {
+      // Первая загрузка — сразу на последнее сообщение (без анимации).
+      el.scrollTop = el.scrollHeight;
+      initialLoadedRef.current = true;
+      return;
+    }
+    // Поллинг: скроллим только если пользователь и так в конце.
+    if (!userScrolledUpRef.current) {
+      endRef.current?.scrollIntoView({ behavior: "smooth" });
+    }
   }, [items]);
 
   const send = useCallback(async () => {
@@ -83,6 +110,8 @@ export function PackGroupChatPanel({ initData, inTelegram, meId, showAlert, onHa
     setSending(true);
     onHaptic?.();
     setText("");
+    // После отправки пользователь хочет видеть своё сообщение внизу.
+    userScrolledUpRef.current = false;
     try {
       const res = await fetch(`${apiBase}/api/miniapp/pack-group/messages`, {
         method: "POST",
@@ -135,7 +164,7 @@ export function PackGroupChatPanel({ initData, inTelegram, meId, showAlert, onHa
         <strong> @…</strong> (username бота); без @ — без ответа ИИ.
       </p>
       {err && <p className="packroom__err">{err}</p>}
-      <div className="packroom__log" role="log" aria-label="Чат стаи">
+      <div className="packroom__log" role="log" aria-label="Чат стаи" ref={logRef}>
         {items.map((m) => {
           const mine = !m.is_leo && m.user_id === meId;
           return (
@@ -191,6 +220,11 @@ export function PackGroupChatPanel({ initData, inTelegram, meId, showAlert, onHa
           placeholder="Сообщение… @leo — чтобы ответил бот"
           maxLength={4000}
           autoComplete="off"
+          onFocus={() => {
+            window.setTimeout(() => {
+              logRef.current?.scrollTo({ top: logRef.current.scrollHeight, behavior: "smooth" });
+            }, 300);
+          }}
         />
         <button type="submit" className="packroom__send" disabled={sending || !text.trim()}>
           {sending ? "…" : "➤"}

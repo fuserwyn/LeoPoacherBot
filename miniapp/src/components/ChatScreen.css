@@ -17,14 +17,15 @@
 }
 
 .chat {
-  /* Фиксированная высота колонки: иначе .chat__log растягивается по контенту, скроллит
-     document, и в WKWebView/Telegram перетаскивание ручек выделения вниз не двигает область. */
+  /* Высота задаётся через inline-style из visualViewport (учитывает клавиатуру).
+     Fallback: calc(100dvh - 8px) когда JS ещё не отработал или недоступен. */
   height: calc(100dvh - 8px);
   max-height: calc(100dvh - 8px);
   min-height: calc(100dvh - 8px);
   display: flex;
   flex-direction: column;
-  padding: 0 0 100px;
+  /* Нижний отступ = высота BottomNav (≈70px) + safe-area — форма ввода остаётся выше панели навигации */
+  padding: 0 0 calc(70px + env(safe-area-inset-bottom, 0px));
   max-width: 480px;
   margin: 0 auto;
   box-sizing: border-box;
@@ -270,12 +271,9 @@
 }
 
 .chat__form {
-  position: fixed;
-  bottom: 72px;
-  left: 0;
-  right: 0;
-  max-width: 480px;
-  margin: 0 auto;
+  /* Часть flex-колонки .chat — прижата к низу видимой области (выше BottomNav padding).
+     Не fixed: visualViewport.height + inline-style уже убирают клавиатурный перекос. */
+  flex-shrink: 0;
   display: flex;
   gap: 8px;
   padding: 10px 12px 12px;

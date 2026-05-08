@@ -441,6 +441,12 @@ export function ActivityCard({
                       value={threadComposer.draft}
                       onChange={(e) => threadComposer.onDraftChange(e.target.value)}
                       maxLength={2000}
+                      onFocus={() => {
+                        // Ждём открытия клавиатуры (iOS ~300 мс), потом доскролливаем поле.
+                        window.setTimeout(() => {
+                          threadInputRef.current?.scrollIntoView({ behavior: "smooth", block: "nearest" });
+                        }, 300);
+                      }}
                       onKeyDown={(e) => {
                         if (e.key !== "Enter" || (!e.ctrlKey && !e.metaKey)) return;
                         e.preventDefault();
