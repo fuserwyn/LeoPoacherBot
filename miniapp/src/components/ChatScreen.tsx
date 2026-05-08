@@ -140,8 +140,13 @@ export function ChatScreen({ name, initData, inTelegram, showAlert, onInboxDrain
     const el = logRef.current;
     if (!el || !loaded) return;
     if (!didInitialScrollRef.current) {
-      el.scrollTop = el.scrollHeight;
+      // items may still be empty on the first `loaded=true` tick (setLoaded and setItems
+      // are separate async state updates). Wait until messages are actually rendered.
+      if (items.length === 0) return;
       didInitialScrollRef.current = true;
+      requestAnimationFrame(() => {
+        if (logRef.current) logRef.current.scrollTop = logRef.current.scrollHeight;
+      });
       return;
     }
     // Пользователь отправил сообщение — всегда показываем его, даже если был наверху.
