@@ -24,8 +24,8 @@
   min-height: calc(100dvh - 8px);
   display: flex;
   flex-direction: column;
-  /* Нижний отступ = высота BottomNav (≈70px) + safe-area — форма ввода остаётся выше панели навигации */
-  padding: 0 0 calc(70px + env(safe-area-inset-bottom, 0px));
+  /* Нижний отступ резервирует место для фиксированной формы ввода (≈66px) + BottomNav (≈72px). */
+  padding: 0 0 120px;
   max-width: 480px;
   margin: 0 auto;
   box-sizing: border-box;
@@ -271,9 +271,14 @@
 }
 
 .chat__form {
-  /* Часть flex-колонки .chat — прижата к низу видимой области (выше BottomNav padding).
-     Не fixed: visualViewport.height + inline-style уже убирают клавиатурный перекос. */
-  flex-shrink: 0;
+  /* position: fixed — форма не уходит при скролле документа (iOS touch propagation).
+     bottom обновляется через inline-style при открытой клавиатуре (visualViewport). */
+  position: fixed;
+  bottom: 72px;
+  left: 0;
+  right: 0;
+  max-width: 480px;
+  margin: 0 auto;
   display: flex;
   gap: 8px;
   padding: 10px 12px 12px;

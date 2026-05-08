@@ -116,14 +116,21 @@ export function ChatScreen({ name, initData, inTelegram, showAlert, onInboxDrain
   const forceScrollRef = useRef(false);
   /** max(server_id) перед отправкой пользователя — новый ответ Лео с id выше этого. */
   const baselineMaxForPendingLeoRef = useRef(0);
-  /** Высота видимой области (с учётом клавиатуры) из visualViewport API */
-  const [viewportH, setViewportH] = useState<number | undefined>(undefined);
+  /** Высота видимой области (ужимается при открытии клавиатуры) */
+  const [chatH, setChatH] = useState<number | undefined>(undefined);
+  /** bottom-offset для формы ввода: undefined = CSS-дефолт (над BottomNav), число = над клавиатурой */
+  const [formBottom, setFormBottom] = useState<number | undefined>(undefined);
 
-  // Следим за visualViewport чтобы корректно ужать чат когда открывается клавиатура.
+  // visualViewport даёт реальную высоту видимой зоны — работает и на iOS WKWebView.
   useEffect(() => {
     const vv = window.visualViewport;
     if (!vv) return;
-    const update = () => setViewportH(Math.floor(vv.height));
+    const update = () => {
+      const kbH = Math.max(0, Math.floor(window.innerHeight - vv.height - vv.offsetTop));
+      setChatH(Math.floor(vv.height) - 8);
+      // Клавиатура открыта (>50px) — позиционируем форму прямо над ней.
+      setFormBottom(kbH > 50 ? kbH + 4 : undefined);
+    };
     vv.addEventListener("resize", update);
     update();
     return () => vv.removeEventListener("resize", update);
@@ -328,7 +335,10 @@ export function ChatScreen({ name, initData, inTelegram, showAlert, onInboxDrain
 
   const showTypingCue = sending || leoTyping;
 
-  const chatStyle = viewportH != null ? { height: viewportH - 8, maxHeight: viewportH - 8, minHeight: viewportH - 8 } : undefined;
+  const chatStyle = chatH != null
+    ? { height: chatH, maxHeight: chatH, minHeight: chatH }
+    : undefined;
+  const formStyle = formBottom != null ? { bottom: formBottom } : undefined;
 
   return (
     <div className="chat" style={chatStyle}>
@@ -412,6 +422,7 @@ export function ChatScreen({ name, initData, inTelegram, showAlert, onInboxDrain
       </div>
       <form
         className="chat__form"
+        style={formStyle}
         onSubmit={(e) => {
           e.preventDefault();
           void send();
