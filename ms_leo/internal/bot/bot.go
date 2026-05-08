@@ -1670,50 +1670,17 @@ func (b *Bot) auditProcessTrainingDone(um *domain.UserMessage) {
 		return
 	}
 
-	earnRewards, newStreakDays, weeklyAchievement, twoWeekAchievement, threeWeekAchievement, monthlyAchievement, fortyTwoDayAchievement, fiftyDayAchievement, sixtyDayAchievement, quarterlyAchievement, hundredDayAchievement, oneHundredEightyDayAchievement, twoHundredDayAchievement, twoHundredFortyDayAchievement := b.calculateTrainingDayOutcome(messageLog)
+	outcome := b.calculateTrainingDayOutcome(messageLog)
 
-	if earnRewards {
-		_ = b.db.UpdateStreak(um.UserID, um.ChatID, newStreakDays, dateStr)
+	if outcome.EarnRewards {
+		_ = b.db.UpdateStreak(um.UserID, um.ChatID, outcome.NewStreakDays, dateStr)
 		_ = b.db.AddCups(um.UserID, um.ChatID, 1)
-		if weeklyAchievement {
-			_ = b.db.AddCups(um.UserID, um.ChatID, 42)
-		}
-		if twoWeekAchievement {
-			_ = b.db.AddCups(um.UserID, um.ChatID, 42)
-		}
-		if threeWeekAchievement {
-			_ = b.db.AddCups(um.UserID, um.ChatID, 42)
-		}
-		if monthlyAchievement {
-			_ = b.db.AddCups(um.UserID, um.ChatID, 420)
-		}
-		if fortyTwoDayAchievement {
-			_ = b.db.AddCups(um.UserID, um.ChatID, 42)
-		}
-		if fiftyDayAchievement {
-			_ = b.db.AddCups(um.UserID, um.ChatID, 42)
-		}
-		if sixtyDayAchievement {
-			_ = b.db.AddCups(um.UserID, um.ChatID, 420)
-		}
-		if quarterlyAchievement {
-			_ = b.db.AddCups(um.UserID, um.ChatID, 420)
-		}
-		if hundredDayAchievement {
-			_ = b.db.AddCups(um.UserID, um.ChatID, 4200)
-		}
-		if oneHundredEightyDayAchievement {
-			_ = b.db.AddCups(um.UserID, um.ChatID, 420)
-		}
-		if twoHundredDayAchievement {
-			_ = b.db.AddCups(um.UserID, um.ChatID, 4200)
-		}
-		if twoHundredFortyDayAchievement {
-			_ = b.db.AddCups(um.UserID, um.ChatID, 4200)
+		if bonus := outcome.MilestoneCups(); bonus > 0 {
+			_ = b.db.AddCups(um.UserID, um.ChatID, bonus)
 		}
 
 		currentCups, _ := b.db.GetUserCups(um.UserID, um.ChatID)
-		text := fmt.Sprintf("✅ Отчёт принят! 💪\n\n🦁 Ты тренируешься %d %s подряд\n🏆 +1 кубок за тренировку!\n🏆 Всего кубков: %d\n\n⏰ Таймер перезапускается на 7 %s", newStreakDays, daysWordForm(newStreakDays), currentCups, daysWordForm(7))
+		text := fmt.Sprintf("✅ Отчёт принят! 💪\n\n🦁 Ты тренируешься %d %s подряд\n🏆 +1 кубок за тренировку!\n🏆 Всего кубков: %d\n\n⏰ Таймер перезапускается на 7 %s", outcome.NewStreakDays, daysWordForm(outcome.NewStreakDays), currentCups, daysWordForm(7))
 		b.api.Send(tgbotapi.NewMessage(um.ChatID, text))
 	} else {
 		_ = b.db.AddCups(um.UserID, um.ChatID, 1)
@@ -2387,6 +2354,21 @@ func (b *Bot) handleAIQuestion(msg *tgbotapi.Message, questionText string, perso
 				}
 
 				contextText.WriteString(fmt.Sprintf("💬 Последнее сообщение: %s\n", user.LastMessage))
+			}
+		}
+	}
+
+	// Добавляем историю личного чата с Лео (последние 10 сообщений) — так Лео помнит разговор.
+	if b.config.MonetizedChatID != 0 && b.db != nil {
+		history, histErr := b.db.ListMiniappPersonalChat(msg.From.ID, b.config.MonetizedChatID, 10, 0)
+		if histErr == nil && len(history) > 0 {
+			contextText.WriteString("\n=== ИСТОРИЯ ПЕРЕПИСКИ (от старых к новым) ===\n")
+			for _, h := range history {
+				role := "Пользователь"
+				if h.Role == "leo" {
+					role = "Лео"
+				}
+				contextText.WriteString(fmt.Sprintf("%s: %s\n", role, h.Text))
 			}
 		}
 	}

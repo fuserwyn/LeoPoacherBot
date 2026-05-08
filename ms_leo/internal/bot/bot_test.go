@@ -355,54 +355,51 @@ func TestTrainingDayOutcomeWeeklyAchievement(t *testing.T) {
 		messageLog.LastTrainingDate = &yesterday
 		messageLog.StreakDays = day - 1
 
-		earnRewards, streakDays, weeklyAchievement, twoWeekAchievement, threeWeekAchievement, monthlyAchievement, _, _, _, quarterlyAchievement, _, _, _, _ := bot.calculateTrainingDayOutcome(messageLog)
+		out := bot.calculateTrainingDayOutcome(messageLog)
 
-		if !earnRewards {
+		if !out.EarnRewards {
 			t.Errorf("Day %d: expected earnRewards true for new training day", day)
 		}
 
 		if day == 7 {
-			// На 7-й день должно быть недельное достижение
-			if !weeklyAchievement {
+			if !out.Weekly {
 				t.Errorf("Day %d: Expected weekly achievement for 7-day streak", day)
 			}
-			if streakDays != 7 {
-				t.Errorf("Day %d: Expected streak days 7, got %d", day, streakDays)
+			if out.NewStreakDays != 7 {
+				t.Errorf("Day %d: Expected streak days 7, got %d", day, out.NewStreakDays)
 			}
-			// На 7-й день не должно быть других достижений
-			if twoWeekAchievement {
+			if out.TwoWeek {
 				t.Errorf("Day %d: Expected no two-week achievement for 7-day streak", day)
 			}
-			if threeWeekAchievement {
+			if out.ThreeWeek {
 				t.Errorf("Day %d: Expected no three-week achievement for 7-day streak", day)
 			}
-			if monthlyAchievement {
+			if out.Monthly {
 				t.Errorf("Day %d: Expected no monthly achievement for 7-day streak", day)
 			}
-			if quarterlyAchievement {
+			if out.Quarterly {
 				t.Errorf("Day %d: Expected no quarterly achievement for 7-day streak", day)
 			}
 		} else {
-			// До 7-го дня не должно быть достижений
-			if weeklyAchievement {
+			if out.Weekly {
 				t.Errorf("Day %d: Expected no weekly achievement for %d-day streak", day, day)
 			}
-			if twoWeekAchievement {
+			if out.TwoWeek {
 				t.Errorf("Day %d: Expected no two-week achievement for %d-day streak", day, day)
 			}
-			if threeWeekAchievement {
+			if out.ThreeWeek {
 				t.Errorf("Day %d: Expected no three-week achievement for %d-day streak", day, day)
 			}
-			if monthlyAchievement {
+			if out.Monthly {
 				t.Errorf("Day %d: Expected no monthly achievement for %d-day streak", day, day)
 			}
-			if quarterlyAchievement {
+			if out.Quarterly {
 				t.Errorf("Day %d: Expected no quarterly achievement for %d-day streak", day, day)
 			}
 		}
 
 		// Обновляем данные для следующего дня
-		messageLog.StreakDays = streakDays
+		messageLog.StreakDays = out.NewStreakDays
 		today := utils.GetMoscowDate()
 		messageLog.LastTrainingDate = &today
 	}
@@ -416,23 +413,21 @@ func TestTrainingDayOutcomeWeeklyAchievement(t *testing.T) {
 		}(),
 	}
 
-	earnRewards2, streakDays2, weeklyAchievement2, _, _, monthlyAchievement2, _, _, _, quarterlyAchievement2, _, _, _, _ := bot.calculateTrainingDayOutcome(messageLog2)
+	out2 := bot.calculateTrainingDayOutcome(messageLog2)
 
-	// На 7-й день должно быть недельное достижение
-	if !earnRewards2 {
+	if !out2.EarnRewards {
 		t.Error("Expected earnRewards for 7-day streak simulation")
 	}
-	if !weeklyAchievement2 {
+	if !out2.Weekly {
 		t.Error("Expected weekly achievement for 7-day streak")
 	}
-	if streakDays2 != 7 {
-		t.Errorf("Expected streak days 7, got %d", streakDays2)
+	if out2.NewStreakDays != 7 {
+		t.Errorf("Expected streak days 7, got %d", out2.NewStreakDays)
 	}
-	// На 7-й день не должно быть месячного и квартального достижений
-	if monthlyAchievement2 {
+	if out2.Monthly {
 		t.Error("Expected no monthly achievement for 7-day streak")
 	}
-	if quarterlyAchievement2 {
+	if out2.Quarterly {
 		t.Error("Expected no quarterly achievement for 7-day streak")
 	}
 
@@ -445,27 +440,23 @@ func TestTrainingDayOutcomeWeeklyAchievement(t *testing.T) {
 		}(),
 	}
 
-	earnRewards3, streakDays3, weeklyAchievement3, _, _, monthlyAchievement3, _, _, _, quarterlyAchievement3, _, _, _, _ := bot.calculateTrainingDayOutcome(messageLog3)
+	out3 := bot.calculateTrainingDayOutcome(messageLog3)
 
-	// На 6-й день не должно быть достижений
-	if weeklyAchievement3 {
+	if out3.Weekly {
 		t.Error("Expected no weekly achievement for 6-day streak")
 	}
-	if monthlyAchievement3 {
+	if out3.Monthly {
 		t.Error("Expected no monthly achievement for 6-day streak")
 	}
-	if quarterlyAchievement3 {
+	if out3.Quarterly {
 		t.Error("Expected no quarterly achievement for 6-day streak")
 	}
-	if streakDays3 != 6 {
-		t.Errorf("Expected streak days 6, got %d", streakDays3)
+	if out3.NewStreakDays != 6 {
+		t.Errorf("Expected streak days 6, got %d", out3.NewStreakDays)
 	}
-	if !earnRewards3 {
+	if !out3.EarnRewards {
 		t.Error("Expected earnRewards for 6th day advance")
 	}
-
-	_ = earnRewards2
-	_ = earnRewards3
 }
 
 func TestTrainingDayOutcomeMonthlyAchievement(t *testing.T) {
@@ -483,23 +474,21 @@ func TestTrainingDayOutcomeMonthlyAchievement(t *testing.T) {
 		StreakDays:       29,
 	}
 
-	earnRewards, streakDays, weeklyAchievement, _, _, monthlyAchievement, _, _, _, quarterlyAchievement, _, _, _, _ := bot.calculateTrainingDayOutcome(messageLog)
+	out := bot.calculateTrainingDayOutcome(messageLog)
 
-	// На 30-й день должно быть месячное достижение
-	if !earnRewards {
+	if !out.EarnRewards {
 		t.Error("Expected earnRewards for monthly advance")
 	}
-	if !monthlyAchievement {
+	if !out.Monthly {
 		t.Error("Expected monthly achievement for 30-day streak")
 	}
-	if streakDays != 30 {
-		t.Errorf("Expected streak days 30, got %d", streakDays)
+	if out.NewStreakDays != 30 {
+		t.Errorf("Expected streak days 30, got %d", out.NewStreakDays)
 	}
-	// На 30-й день не должно быть недельного и квартального достижений
-	if weeklyAchievement {
+	if out.Weekly {
 		t.Error("Expected no weekly achievement for 30-day streak (already achieved)")
 	}
-	if quarterlyAchievement {
+	if out.Quarterly {
 		t.Error("Expected no quarterly achievement for 30-day streak")
 	}
 
@@ -509,24 +498,20 @@ func TestTrainingDayOutcomeMonthlyAchievement(t *testing.T) {
 		StreakDays:       14,
 	}
 
-	earnRewards2, streakDays2, _, _, _, monthlyAchievement2, _, _, _, quarterlyAchievement2, _, _, _, _ := bot.calculateTrainingDayOutcome(messageLog2)
+	out2 := bot.calculateTrainingDayOutcome(messageLog2)
 
-	// На 15-й день не должно быть месячного и квартального достижений
-	if !earnRewards2 {
+	if !out2.EarnRewards {
 		t.Error("Expected earnRewards for 15-day advance")
 	}
-	if monthlyAchievement2 {
+	if out2.Monthly {
 		t.Error("Expected no monthly achievement for 15-day streak")
 	}
-	if quarterlyAchievement2 {
+	if out2.Quarterly {
 		t.Error("Expected no quarterly achievement for 15-day streak")
 	}
-	if streakDays2 != 15 {
-		t.Errorf("Expected streak days 15, got %d", streakDays2)
+	if out2.NewStreakDays != 15 {
+		t.Errorf("Expected streak days 15, got %d", out2.NewStreakDays)
 	}
-
-	_ = earnRewards
-	_ = earnRewards2
 }
 
 func TestTrainingDayOutcomeQuarterlyAchievement(t *testing.T) {
@@ -545,23 +530,21 @@ func TestTrainingDayOutcomeQuarterlyAchievement(t *testing.T) {
 		StreakDays:       89,
 	}
 
-	earnRewards, streakDays, weeklyAchievement, _, _, monthlyAchievement, _, _, _, quarterlyAchievement, _, _, _, _ := bot.calculateTrainingDayOutcome(messageLog)
+	out := bot.calculateTrainingDayOutcome(messageLog)
 
-	// На 90-й день должно быть квартальное достижение
-	if !earnRewards {
+	if !out.EarnRewards {
 		t.Error("Expected earnRewards for quarterly advance")
 	}
-	if !quarterlyAchievement {
+	if !out.Quarterly {
 		t.Error("Expected quarterly achievement for 90-day streak")
 	}
-	if streakDays != 90 {
-		t.Errorf("Expected streak days 90, got %d", streakDays)
+	if out.NewStreakDays != 90 {
+		t.Errorf("Expected streak days 90, got %d", out.NewStreakDays)
 	}
-	// На 90-й день не должно быть недельного и месячного достижений (уже были)
-	if weeklyAchievement {
+	if out.Weekly {
 		t.Error("Expected no weekly achievement for 90-day streak (already achieved)")
 	}
-	if monthlyAchievement {
+	if out.Monthly {
 		t.Error("Expected no monthly achievement for 90-day streak (already achieved)")
 	}
 
@@ -571,52 +554,17 @@ func TestTrainingDayOutcomeQuarterlyAchievement(t *testing.T) {
 		StreakDays:       45,
 	}
 
-	earnRewards2, streakDays2, _, _, _, _, _, _, _, quarterlyAchievement2, _, _, _, _ := bot.calculateTrainingDayOutcome(messageLog2)
+	out2 := bot.calculateTrainingDayOutcome(messageLog2)
 
-	// На 46-й день не должно быть квартального достижения
-	if !earnRewards2 {
+	if !out2.EarnRewards {
 		t.Error("Expected earnRewards for 46-day advance")
 	}
-	if quarterlyAchievement2 {
+	if out2.Quarterly {
 		t.Error("Expected no quarterly achievement for 46-day streak")
 	}
-	if streakDays2 != 46 {
-		t.Errorf("Expected streak days 46, got %d", streakDays2)
+	if out2.NewStreakDays != 46 {
+		t.Errorf("Expected streak days 46, got %d", out2.NewStreakDays)
 	}
-
-	_ = earnRewards
-	_ = earnRewards2
-}
-
-func TestSendWeeklyCupsReward(t *testing.T) {
-	// Создаем тестовый бот
-	cfg := &config.Config{OwnerID: 123}
-	_ = &Bot{
-		config: cfg,
-		logger: logger.New("info"),
-	}
-
-	// Создаем тестовое сообщение
-	msg := &tgbotapi.Message{
-		From: &tgbotapi.User{ID: 123, UserName: "testuser"},
-		Chat: &tgbotapi.Chat{ID: 456},
-		Text: "#training_done",
-	}
-
-	// Тестируем функцию (без реальной отправки сообщения)
-	// В реальном тесте нужно было бы создать мок для API
-	username := "testuser"
-	streakDays := 7
-
-	// Проверяем, что функция не падает с ошибками
-	// В реальном тесте нужно проверить, что сообщение отправляется
-	_ = msg
-	_ = username
-	_ = streakDays
-
-	// Проверяем, что функция существует и может быть вызвана
-	// (без реального вызова, так как нет мока для API)
-	t.Log("sendWeeklyCupsReward function exists and can be called")
 }
 
 func TestTrainingDayOutcomeDoubleTraining(t *testing.T) {
@@ -630,22 +578,22 @@ func TestTrainingDayOutcomeDoubleTraining(t *testing.T) {
 		StreakDays:       0,
 	}
 
-	earnRewards1, streakDays1, weeklyAchievement1, _, _, monthlyAchievement1, _, _, _, quarterlyAchievement1, _, _, _, _ := bot.calculateTrainingDayOutcome(messageLog1)
+	out1 := bot.calculateTrainingDayOutcome(messageLog1)
 
 	// Первая тренировка дня — начисления
-	if !earnRewards1 {
+	if !out1.EarnRewards {
 		t.Error("Expected earnRewards for first training today")
 	}
-	if streakDays1 != 1 {
-		t.Errorf("Expected streak days 1 for first training, got %d", streakDays1)
+	if out1.NewStreakDays != 1 {
+		t.Errorf("Expected streak days 1 for first training, got %d", out1.NewStreakDays)
 	}
-	if weeklyAchievement1 {
+	if out1.Weekly {
 		t.Error("Expected no weekly achievement for first training")
 	}
-	if monthlyAchievement1 {
+	if out1.Monthly {
 		t.Error("Expected no monthly achievement for first training")
 	}
-	if quarterlyAchievement1 {
+	if out1.Quarterly {
 		t.Error("Expected no quarterly achievement for first training")
 	}
 
@@ -656,22 +604,22 @@ func TestTrainingDayOutcomeDoubleTraining(t *testing.T) {
 		StreakDays:       1,
 	}
 
-	earnRewards2, streakDays2, weeklyAchievement2, _, _, monthlyAchievement2, _, _, _, quarterlyAchievement2, _, _, _, _ := bot.calculateTrainingDayOutcome(messageLog2)
+	out2 := bot.calculateTrainingDayOutcome(messageLog2)
 
 	// Вторая тренировка в тот же день — без начислений
-	if earnRewards2 {
+	if out2.EarnRewards {
 		t.Error("Expected earnRewards false for second training today")
 	}
-	if streakDays2 != 1 {
-		t.Errorf("Expected streak days 1 for second training today, got %d", streakDays2)
+	if out2.NewStreakDays != 1 {
+		t.Errorf("Expected streak days 1 for second training today, got %d", out2.NewStreakDays)
 	}
-	if weeklyAchievement2 {
+	if out2.Weekly {
 		t.Error("Expected no weekly achievement for second training today")
 	}
-	if monthlyAchievement2 {
+	if out2.Monthly {
 		t.Error("Expected no monthly achievement for second training today")
 	}
-	if quarterlyAchievement2 {
+	if out2.Quarterly {
 		t.Error("Expected no quarterly achievement for second training today")
 	}
 
@@ -683,22 +631,22 @@ func TestTrainingDayOutcomeDoubleTraining(t *testing.T) {
 		StreakDays:       1,
 	}
 
-	earnRewards3, streakDays3, weeklyAchievement3, _, _, monthlyAchievement3, _, _, _, quarterlyAchievement3, _, _, _, _ := bot.calculateTrainingDayOutcome(messageLog3)
+	out3 := bot.calculateTrainingDayOutcome(messageLog3)
 
 	// Тренировка на следующий день должна продолжить серию
-	if !earnRewards3 {
+	if !out3.EarnRewards {
 		t.Error("Expected earnRewards for training next day")
 	}
-	if streakDays3 != 2 {
-		t.Errorf("Expected streak days 2 for training next day, got %d", streakDays3)
+	if out3.NewStreakDays != 2 {
+		t.Errorf("Expected streak days 2 for training next day, got %d", out3.NewStreakDays)
 	}
-	if weeklyAchievement3 {
+	if out3.Weekly {
 		t.Error("Expected no weekly achievement for 2-day streak")
 	}
-	if monthlyAchievement3 {
+	if out3.Monthly {
 		t.Error("Expected no monthly achievement for 2-day streak")
 	}
-	if quarterlyAchievement3 {
+	if out3.Quarterly {
 		t.Error("Expected no quarterly achievement for 2-day streak")
 	}
 
