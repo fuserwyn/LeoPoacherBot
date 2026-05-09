@@ -154,6 +154,9 @@ export function App() {
           showAlert={showAlert}
           refreshToken={feedRefreshToken}
           inactivityRemovalAt={inactivityRemovalAt}
+          onRefreshAll={async () => {
+            await Promise.all([refreshProfileStats(), refreshTabBadges()]);
+          }}
         />
       )}
       {tab === "rules" && <RulesScreen />}

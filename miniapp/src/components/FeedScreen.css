@@ -2,6 +2,7 @@
   padding: 6px 8px 0;
   max-width: 520px;
   margin: 0 auto;
+  position: relative;
 }
 
 /* Шапка ленты + вкладки «Лента / Чат» — при прокрутке контента остаются сверху */
@@ -217,6 +218,63 @@
   flex-direction: column;
   gap: 5px;
   padding-bottom: calc(var(--feed-bottom-nav-h, 88px) + var(--feed-keyboard-bottom, 0px) + 14px);
+}
+
+.feed__ptr {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 2px;
+  pointer-events: none;
+  color: var(--text-muted, #8b8b9a);
+  font-size: 12px;
+  font-weight: 500;
+  z-index: 60;
+  overflow: hidden;
+}
+
+.feed__ptr-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: var(--card, #1a1a22);
+  border: 1px solid var(--border-subtle);
+  font-size: 13px;
+  line-height: 1;
+  transition: transform 180ms ease;
+}
+
+.feed__ptr--ready .feed__ptr-icon {
+  color: var(--accent, #ff6a2b);
+  border-color: var(--accent, #ff6a2b);
+}
+
+.feed__ptr--refreshing .feed__ptr-icon {
+  animation: feedPtrSpin 0.9s linear infinite;
+  color: var(--accent, #ff6a2b);
+}
+
+@keyframes feedPtrSpin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.feed__ptr-label {
+  margin-bottom: 4px;
+  white-space: nowrap;
+}
+
+.feed__pull-shift {
+  will-change: transform;
 }
 
 .feed__card-slot {

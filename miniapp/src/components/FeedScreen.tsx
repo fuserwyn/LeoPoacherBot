@@ -398,6 +398,25 @@ export function FeedScreen({
 
   return (
     <div className="feed" style={viewportStyle}>
+      {sub === "activity" && (ptr.pull > 0 || ptr.status === "refreshing") ? (
+        <div
+          className={`feed__ptr feed__ptr--${ptr.status}`}
+          style={{ height: `${ptr.pull}px` }}
+          aria-hidden
+        >
+          <span className="feed__ptr-icon">
+            {ptr.status === "refreshing" ? "↻" : ptr.status === "ready" ? "↑" : "↓"}
+          </span>
+          <span className="feed__ptr-label">{ptrStatusText}</span>
+        </div>
+      ) : null}
+      <div
+        className="feed__pull-shift"
+        style={{
+          transform: `translateY(${ptr.status === "refreshing" || ptr.pull > 0 ? ptr.pull : 0}px)`,
+          transition: ptr.status === "pulling" || ptr.status === "ready" ? "none" : "transform 220ms ease",
+        }}
+      >
       <div className="feed__sticky">
         <header className="feed__header">
           <div className="feed__stats">
@@ -631,6 +650,7 @@ export function FeedScreen({
           </div>
         </>
       )}
+      </div>
     </div>
   );
 }
