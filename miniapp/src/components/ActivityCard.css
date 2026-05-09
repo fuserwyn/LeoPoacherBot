@@ -14,7 +14,7 @@
 
 /* Открытый тред: почти на экран, чтобы можно было читать переписку без крошечного окна */
 .act-card--thread-open {
-  max-height: min(88dvh, 92vh);
+  max-height: min(74dvh, 620px);
 }
 
 .act-card--leo {
@@ -111,6 +111,12 @@
   min-height: 0;
   overflow-y: auto;
   -webkit-overflow-scrolling: touch;
+}
+
+.act-card--thread-open .act-card__body {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
 }
 
 .act-card__details {
@@ -262,7 +268,10 @@
   margin-top: 6px;
   padding-top: 6px;
   border-top: 1px solid var(--border-subtle);
-  flex-shrink: 0;
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
 }
 
 .act-card__thread-toggle {
@@ -298,6 +307,14 @@
   list-style: none;
   margin: 6px 0;
   padding: 0;
+}
+
+.act-card__thread-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
 }
 
 .act-card__thread-item {
@@ -523,6 +540,9 @@
   display: flex;
   flex-direction: column;
   gap: 8px;
+  flex: 0 0 auto;
+  padding-top: 8px;
+  background: var(--card);
 }
 
 .act-card__thread-input {
@@ -530,6 +550,7 @@
   box-sizing: border-box;
   resize: vertical;
   min-height: 48px;
+  max-height: 120px;
   padding: 10px 12px;
   border-radius: var(--radius-sm);
   border: 1px solid var(--border-subtle);
@@ -587,4 +608,3 @@
   display: block;
   object-fit: contain;
 }
-

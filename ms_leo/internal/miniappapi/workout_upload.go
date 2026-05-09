@@ -140,11 +140,6 @@ func (s *Server) handlePostWorkoutWithPhoto(w http.ResponseWriter, r *http.Reque
 		s.jsonErr(w, http.StatusBadRequest, "unsupported_image")
 		return
 	}
-	if _, seekErr := file.Seek(0, io.SeekStart); seekErr != nil {
-		s.jsonErr(w, http.StatusBadRequest, "photo_seek_error")
-		return
-	}
-
 	var token [16]byte
 	if _, err := rand.Read(token[:]); err != nil {
 		s.jsonErr(w, http.StatusInternalServerError, "random_error")
@@ -170,6 +165,8 @@ func (s *Server) handlePostWorkoutWithPhoto(w http.ResponseWriter, r *http.Reque
 	}
 	written := int64(n)
 	left := int64(maxWorkoutPhotoBytes - n)
+	// file уже стоит сразу после sniffed-заголовка. Пишем snippet один раз и копируем
+	// только остаток, иначе сохранённое изображение получает продублированный header.
 	nw64, cpErr := io.Copy(out, io.LimitReader(file, left))
 	out.Close()
 	if cpErr != nil {

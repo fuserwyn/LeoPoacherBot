@@ -217,11 +217,12 @@ export function FeedScreen({
         const postedThread = j.thread;
         setThreadDrafts((d) => ({ ...d, [userMessageId]: "" }));
         setThreadReplyTargets((r) => ({ ...r, [userMessageId]: undefined }));
-        await load();
         if (Array.isArray(postedThread)) {
           setFeedItems((prev) =>
             prev.map((it) => (it.id === userMessageId ? { ...it, thread: postedThread } : it)),
           );
+        } else {
+          await load();
         }
         if (replyToThreadId) {
           window.setTimeout(() => void load(), 5000);
@@ -260,11 +261,12 @@ export function FeedScreen({
           return;
         }
         const updated = j.thread;
-        await load();
         if (Array.isArray(updated)) {
           setFeedItems((prev) =>
             prev.map((it) => (it.id === trainingUserMessageId ? { ...it, thread: updated } : it)),
           );
+        } else {
+          await load();
         }
       } catch (e) {
         showAlert(e instanceof Error ? e.message : "Сеть");
@@ -290,11 +292,12 @@ export function FeedScreen({
           return;
         }
         const updated = j.thread;
-        await load();
         if (Array.isArray(updated)) {
           setFeedItems((prev) =>
             prev.map((it) => (it.id === trainingUserMessageId ? { ...it, thread: updated } : it)),
           );
+        } else {
+          await load();
         }
       } catch (e) {
         showAlert(e instanceof Error ? e.message : "Сеть");
@@ -313,13 +316,24 @@ export function FeedScreen({
     <div className="feed">
       <div className="feed__sticky">
         <header className="feed__header">
-          <div
-            className="feed__level"
-            aria-label={`Уровень ${level}`}
-            title={`Уровень ${level} (по кубкам в профиле)`}
-          >
-            <span className="feed__level-k">Ур.</span>
-            <span className="feed__level-v">{level}</span>
+          <div className="feed__stats">
+            <div className="feed__streak" aria-label={streakStreakAriaLabel(streak)} title={streakStreakAriaLabel(streak)}>
+              <span className="feed__streak-emoji" aria-hidden>
+                🔥
+              </span>
+              <span className="feed__streak-row">
+                <span className="feed__streak-word">Стрик</span>
+                <span className="feed__streak-num">{streak}</span>
+              </span>
+            </div>
+            <div
+              className="feed__level"
+              aria-label={`Уровень ${level}`}
+              title={`Уровень ${level} (по кубкам в профиле)`}
+            >
+              <span className="feed__level-k">Ур.</span>
+              <span className="feed__level-v">{level}</span>
+            </div>
           </div>
           {removalHint ? (
             <div
@@ -330,15 +344,6 @@ export function FeedScreen({
               Лео тебя не съест до {removalHint}
             </div>
           ) : null}
-          <div className="feed__streak" aria-label={streakStreakAriaLabel(streak)} title={streakStreakAriaLabel(streak)}>
-            <span className="feed__streak-emoji" aria-hidden>
-              🔥
-            </span>
-            <span className="feed__streak-row">
-              <span className="feed__streak-word">Стрик</span>
-              <span className="feed__streak-num">{streak}</span>
-            </span>
-          </div>
         </header>
         <div className="feed__subtabs" role="tablist" aria-label="Стая">
           <button

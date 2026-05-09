@@ -143,6 +143,15 @@ export async function sendMiniappTrainingWithPhoto(
         error: "Фото тренировки на сервере не настроено (MINIAPP_PUBLIC_BASE_URL / каталог media).",
       };
     }
+    if (res.status === 400 && j.error === "unsupported_image") {
+      return { ok: false, error: "Не удалось прочитать фото. Попробуй JPG, PNG, WEBP или GIF." };
+    }
+    if (res.status === 400 && j.error === "photo_too_large") {
+      return { ok: false, error: "Фото слишком большое. Максимум 6 МБ." };
+    }
+    if (res.status === 400 && j.error === "invalid_multipart") {
+      return { ok: false, error: "Не удалось отправить фото. Попробуй выбрать снимок заново." };
+    }
     return { ok: false, error: j.error ?? `Ошибка ${res.status}` };
   }
   const replyNow = j.reply_text?.trim();

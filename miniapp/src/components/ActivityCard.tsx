@@ -226,15 +226,62 @@ export function ActivityCard({
   threadReplyDeleting = {},
   trainingPhotoUrl,
 }: ActivityCardProps) {
+  const threadBodyRef = useRef<HTMLDivElement>(null);
   const threadInputRef = useRef<HTMLTextAreaElement>(null);
   const [threadOpen, setThreadOpen] = useState(false);
   const prevThreadLen = useRef(threadReplies.length);
+
+  const keepComposerVisible = () => {
+    const input = threadInputRef.current;
+    const body = threadBodyRef.current;
+    if (!input) return;
+
+    if (body) {
+      body.scrollTop = body.scrollHeight;
+    }
+
+    requestAnimationFrame(() => {
+      const vv = window.visualViewport;
+      const viewportTop = vv?.offsetTop ?? 0;
+      const viewportBottom = viewportTop + (vv?.height ?? window.innerHeight);
+      const bottomNav = document.querySelector<HTMLElement>(".bottom-nav");
+      const bottomNavH = bottomNav?.getBoundingClientRect().height ?? 0;
+      const safeBottom = viewportBottom - bottomNavH - 18;
+      const inputRect = input.getBoundingClientRect();
+      const inputBottom = inputRect.bottom + viewportTop;
+
+      if (inputBottom > safeBottom) {
+        window.scrollBy({ top: inputBottom - safeBottom, behavior: "smooth" });
+      }
+    });
+  };
+
   useEffect(() => {
     if (threadReplies.length > prevThreadLen.current) {
       setThreadOpen(true);
+      window.setTimeout(keepComposerVisible, 80);
     }
     prevThreadLen.current = threadReplies.length;
   }, [threadReplies.length]);
+
+  useEffect(() => {
+    if (!threadOpen) return;
+    const vv = window.visualViewport;
+    if (!vv) return;
+    let t: ReturnType<typeof window.setTimeout> | undefined;
+    const onViewportMove = () => {
+      if (document.activeElement !== threadInputRef.current) return;
+      if (t) window.clearTimeout(t);
+      t = window.setTimeout(keepComposerVisible, 80);
+    };
+    vv.addEventListener("resize", onViewportMove);
+    vv.addEventListener("scroll", onViewportMove);
+    return () => {
+      if (t) window.clearTimeout(t);
+      vv.removeEventListener("resize", onViewportMove);
+      vv.removeEventListener("scroll", onViewportMove);
+    };
+  }, [threadOpen]);
 
   const showReact = reactions.length > 0 || onReactionClick != null;
   const hasThread = threadReplies.length > 0 || threadComposer != null;
@@ -318,94 +365,99 @@ export function ActivityCard({
             </button>
             {threadOpen && (
               <>
-                {threadReplies.length > 0 && (
-                  <ul className="act-card__thread-list">
-                    {threadReplies.map((tr) => {
-                      const leo = Boolean(tr.isLeo);
-                      const displayAuthor = leo ? "Лео" : tr.isYou ? "Ты" : tr.author;
-                      return (
-                        <li
-                          key={tr.id}
-                          className={`act-card__thread-item${tr.isYou ? " act-card__thread-item--you" : ""}${leo ? " act-card__thread-item--leo" : ""}`}
-                        >
-                          <div className={`act-card__thread-item-inner${leo || (!leo && tr.authorPhotoUrl?.trim()) ? " act-card__thread-item-inner--has-avatar" : ""}`}>
-                            {leo ? (
-                              <img
-                                className="act-card__thread-avatar"
-                                src={LEO_AVATAR_URL}
-                                alt=""
-                                loading="lazy"
-                              />
-                            ) : tr.authorPhotoUrl?.trim() ? (
-                              <img
-                                className="act-card__thread-avatar act-card__thread-avatar--member"
-                                src={tr.authorPhotoUrl.trim()}
-                                alt=""
-                                loading="lazy"
-                              />
-                            ) : null}
-                            <div className="act-card__thread-item-main">
-                              <div className="act-card__thread-item-head">
-                                <div className="act-card__thread-item-meta">
-                                  <span className="act-card__thread-author">{displayAuthor}</span>
-                                  <span className="act-card__thread-time muted">{tr.timeAgo}</span>
+                <div className="act-card__thread-body" ref={threadBodyRef}>
+                  {threadReplies.length > 0 && (
+                    <ul className="act-card__thread-list">
+                      {threadReplies.map((tr) => {
+                        const leo = Boolean(tr.isLeo);
+                        const displayAuthor = leo ? "Лео" : tr.isYou ? "Ты" : tr.author;
+                        return (
+                          <li
+                            key={tr.id}
+                            className={`act-card__thread-item${tr.isYou ? " act-card__thread-item--you" : ""}${leo ? " act-card__thread-item--leo" : ""}`}
+                          >
+                            <div className={`act-card__thread-item-inner${leo || (!leo && tr.authorPhotoUrl?.trim()) ? " act-card__thread-item-inner--has-avatar" : ""}`}>
+                              {leo ? (
+                                <img
+                                  className="act-card__thread-avatar"
+                                  src={LEO_AVATAR_URL}
+                                  alt=""
+                                  loading="lazy"
+                                />
+                              ) : tr.authorPhotoUrl?.trim() ? (
+                                <img
+                                  className="act-card__thread-avatar act-card__thread-avatar--member"
+                                  src={tr.authorPhotoUrl.trim()}
+                                  alt=""
+                                  loading="lazy"
+                                />
+                              ) : null}
+                              <div className="act-card__thread-item-main">
+                                <div className="act-card__thread-item-head">
+                                  <div className="act-card__thread-item-meta">
+                                    <span className="act-card__thread-author">{displayAuthor}</span>
+                                    <span className="act-card__thread-time muted">{tr.timeAgo}</span>
+                                  </div>
+                                  {tr.isYou && !leo && onThreadReplyDelete != null && (
+                                    <button
+                                      type="button"
+                                      className="act-card__thread-del"
+                                      disabled={Boolean(threadReplyDeleting[tr.id])}
+                                      onClick={() => onThreadReplyDelete(tr.id)}
+                                    >
+                                      {threadReplyDeleting[tr.id] ? "…" : "Удалить"}
+                                    </button>
+                                  )}
                                 </div>
-                                {tr.isYou && !leo && onThreadReplyDelete != null && (
-                                  <button
-                                    type="button"
-                                    className="act-card__thread-del"
-                                    disabled={Boolean(threadReplyDeleting[tr.id])}
-                                    onClick={() => onThreadReplyDelete(tr.id)}
-                                  >
-                                    {threadReplyDeleting[tr.id] ? "…" : "Удалить"}
-                                  </button>
-                                )}
-                              </div>
-                              {tr.replyTo != null &&
-                                ((tr.replyTo.text || "").trim() !== "" || (tr.replyTo.author || "").trim() !== "") && (
-                                  <div className="act-card__thread-quote" aria-label="Ответ на сообщение">
-                                    <span className="act-card__thread-quote-author muted">
-                                      {tr.replyTo.isLeo ? "Лео" : tr.replyTo.author}
-                                    </span>
-                                    {(tr.replyTo.text || "").trim() !== "" && (
-                                      <p className="act-card__thread-quote-text">{(tr.replyTo.text || "").trim()}</p>
-                                    )}
+                                {tr.replyTo != null &&
+                                  ((tr.replyTo.text || "").trim() !== "" || (tr.replyTo.author || "").trim() !== "") && (
+                                    <div className="act-card__thread-quote" aria-label="Ответ на сообщение">
+                                      <span className="act-card__thread-quote-author muted">
+                                        {tr.replyTo.isLeo ? "Лео" : tr.replyTo.author}
+                                      </span>
+                                      {(tr.replyTo.text || "").trim() !== "" && (
+                                        <p className="act-card__thread-quote-text">{(tr.replyTo.text || "").trim()}</p>
+                                      )}
+                                    </div>
+                                  )}
+                                <p className="act-card__thread-text">{tr.text}</p>
+                                {onThreadReplyIntent != null && (
+                                  <div className="act-card__thread-actions">
+                                    <button
+                                      type="button"
+                                      className={`act-card__thread-like${tr.likeMe ? " act-card__thread-like--mine" : ""}`}
+                                      onClick={() => onThreadReplyLike?.(tr.id)}
+                                    >
+                                      ❤️ {tr.likeCount ?? 0}
+                                    </button>
+                                    <button
+                                      type="button"
+                                      className="act-card__thread-answer"
+                                      onClick={() => {
+                                        onThreadReplyIntent({
+                                          replyToThreadId: tr.id,
+                                          authorLabel: displayAuthor,
+                                          excerpt:
+                                            tr.text.length > 100 ? `${tr.text.slice(0, 99).trim()}…` : tr.text.trim(),
+                                        });
+                                        window.setTimeout(() => {
+                                          threadInputRef.current?.focus();
+                                          keepComposerVisible();
+                                        }, 0);
+                                      }}
+                                    >
+                                      Ответить
+                                    </button>
                                   </div>
                                 )}
-                              <p className="act-card__thread-text">{tr.text}</p>
-                              {onThreadReplyIntent != null && (
-                                <div className="act-card__thread-actions">
-                                  <button
-                                    type="button"
-                                    className={`act-card__thread-like${tr.likeMe ? " act-card__thread-like--mine" : ""}`}
-                                    onClick={() => onThreadReplyLike?.(tr.id)}
-                                  >
-                                    ❤️ {tr.likeCount ?? 0}
-                                  </button>
-                                  <button
-                                    type="button"
-                                    className="act-card__thread-answer"
-                                    onClick={() => {
-                                      onThreadReplyIntent({
-                                        replyToThreadId: tr.id,
-                                        authorLabel: displayAuthor,
-                                        excerpt:
-                                          tr.text.length > 100 ? `${tr.text.slice(0, 99).trim()}…` : tr.text.trim(),
-                                      });
-                                      threadInputRef.current?.focus();
-                                    }}
-                                  >
-                                    Ответить
-                                  </button>
-                                </div>
-                              )}
+                              </div>
                             </div>
-                          </div>
-                        </li>
-                      );
-                    })}
-                  </ul>
-                )}
+                          </li>
+                        );
+                      })}
+                    </ul>
+                  )}
+                </div>
                 {threadComposer && (
                   <div className="act-card__thread-compose">
                     {threadReplyIntent != null && (
@@ -441,6 +493,7 @@ export function ActivityCard({
                       }
                       value={threadComposer.draft}
                       onChange={(e) => threadComposer.onDraftChange(e.target.value)}
+                      onFocus={() => window.setTimeout(keepComposerVisible, 80)}
                       maxLength={2000}
                       onKeyDown={(e) => {
                         if (e.key !== "Enter" || (!e.ctrlKey && !e.metaKey)) return;
