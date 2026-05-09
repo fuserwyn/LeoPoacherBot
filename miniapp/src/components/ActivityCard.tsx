@@ -231,57 +231,25 @@ export function ActivityCard({
   const [threadOpen, setThreadOpen] = useState(false);
   const prevThreadLen = useRef(threadReplies.length);
 
-  const keepComposerVisible = () => {
+  const revealComposer = () => {
     const input = threadInputRef.current;
-    const body = threadBodyRef.current;
     if (!input) return;
 
-    if (body) {
-      body.scrollTop = body.scrollHeight;
-    }
-
     requestAnimationFrame(() => {
-      const vv = window.visualViewport;
-      const viewportTop = vv?.offsetTop ?? 0;
-      const viewportBottom = viewportTop + (vv?.height ?? window.innerHeight);
-      const bottomNav = document.querySelector<HTMLElement>(".bottom-nav");
-      const bottomNavH = bottomNav?.getBoundingClientRect().height ?? 0;
-      const safeBottom = viewportBottom - bottomNavH - 18;
-      const inputRect = input.getBoundingClientRect();
-      const inputBottom = inputRect.bottom + viewportTop;
-
-      if (inputBottom > safeBottom) {
-        window.scrollBy({ top: inputBottom - safeBottom, behavior: "smooth" });
-      }
+      input.scrollIntoView({ block: "nearest", inline: "nearest", behavior: "smooth" });
     });
   };
 
   useEffect(() => {
     if (threadReplies.length > prevThreadLen.current) {
       setThreadOpen(true);
-      window.setTimeout(keepComposerVisible, 80);
+      requestAnimationFrame(() => {
+        const body = threadBodyRef.current;
+        if (body) body.scrollTop = body.scrollHeight;
+      });
     }
     prevThreadLen.current = threadReplies.length;
   }, [threadReplies.length]);
-
-  useEffect(() => {
-    if (!threadOpen) return;
-    const vv = window.visualViewport;
-    if (!vv) return;
-    let t: ReturnType<typeof window.setTimeout> | undefined;
-    const onViewportMove = () => {
-      if (document.activeElement !== threadInputRef.current) return;
-      if (t) window.clearTimeout(t);
-      t = window.setTimeout(keepComposerVisible, 80);
-    };
-    vv.addEventListener("resize", onViewportMove);
-    vv.addEventListener("scroll", onViewportMove);
-    return () => {
-      if (t) window.clearTimeout(t);
-      vv.removeEventListener("resize", onViewportMove);
-      vv.removeEventListener("scroll", onViewportMove);
-    };
-  }, [threadOpen]);
 
   const showReact = reactions.length > 0 || onReactionClick != null;
   const hasThread = threadReplies.length > 0 || threadComposer != null;
@@ -442,8 +410,8 @@ export function ActivityCard({
                                         });
                                         window.setTimeout(() => {
                                           threadInputRef.current?.focus();
-                                          keepComposerVisible();
-                                        }, 0);
+                                          revealComposer();
+                                        }, 80);
                                       }}
                                     >
                                       Ответить
@@ -493,7 +461,7 @@ export function ActivityCard({
                       }
                       value={threadComposer.draft}
                       onChange={(e) => threadComposer.onDraftChange(e.target.value)}
-                      onFocus={() => window.setTimeout(keepComposerVisible, 80)}
+                      onFocus={() => window.setTimeout(revealComposer, 120)}
                       maxLength={2000}
                       onKeyDown={(e) => {
                         if (e.key !== "Enter" || (!e.ctrlKey && !e.metaKey)) return;

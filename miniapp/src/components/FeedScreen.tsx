@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState, type CSSProperties } from "react";
 import { ActivityCard, type ActivityCardProps } from "./ActivityCard";
 import { PackGroupChatPanel } from "./PackGroupChatPanel";
 import {
@@ -38,6 +38,12 @@ type Props = {
 };
 
 type Sub = "activity" | "room";
+
+type FeedViewportStyle = CSSProperties & {
+  "--feed-vvh"?: string;
+  "--feed-keyboard-bottom"?: string;
+  "--feed-bottom-nav-h"?: string;
+};
 
 function mockFallback(_name: string, streak: number): ActivityCardProps[] {
   return [
@@ -81,6 +87,7 @@ export function FeedScreen({
   const [feedOnlyMine, setFeedOnlyMine] = useState(false);
   /** Мультивыбор типов тренировок (пусто = «все типы»). */
   const [feedCategoryIds, setFeedCategoryIds] = useState<WorkoutCategoryId[]>([]);
+  const [viewportStyle, setViewportStyle] = useState<FeedViewportStyle>({});
 
   const categoryFilterSet = useMemo(() => new Set(feedCategoryIds), [feedCategoryIds]);
 
@@ -310,10 +317,64 @@ export function FeedScreen({
     void load();
   }, [load, refreshToken]);
 
+  useEffect(() => {
+    let raf = 0;
+
+    const readViewport = () => {
+      raf = 0;
+      const vv = window.visualViewport;
+      const viewportH = Math.max(320, Math.floor(vv?.height ?? window.innerHeight));
+      const keyboardBottom = Math.max(
+        0,
+        Math.floor(window.innerHeight - (vv?.height ?? window.innerHeight) - (vv?.offsetTop ?? 0)),
+      );
+      const bottomNavH = Math.ceil(
+        document.querySelector<HTMLElement>(".bottom-nav")?.getBoundingClientRect().height ?? 0,
+      );
+
+      setViewportStyle((prev) => {
+        const next: FeedViewportStyle = {
+          "--feed-vvh": `${viewportH}px`,
+          "--feed-keyboard-bottom": `${keyboardBottom}px`,
+          "--feed-bottom-nav-h": `${bottomNavH}px`,
+        };
+        if (
+          prev["--feed-vvh"] === next["--feed-vvh"] &&
+          prev["--feed-keyboard-bottom"] === next["--feed-keyboard-bottom"] &&
+          prev["--feed-bottom-nav-h"] === next["--feed-bottom-nav-h"]
+        ) {
+          return prev;
+        }
+        return next;
+      });
+    };
+
+    const scheduleRead = () => {
+      if (raf) return;
+      raf = requestAnimationFrame(readViewport);
+    };
+
+    readViewport();
+    const vv = window.visualViewport;
+    vv?.addEventListener("resize", scheduleRead);
+    vv?.addEventListener("scroll", scheduleRead);
+    window.addEventListener("orientationchange", scheduleRead);
+    const tg = window.Telegram?.WebApp as { onEvent?: (e: string, fn: () => void) => void } | undefined;
+    tg?.onEvent?.("viewportChanged", scheduleRead);
+    return () => {
+      if (raf) cancelAnimationFrame(raf);
+      vv?.removeEventListener("resize", scheduleRead);
+      vv?.removeEventListener("scroll", scheduleRead);
+      window.removeEventListener("orientationchange", scheduleRead);
+      const tgOff = window.Telegram?.WebApp as { offEvent?: (e: string, fn: () => void) => void } | undefined;
+      tgOff?.offEvent?.("viewportChanged", scheduleRead);
+    };
+  }, []);
+
   const removalHint = formatInactivityRemovalHint(inactivityRemovalAt ?? undefined);
 
   return (
-    <div className="feed">
+    <div className="feed" style={viewportStyle}>
       <div className="feed__sticky">
         <header className="feed__header">
           <div className="feed__stats">
