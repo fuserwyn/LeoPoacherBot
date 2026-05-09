@@ -327,18 +327,22 @@ export function FeedScreen({
     const readViewport = () => {
       raf = 0;
       const vv = window.visualViewport;
-      const viewportH = Math.max(320, Math.floor(vv?.height ?? window.innerHeight));
-      const keyboardBottom = Math.max(
-        0,
-        Math.floor(window.innerHeight - (vv?.height ?? window.innerHeight) - (vv?.offsetTop ?? 0)),
-      );
+      // Layout viewport (window.innerHeight) НЕ ужимается при открытии клавиатуры на iOS —
+      // это именно то, что нужно для max-height карточки треда: размер карточки должен
+      // остаться стабильным, пока пользователь печатает. Если использовать vv.height,
+      // карточка резко сжимается в момент тапа по textarea и iOS не успевает корректно
+      // докрутить поле над клавиатурой.
+      const layoutH = Math.max(320, Math.floor(window.innerHeight || vv?.height || 320));
+      const visualH = Math.floor(vv?.height ?? layoutH);
+      const visualOffsetTop = Math.floor(vv?.offsetTop ?? 0);
+      const keyboardBottom = Math.max(0, layoutH - visualH - visualOffsetTop);
       const bottomNavH = Math.ceil(
         document.querySelector<HTMLElement>(".bottom-nav")?.getBoundingClientRect().height ?? 0,
       );
 
       setViewportStyle((prev) => {
         const next: FeedViewportStyle = {
-          "--feed-vvh": `${viewportH}px`,
+          "--feed-vvh": `${layoutH}px`,
           "--feed-keyboard-bottom": `${keyboardBottom}px`,
           "--feed-bottom-nav-h": `${bottomNavH}px`,
         };

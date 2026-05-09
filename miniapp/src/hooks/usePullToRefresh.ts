@@ -28,8 +28,19 @@ export function usePullToRefresh({ onRefresh, threshold = 70, maxPull = 140, ena
   useEffect(() => {
     if (!enabled) return;
 
+    const isTextEntryFocused = (): boolean => {
+      const a = document.activeElement as HTMLElement | null;
+      if (!a) return false;
+      const tag = a.tagName;
+      if (tag === "TEXTAREA" || tag === "INPUT") return true;
+      return Boolean(a.isContentEditable);
+    };
+
     const onTouchStart = (e: TouchEvent) => {
       if (refreshingRef.current) return;
+      // Когда пользователь печатает, не перехватываем тач — iOS ждёт нативного
+      // scroll-into-view к фокусу и любые preventDefault на touchmove ломают это.
+      if (isTextEntryFocused()) return;
       if (window.scrollY > 0) return;
       const t = e.touches[0];
       if (!t) return;
@@ -39,6 +50,14 @@ export function usePullToRefresh({ onRefresh, threshold = 70, maxPull = 140, ena
 
     const onTouchMove = (e: TouchEvent) => {
       if (!trackingRef.current || refreshingRef.current) return;
+      if (isTextEntryFocused()) {
+        trackingRef.current = false;
+        if (status !== "idle") {
+          setStatus("idle");
+          setPull(0);
+        }
+        return;
+      }
       const t = e.touches[0];
       if (!t || startYRef.current == null) return;
       const dy = t.clientY - startYRef.current;

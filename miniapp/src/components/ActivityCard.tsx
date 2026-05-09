@@ -485,6 +485,26 @@ export function ActivityCard({
                       value={threadComposer.draft}
                       onChange={(e) => threadComposer.onDraftChange(e.target.value)}
                       maxLength={2000}
+                      onFocus={() => {
+                        // Страховка для iOS Telegram WebView: иногда нативный
+                        // scroll-into-view не докручивает поле над клавиатурой
+                        // (вложенные overflow-контейнеры + динамический layout).
+                        // Ждём, пока visualViewport стабилизируется, и докручиваем
+                        // окно ровно на дельту — без scrollIntoView и без smooth,
+                        // чтобы не было повторного скачка.
+                        window.setTimeout(() => {
+                          const ta = threadInputRef.current;
+                          const vv = window.visualViewport;
+                          if (!ta || !vv) return;
+                          const rect = ta.getBoundingClientRect();
+                          const visibleBottom = vv.offsetTop + vv.height;
+                          const PADDING = 14;
+                          const overflow = rect.bottom + PADDING - visibleBottom;
+                          if (overflow > 4) {
+                            window.scrollBy({ top: overflow, behavior: "auto" });
+                          }
+                        }, 320);
+                      }}
                       onKeyDown={(e) => {
                         if (e.key !== "Enter" || (!e.ctrlKey && !e.metaKey)) return;
                         e.preventDefault();
