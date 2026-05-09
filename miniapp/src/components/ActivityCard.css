@@ -631,7 +631,6 @@
   max-height: min(420px, 55vh);
   display: block;
   object-fit: contain;
-  background: #000;
 }
 
 .act-card__lightbox {

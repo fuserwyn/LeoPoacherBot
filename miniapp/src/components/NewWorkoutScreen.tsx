@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { WORKOUT_TYPES as TYPES } from "../lib/workoutCategories";
+import { PhotoCropper } from "./PhotoCropper";
 import "./NewWorkoutScreen.css";
 
 /** Высота шторки по видимой области (клавиатура). Debounce + порог: без ложных перерисовок при микродрожании viewport. */
@@ -99,6 +100,7 @@ export function NewWorkoutScreen({ onClose, onSave, showAlert }: Props) {
   const [otherLabel, setOtherLabel] = useState("");
   const [busy, setBusy] = useState(false);
   const [photo, setPhoto] = useState<File | null>(null);
+  const [pendingCrop, setPendingCrop] = useState<File | null>(null);
 
   /** Только если низ textarea ушёл под низ скролла — чуть увеличить scrollTop. Без scrollIntoView(start): иначе прыжок к началу формы. */
   const nudgeTextareaIntoView = useCallback(() => {
@@ -275,12 +277,33 @@ export function NewWorkoutScreen({ onClose, onSave, showAlert }: Props) {
               type="file"
               accept="image/*"
               title="Необязательно — стая увидит снимок в ленте"
-              onChange={(e) => setPhoto(e.target.files?.[0] ?? null)}
+              onChange={(e) => {
+                const f = e.target.files?.[0] ?? null;
+                if (f) setPendingCrop(f);
+                e.target.value = "";
+              }}
             />
             {photo ? (
-              <span className="nwo__photo-name" aria-live="polite">
-                {photo.name.length > 18 ? `${photo.name.slice(0, 16)}…` : photo.name}
-              </span>
+              <>
+                <span className="nwo__photo-name" aria-live="polite">
+                  {photo.name.length > 18 ? `${photo.name.slice(0, 16)}…` : photo.name}
+                </span>
+                <button
+                  type="button"
+                  className="nwo__photo-edit"
+                  onClick={() => setPendingCrop(photo)}
+                >
+                  Обрезать
+                </button>
+                <button
+                  type="button"
+                  className="nwo__photo-edit nwo__photo-edit--ghost"
+                  onClick={() => setPhoto(null)}
+                  aria-label="Убрать фото"
+                >
+                  ✕
+                </button>
+              </>
             ) : null}
           </div>
         </div>
@@ -344,6 +367,16 @@ export function NewWorkoutScreen({ onClose, onSave, showAlert }: Props) {
           {busy ? "Отправка…" : "Отправить отчёт"}
         </button>
       </footer>
+      {pendingCrop ? (
+        <PhotoCropper
+          file={pendingCrop}
+          onCancel={() => setPendingCrop(null)}
+          onConfirm={(cropped) => {
+            setPhoto(cropped);
+            setPendingCrop(null);
+          }}
+        />
+      ) : null}
     </div>
   );
 }

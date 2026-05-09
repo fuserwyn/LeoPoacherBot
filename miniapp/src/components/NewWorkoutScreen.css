@@ -325,6 +325,27 @@
   white-space: nowrap;
 }
 
+.nwo__photo-edit {
+  flex: 0 0 auto;
+  font: var(--nwo-mi-font);
+  font-weight: 600;
+  padding: 4px 10px;
+  border-radius: 8px;
+  border: 1px solid var(--border-subtle);
+  background: var(--card-inner);
+  color: var(--text);
+  cursor: pointer;
+}
+
+.nwo__photo-edit:active {
+  opacity: 0.85;
+}
+
+.nwo__photo-edit--ghost {
+  padding: 4px 8px;
+  color: var(--text-muted);
+}
+
 .nwo__note-block {
   flex: 0 0 auto;
   min-height: 0;

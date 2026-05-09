@@ -230,7 +230,12 @@ export function ActivityCard({
   const threadInputRef = useRef<HTMLTextAreaElement>(null);
   const [threadOpen, setThreadOpen] = useState(false);
   const [lightboxOpen, setLightboxOpen] = useState(false);
+  const [photoFailed, setPhotoFailed] = useState(false);
   const prevThreadLen = useRef(threadReplies.length);
+
+  useEffect(() => {
+    setPhotoFailed(false);
+  }, [trainingPhotoUrl]);
 
   useEffect(() => {
     if (threadReplies.length > prevThreadLen.current) {
@@ -296,12 +301,19 @@ export function ActivityCard({
         </p>
         {details.trim() !== "" && <p className="act-card__details">{details}</p>}
         {comment && <p className="act-card__comment">{comment}</p>}
-        {trainingPhotoUrl ? (
-          <button
-            type="button"
+        {trainingPhotoUrl && !photoFailed ? (
+          <div
             className="act-card__photo-wrap"
-            onClick={() => setLightboxOpen(true)}
+            role="button"
+            tabIndex={0}
             aria-label="Открыть фото"
+            onClick={() => setLightboxOpen(true)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" || e.key === " ") {
+                e.preventDefault();
+                setLightboxOpen(true);
+              }
+            }}
           >
             <img
               className="act-card__photo"
@@ -309,8 +321,9 @@ export function ActivityCard({
               alt=""
               loading="lazy"
               referrerPolicy="no-referrer"
+              onError={() => setPhotoFailed(true)}
             />
-          </button>
+          </div>
         ) : null}
         {aiText && (
           <div className="act-card__ai">
