@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState, type CSSProperties } from "react";
+import { usePullToRefresh } from "../hooks/usePullToRefresh";
 import { ActivityCard, type ActivityCardProps } from "./ActivityCard";
 import { PackGroupChatPanel } from "./PackGroupChatPanel";
 import {
@@ -35,6 +36,8 @@ type Props = {
   refreshToken?: number;
   /** ISO: возможный кик за неактивность (из profile/load). */
   inactivityRemovalAt?: string | null;
+  /** Перезагрузить общие данные (стрик, уровень, кубки) — вызывается при pull-to-refresh. */
+  onRefreshAll?: () => Promise<void> | void;
 };
 
 type Sub = "activity" | "room";
@@ -70,6 +73,7 @@ export function FeedScreen({
   showAlert,
   refreshToken = 0,
   inactivityRemovalAt = null,
+  onRefreshAll,
 }: Props) {
   const [sub, setSub] = useState<Sub>("activity");
 
@@ -372,6 +376,25 @@ export function FeedScreen({
   }, []);
 
   const removalHint = formatInactivityRemovalHint(inactivityRemovalAt ?? undefined);
+
+  const handlePullRefresh = useCallback(async () => {
+    hapticLight();
+    await Promise.all([load(), Promise.resolve(onRefreshAll?.())]);
+  }, [load, onRefreshAll, hapticLight]);
+
+  const ptr = usePullToRefresh({
+    onRefresh: handlePullRefresh,
+    enabled: sub === "activity",
+  });
+
+  const ptrStatusText =
+    ptr.status === "refreshing"
+      ? "Обновление…"
+      : ptr.status === "ready"
+        ? "Отпусти, чтобы обновить"
+        : ptr.status === "pulling"
+          ? "Тяни вниз"
+          : "";
 
   return (
     <div className="feed" style={viewportStyle}>
