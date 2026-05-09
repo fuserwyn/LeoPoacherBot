@@ -66,6 +66,65 @@ func sniffImageExt(header []byte) (ext string, ok bool) {
 	return "", false
 }
 
+func saveWorkoutPhotoFile(mediaDirAbsolute string, file io.ReadSeeker) (baseName string, errCode string) {
+	snippet := make([]byte, 32)
+	n, readErr := io.ReadFull(file, snippet)
+	if readErr != nil && !errors.Is(readErr, io.ErrUnexpectedEOF) && readErr != io.EOF {
+		return "", "photo_read_error"
+	}
+	snippet = snippet[:n]
+	ext, mimeOK := sniffImageExt(snippet)
+	if !mimeOK {
+		return "", "unsupported_image"
+	}
+	var token [16]byte
+	if _, err := rand.Read(token[:]); err != nil {
+		return "", "random_error"
+	}
+	baseName = hex.EncodeToString(token[:]) + ext
+	destAbs := filepath.Join(mediaDirAbsolute, baseName)
+	if err := os.MkdirAll(mediaDirAbsolute, 0750); err != nil {
+		return "", "media_dir_error"
+	}
+	out, err := os.Create(destAbs)
+	if err != nil {
+		return "", "media_write_error"
+	}
+	if _, err := out.Write(snippet); err != nil {
+		out.Close()
+		_ = os.Remove(destAbs)
+		return "", "media_write_error"
+	}
+	written := int64(n)
+	left := int64(maxWorkoutPhotoBytes - n)
+	// file уже стоит сразу после sniffed-заголовка. Пишем snippet один раз и копируем
+	// только остаток, иначе сохранённое изображение получает продублированный header.
+	nw64, cpErr := io.Copy(out, io.LimitReader(file, left))
+	out.Close()
+	if cpErr != nil {
+		_ = os.Remove(destAbs)
+		return "", "photo_copy_error"
+	}
+	written += nw64
+	// Важно: io.LimitReader просто обрезает поток на лимите.
+	// Проверяем, не осталось ли ещё байтов во входном файле, чтобы не сохранить битое изображение.
+	extra := make([]byte, 1)
+	extraN, extraErr := file.Read(extra)
+	if extraN > 0 {
+		_ = os.Remove(destAbs)
+		return "", "photo_too_large"
+	}
+	if extraErr != nil && extraErr != io.EOF {
+		_ = os.Remove(destAbs)
+		return "", "photo_read_error"
+	}
+	if written > maxWorkoutPhotoBytes {
+		_ = os.Remove(destAbs)
+		return "", "photo_too_large"
+	}
+	return baseName, ""
+}
+
 func (s *Server) handlePostWorkoutWithPhoto(w http.ResponseWriter, r *http.Request) {
 	corsWriteHeaders(w, r)
 	if s.bot == nil || s.token == "" {
@@ -128,70 +187,17 @@ func (s *Server) handlePostWorkoutWithPhoto(w http.ResponseWriter, r *http.Reque
 	}
 	defer file.Close()
 
-	snippet := make([]byte, 32)
-	n, readErr := io.ReadFull(file, snippet)
-	if readErr != nil && !errors.Is(readErr, io.ErrUnexpectedEOF) && readErr != io.EOF {
-		s.jsonErr(w, http.StatusBadRequest, "photo_read_error")
-		return
-	}
-	snippet = snippet[:n]
-	ext, mimeOK := sniffImageExt(snippet)
-	if !mimeOK {
-		s.jsonErr(w, http.StatusBadRequest, "unsupported_image")
-		return
-	}
-	var token [16]byte
-	if _, err := rand.Read(token[:]); err != nil {
-		s.jsonErr(w, http.StatusInternalServerError, "random_error")
-		return
-	}
-	baseName := hex.EncodeToString(token[:]) + ext
-	destAbs := filepath.Join(s.mediaDirAbsolute, baseName)
-	if err := os.MkdirAll(s.mediaDirAbsolute, 0750); err != nil {
-		s.logger.Errorf("miniapp media mkdir: %v", err)
-		s.jsonErr(w, http.StatusInternalServerError, "media_dir_error")
-		return
-	}
-	out, err := os.Create(destAbs)
-	if err != nil {
-		s.jsonErr(w, http.StatusInternalServerError, "media_write_error")
-		return
-	}
-	if _, err := out.Write(snippet); err != nil {
-		out.Close()
-		_ = os.Remove(destAbs)
-		s.jsonErr(w, http.StatusInternalServerError, "media_write_error")
-		return
-	}
-	written := int64(n)
-	left := int64(maxWorkoutPhotoBytes - n)
-	// file уже стоит сразу после sniffed-заголовка. Пишем snippet один раз и копируем
-	// только остаток, иначе сохранённое изображение получает продублированный header.
-	nw64, cpErr := io.Copy(out, io.LimitReader(file, left))
-	out.Close()
-	if cpErr != nil {
-		_ = os.Remove(destAbs)
-		s.jsonErr(w, http.StatusBadRequest, "photo_copy_error")
-		return
-	}
-	written += nw64
-	// Важно: io.LimitReader просто обрезает поток на лимите.
-	// Проверяем, не осталось ли ещё байтов во входном файле, чтобы не сохранить битое изображение.
-	extra := make([]byte, 1)
-	extraN, extraErr := file.Read(extra)
-	if extraN > 0 {
-		_ = os.Remove(destAbs)
-		s.jsonErr(w, http.StatusBadRequest, "photo_too_large")
-		return
-	}
-	if extraErr != nil && extraErr != io.EOF {
-		_ = os.Remove(destAbs)
-		s.jsonErr(w, http.StatusBadRequest, "photo_read_error")
-		return
-	}
-	if written > maxWorkoutPhotoBytes {
-		_ = os.Remove(destAbs)
-		s.jsonErr(w, http.StatusBadRequest, "photo_too_large")
+	baseName, saveErrCode := saveWorkoutPhotoFile(s.mediaDirAbsolute, file)
+	if saveErrCode != "" {
+		if saveErrCode == "media_dir_error" {
+			s.logger.Errorf("miniapp media mkdir: %s", s.mediaDirAbsolute)
+		}
+		status := http.StatusBadRequest
+		switch saveErrCode {
+		case "random_error", "media_dir_error", "media_write_error":
+			status = http.StatusInternalServerError
+		}
+		s.jsonErr(w, status, saveErrCode)
 		return
 	}
 
