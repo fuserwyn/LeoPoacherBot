@@ -296,10 +296,10 @@
   cursor: default;
 }
 
-/* Десктоп: лента занимает весь экран и раскладывается в авто-сетку — сама подбирает
-   2/3/4 колонки в зависимости от ширины окна (минимум 420px на колонку для читабельности).
-   Mine/them различает зелёный border у своих — chat-сдвиг в гриде теряет смысл. */
-@media (min-width: 1024px) {
+/* Шире мобилки — лента занимает весь экран. На ≥1024px добавляется авто-сетка
+   (2/3/4 колонки по ширине окна, минимум 420px на колонку). Mine/them различает
+   зелёный border у своих — chat-сдвиг в гриде теряет смысл. */
+@media (min-width: 600px) {
   .feed {
     max-width: none;
     padding-left: 16px;
@@ -309,6 +309,8 @@
     margin: -6px -16px 0;
     padding: 6px 16px 0;
   }
+}
+@media (min-width: 1024px) {
   .feed__list {
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(420px, 1fr));

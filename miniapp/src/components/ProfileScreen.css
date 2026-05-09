@@ -4,8 +4,8 @@
   margin: 0 auto;
 }
 
-/* Десктоп: профиль на всю ширину окна. */
-@media (min-width: 1024px) {
+/* Шире мобилки — профиль на всю ширину окна. */
+@media (min-width: 600px) {
   .profile {
     max-width: none;
     padding-left: 24px;

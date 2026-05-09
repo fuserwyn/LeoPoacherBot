@@ -285,8 +285,8 @@
   background: linear-gradient(180deg, transparent 0%, #0d0d12 24%);
 }
 
-/* Десктоп: чат и форма ввода — на всю ширину окна. */
-@media (min-width: 1024px) {
+/* Шире мобилки — чат и форма ввода на всю ширину окна. */
+@media (min-width: 600px) {
   .chat {
     max-width: none;
   }

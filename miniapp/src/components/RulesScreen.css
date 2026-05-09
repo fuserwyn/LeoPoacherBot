@@ -4,8 +4,8 @@
   margin: 0 auto;
 }
 
-/* Десктоп: правила тоже на всю ширину окна. */
-@media (min-width: 1024px) {
+/* Шире мобилки — правила тоже на всю ширину окна. */
+@media (min-width: 600px) {
   .rules {
     max-width: none;
     padding-left: 24px;
