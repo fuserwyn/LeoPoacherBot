@@ -36,6 +36,65 @@
   margin: 0;
 }
 
+.rules__section p + p,
+.rules__section p + .rules__table,
+.rules__section .rules__table + p {
+  margin-top: 8px;
+}
+
+.rules__section strong {
+  color: var(--text);
+  font-weight: 700;
+}
+
+.rules__note {
+  font-size: 13px;
+  color: var(--text-label);
+}
+
+.rules__table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+  line-height: 1.4;
+  color: var(--text);
+}
+
+.rules__table th,
+.rules__table td {
+  padding: 6px 8px;
+  border-bottom: 1px solid var(--border-subtle);
+  text-align: left;
+  vertical-align: top;
+}
+
+.rules__table thead th {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-label);
+  border-bottom-color: rgba(255, 255, 255, 0.14);
+}
+
+.rules__table tbody tr:last-child td {
+  border-bottom: none;
+}
+
+.rules__table-coeff {
+  color: var(--accent);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  width: 64px;
+}
+
+.rules__table-num {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
 .rules__h2 {
   font-size: 13px;
   font-weight: 600;

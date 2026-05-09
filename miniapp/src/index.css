@@ -21,10 +21,6 @@
      env(safe-area-inset-*) — фоллбэк для iOS WebView и обычного режима. */
   --safe-bottom: max(env(safe-area-inset-bottom, 0px), var(--tg-safe-area-inset-bottom, 0px), var(--tg-content-safe-area-inset-bottom, 0px));
   --safe-top: max(env(safe-area-inset-top, 0px), var(--tg-safe-area-inset-top, 0px), var(--tg-content-safe-area-inset-top, 0px));
-  /* Ширина «телефонной рамки» на десктопе — общий контейнер UI, кроме ленты. */
-  --app-frame-width: 520px;
-  /* На широких экранах лента может расходиться в 2 колонки. */
-  --feed-frame-width: 960px;
 }
 
 *,
@@ -126,17 +122,6 @@ button {
   gap: 8px;
 }
 
-/* Десктопная адаптация: на широких экранах не растягиваемся, центрируем «телефонной рамкой».
-   До 1024px — узкая рамка под мобильный макет; от 1024px — расширяемся, чтобы лента
-   могла раскладываться в 2 колонки (см. FeedScreen.css). */
-@media (min-width: 768px) {
-  #root {
-    max-width: var(--app-frame-width);
-    margin: 0 auto;
-  }
-}
-@media (min-width: 1024px) {
-  #root {
-    max-width: var(--feed-frame-width);
-  }
-}
+/* На десктопе раскрываемся во весь экран: #root без верхней границы по ширине.
+   Узкие экраны (ChatScreen/ProfileScreen/RulesScreen) ограничивают себя сами через
+   свой max-width и margin: 0 auto. Лента раскрывается в авто-сетку (см. FeedScreen.css). */

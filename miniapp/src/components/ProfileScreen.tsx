@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { miniappCupsLevelProgress, miniappLevelFromCups } from "../lib/miniappLevel";
+import { miniappCupsLevelProgress, miniappLevelFromCups, miniappLevelName } from "../lib/miniappLevel";
 import { formatInactivityRemovalHint } from "../lib/formatInactivityRemoval";
 import { cupsWordRu, daysWordRu } from "../lib/streakLabel";
 import "./ProfileScreen.css";
@@ -37,8 +37,6 @@ type Props = {
   showAlert: (m: string) => void;
 };
 
-const LEVEL_TITLE_RU = ["Новичок", "Любитель", "Стабильный", "Машина", "Легенда", "Легенда", "TBD"] as const;
-
 const ACHIEVEMENT_MILESTONES = [7, 14, 21, 28];
 
 export function ProfileScreen({
@@ -67,7 +65,7 @@ export function ProfileScreen({
   const [inactivityKickHint, setInactivityKickHint] = useState<string | null>(null);
 
   const cupProgress = miniappCupsLevelProgress(xp);
-  const levelTitle = LEVEL_TITLE_RU[miniappLevelFromCups(xp) - 1] ?? "TBD";
+  const levelTitle = miniappLevelName(miniappLevelFromCups(xp)) || "—";
   const barPct = Math.min(100, (cupProgress.cupsInSegment / cupProgress.cupsToNext) * 100);
 
   const load = useCallback(async () => {

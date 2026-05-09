@@ -32,15 +32,6 @@
   font-family: var(--font);
 }
 
-/* На десктопе модалка тренировки центрируется в «телефонной рамке», а не растягивается на весь экран. */
-@media (min-width: 768px) {
-  .nwo {
-    left: 50%;
-    right: auto;
-    transform: translateX(-50%);
-    max-width: var(--app-frame-width, 520px);
-  }
-}
 
 .nwo .chip {
   font-size: var(--nwo-chip-fs);

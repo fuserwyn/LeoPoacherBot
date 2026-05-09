@@ -4,6 +4,21 @@
  */
 export const CUP_LEVEL_STARTS: readonly number[] = [0, 420, 1260, 2940, 6300, 13020, 26460];
 
+/**
+ * Имена уровней-животных. Источник истины — leopardmoney.LevelNames на бэке
+ * (ms_leo/internal/game/leopardmoney/const.go). Индекс = номер уровня (1-based);
+ * "" на индексе 0 — нулевой уровень не используется.
+ * L7+ — endgame без отдельного имени животного, оставляем последнего «Слон».
+ */
+export const MINIAPP_LEVEL_NAMES: readonly string[] = ["", "Сурикат", "Газель", "Зебра", "Гепард", "Лев", "Слон"];
+
+/** Имя уровня по номеру 1-based; для L7+ возвращает «Слон» (endgame). */
+export function miniappLevelName(level: number): string {
+  if (level < 1) return "";
+  if (level >= MINIAPP_LEVEL_NAMES.length) return MINIAPP_LEVEL_NAMES[MINIAPP_LEVEL_NAMES.length - 1] ?? "";
+  return MINIAPP_LEVEL_NAMES[level] ?? "";
+}
+
 /** Размер сегмента L6→L7+ для прогресс-бара после входа в L7 (endgame). */
 const CUPS_SEGMENT_ENDGAME = 13440;
 

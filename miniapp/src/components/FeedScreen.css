@@ -296,16 +296,23 @@
   cursor: default;
 }
 
-/* Десктоп: лента раздвигается до 960px и идёт в 2 колонки. Mine/them различаются цветом
-   границы карточки (зелёный outline у своих) — горизонтальный «чат-сдвиг» теряет смысл в гриде. */
+/* Десктоп: лента занимает весь экран и раскладывается в авто-сетку — сама подбирает
+   2/3/4 колонки в зависимости от ширины окна (минимум 420px на колонку для читабельности).
+   Mine/them различает зелёный border у своих — chat-сдвиг в гриде теряет смысл. */
 @media (min-width: 1024px) {
   .feed {
-    max-width: var(--feed-frame-width, 960px);
+    max-width: none;
+    padding-left: 16px;
+    padding-right: 16px;
+  }
+  .feed__sticky {
+    margin: -6px -16px 0;
+    padding: 6px 16px 0;
   }
   .feed__list {
     display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 8px;
+    grid-template-columns: repeat(auto-fill, minmax(420px, 1fr));
+    gap: 10px;
     align-items: start;
   }
   .feed__card-slot {
