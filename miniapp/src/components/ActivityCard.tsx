@@ -229,16 +229,8 @@ export function ActivityCard({
   const threadBodyRef = useRef<HTMLDivElement>(null);
   const threadInputRef = useRef<HTMLTextAreaElement>(null);
   const [threadOpen, setThreadOpen] = useState(false);
+  const [lightboxOpen, setLightboxOpen] = useState(false);
   const prevThreadLen = useRef(threadReplies.length);
-
-  const revealComposer = () => {
-    const input = threadInputRef.current;
-    if (!input) return;
-
-    requestAnimationFrame(() => {
-      input.scrollIntoView({ block: "nearest", inline: "nearest", behavior: "smooth" });
-    });
-  };
 
   useEffect(() => {
     if (threadReplies.length > prevThreadLen.current) {
@@ -251,12 +243,26 @@ export function ActivityCard({
     prevThreadLen.current = threadReplies.length;
   }, [threadReplies.length]);
 
+  useEffect(() => {
+    if (!lightboxOpen) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setLightboxOpen(false);
+    };
+    document.addEventListener("keydown", onKey);
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.removeEventListener("keydown", onKey);
+      document.body.style.overflow = prev;
+    };
+  }, [lightboxOpen]);
+
   const showReact = reactions.length > 0 || onReactionClick != null;
   const hasThread = threadReplies.length > 0 || threadComposer != null;
   const threadCount = threadReplies.length;
   return (
     <article
-      className={`act-card${hideStreak ? " act-card--leo" : ""}${threadOpen && hasThread ? " act-card--thread-open" : ""}`}
+      className={`act-card${hideStreak ? " act-card--leo" : ""}${threadOpen && hasThread ? " act-card--thread-open" : ""}${trainingPhotoUrl ? " act-card--has-photo" : ""}`}
     >
       <header className="act-card__head">
         <div className="act-card__avatar" aria-hidden>
@@ -291,7 +297,12 @@ export function ActivityCard({
         {details.trim() !== "" && <p className="act-card__details">{details}</p>}
         {comment && <p className="act-card__comment">{comment}</p>}
         {trainingPhotoUrl ? (
-          <div className="act-card__photo-wrap">
+          <button
+            type="button"
+            className="act-card__photo-wrap"
+            onClick={() => setLightboxOpen(true)}
+            aria-label="Открыть фото"
+          >
             <img
               className="act-card__photo"
               src={trainingPhotoUrl}
@@ -299,7 +310,7 @@ export function ActivityCard({
               loading="lazy"
               referrerPolicy="no-referrer"
             />
-          </div>
+          </button>
         ) : null}
         {aiText && (
           <div className="act-card__ai">
@@ -410,7 +421,6 @@ export function ActivityCard({
                                         });
                                         window.setTimeout(() => {
                                           threadInputRef.current?.focus();
-                                          revealComposer();
                                         }, 80);
                                       }}
                                     >
@@ -461,7 +471,6 @@ export function ActivityCard({
                       }
                       value={threadComposer.draft}
                       onChange={(e) => threadComposer.onDraftChange(e.target.value)}
-                      onFocus={() => window.setTimeout(revealComposer, 120)}
                       maxLength={2000}
                       onKeyDown={(e) => {
                         if (e.key !== "Enter" || (!e.ctrlKey && !e.metaKey)) return;
@@ -489,6 +498,33 @@ export function ActivityCard({
           </div>
         )}
       </div>
+      {lightboxOpen && trainingPhotoUrl ? (
+        <div
+          className="act-card__lightbox"
+          role="dialog"
+          aria-modal="true"
+          onClick={() => setLightboxOpen(false)}
+        >
+          <button
+            type="button"
+            className="act-card__lightbox-close"
+            aria-label="Закрыть"
+            onClick={(e) => {
+              e.stopPropagation();
+              setLightboxOpen(false);
+            }}
+          >
+            ✕
+          </button>
+          <img
+            className="act-card__lightbox-img"
+            src={trainingPhotoUrl}
+            alt=""
+            referrerPolicy="no-referrer"
+            onClick={(e) => e.stopPropagation()}
+          />
+        </div>
+      ) : null}
     </article>
   );
 }

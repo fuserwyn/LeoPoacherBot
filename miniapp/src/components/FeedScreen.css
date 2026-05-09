@@ -29,11 +29,12 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 8px;
+  gap: 3px;
   width: fit-content;
   max-width: 100%;
   min-width: 0;
   margin: 0 auto;
+  transform: translateX(10px);
 }
 
 .feed__kick-hint {
@@ -49,7 +50,7 @@
   display: inline-flex;
   align-items: baseline;
   gap: 4px;
-  padding: 5px 10px;
+  padding: 5px 8px;
   border-radius: 999px;
   background: var(--card);
   border: 1px solid var(--border-subtle);
@@ -74,12 +75,13 @@
 .feed__streak {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 4px;
   background: var(--card);
   border: 1px solid var(--border-subtle);
-  padding: 5px 10px;
+  padding: 5px 8px;
   border-radius: 999px;
   flex-shrink: 0;
+  transform: translateX(3px);
 }
 
 .feed__streak-emoji {
