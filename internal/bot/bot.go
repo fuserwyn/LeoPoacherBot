@@ -294,9 +294,6 @@ func (b *Bot) handleCommand(msg *tgbotapi.Message) {
 		b.handleSendToChat(msg)
 	case "announce_ai":
 		b.handleAnnounceAI(msg)
-	case "send_wisdom":
-		reply := tgbotapi.NewMessage(msg.Chat.ID, "ℹ️ Рассылка мудрости дня отключена.")
-		b.api.Send(reply)
 	case "admin":
 		b.handleAdmin(msg)
 	case "audit_last24":
@@ -941,15 +938,13 @@ func (b *Bot) handleTrainingDone(msg *tgbotapi.Message) {
 			b.logger.Warnf("IncrementSolvedTasksCount: %v", incErr)
 			solvedTotal = messageLog.SolvedTasksCount
 		}
-		solvedLine := formatSolvedTasksTotalLine(chatType, solvedTotal)
-
 		// Новая тренировка БЕЗ achievement - готовим базовый текст
 		// Адаптируем текст в зависимости от типа чата
 		var messageText string
 		if chatType == "coding" {
-			messageText = fmt.Sprintf("✅ Отчёт принят!\n\n🦁 Серия coding-сессий: %d дней\n🏆 +1 кубок за coding-сессию\n🏆 Всего кубков: %d\n📊 Всего отчётов: %d\n%s\n\n⏰ Таймер перезапускается на 7 дней", newStreakDays, currentCups, solvedTotal, solvedLine)
+			messageText = fmt.Sprintf("✅ Отчёт принят! 💪\n🦁 Ты тренируешься дней подряд: %d, всего тренировок: %d\n🏆 +1 кубок за тренировку!\n🏆 Всего кубков: %d", newStreakDays, solvedTotal, currentCups)
 		} else {
-			messageText = fmt.Sprintf("✅ Отчёт принят! 💪\n\n🦁 Ты тренируешься дней подряд: %d\n🏆 +1 кубок за тренировку!\n🏆 Всего кубков: %d\n📊 Всего тренировок: %d\n%s\n\n⏰ Таймер перезапускается на 7 дней", newStreakDays, currentCups, solvedTotal, solvedLine)
+			messageText = fmt.Sprintf("✅ Отчёт принят! 💪\n🦁 Ты тренируешься дней подряд: %d, всего тренировок: %d\n🏆 +1 кубок за тренировку!\n🏆 Всего кубков: %d", newStreakDays, solvedTotal, currentCups)
 		}
 
 		// Дополняем короткой ИИ-припиской по текущему контексту
@@ -1088,19 +1083,13 @@ func (b *Bot) handleTrainingDone(msg *tgbotapi.Message) {
 
 			if aiResponse, err := b.aiClient.AnswerReportAddendum(question, ctxBuilder.String(), chatType); err == nil {
 				aiResponse = strings.TrimSpace(strings.ReplaceAll(aiResponse, "**", ""))
+				aiResponse = firstSentence(aiResponse)
 				if aiResponse != "" {
 					messageText = messageText + "\n\n" + aiResponse
 				}
 			} else {
 				b.logger.Warnf("AI response generation failed: %v", err)
 			}
-		}
-
-		// Добавляем фразу о продолжении в самом конце
-		if chatType == "coding" {
-			messageText = messageText + "\n\n🎯 Продолжай кодить и не забывай отправлять #coding_done!"
-		} else {
-			messageText = messageText + "\n\n🎯 Продолжай тренироваться и не забывай отправлять #training_done!"
 		}
 
 		reply := tgbotapi.NewMessage(msg.Chat.ID, messageText)
@@ -1237,6 +1226,7 @@ func (b *Bot) handleTrainingDone(msg *tgbotapi.Message) {
 
 			if aiResponse, err := b.aiClient.AnswerReportAddendum(question, ctxBuilder.String(), chatType); err == nil {
 				aiResponse = strings.TrimSpace(strings.ReplaceAll(aiResponse, "**", ""))
+				aiResponse = firstSentence(aiResponse)
 				if aiResponse != "" {
 					messageText = messageText + "\n\n" + aiResponse
 				}
@@ -2457,17 +2447,6 @@ func (b *Bot) startDailySummaryScheduler(ctx context.Context) {
 	}
 }
 
-// startDailyWisdomScheduler intentionally disabled.
-func (b *Bot) startDailyWisdomScheduler(ctx context.Context) {
-	_ = ctx
-	b.logger.Info("Daily wisdom scheduler is disabled")
-}
-
-// generateAndSendDailyWisdom intentionally disabled.
-func (b *Bot) generateAndSendDailyWisdom() {
-	b.logger.Info("Daily wisdom broadcast is disabled")
-}
-
 // auditLast24h проверяет сообщения за последние 24 часа и отправляет пропущенные подтверждения (без повторных начислений)
 func (b *Bot) auditLast24h() {
 	loc, _ := time.LoadLocation("Europe/Moscow")
@@ -2609,12 +2588,11 @@ func (b *Bot) auditProcessTrainingDone(um *domain.UserMessage) {
 			b.logger.Warnf("audit IncrementSolvedTasksCount: %v", incErr)
 			solvedTotal = messageLog.SolvedTasksCount
 		}
-		solvedLine := formatSolvedTasksTotalLine(chatType, solvedTotal)
 		var text string
 		if chatType == "coding" {
-			text = fmt.Sprintf("✅ Отчёт принят!\n\n🦁 Серия coding-сессий: %d дней\n🏆 +1 кубок за coding-сессию\n🏆 Всего кубков: %d\n📊 Всего отчётов: %d\n%s\n\n⏰ Таймер перезапускается на 7 дней", newStreakDays, currentCups, solvedTotal, solvedLine)
+			text = fmt.Sprintf("✅ Отчёт принят! 💪\n🦁 Ты тренируешься дней подряд: %d, всего тренировок: %d\n🏆 +1 кубок за тренировку!\n🏆 Всего кубков: %d", newStreakDays, solvedTotal, currentCups)
 		} else {
-			text = fmt.Sprintf("✅ Отчёт принят! 💪\n\n🦁 Ты тренируешься дней подряд: %d\n🏆 +1 кубок за тренировку!\n🏆 Всего кубков: %d\n📊 Всего тренировок: %d\n%s\n\n⏰ Таймер перезапускается на 7 дней", newStreakDays, currentCups, solvedTotal, solvedLine)
+			text = fmt.Sprintf("✅ Отчёт принят! 💪\n🦁 Ты тренируешься дней подряд: %d, всего тренировок: %d\n🏆 +1 кубок за тренировку!\n🏆 Всего кубков: %d", newStreakDays, solvedTotal, currentCups)
 		}
 		b.api.Send(tgbotapi.NewMessage(um.ChatID, text))
 	} else {
@@ -3874,6 +3852,19 @@ func (b *Bot) getVariedWisdomPrompt(streakDays, totalCalories, totalCups int) st
 	// Выбираем случайный промпт
 	selectedPrompt := prompts[now.Unix()%int64(len(prompts))]
 	return selectedPrompt
+}
+
+func firstSentence(text string) string {
+	text = strings.TrimSpace(text)
+	if text == "" {
+		return ""
+	}
+	for i, r := range text {
+		if r == '.' || r == '!' || r == '?' {
+			return strings.TrimSpace(text[:i+1])
+		}
+	}
+	return text
 }
 
 // updateUserGender обновляет пол пользователя в базе данных
