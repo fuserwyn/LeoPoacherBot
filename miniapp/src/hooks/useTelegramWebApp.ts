@@ -25,6 +25,21 @@ export function useTelegramWebApp() {
     }
     w.ready();
     w.expand();
+    // Bot API 8.0+: полноэкранный режим без зазора сверху. На старых клиентах метод отсутствует — фоллбэк на expand().
+    const isV8 = typeof w.isVersionAtLeast === "function" ? w.isVersionAtLeast("8.0") : false;
+    if (isV8) {
+      try {
+        w.requestFullscreen?.();
+      } catch {
+        /* ignore — не все клиенты (TG Desktop) поддерживают fullscreen */
+      }
+    }
+    // Чтобы случайный свайп вниз не сворачивал аппу. Доступно с 7.7.
+    try {
+      w.disableVerticalSwipes?.();
+    } catch {
+      /* no-op */
+    }
     w.setHeaderColor?.("#0d0d12");
     w.setBackgroundColor?.("#0d0d12");
     setInitData(w.initData ?? "");

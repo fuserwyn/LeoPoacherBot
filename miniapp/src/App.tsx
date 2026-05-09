@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useTelegramWebApp } from "./hooks/useTelegramWebApp";
 import { BottomNav } from "./components/BottomNav";
 import { ChatScreen } from "./components/ChatScreen";
@@ -11,6 +11,7 @@ import { fetchLeoPendingCount } from "./lib/leoPersonalInbox";
 import { clearFeedThreadUnread, fetchFeedThreadUnreadCount } from "./lib/feedThreadUnread";
 import { miniappLevelFromCups } from "./lib/miniappLevel";
 import { ensureMiniappOnboarding } from "./lib/miniappOnboarding";
+import { syncTimezoneIfNeeded } from "./lib/timezoneSync";
 import "./App.css";
 
 type Tab = "chat" | "feed" | "rules" | "profile";
@@ -34,6 +35,7 @@ export function App() {
   const [feedUnread, setFeedUnread] = useState(0);
   const [feedRefreshToken, setFeedRefreshToken] = useState(0);
   const [inactivityRemovalAt, setInactivityRemovalAt] = useState<string | null>(null);
+  const tzSyncedRef = useRef(false);
 
   const refreshTabBadges = useCallback(async () => {
     if (!inTelegram || !initData?.trim()) {
@@ -65,6 +67,7 @@ export function App() {
         workouts_total?: number;
         workouts_week?: number;
         inactivity_removal_at?: string;
+        timezone_offset?: number;
       };
       if (!res.ok || !j.ok) return;
       setInactivityRemovalAt(typeof j.inactivity_removal_at === "string" ? j.inactivity_removal_at : null);
@@ -75,6 +78,12 @@ export function App() {
       setAchievementsMax(typeof j.achievements_max === "number" ? j.achievements_max : 4);
       setWorkouts(typeof j.workouts_total === "number" ? j.workouts_total : 0);
       setWorkoutsWeek(typeof j.workouts_week === "number" ? j.workouts_week : 0);
+      // Одноразовое автоопределение TZ для пользователей без явно выставленного смещения.
+      if (!tzSyncedRef.current) {
+        tzSyncedRef.current = true;
+        const currentOffset = typeof j.timezone_offset === "number" ? j.timezone_offset : 0;
+        void syncTimezoneIfNeeded(initData, currentOffset);
+      }
     } catch {
       return;
     }

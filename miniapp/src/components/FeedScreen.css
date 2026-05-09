@@ -295,3 +295,26 @@
   opacity: 0.45;
   cursor: default;
 }
+
+/* Десктоп: лента раздвигается до 960px и идёт в 2 колонки. Mine/them различаются цветом
+   границы карточки (зелёный outline у своих) — горизонтальный «чат-сдвиг» теряет смысл в гриде. */
+@media (min-width: 1024px) {
+  .feed {
+    max-width: var(--feed-frame-width, 960px);
+  }
+  .feed__list {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+    align-items: start;
+  }
+  .feed__card-slot {
+    width: 100%;
+  }
+  .feed__card-slot .act-card {
+    width: 100%;
+    max-width: 100%;
+    margin-left: 0;
+    margin-right: 0;
+  }
+}

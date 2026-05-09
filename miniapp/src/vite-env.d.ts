@@ -30,6 +30,15 @@ interface TelegramWebApp {
   viewportStableHeight?: number;
   ready: () => void;
   expand: () => void;
+  /** Полноэкранный режим (Bot API ≥ 8.0). На старых клиентах метод отсутствует. */
+  requestFullscreen?: () => void;
+  exitFullscreen?: () => void;
+  isFullscreen?: boolean;
+  /** Запрещает свайп-вниз для сворачивания. Доступно с Bot API 7.7. */
+  disableVerticalSwipes?: () => void;
+  enableVerticalSwipes?: () => void;
+  /** Сравнивает версию Bot API; вернёт false если метод не поддержан. */
+  isVersionAtLeast?: (version: string) => boolean;
   setHeaderColor: (color: string) => void;
   setBackgroundColor: (color: string) => void;
   onEvent: (event: string, handler: () => void) => void;
