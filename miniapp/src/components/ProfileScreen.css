@@ -4,6 +4,15 @@
   margin: 0 auto;
 }
 
+/* Десктоп: профиль на всю ширину окна. */
+@media (min-width: 1024px) {
+  .profile {
+    max-width: none;
+    padding-left: 24px;
+    padding-right: 24px;
+  }
+}
+
 .profile__hero {
   text-align: center;
   margin-bottom: 20px;

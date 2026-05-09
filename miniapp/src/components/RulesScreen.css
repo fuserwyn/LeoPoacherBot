@@ -4,6 +4,15 @@
   margin: 0 auto;
 }
 
+/* Десктоп: правила тоже на всю ширину окна. */
+@media (min-width: 1024px) {
+  .rules {
+    max-width: none;
+    padding-left: 24px;
+    padding-right: 24px;
+  }
+}
+
 .rules__header {
   margin-bottom: 20px;
   padding-top: 4px;
