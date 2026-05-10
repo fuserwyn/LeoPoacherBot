@@ -23,9 +23,9 @@
   max-height: calc(100dvh - var(--bottom-nav-h, 72px));
   display: flex;
   flex-direction: column;
-  /* Резервируем место под видимую часть формы ввода (~52px); её padding-bottom
-     перекрывается BottomNav, поэтому добавлять навигацию сюда не нужно. */
-  padding: 0 0 52px;
+  /* Видимая часть формы (input + paddings) ~52px, плюс ~16px зазор, чтобы последнее
+     сообщение не уезжало под прозрачный градиент сверху формы. */
+  padding: 0 0 68px;
   max-width: 480px;
   margin: 0 auto;
   box-sizing: border-box;
