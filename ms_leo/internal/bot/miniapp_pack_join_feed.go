@@ -17,8 +17,14 @@ const (
 )
 
 // Текст для ленты стаи: короткое объявление (приветствие остаётся только в личке).
-func packJoinMiniappFeedPublicText() string {
-	return "В стае новый участник."
+// displayName — это «@username» или «Имя Фамилия» из displayNameFromInitData; пустую
+// строку обрабатываем фоллбэком, чтобы не вылезло «: .» в карточке.
+func packJoinMiniappFeedPublicText(displayName string) string {
+	d := strings.TrimSpace(displayName)
+	if d == "" {
+		return "В стае новый участник."
+	}
+	return fmt.Sprintf("В стае новый участник: %s.", d)
 }
 
 func packRejoinMiniappFeedPublicText() string {

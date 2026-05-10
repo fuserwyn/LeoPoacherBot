@@ -113,7 +113,7 @@ func (b *Bot) EnsureMiniAppOnboarding(d initdata.InitData) (MiniAppOnboardingRes
 			userID,
 			username,
 			userMessageTypePackJoin,
-			packJoinMiniappFeedPublicText(),
+			packJoinMiniappFeedPublicText(username),
 			packJoinMiniappWelcomeText(username),
 		)
 	}

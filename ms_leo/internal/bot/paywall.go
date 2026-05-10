@@ -1044,7 +1044,7 @@ func (b *Bot) paywallDeliverAccessAfterPayment(userID int64, paywallRequestID in
 			userID,
 			username,
 			userMessageTypePackJoin,
-			packJoinMiniappFeedPublicText(),
+			packJoinMiniappFeedPublicText(username),
 			"",
 		)
 	}
