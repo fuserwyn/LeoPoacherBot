@@ -111,6 +111,7 @@ export function ChatScreen({ name, initData, inTelegram, showAlert, onInboxDrain
   const [loaded, setLoaded] = useState(false);
   const logRef = useRef<HTMLDivElement | null>(null);
   const endRef = useRef<HTMLDivElement | null>(null);
+  const inputRef = useRef<HTMLInputElement | null>(null);
   const didInitialScrollRef = useRef(false);
   /** true — после отправки сообщения пользователем: всегда скроллим вниз, даже если был наверху */
   const forceScrollRef = useRef(false);
@@ -121,19 +122,29 @@ export function ChatScreen({ name, initData, inTelegram, showAlert, onInboxDrain
   /** bottom-offset для формы ввода: undefined = CSS-дефолт (над BottomNav), число = над клавиатурой */
   const [formBottom, setFormBottom] = useState<number | undefined>(undefined);
 
-  // visualViewport даёт реальную высоту видимой зоны — работает и на iOS WKWebView.
+  // visualViewport — реальная видимая зона (в т.ч. iOS WKWebView).
+  // Поднимаем форму над клавиатурой только при фокусе на input: иначе ложное срабатывание
+  // ловится когда Telegram сужает visualViewport (нижняя swipe-зона) и форма «улетает» вверх.
   useEffect(() => {
     const vv = window.visualViewport;
     if (!vv) return;
     const update = () => {
       const kbH = Math.max(0, Math.floor(window.innerHeight - vv.height - vv.offsetTop));
       setChatH(Math.floor(vv.height) - 8);
-      // Клавиатура открыта (>50px) — позиционируем форму прямо над ней.
-      setFormBottom(kbH > 50 ? kbH + 4 : undefined);
+      const focused = document.activeElement === inputRef.current;
+      setFormBottom(focused && kbH > 50 ? kbH + 4 : undefined);
     };
     vv.addEventListener("resize", update);
+    vv.addEventListener("scroll", update);
+    document.addEventListener("focusin", update);
+    document.addEventListener("focusout", update);
     update();
-    return () => vv.removeEventListener("resize", update);
+    return () => {
+      vv.removeEventListener("resize", update);
+      vv.removeEventListener("scroll", update);
+      document.removeEventListener("focusin", update);
+      document.removeEventListener("focusout", update);
+    };
   }, []);
 
   useEffect(() => {
@@ -434,6 +445,7 @@ export function ChatScreen({ name, initData, inTelegram, showAlert, onInboxDrain
         }}
       >
         <input
+          ref={inputRef}
           className="chat__input"
           value={text}
           onChange={(e) => setText(e.target.value)}

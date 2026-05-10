@@ -24,8 +24,8 @@
   min-height: calc(100dvh - 8px);
   display: flex;
   flex-direction: column;
-  /* Нижний отступ резервирует место для фиксированной формы ввода (≈66px) + BottomNav (≈72px). */
-  padding: 0 0 120px;
+  /* Нижний отступ резервирует место под фиксированную форму ввода (~66px) + BottomNav (var). */
+  padding: 0 0 calc(66px + var(--bottom-nav-h, 72px));
   max-width: 480px;
   margin: 0 auto;
   box-sizing: border-box;
@@ -274,7 +274,7 @@
   /* position: fixed — форма не уходит при скролле документа (iOS touch propagation).
      bottom обновляется через inline-style при открытой клавиатуре (visualViewport). */
   position: fixed;
-  bottom: 72px;
+  bottom: var(--bottom-nav-h, 72px);
   left: 0;
   right: 0;
   max-width: 480px;
