@@ -7,7 +7,7 @@
   display: flex;
   align-items: flex-end;
   justify-content: space-around;
-  padding: 8px 10px calc(10px + var(--safe-bottom, env(safe-area-inset-bottom, 0px)));
+  padding: 2px 10px calc(10px + var(--safe-bottom, env(safe-area-inset-bottom, 0px)));
   gap: 0;
   background: var(--nav-bg);
   backdrop-filter: blur(16px);

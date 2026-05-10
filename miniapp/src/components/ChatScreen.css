@@ -280,7 +280,7 @@
   margin: 0 auto;
   display: flex;
   gap: 8px;
-  padding: 10px 12px 12px;
+  padding: 6px 12px 2px;
   background: linear-gradient(180deg, transparent 0%, #0d0d12 24%);
 }
 
