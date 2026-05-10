@@ -17,15 +17,11 @@
 }
 
 .chat {
-  /* Высота задаётся через inline-style из visualViewport (учитывает клавиатуру).
-     Fallback: calc(100dvh - 8px) когда JS ещё не отработал или недоступен. */
-  height: calc(100dvh - 8px);
-  max-height: calc(100dvh - 8px);
-  min-height: calc(100dvh - 8px);
+  /* Высота задаётся через inline-style из visualViewport.
+     Без клавиатуры — layout - var(--bottom-nav-h), с клавиатурой — vv.height.
+     Форма ввода — последний flex-элемент, поэтому всегда прижата к низу. */
   display: flex;
   flex-direction: column;
-  /* Нижний отступ резервирует место под фиксированную форму ввода (~66px) + BottomNav (var). */
-  padding: 0 0 calc(66px + var(--bottom-nav-h, 72px));
   max-width: 480px;
   margin: 0 auto;
   box-sizing: border-box;
@@ -271,26 +267,18 @@
 }
 
 .chat__form {
-  /* position: fixed — форма не уходит при скролле документа (iOS touch propagation).
-     bottom обновляется через inline-style при открытой клавиатуре (visualViewport). */
-  position: fixed;
-  bottom: var(--bottom-nav-h, 72px);
-  left: 0;
-  right: 0;
-  max-width: 480px;
-  margin: 0 auto;
+  /* Последний flex-элемент в .chat — flex-shrink:0 фиксирует высоту, форма всегда снизу
+     (над BottomNav без клавиатуры, над клавиатурой когда .chat ужат до vv.height). */
+  flex: 0 0 auto;
   display: flex;
   gap: 8px;
   padding: 10px 12px 12px;
   background: linear-gradient(180deg, transparent 0%, #0d0d12 24%);
 }
 
-/* Шире мобилки — чат и форма ввода на всю ширину окна. */
+/* Шире мобилки — чат на всю ширину окна. */
 @media (min-width: 600px) {
   .chat {
-    max-width: none;
-  }
-  .chat__form {
     max-width: none;
   }
 }

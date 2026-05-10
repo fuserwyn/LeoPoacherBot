@@ -111,39 +111,26 @@ export function ChatScreen({ name, initData, inTelegram, showAlert, onInboxDrain
   const [loaded, setLoaded] = useState(false);
   const logRef = useRef<HTMLDivElement | null>(null);
   const endRef = useRef<HTMLDivElement | null>(null);
-  const inputRef = useRef<HTMLInputElement | null>(null);
   const didInitialScrollRef = useRef(false);
   /** true — после отправки сообщения пользователем: всегда скроллим вниз, даже если был наверху */
   const forceScrollRef = useRef(false);
   /** max(server_id) перед отправкой пользователя — новый ответ Лео с id выше этого. */
   const baselineMaxForPendingLeoRef = useRef(0);
   /** Высота видимой области (ужимается при открытии клавиатуры) */
-  const [chatH, setChatH] = useState<number | undefined>(undefined);
-  /** bottom-offset для формы ввода: undefined = CSS-дефолт (над BottomNav), число = над клавиатурой */
-  const [formBottom, setFormBottom] = useState<number | undefined>(undefined);
+  const [viewportH, setViewportH] = useState<number | undefined>(undefined);
 
-  // visualViewport — реальная видимая зона (в т.ч. iOS WKWebView).
-  // Поднимаем форму над клавиатурой только при фокусе на input: иначе ложное срабатывание
-  // ловится когда Telegram сужает visualViewport (нижняя swipe-зона) и форма «улетает» вверх.
+  // visualViewport — реальная видимая зона (учитывает клавиатуру, в т.ч. iOS WKWebView).
+  // Высоту .chat подгоняем под неё, форма ввода — последний flex-элемент, поэтому всегда снизу.
   useEffect(() => {
     const vv = window.visualViewport;
     if (!vv) return;
-    const update = () => {
-      const kbH = Math.max(0, Math.floor(window.innerHeight - vv.height - vv.offsetTop));
-      setChatH(Math.floor(vv.height) - 8);
-      const focused = document.activeElement === inputRef.current;
-      setFormBottom(focused && kbH > 50 ? kbH + 4 : undefined);
-    };
+    const update = () => setViewportH(Math.floor(vv.height));
     vv.addEventListener("resize", update);
     vv.addEventListener("scroll", update);
-    document.addEventListener("focusin", update);
-    document.addEventListener("focusout", update);
     update();
     return () => {
       vv.removeEventListener("resize", update);
       vv.removeEventListener("scroll", update);
-      document.removeEventListener("focusin", update);
-      document.removeEventListener("focusout", update);
     };
   }, []);
 
@@ -351,10 +338,13 @@ export function ChatScreen({ name, initData, inTelegram, showAlert, onInboxDrain
 
   const showTypingCue = sending || leoTyping;
 
-  const chatStyle = chatH != null
-    ? { height: chatH, maxHeight: chatH, minHeight: chatH }
-    : undefined;
-  const formStyle = formBottom != null ? { bottom: formBottom } : undefined;
+  // Без клавиатуры: высота = layout - таббар (BottomNav остаётся видимым).
+  // С клавиатурой: vv.height (BottomNav за клавиатурой, форма прижата к её верху).
+  const chatStyle = {
+    height: viewportH != null
+      ? `min(${viewportH}px, calc(100dvh - var(--bottom-nav-h, 0px)))`
+      : `calc(100dvh - var(--bottom-nav-h, 0px))`,
+  };
 
   return (
     <div className="chat" style={chatStyle}>
@@ -438,14 +428,12 @@ export function ChatScreen({ name, initData, inTelegram, showAlert, onInboxDrain
       </div>
       <form
         className="chat__form"
-        style={formStyle}
         onSubmit={(e) => {
           e.preventDefault();
           void send();
         }}
       >
         <input
-          ref={inputRef}
           className="chat__input"
           value={text}
           onChange={(e) => setText(e.target.value)}
