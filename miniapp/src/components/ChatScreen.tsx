@@ -116,23 +116,6 @@ export function ChatScreen({ name, initData, inTelegram, showAlert, onInboxDrain
   const forceScrollRef = useRef(false);
   /** max(server_id) перед отправкой пользователя — новый ответ Лео с id выше этого. */
   const baselineMaxForPendingLeoRef = useRef(0);
-  /** Высота видимой области (ужимается при открытии клавиатуры) */
-  const [viewportH, setViewportH] = useState<number | undefined>(undefined);
-
-  // visualViewport — реальная видимая зона (учитывает клавиатуру, в т.ч. iOS WKWebView).
-  // Высоту .chat подгоняем под неё, форма ввода — последний flex-элемент, поэтому всегда снизу.
-  useEffect(() => {
-    const vv = window.visualViewport;
-    if (!vv) return;
-    const update = () => setViewportH(Math.floor(vv.height));
-    vv.addEventListener("resize", update);
-    vv.addEventListener("scroll", update);
-    update();
-    return () => {
-      vv.removeEventListener("resize", update);
-      vv.removeEventListener("scroll", update);
-    };
-  }, []);
 
   useEffect(() => {
     const el = logRef.current;
@@ -338,16 +321,8 @@ export function ChatScreen({ name, initData, inTelegram, showAlert, onInboxDrain
 
   const showTypingCue = sending || leoTyping;
 
-  // Без клавиатуры: высота = layout - таббар (BottomNav остаётся видимым).
-  // С клавиатурой: vv.height (BottomNav за клавиатурой, форма прижата к её верху).
-  const chatStyle = {
-    height: viewportH != null
-      ? `min(${viewportH}px, calc(100dvh - var(--bottom-nav-h, 0px)))`
-      : `calc(100dvh - var(--bottom-nav-h, 0px))`,
-  };
-
   return (
-    <div className="chat" style={chatStyle}>
+    <div className="chat">
       {!import.meta.env.VITE_MINIAPP_API_URL && (
         <div className="chat__configwarn" role="status">
           Нет <code className="chat__code">VITE_MINIAPP_API_URL</code> при сборке. В Railway → сервис

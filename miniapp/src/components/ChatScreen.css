@@ -17,11 +17,14 @@
 }
 
 .chat {
-  /* Высота задаётся через inline-style из visualViewport.
-     Без клавиатуры — layout - var(--bottom-nav-h), с клавиатурой — vv.height.
-     Форма ввода — последний flex-элемент, поэтому всегда прижата к низу. */
+  /* Высота = layout - таббар. Форма ввода фиксирована над таббаром, iOS Telegram
+     при открытии клавиатуры сам поднимает оба position:fixed-элемента над ней. */
+  height: calc(100dvh - var(--bottom-nav-h, 72px));
+  max-height: calc(100dvh - var(--bottom-nav-h, 72px));
   display: flex;
   flex-direction: column;
+  /* Резервируем место под фиксированную форму ввода (~66px). */
+  padding: 0 0 66px;
   max-width: 480px;
   margin: 0 auto;
   box-sizing: border-box;
@@ -267,18 +270,26 @@
 }
 
 .chat__form {
-  /* Последний flex-элемент в .chat — flex-shrink:0 фиксирует высоту, форма всегда снизу
-     (над BottomNav без клавиатуры, над клавиатурой когда .chat ужат до vv.height). */
-  flex: 0 0 auto;
+  /* Зафиксирована прямо над таббаром. iOS Telegram при открытии клавиатуры
+     сам поднимает position:fixed элементы над ней — форма едет вместе с BottomNav. */
+  position: fixed;
+  bottom: var(--bottom-nav-h, 72px);
+  left: 0;
+  right: 0;
+  max-width: 480px;
+  margin: 0 auto;
   display: flex;
   gap: 8px;
   padding: 10px 12px 12px;
   background: linear-gradient(180deg, transparent 0%, #0d0d12 24%);
 }
 
-/* Шире мобилки — чат на всю ширину окна. */
+/* Шире мобилки — чат и форма ввода на всю ширину окна. */
 @media (min-width: 600px) {
   .chat {
+    max-width: none;
+  }
+  .chat__form {
     max-width: none;
   }
 }
