@@ -1,3 +1,4 @@
+import { useLayoutEffect, useRef } from "react";
 import "./BottomNav.css";
 
 type Tab = "chat" | "feed" | "rules" | "profile";
@@ -27,8 +28,25 @@ export function BottomNav({
 }: Props) {
   const leoBadge = leoBadgeCount > 0 ? (leoBadgeCount > 9 ? "9+" : String(leoBadgeCount)) : null;
   const feedBadge = feedBadgeCount > 0 ? (feedBadgeCount > 9 ? "9+" : String(feedBadgeCount)) : null;
+  const navRef = useRef<HTMLElement>(null);
+
+  // Публикуем высоту таббара в --bottom-nav-h, чтобы оверлеи (например, #training_done) могли её зарезервировать.
+  useLayoutEffect(() => {
+    const el = navRef.current;
+    if (!el) return;
+    const root = document.documentElement;
+    const write = () => root.style.setProperty("--bottom-nav-h", `${el.getBoundingClientRect().height}px`);
+    write();
+    const ro = new ResizeObserver(write);
+    ro.observe(el);
+    return () => {
+      ro.disconnect();
+      root.style.removeProperty("--bottom-nav-h");
+    };
+  }, []);
+
   return (
-    <nav className="bottom-nav" role="navigation" aria-label="Основное меню">
+    <nav ref={navRef} className="bottom-nav" role="navigation" aria-label="Основное меню">
       <button
         type="button"
         className={`bottom-nav__item ${active === "feed" ? "is-active" : ""}`}

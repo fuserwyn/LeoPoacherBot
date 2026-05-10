@@ -152,7 +152,15 @@ export function NewWorkoutScreen({ onClose, onSave, showAlert }: Props) {
   }, []);
 
   return (
-    <div className="nwo" style={{ height: viewportH, maxHeight: viewportH }}>
+    <div
+      className="nwo"
+      style={{
+        // Без клавиатуры: layout - таббар (BottomNav остаётся видимым).
+        // С клавиатурой: visualViewport.height — таббар и так скрыт за клавиатурой.
+        height: `min(${viewportH}px, calc(100dvh - var(--bottom-nav-h, 0px)))`,
+        maxHeight: `min(${viewportH}px, calc(100dvh - var(--bottom-nav-h, 0px)))`,
+      }}
+    >
       <header className="nwo__head">
         <button type="button" className="nwo__close" onClick={onClose} aria-label="Закрыть">
           ✕
