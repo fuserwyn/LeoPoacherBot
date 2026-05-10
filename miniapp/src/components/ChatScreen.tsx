@@ -117,6 +117,15 @@ export function ChatScreen({ name, initData, inTelegram, showAlert, onInboxDrain
   /** max(server_id) перед отправкой пользователя — новый ответ Лео с id выше этого. */
   const baselineMaxForPendingLeoRef = useRef(0);
 
+  // iOS WebKit: при rubber-band-скролле документа каретка фокусированного position:fixed
+  // инпута визуально уезжает вверх. Пока чат смонтирован — лочим body, скроллится только .chat__log.
+  useEffect(() => {
+    document.body.classList.add("body--lock");
+    return () => {
+      document.body.classList.remove("body--lock");
+    };
+  }, []);
+
   useEffect(() => {
     const el = logRef.current;
     if (!el || !loaded) return;
