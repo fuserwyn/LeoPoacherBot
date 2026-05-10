@@ -580,6 +580,14 @@
   );
 }
 
+.act-card__thread-input:focus {
+  /* outline по умолчанию обрезается родителем .act-card { overflow:hidden };
+     рисуем «рамку» через border-color + inset box-shadow — они внутри элемента. */
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: inset 0 0 0 1px var(--accent);
+}
+
 .act-card__thread-input::placeholder {
   font: 400 var(--act-thread-font-size) / var(--act-thread-line-height) var(--font);
   color: var(--text-muted);
