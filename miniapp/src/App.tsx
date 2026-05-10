@@ -181,11 +181,23 @@ export function App() {
         active={tab}
         leoBadgeCount={leoPending}
         feedBadgeCount={feedUnread}
-        onChat={() => setTab("chat")}
-        onFeed={() => setTab("feed")}
+        onChat={() => {
+          setWorkoutOpen(false);
+          setTab("chat");
+        }}
+        onFeed={() => {
+          setWorkoutOpen(false);
+          setTab("feed");
+        }}
         onAddWorkout={() => setWorkoutOpen(true)}
-        onRules={() => setTab("rules")}
-        onProfile={() => setTab("profile")}
+        onRules={() => {
+          setWorkoutOpen(false);
+          setTab("rules");
+        }}
+        onProfile={() => {
+          setWorkoutOpen(false);
+          setTab("profile");
+        }}
       />
 
       {workoutOpen && (
