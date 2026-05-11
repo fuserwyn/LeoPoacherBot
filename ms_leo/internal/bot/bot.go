@@ -521,20 +521,10 @@ func (b *Bot) handleMessage(msg *tgbotapi.Message, personalReplyCh chan<- string
 					}
 				}
 			} else {
+				// #sick_leave / #healthy / #timezone — приватные события, в ленту стаи их не дублируем
+				// (только #training_done зеркалится в pack feed выше).
 				if err := b.db.SaveUserMessage(userMsg); err != nil {
 					b.logger.Errorf("Failed to save user message: %v", err)
-				} else if (hasSickLeave || hasHealthy) && b.config.MonetizedChatID != 0 && msg.Chat != nil && msg.Chat.Type == "private" {
-					// Аналогично training_done: sick_leave / healthy из лички и мини-аппа дублируем в ленту стаи.
-					mirror := &domain.UserMessage{
-						UserID:      userMsg.UserID,
-						ChatID:      b.config.MonetizedChatID,
-						Username:    userMsg.Username,
-						MessageText: userMsg.MessageText,
-						MessageType: userMsg.MessageType,
-					}
-					if err := b.db.SaveUserMessage(mirror); err != nil {
-						b.logger.Warnf("mirror %s to pack feed user_messages: %v", userMsg.MessageType, err)
-					}
 				}
 			}
 		}

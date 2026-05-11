@@ -172,19 +172,21 @@ func (b *Bot) GetMiniappUserProfileJSONForAPI(userID, packChatID int64) (gender,
 }
 
 type MiniappProfileStats struct {
-	XP               int
-	StreakDays       int
-	MaxStreakDays    int
-	AchievementCount int
-	AchievementsMax  int
-	WorkoutsTotal    int
-	WorkoutsWeek     int
+	XP                    int
+	StreakDays            int
+	MaxStreakDays         int
+	AchievementCount      int
+	AchievementsMax       int
+	WorkoutsTotal         int
+	WorkoutsWeek          int
+	DaysSinceLastTraining int // -1, если тренировок ещё не было
 }
 
 // GetMiniappProfileStatsForAPI — срез метрик профиля для мини-аппа (XP/стрик/рекорд/ачивки/тренировки).
 func (b *Bot) GetMiniappProfileStatsForAPI(userID, packChatID int64) MiniappProfileStats {
 	out := MiniappProfileStats{
-		AchievementsMax: leopardmoney.MaxAchievements,
+		AchievementsMax:       leopardmoney.MaxAchievements,
+		DaysSinceLastTraining: -1,
 	}
 	if b == nil || b.db == nil || userID == 0 || packChatID == 0 {
 		return out
@@ -203,6 +205,26 @@ func (b *Bot) GetMiniappProfileStatsForAPI(userID, packChatID int64) MiniappProf
 		}
 		out.MaxStreakDays = int(math.Max(float64(out.MaxStreakDays), float64(maxStreak)))
 		out.AchievementCount = int(math.Max(float64(out.AchievementCount), float64(ml.AchievementCount)))
+
+		// Дней без тренировок: берём last_training_date (YYYY-MM-DD в локальном TZ) и считаем
+		// дельту до «сегодня» того же TZ. Если тренировок ещё не было — оставляем -1.
+		if ml.LastTrainingDate != nil {
+			ltd := strings.TrimSpace(*ml.LastTrainingDate)
+			if ltd != "" {
+				if last, parseErr := time.Parse("2006-01-02", ltd); parseErr == nil {
+					today, todayErr := time.Parse("2006-01-02", b.getUserLocalDate(ml.TimezoneOffsetFromMoscow))
+					if todayErr == nil {
+						days := int(math.Floor(today.Sub(last).Hours()/24 + 0.5))
+						if days < 0 {
+							days = 0
+						}
+						if out.DaysSinceLastTraining < 0 || days < out.DaysSinceLastTraining {
+							out.DaysSinceLastTraining = days
+						}
+					}
+				}
+			}
+		}
 	}
 	// Primary source: pack-row. Fallback/migration source: private-row (chat_id=userID).
 	applyLog(packChatID)

@@ -35,6 +35,7 @@ export function App() {
   const [feedUnread, setFeedUnread] = useState(0);
   const [feedRefreshToken, setFeedRefreshToken] = useState(0);
   const [inactivityRemovalAt, setInactivityRemovalAt] = useState<string | null>(null);
+  const [daysSinceLastTraining, setDaysSinceLastTraining] = useState<number>(-1);
   const tzSyncedRef = useRef(false);
 
   const refreshTabBadges = useCallback(async () => {
@@ -68,9 +69,11 @@ export function App() {
         workouts_week?: number;
         inactivity_removal_at?: string;
         timezone_offset?: number;
+        days_since_last_training?: number;
       };
       if (!res.ok || !j.ok) return;
       setInactivityRemovalAt(typeof j.inactivity_removal_at === "string" ? j.inactivity_removal_at : null);
+      setDaysSinceLastTraining(typeof j.days_since_last_training === "number" ? j.days_since_last_training : -1);
       setStreak(typeof j.streak_days === "number" ? j.streak_days : 0);
       setRecordStreak(typeof j.max_streak_days === "number" ? j.max_streak_days : 0);
       setXP(typeof j.xp === "number" ? j.xp : 0);
@@ -173,6 +176,7 @@ export function App() {
           achievementCount={achievementCount}
           achievementsMax={achievementsMax}
           workoutsWeek={workoutsWeek}
+          daysSinceLastTraining={daysSinceLastTraining}
           showAlert={showAlert}
         />
       )}

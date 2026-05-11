@@ -1160,17 +1160,18 @@ func (s *Server) handlePostProfileLoad(w http.ResponseWriter, r *http.Request) {
 	kickAt := s.bot.GetMiniappInactivityRemovalDeadlineRFC3339(parsed.User.ID, packID)
 	w.Header().Set("Content-Type", "application/json; charset=utf-8")
 	out := map[string]any{
-		"ok":                true,
-		"gender":            g,
-		"display_name":      d,
-		"timezone_offset":   tz,
-		"xp":                stats.XP,
-		"streak_days":       stats.StreakDays,
-		"max_streak_days":   stats.MaxStreakDays,
-		"achievement_count": stats.AchievementCount,
-		"achievements_max":  stats.AchievementsMax,
-		"workouts_total":    stats.WorkoutsTotal,
-		"workouts_week":     stats.WorkoutsWeek,
+		"ok":                       true,
+		"gender":                   g,
+		"display_name":             d,
+		"timezone_offset":          tz,
+		"xp":                       stats.XP,
+		"streak_days":              stats.StreakDays,
+		"max_streak_days":          stats.MaxStreakDays,
+		"achievement_count":        stats.AchievementCount,
+		"achievements_max":         stats.AchievementsMax,
+		"workouts_total":           stats.WorkoutsTotal,
+		"workouts_week":            stats.WorkoutsWeek,
+		"days_since_last_training": stats.DaysSinceLastTraining,
 	}
 	if kickAt != "" {
 		out["inactivity_removal_at"] = kickAt
@@ -1256,17 +1257,18 @@ func (s *Server) handlePostProfileSave(w http.ResponseWriter, r *http.Request) {
 	kickAt := s.bot.GetMiniappInactivityRemovalDeadlineRFC3339(parsed.User.ID, packID)
 	w.Header().Set("Content-Type", "application/json; charset=utf-8")
 	out := map[string]any{
-		"ok":                true,
-		"gender":            g,
-		"display_name":      d,
-		"timezone_offset":   tz,
-		"xp":                stats.XP,
-		"streak_days":       stats.StreakDays,
-		"max_streak_days":   stats.MaxStreakDays,
-		"achievement_count": stats.AchievementCount,
-		"achievements_max":  stats.AchievementsMax,
-		"workouts_total":    stats.WorkoutsTotal,
-		"workouts_week":     stats.WorkoutsWeek,
+		"ok":                       true,
+		"gender":                   g,
+		"display_name":             d,
+		"timezone_offset":          tz,
+		"xp":                       stats.XP,
+		"streak_days":              stats.StreakDays,
+		"max_streak_days":          stats.MaxStreakDays,
+		"achievement_count":        stats.AchievementCount,
+		"achievements_max":         stats.AchievementsMax,
+		"workouts_total":           stats.WorkoutsTotal,
+		"workouts_week":            stats.WorkoutsWeek,
+		"days_since_last_training": stats.DaysSinceLastTraining,
 	}
 	if kickAt != "" {
 		out["inactivity_removal_at"] = kickAt

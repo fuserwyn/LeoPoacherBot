@@ -7,7 +7,8 @@ import (
 	"leo-bot/internal/domain"
 )
 
-// ListPackActivityFeed — последние «отчёты» в чате стаи: #training_done, #sick_leave, #healthy.
+// ListPackActivityFeed — последние «отчёты» в чате стаи: #training_done и системные события Лео.
+// #sick_leave / #healthy сознательно НЕ показываем в ленте — это приватная переписка с Лео.
 // streak берётся из training_state на момент выборки.
 // sinceUTC — если не nil, только сообщения не раньше этого момента (личная граница истории в мини-аппе).
 func (d *Database) ListPackActivityFeed(chatID int64, limit int, sinceUTC *time.Time) ([]*domain.PackActivityRow, error) {
@@ -32,7 +33,7 @@ func (d *Database) ListPackActivityFeed(chatID int64, limit int, sinceUTC *time.
 		LEFT JOIN training_state ml
 			ON ml.user_id = um.user_id AND ml.chat_id = um.chat_id AND ml.is_deleted = FALSE
 		WHERE um.chat_id = $1
-		  AND um.message_type IN ('training_done', 'sick_leave', 'healthy', 'pack_join', 'pack_rejoin', 'daily_wisdom', 'pack_removed', 'inactive_notice')
+		  AND um.message_type IN ('training_done', 'pack_join', 'pack_rejoin', 'daily_wisdom', 'pack_removed', 'inactive_notice')
 		  ` + whereSince + `
 		ORDER BY um.created_at DESC
 		LIMIT $2

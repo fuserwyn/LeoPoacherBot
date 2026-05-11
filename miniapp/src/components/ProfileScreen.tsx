@@ -30,6 +30,8 @@ type Props = {
   achievementsMax: number;
   workouts: number;
   workoutsWeek: number;
+  /** Дней с последней тренировки. -1 — тренировок ещё не было. */
+  daysSinceLastTraining: number;
   initData: string;
   inTelegram: boolean;
   /** Ссылка на аватар из Telegram WebApp (initDataUnsafe.user.photo_url), если бот открыл мини-апп. */
@@ -48,6 +50,7 @@ export function ProfileScreen({
   achievementsMax,
   workouts,
   workoutsWeek,
+  daysSinceLastTraining,
   initData,
   inTelegram,
   userPhotoUrl,
@@ -259,6 +262,15 @@ export function ProfileScreen({
             "🐆"
           )}
           {onSick ? <span className="profile__avatar-med">🌡️</span> : null}
+          {daysSinceLastTraining > 0 ? (
+            <span
+              className={`profile__no-train${daysSinceLastTraining >= 5 ? " profile__no-train--alert" : ""}`}
+              title={`Без тренировок: ${daysSinceLastTraining} ${daysWordRu(daysSinceLastTraining)}`}
+              aria-label={`Без тренировок: ${daysSinceLastTraining} ${daysWordRu(daysSinceLastTraining)}`}
+            >
+              {daysSinceLastTraining} {daysWordRu(daysSinceLastTraining)}
+            </span>
+          ) : null}
         </div>
         <div>
           <h1 className="profile__name">{(profile.displayName || name).trim() || "Стая"}</h1>

@@ -31,7 +31,8 @@
   justify-content: center;
   font-size: 44px;
   line-height: 1;
-  overflow: hidden;
+  /* overflow видим: чтобы бейджи (медицинский, дни без тренировок) могли выезжать наружу.
+     Кружочность аватарки даёт border-radius на самой картинке ниже. */
 }
 
 .profile__avatar-med {
@@ -42,11 +43,35 @@
   filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.4));
 }
 
+.profile__no-train {
+  position: absolute;
+  top: -6px;
+  right: -16px;
+  padding: 3px 8px;
+  border-radius: 999px;
+  background: var(--card);
+  border: 1px solid var(--border-subtle);
+  color: var(--text-muted);
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1;
+  white-space: nowrap;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.35);
+}
+
+.profile__no-train--alert {
+  /* Тревожный цвет, начиная с 5-го дня без тренировок. */
+  color: #ffb4a8;
+  background: rgba(176, 36, 24, 0.18);
+  border-color: rgba(255, 80, 60, 0.55);
+}
+
 .profile__avatar-img {
   width: 100%;
   height: 100%;
   object-fit: cover;
   display: block;
+  border-radius: 50%;
 }
 
 .profile__name {
