@@ -83,6 +83,6 @@ type TrainingSession struct {
 	MessageText   string    `json:"message_text" db:"message_text"`
 	TrainingsCount int      `json:"trainings_count" db:"trainings_count"` // обычно 1
 	CupsAdded     int       `json:"cups_added" db:"cups_added"`
-	IsBonus       bool      `json:"is_bonus" db:"is_bonus"` // true для бонусной записи (+10)
+	IsBonus       bool      `json:"is_bonus" db:"is_bonus"` // зарезервировано; роллинг-бонус «+10 за активность» в боте не используется
 	CreatedAt     time.Time `json:"created_at" db:"created_at"`
 }

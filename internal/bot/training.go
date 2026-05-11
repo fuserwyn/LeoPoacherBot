@@ -472,7 +472,7 @@ func getWordForm(count int) string {
 func formatSolvedTasksTotalLine(chatType string, n int) string {
 	switch chatType {
 	case "coding":
-		return fmt.Sprintf("💻 Всего решённых задач (сессий): %d", n)
+		return fmt.Sprintf("📊 Всего задач: %d", n)
 	default:
 		return fmt.Sprintf("💪 Всего тренировок (отчётов): %d", n)
 	}
@@ -501,9 +501,9 @@ func trainingsWordForm(count int) string {
 	return russianPlural(count, "тренировка", "тренировки", "тренировок")
 }
 
-// codingSessionsWordForm — «кодинг-сессия» / «кодинг-сессии» / «кодинг-сессий».
+// codingSessionsWordForm — «задача» / «задачи» / «задач» (счётчик отчётов в coding-чате).
 func codingSessionsWordForm(count int) string {
-	return russianPlural(count, "кодинг-сессия", "кодинг-сессии", "кодинг-сессий")
+	return russianPlural(count, "задача", "задачи", "задач")
 }
 
 func cupsWordForm(count int) string {
