@@ -156,18 +156,18 @@
 .act-card__poll {
   display: flex;
   flex-direction: column;
-  gap: 8px;
-  margin: 8px 0 10px;
+  gap: 6px;
+  margin: 6px 0 8px;
 }
 
 .act-card__poll-option {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 10px;
+  gap: 8px;
   width: 100%;
-  padding: 10px 12px;
-  border-radius: 14px;
+  padding: 8px 12px;
+  border-radius: 10px;
   border: 1px solid var(--border-subtle);
   background: rgba(255, 255, 255, 0.04);
   color: var(--text);
@@ -183,23 +183,23 @@
 }
 
 .act-card__poll-label {
-  font-size: 0.92rem;
+  font-size: 0.82rem;
   font-weight: 600;
-  line-height: 1.3;
+  line-height: 1.25;
 }
 
 .act-card__poll-votes {
   flex-shrink: 0;
-  min-width: 28px;
+  min-width: 22px;
   text-align: right;
-  font-size: 0.88rem;
+  font-size: 0.8rem;
   font-weight: 700;
   color: var(--text-muted);
 }
 
 .act-card__poll-total {
   margin: 0;
-  font-size: 0.78rem;
+  font-size: 0.72rem;
   color: var(--text-muted);
 }
 

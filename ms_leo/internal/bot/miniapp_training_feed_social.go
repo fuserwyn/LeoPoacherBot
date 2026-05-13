@@ -37,6 +37,15 @@ var (
 	ErrTrainingFeedThreadInvalidReply = errors.New("training thread invalid reply reference")
 )
 
+func packFeedSupportsThread(messageType string) bool {
+	switch messageType {
+	case "training_done", "sick_leave", "healthy", userMessageTypeAdminPost, userMessageTypeAdminPoll:
+		return true
+	default:
+		return false
+	}
+}
+
 func allowedTrainingFeedEmoji(s string) (string, bool) {
 	s = strings.TrimSpace(s)
 	for _, e := range trainingFeedAllowedEmojis {
@@ -102,7 +111,7 @@ func (b *Bot) PackTrainingFeedReact(viewerUserID int64, initD initdata.InitData,
 	if err != nil {
 		return err
 	}
-	if !has || (typ != "training_done" && typ != "sick_leave" && typ != "healthy") {
+	if !has || !packFeedSupportsThread(typ) {
 		return ErrTrainingFeedParentNotFound
 	}
 	em, ok := allowedEmojiForType(typ, emoji)
@@ -259,6 +268,10 @@ func (b *Bot) afterPackTrainingThreadInserted(packChatID, userMessageID, comment
 		what := "твою тренировку"
 		if parentType == "sick_leave" || parentType == "healthy" {
 			what = "твой статус по больничному"
+		} else if parentType == userMessageTypeAdminPost {
+			what = "пост админа"
+		} else if parentType == userMessageTypeAdminPoll {
+			what = "опрос админа"
 		}
 		verb := ""
 		switch commenterGender {
@@ -452,7 +465,7 @@ func (b *Bot) enrichPackFeedTrainingSocial(items []PackFeedItem, viewerUserID in
 	socialIDs := make([]int64, 0)
 	reactionIDs := make([]int64, 0)
 	for _, it := range items {
-		if it.Type == "training_done" || it.Type == "sick_leave" || it.Type == "healthy" {
+		if packFeedSupportsThread(it.Type) {
 			socialIDs = append(socialIDs, it.ID)
 		}
 		if it.Type == "training_done" || it.Type == "sick_leave" || it.Type == "healthy" {
@@ -478,7 +491,7 @@ func (b *Bot) enrichPackFeedTrainingSocial(items []PackFeedItem, viewerUserID in
 		return items
 	}
 	for i := range items {
-		if items[i].Type != "training_done" && items[i].Type != "sick_leave" && items[i].Type != "healthy" {
+		if !packFeedSupportsThread(items[i].Type) {
 			continue
 		}
 		id := items[i].ID

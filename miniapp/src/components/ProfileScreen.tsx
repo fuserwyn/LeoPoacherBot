@@ -212,7 +212,7 @@ export function ProfileScreen({
     if (ok) {
       void window.Telegram?.WebApp?.HapticFeedback?.notificationOccurred?.("success");
       setOnSick(false);
-      showAlert("Отправлено. Лео подтвердит во вкладке Чат.");
+      showAlert("С выздоровлением");
       setTimeout(() => {
         void loadHealth();
         void load();
@@ -249,7 +249,7 @@ export function ProfileScreen({
         setSavedProfile(normalizedProfile);
         void window.Telegram?.WebApp?.HapticFeedback?.notificationOccurred?.("success");
         onProfileSaved?.(normalizedProfile.displayName);
-        showAlert("Сохранено. Лео подстроит обращения.");
+        showAlert("Сохранено");
       }
     } catch (e) {
       showAlert(e instanceof Error ? e.message : "Сеть");

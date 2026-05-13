@@ -576,6 +576,11 @@ export function FeedScreen({
             {!useMockFeed &&
               visibleFeedItems.map((it) => {
                 const base = dtoToCard(it);
+                const supportsThread =
+                  it.type === "training_done" ||
+                  it.type === "healthy" ||
+                  it.type === "admin_post" ||
+                  it.type === "admin_poll";
                 const isLeoSystemFeed =
                   it.type === "pack_join" ||
                   it.type === "pack_rejoin" ||
@@ -585,28 +590,6 @@ export function FeedScreen({
                   it.type === "admin_poll" ||
                   it.type === "inactive_notice";
                 const slotClass = `feed__card-slot${it.is_you && !isLeoSystemFeed ? " feed__card-slot--mine" : " feed__card-slot--them"}`;
-                if (it.type !== "training_done" && it.type !== "healthy") {
-                  return (
-                    <div key={it.id} className={slotClass}>
-                      <ActivityCard
-                        {...base}
-                        poll={
-                          it.poll
-                            ? {
-                                totalVotes: it.poll.total_votes ?? 0,
-                                options: (it.poll.options ?? []).map((option, optionIndex) => ({
-                                  label: option.label,
-                                  votes: option.votes,
-                                  selected: it.poll?.my_vote_index === optionIndex,
-                                })),
-                                onVote: (optionIndex) => void voteFeedPoll(it.id, optionIndex),
-                              }
-                            : undefined
-                        }
-                      />
-                    </div>
-                  );
-                }
                 const threadReplies = (it.thread ?? []).map((tr) => {
                   const rq =
                     typeof tr.reply_to_id === "number" &&
@@ -635,10 +618,45 @@ export function FeedScreen({
                     likeMe: Boolean(tr.like_me),
                   };
                 });
+                if (!supportsThread) {
+                  return (
+                    <div key={it.id} className={slotClass}>
+                      <ActivityCard
+                        {...base}
+                        poll={
+                          it.poll
+                            ? {
+                                totalVotes: it.poll.total_votes ?? 0,
+                                options: (it.poll.options ?? []).map((option, optionIndex) => ({
+                                  label: option.label,
+                                  votes: option.votes,
+                                  selected: it.poll?.my_vote_index === optionIndex,
+                                })),
+                                onVote: (optionIndex) => void voteFeedPoll(it.id, optionIndex),
+                              }
+                            : undefined
+                        }
+                      />
+                    </div>
+                  );
+                }
                 return (
                   <div key={it.id} className={slotClass}>
                     <ActivityCard
                       {...base}
+                      poll={
+                        it.poll
+                          ? {
+                              totalVotes: it.poll.total_votes ?? 0,
+                              options: (it.poll.options ?? []).map((option, optionIndex) => ({
+                                label: option.label,
+                                votes: option.votes,
+                                selected: it.poll?.my_vote_index === optionIndex,
+                              })),
+                              onVote: (optionIndex) => void voteFeedPoll(it.id, optionIndex),
+                            }
+                          : undefined
+                      }
                       reactions={
                         it.type === "training_done"
                           ? mergeTrainingFeedReactions(it.reactions)
