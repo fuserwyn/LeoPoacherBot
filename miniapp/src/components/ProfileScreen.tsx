@@ -252,10 +252,12 @@ export function ProfileScreen({
     }
   }, [inTelegram, initData, profile, initialAgeSet, showAlert]);
 
+  const noTrainingAlert = daysSinceLastTraining >= 5;
+
   return (
     <div className="profile">
       <header className="profile__hero">
-        <div className="profile__avatar" aria-hidden>
+        <div className={`profile__avatar${noTrainingAlert ? " profile__avatar--alert" : ""}`} aria-hidden>
           {userPhotoUrl ? (
             <img src={userPhotoUrl} alt="" className="profile__avatar-img" width={88} height={88} />
           ) : (
@@ -264,7 +266,7 @@ export function ProfileScreen({
           {onSick ? <span className="profile__avatar-med">🌡️</span> : null}
           {daysSinceLastTraining > 0 ? (
             <span
-              className={`profile__no-train${daysSinceLastTraining >= 5 ? " profile__no-train--alert" : ""}`}
+              className={`profile__no-train${noTrainingAlert ? " profile__no-train--alert" : ""}`}
               title={`Без тренировок: ${daysSinceLastTraining} ${daysWordRu(daysSinceLastTraining)}`}
               aria-label={`Без тренировок: ${daysSinceLastTraining} ${daysWordRu(daysSinceLastTraining)}`}
             >

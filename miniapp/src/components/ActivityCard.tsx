@@ -238,15 +238,14 @@ export function ActivityCard({
   }, [trainingPhotoUrl]);
 
   useEffect(() => {
-    if (threadReplies.length > prevThreadLen.current) {
-      setThreadOpen(true);
+    if (threadOpen && threadReplies.length > prevThreadLen.current) {
       requestAnimationFrame(() => {
         const body = threadBodyRef.current;
         if (body) body.scrollTop = body.scrollHeight;
       });
     }
     prevThreadLen.current = threadReplies.length;
-  }, [threadReplies.length]);
+  }, [threadOpen, threadReplies.length]);
 
   useEffect(() => {
     if (!lightboxOpen) return;
