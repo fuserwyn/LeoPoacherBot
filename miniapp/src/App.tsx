@@ -16,6 +16,25 @@ import "./App.css";
 
 type Tab = "chat" | "feed" | "rules" | "profile";
 
+function formatTrainingDoneAlert(replyParts: string[]): string {
+  const summary = replyParts.filter(Boolean).join("\n\n").trim();
+  if (!summary.startsWith("✅ Отчёт принят")) return summary;
+
+  const lines = summary
+    .split("\n")
+    .map((line) => line.trim())
+    .filter(Boolean);
+
+  const title = lines.find((line) => line.startsWith("✅ Отчёт принят")) ?? "";
+  const streakLineRaw = lines.find((line) => /Серия:/i.test(line)) ?? "";
+  const cupsLineRaw = lines.find((line) => line.startsWith("🏆")) ?? "";
+  const streakLine = streakLineRaw.replace(/^🦁\s*Серия:\s*/i, "Стрик: ");
+  const cupsLine = cupsLineRaw.replace(/^🏆\s*/u, "");
+
+  const compact = [title, [streakLine, cupsLine].filter(Boolean).join("\n")].filter(Boolean).join("\n\n").trim();
+  return compact || summary;
+}
+
 export function App() {
   const { name, streak: hookStreak, initData, userId, photoUrl, inTelegram, tg } = useTelegramWebApp();
   const showAlert = useCallback((m: string) => {
@@ -254,7 +273,7 @@ export function App() {
             window.setTimeout(() => setFeedRefreshToken((v) => v + 1), 10000);
             window.setTimeout(() => setFeedRefreshToken((v) => v + 1), 20000);
             window.setTimeout(() => void refreshTabBadges(), 6000);
-            const summary = result.replyParts.filter(Boolean).join("\n\n").trim();
+            const summary = formatTrainingDoneAlert(result.replyParts);
             const fallback =
               "Отчёт принят. Комментарий Лео скоро появится в ленте.";
             const msg = summary.length > 0 ? summary : fallback;
