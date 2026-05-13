@@ -56,7 +56,7 @@ func (b *Bot) PackGroupChatForViewer(viewerUserID int64, initD initdata.InitData
 	if chatID == 0 {
 		return []*domain.PackGroupChatMessage{}, nil
 	}
-	if b.config.OwnerID != 0 && viewerUserID == b.config.OwnerID {
+	if b.config.IsAdminTelegramUser(viewerUserID) {
 		// ok
 	} else {
 		ok, err := b.db.UserInPackOrPaid(viewerUserID, chatID, b.config.PaywallEnabled)
@@ -91,7 +91,7 @@ func (b *Bot) ProcessMiniAppPackGroupMessage(d initdata.InitData, text string) (
 	if chatID == 0 {
 		return out, nil
 	}
-	if b.config.OwnerID != 0 && d.User.ID == b.config.OwnerID {
+	if b.config.IsAdminTelegramUser(d.User.ID) {
 		// владелец
 	} else {
 		ok, err := b.db.UserInPackOrPaid(d.User.ID, chatID, b.config.PaywallEnabled)
@@ -161,7 +161,7 @@ func (b *Bot) DeleteMiniAppPackGroupMessage(viewerUserID int64, initD initdata.I
 	if chatID == 0 {
 		return false, nil
 	}
-	if b.config.OwnerID != 0 && viewerUserID == b.config.OwnerID {
+	if b.config.IsAdminTelegramUser(viewerUserID) {
 		// владелец тоже подчиняется правилу "только своё" на уровне SQL WHERE from_user_id.
 	} else {
 		ok, err := b.db.UserInPackOrPaid(viewerUserID, chatID, b.config.PaywallEnabled)

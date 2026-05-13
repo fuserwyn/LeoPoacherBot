@@ -730,7 +730,7 @@ func (b *Bot) paywallPrivateNeedsPayFirst(userID int64) bool {
 	if !b.paywallActive() || userID == 0 {
 		return false
 	}
-	if b.config.OwnerID != 0 && userID == b.config.OwnerID {
+	if b.config.IsAdminTelegramUser(userID) {
 		return false
 	}
 	ok, err := b.db.UserHasActivePaywallAccess(userID, b.config.MonetizedChatID)
@@ -935,7 +935,7 @@ func displayNameFromTelegramChat(chat *tgbotapi.Chat) string {
 	return strings.TrimSpace(s)
 }
 
-// resolveUsernameForPaywallDeliver — имя до ReactivateReturnedUser: иначе INSERT кладёт NULLIF('', '') → NULL в БД.
+// resolveUsernameForPaywallDeliver — имя до ReactivateReturnedUser: иначе INSERT кладёт NULLIF(”, ”) → NULL в БД.
 func (b *Bot) resolveUsernameForPaywallDeliver(userID int64, payer *tgbotapi.User) string {
 	if userID == 0 {
 		return ""
@@ -1146,4 +1146,3 @@ func (b *Bot) handlePaywallSuccessfulPayment(msg *tgbotapi.Message) {
 	// Сразу приветствие и меню мини-аппа — не ждём outbox (иначе сообщение может не прийти при лаге воркера).
 	deliver()
 }
-

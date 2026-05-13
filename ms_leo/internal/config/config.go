@@ -15,6 +15,7 @@ import (
 type Config struct {
 	APIToken           string
 	OwnerID            int64
+	AdminIDs           []int64
 	DatabaseURL        string
 	LogLevel           string
 	OpenRouterAPIKey   string
@@ -63,6 +64,7 @@ func Load() (*Config, error) {
 	godotenv.Load()
 
 	ownerID, _ := strconv.ParseInt(getEnv("OWNER_ID", "0"), 10, 64)
+	adminIDs := parseAdminIDs(getEnv("ADMIN_IDS", ""))
 
 	// Парсим булевое значение для ScanHistoryOnStart
 	scanHistoryOnStart := false
@@ -112,6 +114,7 @@ func Load() (*Config, error) {
 	return &Config{
 		APIToken:           apiToken,
 		OwnerID:            ownerID,
+		AdminIDs:           adminIDs,
 		DatabaseURL:        getEnv("DATABASE_URL", "postgresql://postgres:password@localhost:5432/leo_bot_db?sslmode=disable"),
 		LogLevel:           getEnv("LOG_LEVEL", "info"),
 		OpenRouterAPIKey:   getEnv("OPENROUTER_API_KEY", ""),
@@ -141,6 +144,22 @@ func Load() (*Config, error) {
 
 		MiniappPublicBaseURL: strings.TrimSpace(getEnv("MINIAPP_PUBLIC_BASE_URL", "")),
 	}, nil
+}
+
+// IsAdminTelegramUser — владелец или любой id из ADMIN_IDS.
+func (c *Config) IsAdminTelegramUser(userID int64) bool {
+	if c == nil || userID == 0 {
+		return false
+	}
+	if c.OwnerID != 0 && userID == c.OwnerID {
+		return true
+	}
+	for _, id := range c.AdminIDs {
+		if id == userID {
+			return true
+		}
+	}
+	return false
 }
 
 // PaywallUsesStars — счёт в Telegram Stars (XTR): режим PAYMENT_CURRENCY=XTR или доп. PAYMENT_STARS_ENABLED.
@@ -208,6 +227,34 @@ func parseEnvBool(s string) bool {
 	default:
 		return false
 	}
+}
+
+func parseAdminIDs(raw string) []int64 {
+	if strings.TrimSpace(raw) == "" {
+		return nil
+	}
+	parts := strings.FieldsFunc(raw, func(r rune) bool {
+		switch r {
+		case ',', ';', '\n', '\r', '\t', ' ':
+			return true
+		default:
+			return false
+		}
+	})
+	out := make([]int64, 0, len(parts))
+	seen := make(map[int64]struct{}, len(parts))
+	for _, part := range parts {
+		id, err := strconv.ParseInt(strings.TrimSpace(part), 10, 64)
+		if err != nil || id == 0 {
+			continue
+		}
+		if _, ok := seen[id]; ok {
+			continue
+		}
+		seen[id] = struct{}{}
+		out = append(out, id)
+	}
+	return out
 }
 
 // paymentStarsAddonAmountFromEnv: PAYMENT_STARS_AMOUNT (только если флаг включён).

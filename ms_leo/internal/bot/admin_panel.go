@@ -17,7 +17,7 @@ type adminSession struct {
 }
 
 func (b *Bot) isOwnerPrivateChat(msg *tgbotapi.Message) bool {
-	return msg != nil && msg.From != nil && msg.Chat != nil && msg.From.ID == b.config.OwnerID && msg.Chat.IsPrivate()
+	return msg != nil && msg.From != nil && msg.Chat != nil && b.config.IsAdminTelegramUser(msg.From.ID) && msg.Chat.IsPrivate()
 }
 
 func (b *Bot) handleAdmin(msg *tgbotapi.Message) {
@@ -56,7 +56,7 @@ func (b *Bot) handleAdminCallbackQuery(callback *tgbotapi.CallbackQuery) {
 	if callback == nil || callback.Message == nil || callback.From == nil {
 		return
 	}
-	if callback.From.ID != b.config.OwnerID || !callback.Message.Chat.IsPrivate() {
+	if !b.config.IsAdminTelegramUser(callback.From.ID) || !callback.Message.Chat.IsPrivate() {
 		callbackConfig := tgbotapi.NewCallback(callback.ID, "Недостаточно прав")
 		b.api.Request(callbackConfig)
 		return

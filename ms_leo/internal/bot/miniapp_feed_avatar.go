@@ -26,7 +26,7 @@ func (b *Bot) PackFeedAssertViewerAccess(viewerUserID int64, initD initdata.Init
 	if chatID == 0 {
 		return ErrPackFeedForbidden
 	}
-	if b.config.OwnerID != 0 && viewerUserID == b.config.OwnerID {
+	if b.config.IsAdminTelegramUser(viewerUserID) {
 		return nil
 	}
 	ok, err := b.db.UserInPackOrPaid(viewerUserID, chatID, b.config.PaywallEnabled)

@@ -48,7 +48,7 @@ func (b *Bot) EnsureMiniAppOnboarding(d initdata.InitData) (MiniAppOnboardingRes
 	userID := d.User.ID
 	username := displayNameFromInitData(d)
 
-	isOwner := b.config.OwnerID != 0 && userID == b.config.OwnerID
+	isOwner := b.config.IsAdminTelegramUser(userID)
 
 	// Доступ: владелец / активная оплата / живой message_log в стае.
 	if isOwner {

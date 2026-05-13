@@ -1244,8 +1244,8 @@ func (b *Bot) handleListUsers(msg *tgbotapi.Message) {
 }
 
 func (b *Bot) handleSendToChat(msg *tgbotapi.Message) {
-	// Проверяем права доступа - только владелец бота может отправлять сообщения в другие чаты
-	if msg.From.ID != b.config.OwnerID {
+	// Проверяем права доступа - только админ из env может отправлять сообщения в другие чаты.
+	if !b.config.IsAdminTelegramUser(msg.From.ID) {
 		reply := tgbotapi.NewMessage(msg.Chat.ID, "❌ У вас нет прав для использования этой команды")
 		b.api.Send(reply)
 		return
@@ -1331,8 +1331,8 @@ func (b *Bot) handleSendToChat(msg *tgbotapi.Message) {
 }
 
 func (b *Bot) handleAnnounceAI(msg *tgbotapi.Message) {
-	// Проверяем права доступа - только владелец бота может отправлять объявления
-	if msg.From.ID != b.config.OwnerID {
+	// Проверяем права доступа - только админ из env может отправлять объявления.
+	if !b.config.IsAdminTelegramUser(msg.From.ID) {
 		reply := tgbotapi.NewMessage(msg.Chat.ID, "❌ У вас нет прав для использования этой команды")
 		b.api.Send(reply)
 		return
@@ -1396,8 +1396,8 @@ func (b *Bot) handleAnnounceAI(msg *tgbotapi.Message) {
 }
 
 func (b *Bot) isAdmin(chatID, userID int64) bool {
-	// Проверяем, является ли пользователь владельцем
-	if userID == b.config.OwnerID {
+	// Проверяем, является ли пользователь одним из админов из env.
+	if b.config.IsAdminTelegramUser(userID) {
 		return true
 	}
 
@@ -2600,9 +2600,9 @@ func (b *Bot) scanChatHistory(ctx context.Context, daysBack int) {
 
 // handleScanHistory обрабатывает команду /scan_history для ручного запуска сканирования
 func (b *Bot) handleScanHistory(msg *tgbotapi.Message) {
-	// Проверяем, что команда от владельца
-	if msg.From.ID != b.config.OwnerID {
-		reply := tgbotapi.NewMessage(msg.Chat.ID, "❌ Эта команда доступна только владельцу бота")
+	// Проверяем, что команда от одного из админов из env.
+	if !b.config.IsAdminTelegramUser(msg.From.ID) {
+		reply := tgbotapi.NewMessage(msg.Chat.ID, "❌ Эта команда доступна только админам бота")
 		b.api.Send(reply)
 		return
 	}

@@ -76,7 +76,7 @@ func (b *Bot) assertPackFeedSocialViewer(viewerUserID int64) error {
 	if chatID == 0 {
 		return ErrTrainingFeedSocialForbidden
 	}
-	if b.config.OwnerID != 0 && viewerUserID == b.config.OwnerID {
+	if b.config.IsAdminTelegramUser(viewerUserID) {
 		return nil
 	}
 	ok, err := b.db.UserInPackOrPaid(viewerUserID, chatID, b.config.PaywallEnabled)
