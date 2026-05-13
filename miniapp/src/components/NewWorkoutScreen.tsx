@@ -170,6 +170,71 @@ export function NewWorkoutScreen({ onClose, onSave, showAlert }: Props) {
       </header>
 
       <div className="nwo__body" ref={bodyRef}>
+        <div className="nwo__photo-row">
+          <h2 className="nwo__sec nwo__sec--inline">Фото</h2>
+          <input
+            className="nwo__file"
+            type="file"
+            accept="image/*"
+            title="Необязательно — стая увидит снимок в ленте"
+            onChange={(e) => {
+              const f = e.target.files?.[0] ?? null;
+              if (f) setPendingCrop(f);
+              e.target.value = "";
+            }}
+          />
+          {photo ? (
+            <>
+              <span className="nwo__photo-name" aria-live="polite">
+                {photo.name.length > 18 ? `${photo.name.slice(0, 16)}…` : photo.name}
+              </span>
+              <button
+                type="button"
+                className="nwo__photo-edit"
+                onClick={() => setPendingCrop(photo)}
+              >
+                Обрезать
+              </button>
+              <button
+                type="button"
+                className="nwo__photo-edit nwo__photo-edit--ghost"
+                onClick={() => setPhoto(null)}
+                aria-label="Убрать фото"
+              >
+                ✕
+              </button>
+            </>
+          ) : null}
+        </div>
+
+        <div className="nwo__note-block">
+          <h2 className="nwo__sec">Что сделал</h2>
+          <textarea
+            ref={noteTaRef}
+            className="nwo__note"
+            value={note}
+            rows={6}
+            onChange={(e) => setNote(e.target.value.slice(0, NOTE_MAX))}
+            maxLength={NOTE_MAX}
+            placeholder="Жим, тяга, пресс…"
+            enterKeyHint="done"
+            autoCorrect="on"
+            spellCheck
+            onFocus={() => {
+              noteFocusedRef.current = true;
+              window.setTimeout(nudgeTextareaIntoView, 180);
+            }}
+            onBlur={() => {
+              noteFocusedRef.current = false;
+            }}
+          />
+          <p className="nwo__note-cnt" aria-live="polite">
+            <span className="nwo__note-cnt-inner">
+              {note.length}/{NOTE_MAX}
+            </span>
+          </p>
+        </div>
+
         <div className="nwo__upper">
           <h2 className="nwo__sec">Тип</h2>
           <div className="nwo__types-scroll" role="group" aria-label="Тип тренировки">
@@ -277,71 +342,6 @@ export function NewWorkoutScreen({ onClose, onSave, showAlert }: Props) {
               </div>
             </div>
           </div>
-
-          <div className="nwo__photo-row">
-            <h2 className="nwo__sec nwo__sec--inline">Фото</h2>
-            <input
-              className="nwo__file"
-              type="file"
-              accept="image/*"
-              title="Необязательно — стая увидит снимок в ленте"
-              onChange={(e) => {
-                const f = e.target.files?.[0] ?? null;
-                if (f) setPendingCrop(f);
-                e.target.value = "";
-              }}
-            />
-            {photo ? (
-              <>
-                <span className="nwo__photo-name" aria-live="polite">
-                  {photo.name.length > 18 ? `${photo.name.slice(0, 16)}…` : photo.name}
-                </span>
-                <button
-                  type="button"
-                  className="nwo__photo-edit"
-                  onClick={() => setPendingCrop(photo)}
-                >
-                  Обрезать
-                </button>
-                <button
-                  type="button"
-                  className="nwo__photo-edit nwo__photo-edit--ghost"
-                  onClick={() => setPhoto(null)}
-                  aria-label="Убрать фото"
-                >
-                  ✕
-                </button>
-              </>
-            ) : null}
-          </div>
-        </div>
-
-        <div className="nwo__note-block">
-          <h2 className="nwo__sec">Что сделал</h2>
-          <textarea
-            ref={noteTaRef}
-            className="nwo__note"
-            value={note}
-            rows={6}
-            onChange={(e) => setNote(e.target.value.slice(0, NOTE_MAX))}
-            maxLength={NOTE_MAX}
-            placeholder="Жим, тяга, пресс…"
-            enterKeyHint="done"
-            autoCorrect="on"
-            spellCheck
-            onFocus={() => {
-              noteFocusedRef.current = true;
-              window.setTimeout(nudgeTextareaIntoView, 180);
-            }}
-            onBlur={() => {
-              noteFocusedRef.current = false;
-            }}
-          />
-          <p className="nwo__note-cnt" aria-live="polite">
-            <span className="nwo__note-cnt-inner">
-              {note.length}/{NOTE_MAX}
-            </span>
-          </p>
         </div>
       </div>
 

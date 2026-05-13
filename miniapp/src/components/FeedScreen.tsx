@@ -529,7 +529,7 @@ export function FeedScreen({
             </div>
           </div>
           <div className="feed__section-row">
-            <h2 className="section-title">Кто что постит</h2>
+            <h2 className="section-title">Тренировки стаи</h2>
             {apiBase && inTelegram && initData && (
               <button
                 type="button"
