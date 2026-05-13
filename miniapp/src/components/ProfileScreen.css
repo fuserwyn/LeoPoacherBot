@@ -124,13 +124,9 @@
 }
 
 .profile__xp-caption {
-  display: block;
-  font-size: 0.65rem;
-  font-weight: 700;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: var(--text-muted, #8b8b9a);
-  margin-bottom: 4px;
+  flex: 0 0 auto;
+  font-size: 18px;
+  line-height: 1;
 }
 
 .profile__xp {
@@ -143,7 +139,14 @@
   margin: 0 auto;
 }
 
+.profile__xp-meter {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
 .profile__xp-bar {
+  flex: 1 1 auto;
   height: 6px;
   border-radius: 999px;
   background: #2a2a32;

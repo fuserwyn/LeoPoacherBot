@@ -299,12 +299,16 @@ export function ProfileScreen({
           className="profile__xp"
           aria-label={`Кубки: ${xp} ${cupsWordRu(xp)}, до следующего уровня ${cupProgress.cupsToNext - cupProgress.cupsInSegment}`}
         >
-          <span className="profile__xp-caption">Кубки</span>
-          <div className="profile__xp-bar">
-            <div className="profile__xp-fill" style={{ width: `${barPct}%` }} />
+          <div className="profile__xp-meter">
+            <span className="profile__xp-caption" aria-hidden>
+              🏆
+            </span>
+            <div className="profile__xp-bar">
+              <div className="profile__xp-fill" style={{ width: `${barPct}%` }} />
+            </div>
           </div>
           <span className="profile__xp-txt">
-            {xp} {cupsWordRu(xp)} · {cupProgress.cupsInSegment}/{cupProgress.cupsToNext}
+            {xp} {cupsWordRu(xp)} / {cupProgress.cupsToNext}
           </span>
         </div>
       </header>
