@@ -273,6 +273,7 @@ export function ActivityCard({
   const showReact = reactions.length > 0 || onReactionClick != null;
   const hasThread = threadReplies.length > 0 || threadComposer != null;
   const threadCount = threadReplies.length;
+  const showStreak = !hideStreak && name.trim() !== "Админ";
   return (
     <article
       className={`act-card${hideStreak ? " act-card--leo" : ""}${lightTone ? " act-card--light" : ""}${threadOpen && hasThread ? " act-card--thread-open" : ""}${trainingPhotoUrl ? " act-card--has-photo" : ""}`}
@@ -288,7 +289,7 @@ export function ActivityCard({
         <div className="act-card__meta">
           <div className="act-card__row">
             <span className="act-card__name">{name}</span>
-            {!hideStreak && (
+            {showStreak && (
               <span
                 className="pill pill--streak"
                 aria-label={streakStreakAriaLabel(streak)}
