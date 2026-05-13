@@ -9,8 +9,8 @@ const (
 	// ReturnRub — повторный доступ после кика за неактивность (руб.).
 	ReturnRub = 210
 
-	// MaxAchievements — количество ачивок за стрик (MVP: 7, 14, 30, 60 дней).
-	MaxAchievements = 4
+	// MaxAchievements — количество ачивок за стрик (7, 14, 21, 30, 42, 50, 100 дней).
+	MaxAchievements = 7
 
 	// InactiveRemovalDays — 8 дней без активности → удаление в 00:00 локального TZ юзера.
 	InactiveRemovalDays = 8

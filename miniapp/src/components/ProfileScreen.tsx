@@ -37,7 +37,15 @@ type Props = {
   showAlert: (m: string) => void;
 };
 
-const ACHIEVEMENT_MILESTONES = [7, 14, 21, 28];
+const ACHIEVEMENTS = [
+  { days: 7, colorClass: "profile__achievement--7" },
+  { days: 14, colorClass: "profile__achievement--14" },
+  { days: 21, colorClass: "profile__achievement--21" },
+  { days: 30, colorClass: "profile__achievement--30" },
+  { days: 42, colorClass: "profile__achievement--42" },
+  { days: 50, colorClass: "profile__achievement--50" },
+  { days: 100, colorClass: "profile__achievement--100" },
+] as const;
 
 export function ProfileScreen({
   name,
@@ -321,14 +329,22 @@ export function ProfileScreen({
           </span>
         </div>
         <div className="profile__achievements-strip">
-        {ACHIEVEMENT_MILESTONES.map((d, i) => (
-          <div key={d} className={`profile__achievement${i < achievementCount ? " is-earned" : ""}`}>
+        {ACHIEVEMENTS.map(({ days, colorClass }, i) => (
+          <div key={days} className={`profile__achievement ${colorClass}${i < achievementCount ? " is-earned" : ""}`}>
             <div className="profile__achievement-badge" aria-hidden>
-              <span className="profile__achievement-paw">🐾</span>
-              <span className="profile__achievement-days">{d}</span>
+              <span className="profile__achievement-claw profile__achievement-claw--1" />
+              <span className="profile__achievement-claw profile__achievement-claw--2" />
+              <span className="profile__achievement-claw profile__achievement-claw--3" />
+              <span className="profile__achievement-toe profile__achievement-toe--1" />
+              <span className="profile__achievement-toe profile__achievement-toe--2" />
+              <span className="profile__achievement-toe profile__achievement-toe--3" />
+              <span className="profile__achievement-toe profile__achievement-toe--4" />
+              <span className="profile__achievement-pad">
+                <span className="profile__achievement-days">{days}</span>
+              </span>
             </div>
             <div className="profile__achievement-label">
-              {d} {daysWordRu(d)}
+              {days} {daysWordRu(days)}
             </div>
           </div>
         ))}

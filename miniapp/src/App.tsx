@@ -46,7 +46,7 @@ export function App() {
   const [recordStreak, setRecordStreak] = useState(hookStreak);
   const [xp, setXP] = useState(0);
   const [achievementCount, setAchievementCount] = useState(0);
-  const [achievementsMax, setAchievementsMax] = useState(4);
+  const [achievementsMax, setAchievementsMax] = useState(7);
   const [workouts, setWorkouts] = useState(0);
   const [leoPending, setLeoPending] = useState(0);
   const [feedUnread, setFeedUnread] = useState(0);
@@ -93,7 +93,7 @@ export function App() {
       setRecordStreak(typeof j.max_streak_days === "number" ? j.max_streak_days : 0);
       setXP(typeof j.xp === "number" ? j.xp : 0);
       setAchievementCount(typeof j.achievement_count === "number" ? j.achievement_count : 0);
-      setAchievementsMax(typeof j.achievements_max === "number" ? j.achievements_max : 4);
+      setAchievementsMax(typeof j.achievements_max === "number" ? j.achievements_max : 7);
       setWorkouts(typeof j.workouts_total === "number" ? j.workouts_total : 0);
       // Одноразовое автоопределение TZ для пользователей без явно выставленного смещения.
       if (!tzSyncedRef.current) {

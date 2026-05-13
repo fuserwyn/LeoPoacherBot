@@ -447,21 +447,7 @@ export function FeedScreen({
             Чат
           </button>
         </div>
-      </div>
-      {sub === "room" && (
-        <PackGroupChatPanel
-          initData={initData}
-          inTelegram={inTelegram}
-          meId={userId}
-          showAlert={showAlert}
-          onHaptic={() => {
-            const w = window.Telegram?.WebApp;
-            w?.HapticFeedback?.impactOccurred?.("light");
-          }}
-        />
-      )}
-      {sub === "activity" && (
-        <>
+        {sub === "activity" && (
           <div className="feed__filters" aria-label="Фильтры ленты">
             <div className="feed__filter-scope" role="group" aria-label="Чьи отчёты">
               <button
@@ -503,6 +489,22 @@ export function FeedScreen({
               ))}
             </div>
           </div>
+        )}
+      </div>
+      {sub === "room" && (
+        <PackGroupChatPanel
+          initData={initData}
+          inTelegram={inTelegram}
+          meId={userId}
+          showAlert={showAlert}
+          onHaptic={() => {
+            const w = window.Telegram?.WebApp;
+            w?.HapticFeedback?.impactOccurred?.("light");
+          }}
+        />
+      )}
+      {sub === "activity" && (
+        <>
           <div className="feed__section-row">
             <h2 className="section-title feed__section-title">Тренировки стаи</h2>
             {apiBase && inTelegram && initData && (

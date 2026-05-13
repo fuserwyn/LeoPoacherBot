@@ -14,19 +14,71 @@ import (
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 )
 
+func trainingCategoryLabelRu(categoryID string) string {
+	switch strings.TrimSpace(strings.ToLower(categoryID)) {
+	case "run":
+		return "бег"
+	case "walk":
+		return "ходьба"
+	case "bike":
+		return "велосипед"
+	case "swim":
+		return "плавание"
+	case "yoga":
+		return "йога"
+	case "rowing":
+		return "гребля"
+	case "workout":
+		return "воркаут"
+	case "crossfit":
+		return "кроссфит"
+	case "stretch":
+		return "растяжка"
+	case "dance":
+		return "танцы"
+	case "hiit":
+		return "hiit"
+	case "cardio":
+		return "кардио"
+	case "kettlebell":
+		return "гиря"
+	case "strength":
+		return "силовая"
+	case "jump_rope":
+		return "скакалка"
+	default:
+		return "другое"
+	}
+}
+
+func trainingReportSemanticHint(reportText string) string {
+	var sb strings.Builder
+	sb.WriteString("ВАЖНО ПРО ФОРМАТ ОТЧЁТА MINI APP:\n")
+	sb.WriteString("Первая строка имеет вид: #training_done — <тип тренировки>, <минуты> мин, инт. <N>/5.\n")
+	sb.WriteString("`инт.` здесь всегда означает ИНТЕНСИВНОСТЬ нагрузки по шкале 1..5. Это НЕ интервалы, НЕ интервалка и НЕ вид тренировки.\n")
+	if durationMin, intensity, categoryID, ok := leopardmoney.ParseTrainingDoneReport(reportText); ok {
+		sb.WriteString(fmt.Sprintf(
+			"Для этого отчёта распознано: тип = %s; длительность = %d мин; интенсивность = %d/5.\n",
+			trainingCategoryLabelRu(categoryID), durationMin, intensity,
+		))
+	}
+	return sb.String()
+}
+
 func (b *Bot) generateShortLeopardChatAck(username, text string, streak, totalCups, ach int) string {
 	fallback := "Красавчег, сегодня не съем тебя."
 	if b.aiClient == nil {
 		return fallback
 	}
 
-	question := "Сгенерируй ОДНО короткое предложение в стиле Лео: 5-7 слов, по-доброму хищно, с посылом 'сегодня не съем тебя'. Пиши только как прямую реплику Лео к пользователю: обращение на 'ты', без третьего лица, без ремарок/описаний действий (например, 'улыбнулся', 'подумал', 'прорычал'), без кавычек, без скобок, без Markdown и без эмодзи. Верни только чистый текст одной фразы."
+	question := "Сгенерируй ОДНО короткое предложение в стиле Лео: 5-7 слов, по-доброму хищно, с посылом 'сегодня не съем тебя'. Пиши только как прямую реплику Лео к пользователю: обращение на 'ты', без третьего лица, без ремарок/описаний действий (например, 'улыбнулся', 'подумал', 'прорычал'), без кавычек, без скобок, без Markdown и без эмодзи. Если в отчёте есть формат `инт. N/5`, это интенсивность по шкале 1..5, а не интервалы. Верни только чистый текст одной фразы."
 	var ctxBuilder strings.Builder
 	ctxBuilder.WriteString("Контекст отчёта тренировки.\n")
 	ctxBuilder.WriteString(fmt.Sprintf("Пользователь: %s\n", username))
 	ctxBuilder.WriteString(fmt.Sprintf("Серия: %d %s\n", streak, daysWordForm(streak)))
 	ctxBuilder.WriteString(fmt.Sprintf("Кубки всего: %d\n", totalCups))
 	ctxBuilder.WriteString(fmt.Sprintf("Ачивки: %d\n", ach))
+	ctxBuilder.WriteString(trainingReportSemanticHint(text))
 	ctxBuilder.WriteString(fmt.Sprintf("Текст отчёта: %s\n", text))
 
 	ack, err := b.aiClient.AnswerUserQuestion(question, ctxBuilder.String())
@@ -122,6 +174,8 @@ func (b *Bot) generateLeoTrainingFeedEncouragement(
 
 СОГЛАСОВАНИЕ: строго следуй подсказке про глаголы (м/ж/нейтрально) из контекста.
 
+ФОРМАТ MINI APP ОТЧЁТА: если видишь первую строку вида "#training_done — тип, минуты мин, инт. N/5", то "инт." означает интенсивность нагрузки по шкале 1..5. Это НЕ интервалы и НЕ тип тренировки.
+
 ЗАПРЕТЫ: не пиши цифры кубков, серий, ачивок, таймер; не *рычит*; без Markdown, без нумерованных списков, без кавычек вокруг всего текста. Русский язык. Можно 0–2 эмодзи (не больше).`
 
 	var ctxBuilder strings.Builder
@@ -139,6 +193,7 @@ func (b *Bot) generateLeoTrainingFeedEncouragement(
 	ctxBuilder.WriteString(gapHint + "\n")
 	ctxBuilder.WriteString(sickHint + "\n")
 	ctxBuilder.WriteString(polHint + "\n")
+	ctxBuilder.WriteString(trainingReportSemanticHint(reportText))
 	ctxBuilder.WriteString(fmt.Sprintf("Текст отчёта: %s\n", reportText))
 
 	enc, err := b.aiClient.AnswerUserQuestion(question, ctxBuilder.String())
