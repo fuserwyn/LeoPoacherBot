@@ -267,16 +267,6 @@ export function ProfileScreen({
           {noTrainingDanger ? (
             <p className="profile__danger">ПОТРЕНИРУЙСЯ ДО 00:00 ИЛИ ЛЕО СЪЕСТ ТЕБЯ</p>
           ) : null}
-          {onSick ? (
-            <button
-              type="button"
-              className="profile__quick-healthy"
-              onClick={() => void submitHealthy()}
-              disabled={healthBusy}
-            >
-              {healthBusy ? "Отправляю…" : "Выйти с больничного"}
-            </button>
-          ) : null}
         </div>
         <div
           className="profile__xp"
@@ -362,68 +352,6 @@ export function ProfileScreen({
         </div>
       </section>
 
-      <h2 className="section-title">Профиль (для Лео)</h2>
-      {profileLoading && <p className="muted">Загрузка профиля…</p>}
-      <div className="profile__form">
-        <label className="profile__field">
-          <span>Имя (как обращаться)</span>
-          <input
-            type="text"
-            className="profile__input"
-            value={profile.displayName}
-            onChange={(e) => setProfile((p) => ({ ...p, displayName: e.target.value.slice(0, 64) }))}
-            placeholder="Например, Саша"
-            maxLength={64}
-            autoComplete="name"
-            disabled={profileLoading}
-          />
-        </label>
-        <label className="profile__field">
-          <span>Пол</span>
-          <select
-            className="profile__input"
-            value={profile.gender}
-            onChange={(e) => setProfile((p) => ({ ...p, gender: e.target.value as "m" | "f" | "" }))}
-            disabled={profileLoading}
-          >
-            <option value="">Не указывать</option>
-            <option value="m">Мужской</option>
-            <option value="f">Женский</option>
-          </select>
-        </label>
-        <label className="profile__field">
-          <span>Часовой пояс</span>
-          <select
-            className="profile__input"
-            value={String(profile.timezoneOffset)}
-            onChange={(e) =>
-              setProfile((p) => ({
-                ...p,
-                timezoneOffset: Math.max(-12, Math.min(12, parseInt(e.target.value, 10) || 0)),
-              }))
-            }
-            disabled={profileLoading}
-          >
-            {TZ_OPTIONS.map((o) => (
-              <option key={o} value={String(o)}>
-                {formatTzLabel(o)}
-              </option>
-            ))}
-          </select>
-        </label>
-        <p className="profile__form-hint muted">
-          По нему считаются «сегодня/вчера» для тренировок и дней подряд. Если живёшь в Москве — оставь «МСК (+0)».
-        </p>
-        <button
-          type="button"
-          className="profile__save"
-          onClick={() => void saveProfile()}
-          disabled={profileLoading || profileSaving}
-        >
-          {profileSaving ? "Сохраняю…" : "Сохранить"}
-        </button>
-      </div>
-
       <h2 className="section-title">Здоровье</h2>
       {onSick === null ? (
         <p className="profile__hint muted">Загрузка статуса…</p>
@@ -488,6 +416,68 @@ export function ProfileScreen({
           </div>
         </div>
       )}
+
+      <h2 className="section-title">Профиль (для Лео)</h2>
+      {profileLoading && <p className="muted">Загрузка профиля…</p>}
+      <div className="profile__form">
+        <label className="profile__field">
+          <span>Имя (как обращаться)</span>
+          <input
+            type="text"
+            className="profile__input"
+            value={profile.displayName}
+            onChange={(e) => setProfile((p) => ({ ...p, displayName: e.target.value.slice(0, 64) }))}
+            placeholder="Например, Саша"
+            maxLength={64}
+            autoComplete="name"
+            disabled={profileLoading}
+          />
+        </label>
+        <label className="profile__field">
+          <span>Пол</span>
+          <select
+            className="profile__input"
+            value={profile.gender}
+            onChange={(e) => setProfile((p) => ({ ...p, gender: e.target.value as "m" | "f" | "" }))}
+            disabled={profileLoading}
+          >
+            <option value="">Не указывать</option>
+            <option value="m">Мужской</option>
+            <option value="f">Женский</option>
+          </select>
+        </label>
+        <label className="profile__field">
+          <span>Часовой пояс</span>
+          <select
+            className="profile__input"
+            value={String(profile.timezoneOffset)}
+            onChange={(e) =>
+              setProfile((p) => ({
+                ...p,
+                timezoneOffset: Math.max(-12, Math.min(12, parseInt(e.target.value, 10) || 0)),
+              }))
+            }
+            disabled={profileLoading}
+          >
+            {TZ_OPTIONS.map((o) => (
+              <option key={o} value={String(o)}>
+                {formatTzLabel(o)}
+              </option>
+            ))}
+          </select>
+        </label>
+        <p className="profile__form-hint muted">
+          По нему считаются «сегодня/вчера» для тренировок и дней подряд. Если живёшь в Москве — оставь «МСК (+0)».
+        </p>
+        <button
+          type="button"
+          className="profile__save"
+          onClick={() => void saveProfile()}
+          disabled={profileLoading || profileSaving}
+        >
+          {profileSaving ? "Сохраняю…" : "Сохранить"}
+        </button>
+      </div>
 
     </div>
   );
