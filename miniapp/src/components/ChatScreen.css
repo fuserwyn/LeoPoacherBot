@@ -34,8 +34,10 @@
 
 .chat__head {
   display: flex;
+  flex-direction: column;
   align-items: center;
-  gap: 12px;
+  justify-content: center;
+  gap: 8px;
   padding: 16px 16px 12px;
   border-bottom: 1px solid var(--line, #24242c);
   position: sticky;
@@ -145,6 +147,10 @@
 
 .chat__head-text {
   min-width: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
 }
 
 .chat__title {
@@ -155,7 +161,7 @@
 }
 
 .chat__sub {
-  margin: 4px 0 0;
+  margin: 2px 0 0;
   font-size: 0.8rem;
   color: var(--muted, #8b8b9a);
 }
