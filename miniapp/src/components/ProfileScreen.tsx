@@ -332,15 +332,36 @@ export function ProfileScreen({
         {ACHIEVEMENTS.map(({ days, colorClass }, i) => (
           <div key={days} className={`profile__achievement ${colorClass}${i < achievementCount ? " is-earned" : ""}`}>
             <div className="profile__achievement-badge" aria-hidden>
-              <span className="profile__achievement-claw profile__achievement-claw--1" />
-              <span className="profile__achievement-claw profile__achievement-claw--2" />
-              <span className="profile__achievement-claw profile__achievement-claw--3" />
-              <span className="profile__achievement-toe profile__achievement-toe--1" />
-              <span className="profile__achievement-toe profile__achievement-toe--2" />
-              <span className="profile__achievement-toe profile__achievement-toe--3" />
-              <span className="profile__achievement-toe profile__achievement-toe--4" />
-              <span className="profile__achievement-pad">
-                <span className="profile__achievement-days">{days}</span>
+              <svg className="profile__achievement-paw" viewBox="0 0 64 64">
+                <circle className="profile__achievement-bg" cx="32" cy="32" r="28" />
+                <path className="profile__achievement-claw" d="M15 14 L18 6 L21 14 Z" />
+                <path className="profile__achievement-claw" d="M27 10 L30 2 L33 10 Z" />
+                <path className="profile__achievement-claw" d="M39 10 L42 2 L45 10 Z" />
+                <path className="profile__achievement-claw" d="M51 14 L54 6 L57 14 Z" />
+
+                <ellipse className="profile__achievement-toe-shell" cx="15.5" cy="26" rx="8" ry="9.5" transform="rotate(-16 15.5 26)" />
+                <ellipse className="profile__achievement-toe-shell" cx="27.5" cy="19.5" rx="8.6" ry="10.5" transform="rotate(-6 27.5 19.5)" />
+                <ellipse className="profile__achievement-toe-shell" cx="40.5" cy="19.5" rx="8.6" ry="10.5" transform="rotate(6 40.5 19.5)" />
+                <ellipse className="profile__achievement-toe-shell" cx="52.5" cy="26" rx="8" ry="9.5" transform="rotate(16 52.5 26)" />
+
+                <ellipse className="profile__achievement-toe-bean" cx="15.5" cy="27" rx="4.7" ry="5.9" transform="rotate(-16 15.5 27)" />
+                <ellipse className="profile__achievement-toe-bean" cx="27.5" cy="20.5" rx="4.9" ry="6.3" transform="rotate(-6 27.5 20.5)" />
+                <ellipse className="profile__achievement-toe-bean" cx="40.5" cy="20.5" rx="4.9" ry="6.3" transform="rotate(6 40.5 20.5)" />
+                <ellipse className="profile__achievement-toe-bean" cx="52.5" cy="27" rx="4.7" ry="5.9" transform="rotate(16 52.5 27)" />
+
+                <path
+                  className="profile__achievement-pad-shell"
+                  d="M32 34 C22 34 16 41 16 50 C16 57 22 61 32 61 C42 61 48 57 48 50 C48 41 42 34 32 34 Z"
+                />
+                <path
+                  className="profile__achievement-pad-bean"
+                  d="M32 39 C25 39 21 44 21 50 C21 55 25 58 32 58 C39 58 43 55 43 50 C43 44 39 39 32 39 Z"
+                />
+              </svg>
+              <span
+                className={`profile__achievement-days${days >= 100 ? " profile__achievement-days--triple" : days >= 10 ? " profile__achievement-days--double" : ""}`}
+              >
+                {days}
               </span>
             </div>
             <div className="profile__achievement-label">
