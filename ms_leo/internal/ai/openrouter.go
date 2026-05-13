@@ -54,7 +54,6 @@ type UserTrainingData struct {
 	HasSickLeave    bool
 	HasHealthy      bool
 	StreakDays      int
-	XP              int
 	Cups            int
 	TrainingMessage string
 }
@@ -155,7 +154,6 @@ func (c *OpenRouterClient) GenerateDailySummary(usersData []UserTrainingData) (s
 			userReports.WriteString("  - Выздоровел\n")
 		}
 		userReports.WriteString(fmt.Sprintf("  - Серия тренировок: %d дней\n", user.StreakDays))
-		userReports.WriteString(fmt.Sprintf("  - Всего XP: %d\n", user.XP))
 		userReports.WriteString(fmt.Sprintf("  - Всего кубков: %d\n\n", user.Cups))
 	}
 
@@ -186,7 +184,6 @@ func (c *OpenRouterClient) GenerateMonthlySummary(usersData []UserTrainingData) 
 			userReports.WriteString("  - Выздоровел\n")
 		}
 		userReports.WriteString(fmt.Sprintf("  - Текущая серия тренировок: %d дней\n", user.StreakDays))
-		userReports.WriteString(fmt.Sprintf("  - Всего XP: %d\n", user.XP))
 		userReports.WriteString(fmt.Sprintf("  - Всего кубков: %d\n\n", user.Cups))
 	}
 

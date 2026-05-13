@@ -538,7 +538,6 @@ func (b *Bot) handleMessage(msg *tgbotapi.Message, personalReplyCh chan<- string
 				UserID:            msg.From.ID,
 				ChatID:            stateChatID,
 				Username:          username,
-				XP:                0,
 				StreakDays:        0,
 				CalorieStreakDays: 0,
 				CupsEarned:        0,

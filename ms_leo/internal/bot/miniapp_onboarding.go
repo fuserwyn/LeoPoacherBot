@@ -140,7 +140,6 @@ func (b *Bot) ensurePrivateMessageLogForMiniApp(userID int64, username string) {
 		UserID:          userID,
 		ChatID:          packChat,
 		Username:        strings.TrimSpace(username),
-		XP:              0,
 		StreakDays:      0,
 		CupsEarned:      0,
 		LastMessage:     now,

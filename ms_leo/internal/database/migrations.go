@@ -830,6 +830,35 @@ var Migrations = []Migration{
 		`,
 		DownSQL: `SELECT 1;`,
 	},
+	{
+		Version:     41,
+		Description: "Drop legacy training_state.xp column",
+		UpSQL: `
+			DO $m41$
+			BEGIN
+				IF EXISTS (
+					SELECT 1 FROM information_schema.columns
+					WHERE table_schema = 'public' AND table_name = 'training_state' AND column_name = 'xp'
+				) THEN
+					ALTER TABLE training_state DROP COLUMN xp;
+				END IF;
+			END
+			$m41$;
+		`,
+		DownSQL: `
+			DO $m41d$
+			BEGIN
+				IF NOT EXISTS (
+					SELECT 1 FROM information_schema.columns
+					WHERE table_schema = 'public' AND table_name = 'training_state' AND column_name = 'xp'
+				) THEN
+					ALTER TABLE training_state ADD COLUMN xp INTEGER DEFAULT 0;
+					UPDATE training_state SET xp = COALESCE(cups_earned, 0);
+				END IF;
+			END
+			$m41d$;
+		`,
+	},
 }
 
 // MigrationRecord представляет запись о выполненной миграции
