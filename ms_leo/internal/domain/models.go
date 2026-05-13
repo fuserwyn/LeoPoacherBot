@@ -106,6 +106,16 @@ type MiniappPersonalChatMessage struct {
 	LikeMe    bool   `json:"like_me,omitempty"`
 }
 
+// MiniappSupportConversation — краткая сводка диалога юзера в личном чате miniapp.
+type MiniappSupportConversation struct {
+	UserID      int64  `json:"user_id"`
+	DisplayName string `json:"display_name"`
+	LastRole    string `json:"last_role"`
+	LastText    string `json:"last_text"`
+	LastCreated string `json:"last_created"`
+	NeedsReply  bool   `json:"needs_reply"`
+}
+
 // TrainingSession представляет одну зафиксированную тренировочную сессию.
 type TrainingSession struct {
 	ID             int64     `json:"id" db:"id"`

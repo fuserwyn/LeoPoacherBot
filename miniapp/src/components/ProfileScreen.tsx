@@ -34,6 +34,7 @@ type Props = {
   /** Ссылка на аватар из Telegram WebApp (initDataUnsafe.user.photo_url), если бот открыл мини-апп. */
   userPhotoUrl?: string;
   showAlert: (m: string) => void;
+  onSupport?: () => void;
 };
 
 const ACHIEVEMENTS = [
@@ -59,6 +60,7 @@ export function ProfileScreen({
   inTelegram,
   userPhotoUrl,
   showAlert,
+  onSupport,
 }: Props) {
   const [profile, setProfile] = useState<ProfileData>({ gender: "", displayName: "", timezoneOffset: 0 });
   const [profileLoading, setProfileLoading] = useState(true);
@@ -476,6 +478,14 @@ export function ProfileScreen({
           disabled={profileLoading || profileSaving}
         >
           {profileSaving ? "Сохраняю…" : "Сохранить"}
+        </button>
+      </div>
+
+      <div className="profile__support">
+        <h2 className="section-title">Поддержка</h2>
+        <p className="profile__hint muted">Если что-то сломалось или нужен ответ от человека — напиши сюда.</p>
+        <button type="button" className="profile__save profile__support-btn" onClick={onSupport}>
+          Поддержка
         </button>
       </div>
 

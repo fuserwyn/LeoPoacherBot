@@ -228,6 +228,10 @@ export function App() {
           achievementsMax={achievementsMax}
           daysSinceLastTraining={daysSinceLastTraining}
           showAlert={showAlert}
+          onSupport={() => {
+            setWorkoutOpen(false);
+            setTab("chat");
+          }}
         />
       )}
 

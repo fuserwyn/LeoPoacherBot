@@ -68,6 +68,65 @@ func (d *Database) ListMiniappPersonalChat(userID, packChatID int64, limit int, 
 	return items, nil
 }
 
+// ListMiniappSupportConversations — последние приватные диалоги юзеров с Лео/поддержкой.
+func (d *Database) ListMiniappSupportConversations(packChatID int64, limit int) ([]*domain.MiniappSupportConversation, error) {
+	if packChatID == 0 {
+		return []*domain.MiniappSupportConversation{}, nil
+	}
+	if limit <= 0 {
+		limit = 20
+	}
+	if limit > 100 {
+		limit = 100
+	}
+
+	const q = `
+		WITH last_per_user AS (
+			SELECT DISTINCT ON (c.user_id)
+				c.user_id,
+				COALESCE(NULLIF(BTRIM(p.display_name), ''), NULLIF(BTRIM(ts.username), ''), 'user' || c.user_id::text) AS display_name,
+				c.role,
+				c.message_text,
+				c.created_at
+			FROM miniapp_personal_chat c
+			LEFT JOIN miniapp_user_profile p
+				ON p.user_id = c.user_id AND p.pack_chat_id = c.pack_chat_id
+			LEFT JOIN training_state ts
+				ON ts.user_id = c.user_id AND ts.chat_id = c.pack_chat_id
+			WHERE c.pack_chat_id = $1
+			ORDER BY c.user_id, c.id DESC
+		)
+		SELECT user_id, display_name, role, message_text, created_at
+		FROM last_per_user
+		ORDER BY created_at DESC
+		LIMIT $2
+	`
+	rows, err := d.db.Query(q, packChatID, limit)
+	if err != nil {
+		return nil, fmt.Errorf("list miniapp support conversations: %w", err)
+	}
+	defer rows.Close()
+
+	var out []*domain.MiniappSupportConversation
+	for rows.Next() {
+		var item domain.MiniappSupportConversation
+		var created time.Time
+		if err := rows.Scan(&item.UserID, &item.DisplayName, &item.LastRole, &item.LastText, &created); err != nil {
+			return nil, err
+		}
+		item.LastCreated = created.UTC().Format("2006-01-02T15:04:05Z07:00")
+		item.NeedsReply = item.LastRole == "user"
+		out = append(out, &item)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	if out == nil {
+		out = []*domain.MiniappSupportConversation{}
+	}
+	return out, nil
+}
+
 func (d *Database) queryMiniappPersonalChat(query string, args ...interface{}) ([]*domain.MiniappPersonalChatMessage, error) {
 	rows, err := d.db.Query(query, args...)
 	if err != nil {
