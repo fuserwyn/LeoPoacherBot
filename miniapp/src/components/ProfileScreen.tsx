@@ -11,6 +11,16 @@ export type ProfileData = {
   timezoneOffset: number;
 };
 
+const EMPTY_PROFILE: ProfileData = { gender: "", displayName: "", timezoneOffset: 0 };
+
+function normalizeProfileData(profile: ProfileData): ProfileData {
+  return {
+    gender: profile.gender,
+    displayName: profile.displayName.trim(),
+    timezoneOffset: Math.max(-12, Math.min(12, Math.trunc(profile.timezoneOffset || 0))),
+  };
+}
+
 const TZ_OPTIONS: number[] = Array.from({ length: 25 }, (_, i) => i - 12);
 
 const formatTzLabel = (offset: number): string => {
@@ -64,7 +74,8 @@ export function ProfileScreen({
   onProfileSaved,
   onSupport,
 }: Props) {
-  const [profile, setProfile] = useState<ProfileData>({ gender: "", displayName: "", timezoneOffset: 0 });
+  const [profile, setProfile] = useState<ProfileData>(EMPTY_PROFILE);
+  const [savedProfile, setSavedProfile] = useState<ProfileData>(EMPTY_PROFILE);
   const [profileLoading, setProfileLoading] = useState(true);
   const [profileSaving, setProfileSaving] = useState(false);
 
@@ -107,11 +118,13 @@ export function ProfileScreen({
         typeof j.timezone_offset === "number" && Number.isFinite(j.timezone_offset)
           ? Math.max(-12, Math.min(12, Math.trunc(j.timezone_offset)))
           : 0;
-      setProfile({
+      const nextProfile = {
         gender: g,
         displayName: dn,
         timezoneOffset: tz,
-      });
+      };
+      setProfile(nextProfile);
+      setSavedProfile(normalizeProfileData(nextProfile));
     } catch (e) {
       showAlert(e instanceof Error ? e.message : "Сеть");
     } finally {
@@ -214,11 +227,12 @@ export function ProfileScreen({
     }
     setProfileSaving(true);
     try {
+      const normalizedProfile = normalizeProfileData(profile);
       const body: Record<string, unknown> = {
         init_data: initData,
-        gender: profile.gender,
-        display_name: profile.displayName.trim(),
-        timezone_offset: profile.timezoneOffset,
+        gender: normalizedProfile.gender,
+        display_name: normalizedProfile.displayName,
+        timezone_offset: normalizedProfile.timezoneOffset,
       };
       const res = await fetch(`${api}/api/miniapp/profile/save`, {
         method: "POST",
@@ -231,8 +245,10 @@ export function ProfileScreen({
         return;
       }
       if (j.ok) {
+        setProfile(normalizedProfile);
+        setSavedProfile(normalizedProfile);
         void window.Telegram?.WebApp?.HapticFeedback?.notificationOccurred?.("success");
-        onProfileSaved?.(profile.displayName.trim());
+        onProfileSaved?.(normalizedProfile.displayName);
         showAlert("Сохранено. Лео подстроит обращения.");
       }
     } catch (e) {
@@ -241,6 +257,15 @@ export function ProfileScreen({
       setProfileSaving(false);
     }
   }, [inTelegram, initData, onProfileSaved, profile, showAlert]);
+
+  const profileDirty = (() => {
+    const current = normalizeProfileData(profile);
+    return (
+      current.gender !== savedProfile.gender ||
+      current.displayName !== savedProfile.displayName ||
+      current.timezoneOffset !== savedProfile.timezoneOffset
+    );
+  })();
 
   const noTrainingAlert = daysSinceLastTraining >= 5;
   const noTrainingDanger = daysSinceLastTraining >= 7;
@@ -474,14 +499,16 @@ export function ProfileScreen({
         <p className="profile__form-hint muted">
           По нему считаются «сегодня/вчера» для тренировок и дней подряд. Если живёшь в Москве — оставь «МСК (+0)».
         </p>
-        <button
-          type="button"
-          className="profile__save"
-          onClick={() => void saveProfile()}
-          disabled={profileLoading || profileSaving}
-        >
-          {profileSaving ? "Сохраняю…" : "Сохранить"}
-        </button>
+        {(profileDirty || profileSaving) && (
+          <button
+            type="button"
+            className="profile__save"
+            onClick={() => void saveProfile()}
+            disabled={profileLoading || profileSaving || !profileDirty}
+          >
+            {profileSaving ? "Сохраняю…" : "Сохранить"}
+          </button>
+        )}
       </div>
 
       <div className="profile__support">
