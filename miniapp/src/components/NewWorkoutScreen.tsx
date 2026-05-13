@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { WORKOUT_TYPES as TYPES } from "../lib/workoutCategories";
+import { WORKOUT_TYPES as TYPES, type WorkoutCategoryId } from "../lib/workoutCategories";
 import { PhotoCropper } from "./PhotoCropper";
 import "./NewWorkoutScreen.css";
 
@@ -92,7 +92,7 @@ export function NewWorkoutScreen({ onClose, onSave, showAlert }: Props) {
   const noteTaRef = useRef<HTMLTextAreaElement>(null);
   const noteFocusedRef = useRef(false);
 
-  const [type, setType] = useState<string>("strength");
+  const [type, setType] = useState<WorkoutCategoryId | "">("");
   const [min, setMin] = useState(15);
   const [minDraft, setMinDraft] = useState("15");
   const [intensity, setIntensity] = useState<1 | 2 | 3 | 4 | 5>(3);
@@ -352,6 +352,10 @@ export function NewWorkoutScreen({ onClose, onSave, showAlert }: Props) {
           disabled={busy}
           onClick={async () => {
             if (busy) return;
+            if (!type) {
+              (showAlert ?? window.alert)("Выбери тип тренировки.");
+              return;
+            }
             if (type === "other" && !otherLabel.trim()) {
               (showAlert ?? window.alert)("Укажи свой тип активности или выбери категорию из списка.");
               return;

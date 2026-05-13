@@ -29,7 +29,6 @@ type Props = {
   achievementCount: number;
   achievementsMax: number;
   workouts: number;
-  workoutsWeek: number;
   /** Дней с последней тренировки. -1 — тренировок ещё не было. */
   daysSinceLastTraining: number;
   initData: string;
@@ -49,7 +48,6 @@ export function ProfileScreen({
   achievementCount,
   achievementsMax,
   workouts,
-  workoutsWeek,
   daysSinceLastTraining,
   initData,
   inTelegram,
@@ -332,32 +330,27 @@ export function ProfileScreen({
         </div>
       </div>
 
-      <h2 className="section-title">За неделю</h2>
-      <div className="profile__grid2">
-        <div className="wide-card">
-          <div className="wide-card__label">Тренировок</div>
-          <div className="wide-card__val">{workoutsWeek}</div>
+      <section className="profile__achievements" aria-label="Достижения">
+        <div className="profile__achievements-head">
+          <h2 className="section-title profile__achievements-title">Ачивки</h2>
+          <span className="profile__achievements-count">
+            {achievementCount}/{achievementsMax}
+          </span>
         </div>
-        <div className="wide-card">
-          <div className="wide-card__label">Средняя интенсивность</div>
-          <div className="wide-card__val">{workouts > 0 ? "3.0" : "—"}</div>
-        </div>
-      </div>
-
-      <h2 className="section-title">Достижения</h2>
-      <div className="profile__empty">
-        🏆 {achievementCount}/{achievementsMax}
-      </div>
-      <div className="profile__grid2">
+        <div className="profile__achievements-strip">
         {ACHIEVEMENT_MILESTONES.map((d, i) => (
-          <div key={d} className="wide-card">
-            <div className="wide-card__label">
-              {d} {daysWordRu(d)} подряд
+          <div key={d} className={`profile__achievement${i < achievementCount ? " is-earned" : ""}`}>
+            <div className="profile__achievement-badge" aria-hidden>
+              <span className="profile__achievement-paw">🐾</span>
+              <span className="profile__achievement-days">{d}</span>
             </div>
-            <div className="wide-card__val">{i < achievementCount ? "✅" : "⏳"}</div>
+            <div className="profile__achievement-label">
+              {d} {daysWordRu(d)}
+            </div>
           </div>
         ))}
-      </div>
+        </div>
+      </section>
 
       <h2 className="section-title">Профиль (для Лео)</h2>
       {profileLoading && <p className="muted">Загрузка профиля…</p>}

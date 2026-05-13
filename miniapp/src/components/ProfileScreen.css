@@ -176,7 +176,7 @@
   display: grid;
   grid-template-columns: 1fr 1fr 1fr;
   gap: 8px;
-  margin-bottom: 20px;
+  margin-bottom: 16px;
 }
 
 .stat-card {
@@ -203,49 +203,111 @@
   justify-content: center;
 }
 
-.profile__grid2 {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 8px;
+.profile__achievements {
   margin-bottom: 20px;
 }
 
-.wide-card {
-  background: var(--card);
-  border: 1px solid var(--border-subtle);
-  border-radius: var(--radius-md);
-  padding: 12px 12px 14px;
-  min-height: 72px;
+.profile__achievements-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 8px;
+}
+
+.profile__achievements-title {
+  margin-bottom: 0;
+}
+
+.profile__achievements-count {
+  color: var(--text-muted);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.profile__achievements-strip {
+  display: flex;
+  gap: 10px;
+  overflow-x: auto;
+  padding-bottom: 4px;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+}
+
+.profile__achievements-strip::-webkit-scrollbar {
+  display: none;
+}
+
+.profile__achievement {
+  flex: 0 0 88px;
   display: flex;
   flex-direction: column;
+  align-items: center;
+  gap: 8px;
+}
+
+.profile__achievement-badge {
+  position: relative;
+  width: 72px;
+  height: 72px;
+  border-radius: 50%;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background:
+    radial-gradient(circle at 30% 30%, rgba(255, 255, 255, 0.08), transparent 58%),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.04), rgba(255, 255, 255, 0.02));
+  display: flex;
+  align-items: center;
   justify-content: center;
+  overflow: hidden;
 }
 
-.wide-card__label {
-  font-size: 10px;
-  font-weight: 700;
-  color: var(--text-label);
-  line-height: 1.2;
-  margin-bottom: 6px;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
+.profile__achievement-paw {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 34px;
+  opacity: 0.18;
+  filter: grayscale(1);
 }
 
-.wide-card__val {
+.profile__achievement-days {
+  position: relative;
+  z-index: 1;
   font-size: 24px;
-  font-weight: 700;
-  letter-spacing: -0.02em;
+  font-weight: 800;
+  line-height: 1;
+  color: rgba(255, 255, 255, 0.72);
 }
 
-.profile__empty {
-  background: var(--card);
-  border: 1px solid var(--border-subtle);
-  border-radius: var(--radius-md);
-  padding: 16px;
-  color: var(--text-muted);
-  font-size: 14px;
-  line-height: 1.4;
-  margin-bottom: 20px;
+.profile__achievement-label {
+  color: var(--text-label);
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1.2;
+  text-align: center;
+}
+
+.profile__achievement.is-earned .profile__achievement-badge {
+  border-color: rgba(255, 185, 64, 0.7);
+  background:
+    radial-gradient(circle at 30% 30%, rgba(255, 222, 138, 0.45), transparent 58%),
+    linear-gradient(180deg, rgba(255, 183, 56, 0.28), rgba(255, 106, 43, 0.2));
+  box-shadow: 0 6px 18px rgba(255, 140, 74, 0.2);
+}
+
+.profile__achievement.is-earned .profile__achievement-paw {
+  opacity: 0.28;
+  filter: none;
+}
+
+.profile__achievement.is-earned .profile__achievement-days {
+  color: #fff4cf;
+}
+
+.profile__achievement.is-earned .profile__achievement-label {
+  color: var(--text);
 }
 
 .profile__hint {

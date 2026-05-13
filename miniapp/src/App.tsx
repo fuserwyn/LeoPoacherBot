@@ -48,7 +48,6 @@ export function App() {
   const [achievementCount, setAchievementCount] = useState(0);
   const [achievementsMax, setAchievementsMax] = useState(4);
   const [workouts, setWorkouts] = useState(0);
-  const [workoutsWeek, setWorkoutsWeek] = useState(0);
   const [leoPending, setLeoPending] = useState(0);
   const [feedUnread, setFeedUnread] = useState(0);
   const [feedRefreshToken, setFeedRefreshToken] = useState(0);
@@ -96,7 +95,6 @@ export function App() {
       setAchievementCount(typeof j.achievement_count === "number" ? j.achievement_count : 0);
       setAchievementsMax(typeof j.achievements_max === "number" ? j.achievements_max : 4);
       setWorkouts(typeof j.workouts_total === "number" ? j.workouts_total : 0);
-      setWorkoutsWeek(typeof j.workouts_week === "number" ? j.workouts_week : 0);
       // Одноразовое автоопределение TZ для пользователей без явно выставленного смещения.
       if (!tzSyncedRef.current) {
         tzSyncedRef.current = true;
@@ -189,7 +187,6 @@ export function App() {
           recordStreak={recordStreak}
           achievementCount={achievementCount}
           achievementsMax={achievementsMax}
-          workoutsWeek={workoutsWeek}
           daysSinceLastTraining={daysSinceLastTraining}
           showAlert={showAlert}
         />
