@@ -9,12 +9,21 @@ const apiBase = (import.meta.env.VITE_MINIAPP_API_URL as string | undefined)?.re
 export type OnboardingEnsureResult = {
   ok: boolean;
   inPack: boolean;
+  deleted: boolean;
+  accessState: "active" | "deleted" | "out" | "unknown";
   justOnboarded: boolean;
   isRejoin: boolean;
 };
 
 export async function ensureMiniappOnboarding(initData: string): Promise<OnboardingEnsureResult> {
-  const empty: OnboardingEnsureResult = { ok: false, inPack: false, justOnboarded: false, isRejoin: false };
+  const empty: OnboardingEnsureResult = {
+    ok: false,
+    inPack: false,
+    deleted: false,
+    accessState: "unknown",
+    justOnboarded: false,
+    isRejoin: false,
+  };
   if (!apiBase || !initData.trim()) return empty;
   try {
     const res = await fetch(`${apiBase}/api/miniapp/onboarding/ensure`, {
@@ -25,6 +34,8 @@ export async function ensureMiniappOnboarding(initData: string): Promise<Onboard
     const j = (await res.json().catch(() => ({}))) as {
       ok?: boolean;
       in_pack?: boolean;
+      deleted?: boolean;
+      access_state?: string;
       just_onboarded?: boolean;
       is_rejoin?: boolean;
     };
@@ -32,6 +43,8 @@ export async function ensureMiniappOnboarding(initData: string): Promise<Onboard
     return {
       ok: true,
       inPack: !!j.in_pack,
+      deleted: !!j.deleted,
+      accessState: j.access_state === "active" || j.access_state === "deleted" || j.access_state === "out" ? j.access_state : "unknown",
       justOnboarded: !!j.just_onboarded,
       isRejoin: !!j.is_rejoin,
     };

@@ -13,6 +13,10 @@ import (
 type MiniAppOnboardingResult struct {
 	// InPack — у пользователя есть доступ к стае (paywall или message_log) либо это owner.
 	InPack bool
+	// Deleted — пользователь выбыл за неактивность и должен видеть экран блокировки мини-аппа.
+	Deleted bool
+	// AccessState — active / deleted / out.
+	AccessState string
 	// JustOnboarded — true только в первый успешный заход после оплаты,
 	// когда мы стартовали таймер и записали pack_join/pack_rejoin в ленту.
 	JustOnboarded bool
@@ -33,7 +37,7 @@ type MiniAppOnboardingResult struct {
 //
 // Заменяет sendWelcomeMessage / handleNewChatMembers, которые раньше срабатывали при добавлении в TG-группу.
 func (b *Bot) EnsureMiniAppOnboarding(d initdata.InitData) (MiniAppOnboardingResult, error) {
-	out := MiniAppOnboardingResult{}
+	out := MiniAppOnboardingResult{AccessState: "out"}
 	if b == nil || b.db == nil || d.User.ID == 0 {
 		return out, nil
 	}
@@ -49,7 +53,14 @@ func (b *Bot) EnsureMiniAppOnboarding(d initdata.InitData) (MiniAppOnboardingRes
 	// Доступ: владелец / активная оплата / живой message_log в стае.
 	if isOwner {
 		out.InPack = true
+		out.AccessState = "active"
 	} else {
+		mlAny, err := b.db.GetMessageLogAnyState(userID, chatID)
+		if err == nil && mlAny != nil && mlAny.IsDeleted {
+			out.Deleted = true
+			out.AccessState = "deleted"
+			return out, nil
+		}
 		ok, err := b.db.UserInPackOrPaid(userID, chatID, b.config.PaywallEnabled)
 		if err != nil {
 			return out, err
@@ -58,6 +69,7 @@ func (b *Bot) EnsureMiniAppOnboarding(d initdata.InitData) (MiniAppOnboardingRes
 		if !ok {
 			return out, nil
 		}
+		out.AccessState = "active"
 	}
 
 	b.SyncMiniappTelegramPhotoFromInit(userID, chatID, strings.TrimSpace(d.User.PhotoURL))
@@ -74,6 +86,9 @@ func (b *Bot) EnsureMiniAppOnboarding(d initdata.InitData) (MiniAppOnboardingRes
 	}
 	if ml.IsDeleted {
 		// is_deleted=true означает «выбыл за неактивность». Возвращаться можно только через новую оплату.
+		out.InPack = false
+		out.Deleted = true
+		out.AccessState = "deleted"
 		return out, nil
 	}
 	// Старый баг: после оплаты ReactivateReturnedUser вызывали с пустым username → NULL в training_state.

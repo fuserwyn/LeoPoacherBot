@@ -208,6 +208,35 @@ func (d *Database) GetMessageLog(userID, chatID int64) (*domain.MessageLog, erro
 	return &msg, nil
 }
 
+// GetMessageLogAnyState получает строку training_state без фильтра по is_deleted.
+func (d *Database) GetMessageLogAnyState(userID, chatID int64) (*domain.MessageLog, error) {
+	query := `
+		SELECT user_id, username, chat_id, streak_days, max_streak_days, calorie_streak_days, cups_earned, last_training_date, last_message, has_training_done, has_sick_leave, has_healthy, is_deleted, is_exempt_from_deletion,
+		       timer_start_time, sick_leave_start_time, sick_leave_end_time, sick_time, gender, timezone_offset_from_moscow, sick_approval_pending, sick_approval_deadline, sick_approval_message_id,
+		       achievement_count, xp_freeze_until, last_daily_xp_msk_date, leopard_starter_bonus_applied, last_achievement_streak_level, created_at, updated_at
+		FROM training_state
+		WHERE user_id = $1 AND chat_id = $2
+		ORDER BY updated_at DESC
+		LIMIT 1
+	`
+
+	var msg domain.MessageLog
+	var lastDaily sql.NullString
+	err := d.db.QueryRow(query, userID, chatID).Scan(
+		&msg.UserID, &msg.Username, &msg.ChatID, &msg.StreakDays, &msg.MaxStreakDays, &msg.CalorieStreakDays, &msg.CupsEarned, &msg.LastTrainingDate, &msg.LastMessage, &msg.HasTrainingDone,
+		&msg.HasSickLeave, &msg.HasHealthy, &msg.IsDeleted, &msg.IsExemptFromDeletion, &msg.TimerStartTime, &msg.SickLeaveStartTime, &msg.SickLeaveEndTime, &msg.SickTime, &msg.Gender, &msg.TimezoneOffsetFromMoscow,
+		&msg.SickApprovalPending, &msg.SickApprovalDeadline, &msg.SickApprovalMessageID,
+		&msg.AchievementCount, &msg.XpFreezeUntil, &lastDaily, &msg.LeopardStarterBonusApplied, &msg.LastAchievementStreakLevel, &msg.CreatedAt, &msg.UpdatedAt)
+	if err != nil {
+		return nil, err
+	}
+	if lastDaily.Valid {
+		s := lastDaily.String
+		msg.LastDailyXPMskDate = &s
+	}
+	return &msg, nil
+}
+
 // UserHasActiveMessageLogInChat — в training_state есть живая запись пользователя в этом чате (учитываем для paywall, если getChatMember недоступен).
 func (d *Database) UserHasActiveMessageLogInChat(userID, chatID int64) (bool, error) {
 	const q = `

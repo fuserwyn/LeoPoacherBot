@@ -6,6 +6,7 @@ import { FeedScreen } from "./components/FeedScreen";
 import { ProfileScreen } from "./components/ProfileScreen";
 import { NewWorkoutScreen } from "./components/NewWorkoutScreen";
 import { RulesScreen } from "./components/RulesScreen";
+import { MiniappRemovedScreen } from "./components/MiniappRemovedScreen";
 import { sendMiniappPrivateText, sendMiniappTrainingWithPhoto } from "./lib/miniappPrivateSend";
 import { fetchLeoPendingCount } from "./lib/leoPersonalInbox";
 import { clearFeedThreadUnread, fetchFeedThreadUnreadCount } from "./lib/feedThreadUnread";
@@ -14,6 +15,7 @@ import { syncTimezoneIfNeeded } from "./lib/timezoneSync";
 import "./App.css";
 
 type Tab = "chat" | "feed" | "rules" | "profile";
+type AccessGateStatus = "checking" | "ok" | "deleted";
 
 function formatTrainingDoneAlert(replyParts: string[]): string {
   const summary = replyParts.filter(Boolean).join("\n\n").trim();
@@ -52,10 +54,20 @@ export function App() {
   const [feedUnread, setFeedUnread] = useState(0);
   const [feedRefreshToken, setFeedRefreshToken] = useState(0);
   const [daysSinceLastTraining, setDaysSinceLastTraining] = useState<number>(-1);
+  const [accessGateStatus, setAccessGateStatus] = useState<AccessGateStatus>("checking");
   const tzSyncedRef = useRef(false);
 
-  const refreshTabBadges = useCallback(async () => {
+  const refreshAccessStatus = useCallback(async () => {
     if (!inTelegram || !initData?.trim()) {
+      setAccessGateStatus("ok");
+      return;
+    }
+    const res = await ensureMiniappOnboarding(initData);
+    setAccessGateStatus(res.deleted || res.accessState === "deleted" ? "deleted" : "ok");
+  }, [inTelegram, initData]);
+
+  const refreshTabBadges = useCallback(async () => {
+    if (accessGateStatus !== "ok" || !inTelegram || !initData?.trim()) {
       setLeoPending(0);
       setFeedUnread(0);
       return;
@@ -63,11 +75,11 @@ export function App() {
     const [leo, feed] = await Promise.all([fetchLeoPendingCount(initData), fetchFeedThreadUnreadCount(initData)]);
     setLeoPending(leo);
     setFeedUnread(feed);
-  }, [inTelegram, initData]);
+  }, [accessGateStatus, inTelegram, initData]);
 
   const refreshProfileStats = useCallback(async () => {
     const apiBase = (import.meta.env.VITE_MINIAPP_API_URL as string | undefined)?.replace(/\/$/, "") ?? "";
-    if (!inTelegram || !initData?.trim() || !apiBase) return;
+    if (accessGateStatus !== "ok" || !inTelegram || !initData?.trim() || !apiBase) return;
     try {
       const res = await fetch(`${apiBase}/api/miniapp/profile/load`, {
         method: "POST",
@@ -104,9 +116,28 @@ export function App() {
     } catch {
       return;
     }
-  }, [inTelegram, initData]);
+  }, [accessGateStatus, inTelegram, initData]);
 
   useEffect(() => {
+    void refreshAccessStatus();
+  }, [refreshAccessStatus]);
+
+  useEffect(() => {
+    const t = window.setInterval(() => {
+      void refreshAccessStatus();
+    }, 30_000);
+    const onVis = () => {
+      if (document.visibilityState === "visible") void refreshAccessStatus();
+    };
+    document.addEventListener("visibilitychange", onVis);
+    return () => {
+      window.clearInterval(t);
+      document.removeEventListener("visibilitychange", onVis);
+    };
+  }, [refreshAccessStatus]);
+
+  useEffect(() => {
+    if (accessGateStatus !== "ok") return;
     void refreshTabBadges();
     const t = window.setInterval(() => {
       void refreshTabBadges();
@@ -119,14 +150,15 @@ export function App() {
       window.clearInterval(t);
       document.removeEventListener("visibilitychange", onVis);
     };
-  }, [refreshTabBadges]);
+  }, [accessGateStatus, refreshTabBadges]);
 
   useEffect(() => {
+    if (accessGateStatus !== "ok") return;
     void refreshProfileStats();
-  }, [refreshProfileStats]);
+  }, [accessGateStatus, refreshProfileStats]);
 
   useEffect(() => {
-    if (tab !== "feed" || !inTelegram || !initData?.trim()) return;
+    if (accessGateStatus !== "ok" || tab !== "feed" || !inTelegram || !initData?.trim()) return;
     let cancelled = false;
     void (async () => {
       await clearFeedThreadUnread(initData);
@@ -138,16 +170,23 @@ export function App() {
     return () => {
       cancelled = true;
     };
-  }, [tab, inTelegram, initData]);
-
-  useEffect(() => {
-    if (!inTelegram || !initData?.trim()) return;
-    void ensureMiniappOnboarding(initData);
-  }, [inTelegram, initData]);
+  }, [accessGateStatus, tab, inTelegram, initData]);
 
   const onLeoInboxDrained = useCallback(() => {
     void refreshTabBadges();
   }, [refreshTabBadges]);
+
+  if (accessGateStatus === "checking") {
+    return <div className="app" />;
+  }
+
+  if (accessGateStatus === "deleted") {
+    return (
+      <div className="app">
+        <MiniappRemovedScreen />
+      </div>
+    );
+  }
 
   return (
     <div className="app">

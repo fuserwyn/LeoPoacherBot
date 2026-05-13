@@ -1106,6 +1106,8 @@ func (s *Server) handlePostOnboardingEnsure(w http.ResponseWriter, r *http.Reque
 	_ = json.NewEncoder(w).Encode(map[string]any{
 		"ok":             true,
 		"in_pack":        res.InPack,
+		"deleted":        res.Deleted,
+		"access_state":   res.AccessState,
 		"just_onboarded": res.JustOnboarded,
 		"is_rejoin":      res.IsRejoin,
 	})

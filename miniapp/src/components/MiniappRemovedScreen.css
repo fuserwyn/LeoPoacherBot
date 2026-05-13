@@ -1,0 +1,45 @@
+.miniapp-removed {
+  min-height: 100dvh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 32px 20px 40px;
+}
+
+.miniapp-removed__inner {
+  width: min(100%, 360px);
+  text-align: center;
+}
+
+.miniapp-removed__avatar {
+  width: 104px;
+  height: 104px;
+  border-radius: 50%;
+  display: block;
+  margin: 0 auto 18px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.miniapp-removed__eyebrow {
+  margin: 0 0 8px;
+  color: rgba(255, 255, 255, 0.58);
+  font-size: 12px;
+  line-height: 1.35;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.miniapp-removed__title {
+  margin: 0;
+  font-size: 30px;
+  line-height: 1.05;
+  font-weight: 800;
+  letter-spacing: -0.03em;
+}
+
+.miniapp-removed__text {
+  margin: 14px 0 0;
+  color: rgba(255, 255, 255, 0.78);
+  font-size: 15px;
+  line-height: 1.5;
+}
