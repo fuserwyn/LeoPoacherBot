@@ -730,6 +730,8 @@ func (b *Bot) handleTrainingDone(msg *tgbotapi.Message) {
 		b.logger.Errorf("Failed to get message log: %v", err)
 		return
 	}
+	localNow := b.getUserLocalNow(messageLog.TimezoneOffsetFromMoscow)
+	suppressTrainingReplyAt0420 := localNow.Hour() == 4 && localNow.Minute() == 20
 
 	// Фиксируем кубки до начислений, чтобы сохранить точный cups_added в training_sessions.
 	cupsBefore, err := b.db.GetUserCups(msg.From.ID, msg.Chat.ID)
@@ -831,7 +833,7 @@ func (b *Bot) handleTrainingDone(msg *tgbotapi.Message) {
 			} else {
 				b.logger.Infof("Successfully added 420 cups for monthly achievement")
 				// Проверяем, достиг ли пользователь 420 кубков и является ли 3-м
-				if cupsBefore < 420 {
+				if cupsBefore < 420 && !suppressTrainingReplyAt0420 {
 					b.checkMerchGiveawayCompletion(msg, msg.Chat.ID)
 				}
 			}
@@ -861,7 +863,7 @@ func (b *Bot) handleTrainingDone(msg *tgbotapi.Message) {
 			} else {
 				b.logger.Infof("Successfully added 420 cups for 60-day achievement")
 				// Проверяем, достиг ли пользователь 420 кубков и является ли 3-м
-				if cupsBefore < 420 {
+				if cupsBefore < 420 && !suppressTrainingReplyAt0420 {
 					b.checkMerchGiveawayCompletion(msg, msg.Chat.ID)
 				}
 			}
@@ -875,7 +877,7 @@ func (b *Bot) handleTrainingDone(msg *tgbotapi.Message) {
 			} else {
 				b.logger.Infof("Successfully added 420 cups for quarterly achievement")
 				// Проверяем, достиг ли пользователь 420 кубков и является ли 3-м
-				if cupsBefore < 420 {
+				if cupsBefore < 420 && !suppressTrainingReplyAt0420 {
 					b.checkMerchGiveawayCompletion(msg, msg.Chat.ID)
 				}
 			}
@@ -947,9 +949,10 @@ func (b *Bot) handleTrainingDone(msg *tgbotapi.Message) {
 		}
 		messageText := baseMessage
 		var codingPlainFallback string
+		skipEarlyMorningAddendum := suppressTrainingReplyAt0420
 
 		// Дополняем короткой ИИ-припиской по текущему контексту
-		if b.aiClient != nil {
+		if b.aiClient != nil && !skipEarlyMorningAddendum {
 			// Индикатор набора, чтобы показать «typing...» пока генерируется ответ
 			action := tgbotapi.NewChatAction(msg.Chat.ID, tgbotapi.ChatTyping)
 			b.api.Send(action)
@@ -1012,9 +1015,8 @@ func (b *Bot) handleTrainingDone(msg *tgbotapi.Message) {
 			ctxBuilder.WriteString(fmt.Sprintf("Кубков всего: %d\n", currentCups))
 
 			// Добавляем контекст времени для разнообразия
-			now := b.getUserLocalNow(messageLog.TimezoneOffsetFromMoscow)
-			hour := now.Hour()
-			weekday := now.Weekday()
+			hour := localNow.Hour()
+			weekday := localNow.Weekday()
 			weekdayNames := []string{"воскресенье", "понедельник", "вторник", "среда", "четверг", "пятница", "суббота"}
 			if chatType == "coding" {
 				ctxBuilder.WriteString(fmt.Sprintf("Время отчёта: %s, %d:00\n", weekdayNames[weekday], hour))
@@ -1101,28 +1103,34 @@ func (b *Bot) handleTrainingDone(msg *tgbotapi.Message) {
 			} else {
 				b.logger.Warnf("AI response generation failed: %v", err)
 			}
+		} else if skipEarlyMorningAddendum {
+			b.logger.Infof("Skipping AI addendum for training report at 04:20")
 		}
 
-		reply := tgbotapi.NewMessage(msg.Chat.ID, messageText)
-		if chatType == "coding" && codingPlainFallback != "" {
-			reply.ParseMode = tgbotapi.ModeHTML
-		}
-
-		b.logger.Infof("Sending training done message to chat %d", msg.Chat.ID)
-		_, err = b.api.Send(reply)
-		if err != nil {
+		if suppressTrainingReplyAt0420 {
+			b.logger.Infof("Suppressing training reply at 04:20")
+		} else {
+			reply := tgbotapi.NewMessage(msg.Chat.ID, messageText)
 			if chatType == "coding" && codingPlainFallback != "" {
-				b.logger.Warnf("training_done HTML send failed, retrying plain: %v", err)
-				fallback := tgbotapi.NewMessage(msg.Chat.ID, codingPlainFallback)
-				_, err = b.api.Send(fallback)
+				reply.ParseMode = tgbotapi.ModeHTML
 			}
+
+			b.logger.Infof("Sending training done message to chat %d", msg.Chat.ID)
+			_, err = b.api.Send(reply)
 			if err != nil {
-				b.logger.Errorf("Failed to send training done message: %v", err)
+				if chatType == "coding" && codingPlainFallback != "" {
+					b.logger.Warnf("training_done HTML send failed, retrying plain: %v", err)
+					fallback := tgbotapi.NewMessage(msg.Chat.ID, codingPlainFallback)
+					_, err = b.api.Send(fallback)
+				}
+				if err != nil {
+					b.logger.Errorf("Failed to send training done message: %v", err)
+				} else {
+					b.logger.Infof("Successfully sent training done message to chat %d", msg.Chat.ID)
+				}
 			} else {
 				b.logger.Infof("Successfully sent training done message to chat %d", msg.Chat.ID)
 			}
-		} else {
-			b.logger.Infof("Successfully sent training done message to chat %d", msg.Chat.ID)
 		}
 	} else if !hasAnyAchievement {
 		solvedTotal, incErr := b.db.IncrementSolvedTasksCount(msg.From.ID, msg.Chat.ID)
@@ -1156,9 +1164,10 @@ func (b *Bot) handleTrainingDone(msg *tgbotapi.Message) {
 		}
 		messageText := baseMessage
 		var codingPlainFallback string
+		skipEarlyMorningAddendum := suppressTrainingReplyAt0420
 
 		// Короткая ИИ-приписка и здесь
-		if b.aiClient != nil {
+		if b.aiClient != nil && !skipEarlyMorningAddendum {
 			action := tgbotapi.NewChatAction(msg.Chat.ID, tgbotapi.ChatTyping)
 			b.api.Send(action)
 			stopTyping := make(chan struct{})
@@ -1266,28 +1275,34 @@ func (b *Bot) handleTrainingDone(msg *tgbotapi.Message) {
 			} else {
 				b.logger.Warnf("AI response generation (double) failed: %v", err)
 			}
+		} else if skipEarlyMorningAddendum {
+			b.logger.Infof("Skipping AI addendum for second training report at 04:20")
 		}
 
-		reply := tgbotapi.NewMessage(msg.Chat.ID, messageText)
-		if chatType == "coding" && codingPlainFallback != "" {
-			reply.ParseMode = tgbotapi.ModeHTML
-		}
-
-		b.logger.Infof("Sending already trained today message to chat %d", msg.Chat.ID)
-		_, err = b.api.Send(reply)
-		if err != nil {
+		if suppressTrainingReplyAt0420 {
+			b.logger.Infof("Suppressing second training reply at 04:20")
+		} else {
+			reply := tgbotapi.NewMessage(msg.Chat.ID, messageText)
 			if chatType == "coding" && codingPlainFallback != "" {
-				b.logger.Warnf("double session HTML send failed, retrying plain: %v", err)
-				fallback := tgbotapi.NewMessage(msg.Chat.ID, codingPlainFallback)
-				_, err = b.api.Send(fallback)
+				reply.ParseMode = tgbotapi.ModeHTML
 			}
+
+			b.logger.Infof("Sending already trained today message to chat %d", msg.Chat.ID)
+			_, err = b.api.Send(reply)
 			if err != nil {
-				b.logger.Errorf("Failed to send already trained today message: %v", err)
+				if chatType == "coding" && codingPlainFallback != "" {
+					b.logger.Warnf("double session HTML send failed, retrying plain: %v", err)
+					fallback := tgbotapi.NewMessage(msg.Chat.ID, codingPlainFallback)
+					_, err = b.api.Send(fallback)
+				}
+				if err != nil {
+					b.logger.Errorf("Failed to send already trained today message: %v", err)
+				} else {
+					b.logger.Infof("Successfully sent already trained today message to chat %d", msg.Chat.ID)
+				}
 			} else {
 				b.logger.Infof("Successfully sent already trained today message to chat %d", msg.Chat.ID)
 			}
-		} else {
-			b.logger.Infof("Successfully sent already trained today message to chat %d", msg.Chat.ID)
 		}
 	}
 
@@ -1296,9 +1311,13 @@ func (b *Bot) handleTrainingDone(msg *tgbotapi.Message) {
 	// Если пользователь был на больничном, сбрасываем флаги больничного и помечаем как здорового
 	if wasOnSickLeave {
 		// Отправляем предупреждение о забытом #healthy
-		warningMessage := tgbotapi.NewMessage(msg.Chat.ID, fmt.Sprintf("⚠️ Внимание, %s!\n\nне забывай отправлять #healthy перед тренировкой!\n\n✅ Я автоматически засчитал выздоровление, но в следующий раз не забывай отправлять #healthy перед #training_done", username))
-		b.logger.Infof("Sending forgotten #healthy warning to user %d (%s)", msg.From.ID, username)
-		b.api.Send(warningMessage)
+		if suppressTrainingReplyAt0420 {
+			b.logger.Infof("Suppressing forgotten #healthy warning at 04:20 for user %d (%s)", msg.From.ID, username)
+		} else {
+			warningMessage := tgbotapi.NewMessage(msg.Chat.ID, fmt.Sprintf("⚠️ Внимание, %s!\n\nне забывай отправлять #healthy перед тренировкой!\n\n✅ Я автоматически засчитал выздоровление, но в следующий раз не забывай отправлять #healthy перед #training_done", username))
+			b.logger.Infof("Sending forgotten #healthy warning to user %d (%s)", msg.From.ID, username)
+			b.api.Send(warningMessage)
+		}
 
 		// ВАЖНО: перечитываем актуальную запись из БД, чтобы не перетереть свежие
 		// начисления кубков/калорий и обновления серий устаревшим messageLog.
@@ -1319,8 +1338,7 @@ func (b *Bot) handleTrainingDone(msg *tgbotapi.Message) {
 
 	// Сохраняем сессию в отдельную таблицу для аналитики (начиная с 2026-03-01).
 	// Это позволяет отвечать на вопросы: "что делал", "сколько тренировок", "сколько кубков за день".
-	userNow := b.getUserLocalNow(messageLog.TimezoneOffsetFromMoscow)
-	sessionDate := userNow.Format("2006-01-02")
+	sessionDate := localNow.Format("2006-01-02")
 	if sessionDate >= "2026-03-01" {
 		cupsAfter, cupsErr := b.db.GetUserCups(msg.From.ID, msg.Chat.ID)
 		if cupsErr != nil {
