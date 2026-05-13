@@ -7,6 +7,7 @@ import { ProfileScreen } from "./components/ProfileScreen";
 import { NewWorkoutScreen } from "./components/NewWorkoutScreen";
 import { RulesScreen } from "./components/RulesScreen";
 import { MiniappRemovedScreen } from "./components/MiniappRemovedScreen";
+import { SupportScreen } from "./components/SupportScreen";
 import { sendMiniappPrivateText, sendMiniappTrainingWithPhoto } from "./lib/miniappPrivateSend";
 import { fetchLeoPendingCount } from "./lib/leoPersonalInbox";
 import { clearFeedThreadUnread, fetchFeedThreadUnreadCount } from "./lib/feedThreadUnread";
@@ -44,6 +45,7 @@ export function App() {
   }, [tg]);
   const [tab, setTab] = useState<Tab>("feed");
   const [workoutOpen, setWorkoutOpen] = useState(false);
+  const [supportOpen, setSupportOpen] = useState(false);
   const [streak, setStreak] = useState(hookStreak);
   const [recordStreak, setRecordStreak] = useState(hookStreak);
   const [xp, setXP] = useState(0);
@@ -190,7 +192,9 @@ export function App() {
 
   return (
     <div className="app">
-      {tab === "chat" && (
+      {supportOpen ? (
+        <SupportScreen initData={initData} inTelegram={inTelegram} showAlert={showAlert} />
+      ) : tab === "chat" ? (
         <ChatScreen
           name={name}
           initData={initData}
@@ -198,8 +202,8 @@ export function App() {
           showAlert={showAlert}
           onInboxDrained={onLeoInboxDrained}
         />
-      )}
-      {tab === "feed" && (
+      ) : null}
+      {!supportOpen && tab === "feed" && (
         <FeedScreen
           name={name}
           streak={streak}
@@ -213,8 +217,8 @@ export function App() {
           }}
         />
       )}
-      {tab === "rules" && <RulesScreen />}
-      {tab === "profile" && (
+      {!supportOpen && tab === "rules" && <RulesScreen />}
+      {!supportOpen && tab === "profile" && (
         <ProfileScreen
           name={name}
           streak={streak}
@@ -230,7 +234,7 @@ export function App() {
           showAlert={showAlert}
           onSupport={() => {
             setWorkoutOpen(false);
-            setTab("chat");
+            setSupportOpen(true);
           }}
         />
       )}
@@ -241,19 +245,26 @@ export function App() {
         feedBadgeCount={feedUnread}
         onChat={() => {
           setWorkoutOpen(false);
+          setSupportOpen(false);
           setTab("chat");
         }}
         onFeed={() => {
           setWorkoutOpen(false);
+          setSupportOpen(false);
           setTab("feed");
         }}
-        onAddWorkout={() => setWorkoutOpen(true)}
+        onAddWorkout={() => {
+          setSupportOpen(false);
+          setWorkoutOpen(true);
+        }}
         onRules={() => {
           setWorkoutOpen(false);
+          setSupportOpen(false);
           setTab("rules");
         }}
         onProfile={() => {
           setWorkoutOpen(false);
+          setSupportOpen(false);
           setTab("profile");
         }}
       />

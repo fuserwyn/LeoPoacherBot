@@ -68,8 +68,8 @@ func (d *Database) ListMiniappPersonalChat(userID, packChatID int64, limit int, 
 	return items, nil
 }
 
-// ListMiniappSupportConversations — последние приватные диалоги юзеров с Лео/поддержкой.
-func (d *Database) ListMiniappSupportConversations(packChatID int64, limit int) ([]*domain.MiniappSupportConversation, error) {
+// ListMiniappLeoConversations — последние приватные диалоги юзеров с Лео.
+func (d *Database) ListMiniappLeoConversations(packChatID int64, limit int) ([]*domain.MiniappSupportConversation, error) {
 	if packChatID == 0 {
 		return []*domain.MiniappSupportConversation{}, nil
 	}

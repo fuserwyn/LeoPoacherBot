@@ -173,7 +173,7 @@ func (b *Bot) handleAdminFlowMessage(msg *tgbotapi.Message) bool {
 			b.api.Send(tgbotapi.NewMessage(msg.Chat.ID, "⚠️ Ответ пустой. Отправь текст или /cancel."))
 			return true
 		}
-		if err := b.sendAdminSupportReply(session.TargetUserID, reply); err != nil {
+		if err := b.AdminSupportReply(session.TargetUserID, reply); err != nil {
 			b.api.Send(tgbotapi.NewMessage(msg.Chat.ID, "❌ Не удалось отправить ответ: "+err.Error()))
 			return true
 		}
@@ -360,7 +360,7 @@ func (b *Bot) showAdminSupportThread(chatID, targetUserID int64) {
 	if b == nil || b.db == nil || b.config == nil || b.config.MonetizedChatID == 0 || targetUserID == 0 {
 		return
 	}
-	items, err := b.db.ListMiniappPersonalChat(targetUserID, b.config.MonetizedChatID, 30, 0)
+	items, err := b.AdminSupportChatHistory(targetUserID)
 	if err != nil {
 		b.api.Send(tgbotapi.NewMessage(chatID, "❌ Не удалось загрузить диалог."))
 		return
@@ -392,20 +392,6 @@ func (b *Bot) showAdminSupportThread(chatID, targetUserID int64) {
 		),
 	)
 	b.api.Send(msg)
-}
-
-func (b *Bot) sendAdminSupportReply(userID int64, text string) error {
-	t := strings.TrimSpace(text)
-	if userID == 0 || t == "" {
-		return nil
-	}
-	b.miniappPersonalPush(userID, t)
-	if b.api != nil {
-		if _, err := b.api.Send(tgbotapi.NewMessage(userID, t)); err != nil {
-			b.logger.Warnf("admin support dm user=%d: %v", userID, err)
-		}
-	}
-	return nil
 }
 
 func adminSupportRoleLabel(role string) string {

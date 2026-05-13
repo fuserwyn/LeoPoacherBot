@@ -859,6 +859,29 @@ var Migrations = []Migration{
 			$m41d$;
 		`,
 	},
+	{
+		Version:     42,
+		Description: "Separate miniapp support chat from Leo personal chat",
+		UpSQL: `
+			CREATE TABLE IF NOT EXISTS miniapp_support_chat (
+				id BIGSERIAL PRIMARY KEY,
+				user_id BIGINT NOT NULL,
+				pack_chat_id BIGINT NOT NULL,
+				role TEXT NOT NULL CHECK (role IN ('user','support')),
+				message_text TEXT NOT NULL,
+				created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW()
+			);
+			CREATE INDEX IF NOT EXISTS idx_miniapp_support_chat_user_pack_id
+				ON miniapp_support_chat (user_id, pack_chat_id, id DESC);
+			CREATE INDEX IF NOT EXISTS idx_miniapp_support_chat_user_pack_created
+				ON miniapp_support_chat (user_id, pack_chat_id, created_at DESC);
+		`,
+		DownSQL: `
+			DROP INDEX IF EXISTS idx_miniapp_support_chat_user_pack_created;
+			DROP INDEX IF EXISTS idx_miniapp_support_chat_user_pack_id;
+			DROP TABLE IF EXISTS miniapp_support_chat;
+		`,
+	},
 }
 
 // MigrationRecord представляет запись о выполненной миграции

@@ -53,6 +53,10 @@ func (s *Server) serve(w http.ResponseWriter, r *http.Request) {
 		s.handlePostPersonalChatFeed(w, r)
 	case path == "/api/miniapp/personal-chat/like" && r.Method == http.MethodPost:
 		s.handlePostPersonalChatLike(w, r)
+	case path == "/api/miniapp/support/feed" && r.Method == http.MethodPost:
+		s.handlePostSupportChatFeed(w, r)
+	case path == "/api/miniapp/support/send" && r.Method == http.MethodPost:
+		s.handlePostSupportChatSend(w, r)
 	case path == "/api/miniapp/feed" && r.Method == http.MethodPost:
 		s.handlePostFeed(w, r)
 	case path == "/api/miniapp/user-avatar" && r.Method == http.MethodGet:
@@ -1005,6 +1009,118 @@ func (s *Server) handlePostPersonalChatLike(w http.ResponseWriter, r *http.Reque
 	if err := s.bot.MiniappPersonalChatLikeToggle(parsed.User.ID, body.MessageID); err != nil {
 		s.logger.Errorf("miniapp personal chat like: %v", err)
 		s.jsonErr(w, http.StatusInternalServerError, "like_error")
+		return
+	}
+	w.Header().Set("Content-Type", "application/json; charset=utf-8")
+	_ = json.NewEncoder(w).Encode(map[string]any{"ok": true})
+}
+
+// handlePostSupportChatFeed — серверная история отдельного чата поддержки.
+func (s *Server) handlePostSupportChatFeed(w http.ResponseWriter, r *http.Request) {
+	corsWriteHeaders(w, r)
+	if s.bot == nil || s.token == "" {
+		s.jsonErr(w, http.StatusServiceUnavailable, "server_unavailable")
+		return
+	}
+	var body struct {
+		InitData string `json:"init_data"`
+		SinceID  int64  `json:"since_id"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		s.jsonErr(w, http.StatusBadRequest, "invalid_json")
+		return
+	}
+	if body.InitData == "" {
+		s.jsonErr(w, http.StatusBadRequest, "missing_init_data")
+		return
+	}
+	if err := initdata.Validate(body.InitData, s.token, 24*time.Hour); err != nil {
+		s.logger.Warnf("miniapp support feed invalid init: %v", err)
+		s.jsonErr(w, http.StatusUnauthorized, "invalid_init_data")
+		return
+	}
+	parsed, err := initdata.Parse(body.InitData)
+	if err != nil {
+		s.jsonErr(w, http.StatusBadRequest, "parse_init_data")
+		return
+	}
+	if parsed.User.ID == 0 {
+		s.jsonErr(w, http.StatusBadRequest, "user_missing")
+		return
+	}
+	if err := s.bot.AssertMiniAppPackChatAligns(parsed); err != nil {
+		if errors.Is(err, bot.ErrMiniAppChatMismatch) {
+			s.jsonErr(w, http.StatusConflict, "chat_mismatch")
+			return
+		}
+		s.logger.Errorf("miniapp support feed assert: %v", err)
+		s.jsonErr(w, http.StatusInternalServerError, "assert_chat_error")
+		return
+	}
+	items, err := s.bot.MiniappSupportChatHistory(parsed.User.ID, body.SinceID)
+	if err != nil {
+		s.logger.Errorf("miniapp support feed load: %v", err)
+		s.jsonErr(w, http.StatusInternalServerError, "feed_error")
+		return
+	}
+	w.Header().Set("Content-Type", "application/json; charset=utf-8")
+	_ = json.NewEncoder(w).Encode(map[string]any{"ok": true, "messages": items})
+}
+
+// handlePostSupportChatSend — пользователь пишет в поддержку, не в Лео.
+func (s *Server) handlePostSupportChatSend(w http.ResponseWriter, r *http.Request) {
+	corsWriteHeaders(w, r)
+	if s.bot == nil || s.token == "" {
+		s.jsonErr(w, http.StatusServiceUnavailable, "server_unavailable")
+		return
+	}
+	var body struct {
+		InitData string `json:"init_data"`
+		Text     string `json:"text"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		s.jsonErr(w, http.StatusBadRequest, "invalid_json")
+		return
+	}
+	text := strings.TrimSpace(body.Text)
+	if text == "" {
+		s.jsonErr(w, http.StatusBadRequest, "empty_text")
+		return
+	}
+	if utf8.RuneCountInString(text) > maxTextRunes {
+		s.jsonErr(w, http.StatusBadRequest, "text_too_long")
+		return
+	}
+	if body.InitData == "" {
+		s.jsonErr(w, http.StatusBadRequest, "missing_init_data")
+		return
+	}
+	if err := initdata.Validate(body.InitData, s.token, 24*time.Hour); err != nil {
+		s.logger.Warnf("miniapp support send invalid init: %v", err)
+		s.jsonErr(w, http.StatusUnauthorized, "invalid_init_data")
+		return
+	}
+	parsed, err := initdata.Parse(body.InitData)
+	if err != nil {
+		s.jsonErr(w, http.StatusBadRequest, "parse_init_data")
+		return
+	}
+	if parsed.User.ID == 0 {
+		s.jsonErr(w, http.StatusBadRequest, "user_missing")
+		return
+	}
+	if err := s.bot.AssertMiniAppPackChatAligns(parsed); err != nil {
+		if errors.Is(err, bot.ErrMiniAppChatMismatch) {
+			s.jsonErr(w, http.StatusConflict, "chat_mismatch")
+			return
+		}
+		s.logger.Errorf("miniapp support send assert: %v", err)
+		s.jsonErr(w, http.StatusInternalServerError, "assert_chat_error")
+		return
+	}
+	if err := s.bot.MiniappSupportSendFromUser(parsed.User.ID, text); err != nil {
+		s.logger.Errorf("miniapp support send: %v", err)
+		s.jsonErr(w, http.StatusInternalServerError, "send_error")
 		return
 	}
 	w.Header().Set("Content-Type", "application/json; charset=utf-8")

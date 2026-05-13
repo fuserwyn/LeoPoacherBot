@@ -116,6 +116,14 @@ type MiniappSupportConversation struct {
 	NeedsReply  bool   `json:"needs_reply"`
 }
 
+// MiniappSupportChatMessage — отдельный чат пользователя с поддержкой.
+type MiniappSupportChatMessage struct {
+	ID        int64  `json:"id"`
+	Role      string `json:"role"`
+	Text      string `json:"text"`
+	CreatedAt string `json:"created_at"`
+}
+
 // TrainingSession представляет одну зафиксированную тренировочную сессию.
 type TrainingSession struct {
 	ID             int64     `json:"id" db:"id"`
