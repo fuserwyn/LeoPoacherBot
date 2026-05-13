@@ -242,9 +242,6 @@ func (b *Bot) sendInactiveRemovalWarning(userID, chatID int64, username string, 
 
 	b.miniappPersonalPush(userID, messageText)
 
-	feedLine := fmt.Sprintf("⏳ %s — предупреждение за %d ч. до возможного кика за неактивность. Подробности в ЛС с Лео; стая видит отметку.", who, hoursBefore)
-	b.saveInactiveNoticePackFeed(userID, username, feedLine)
-
 	if chatID == userID {
 		b.api.Send(tgbotapi.NewMessage(userID, messageText))
 		return
