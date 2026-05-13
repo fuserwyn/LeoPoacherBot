@@ -26,12 +26,20 @@ func (d *Database) ListPackActivityFeed(chatID int64, limit int, sinceUTC *time.
 	}
 	q := `
 		SELECT
-			um.id, um.user_id, um.chat_id, um.username, um.message_text, um.message_type, um.created_at,
+			um.id,
+			um.user_id,
+			um.chat_id,
+			COALESCE(NULLIF(BTRIM(p.display_name), ''), NULLIF(BTRIM(um.username), ''), 'user' || um.user_id::text),
+			um.message_text,
+			um.message_type,
+			um.created_at,
 			COALESCE(ml.streak_days, 0)::int,
 			COALESCE(um.training_photo_url, '')
 		FROM user_messages um
 		LEFT JOIN training_state ml
 			ON ml.user_id = um.user_id AND ml.chat_id = um.chat_id AND ml.is_deleted = FALSE
+		LEFT JOIN miniapp_user_profile p
+			ON p.user_id = um.user_id AND p.pack_chat_id = um.chat_id
 		WHERE um.chat_id = $1
 		  AND um.message_type IN ('training_done', 'pack_join', 'pack_rejoin', 'daily_wisdom', 'pack_removed', 'inactive_notice')
 		  ` + whereSince + `

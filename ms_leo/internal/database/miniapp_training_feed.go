@@ -187,8 +187,18 @@ func (d *Database) GetTrainingFeedThreadRow(id int64) (TrainingFeedThreadRow, bo
 		return TrainingFeedThreadRow{}, false, nil
 	}
 	const q = `
-		SELECT id, user_message_id, from_user_id, COALESCE(username, ''), message_text, created_at, reply_to_id
-		FROM miniapp_training_feed_thread WHERE id = $1`
+		SELECT
+			t.id,
+			t.user_message_id,
+			t.from_user_id,
+			COALESCE(NULLIF(BTRIM(p.display_name), ''), NULLIF(BTRIM(t.username), ''), ''),
+			t.message_text,
+			t.created_at,
+			t.reply_to_id
+		FROM miniapp_training_feed_thread t
+		LEFT JOIN miniapp_user_profile p
+			ON p.user_id = t.from_user_id AND p.pack_chat_id = t.pack_chat_id
+		WHERE t.id = $1`
 	var r TrainingFeedThreadRow
 	var replyTo sql.NullInt64
 	err := d.db.QueryRow(q, id).Scan(&r.ID, &r.UserMessageID, &r.FromUserID, &r.Username, &r.MessageText, &r.CreatedAt, &replyTo)
@@ -223,8 +233,18 @@ func (d *Database) GetTrainingFeedThreadRowInPack(threadID, packChatID int64) (T
 		return TrainingFeedThreadRow{}, false, nil
 	}
 	const q = `
-		SELECT id, user_message_id, from_user_id, COALESCE(username, ''), message_text, created_at, reply_to_id
-		FROM miniapp_training_feed_thread WHERE id = $1 AND pack_chat_id = $2`
+		SELECT
+			t.id,
+			t.user_message_id,
+			t.from_user_id,
+			COALESCE(NULLIF(BTRIM(p.display_name), ''), NULLIF(BTRIM(t.username), ''), ''),
+			t.message_text,
+			t.created_at,
+			t.reply_to_id
+		FROM miniapp_training_feed_thread t
+		LEFT JOIN miniapp_user_profile p
+			ON p.user_id = t.from_user_id AND p.pack_chat_id = t.pack_chat_id
+		WHERE t.id = $1 AND t.pack_chat_id = $2`
 	var r TrainingFeedThreadRow
 	var replyTo sql.NullInt64
 	err := d.db.QueryRow(q, threadID, packChatID).Scan(&r.ID, &r.UserMessageID, &r.FromUserID, &r.Username, &r.MessageText, &r.CreatedAt, &replyTo)
@@ -245,9 +265,18 @@ func (d *Database) ListTrainingFeedThreadRowsByIDs(packChatID int64, ids []int64
 		return out, nil
 	}
 	q := `
-		SELECT id, user_message_id, from_user_id, COALESCE(username, ''), message_text, created_at, reply_to_id
-		FROM miniapp_training_feed_thread
-		WHERE pack_chat_id = $1 AND id = ANY($2)`
+		SELECT
+			t.id,
+			t.user_message_id,
+			t.from_user_id,
+			COALESCE(NULLIF(BTRIM(p.display_name), ''), NULLIF(BTRIM(t.username), ''), ''),
+			t.message_text,
+			t.created_at,
+			t.reply_to_id
+		FROM miniapp_training_feed_thread t
+		LEFT JOIN miniapp_user_profile p
+			ON p.user_id = t.from_user_id AND p.pack_chat_id = t.pack_chat_id
+		WHERE t.pack_chat_id = $1 AND t.id = ANY($2)`
 	rows, err := d.db.Query(q, packChatID, pq.Array(ids))
 	if err != nil {
 		return nil, fmt.Errorf("list training thread by ids: %w", err)
@@ -292,10 +321,19 @@ func (d *Database) ListTrainingFeedThreadByMessages(userMessageIDs []int64) (map
 		return res, nil
 	}
 	const q = `
-		SELECT id, user_message_id, from_user_id, COALESCE(username, ''), message_text, created_at, reply_to_id
-		FROM miniapp_training_feed_thread
-		WHERE user_message_id = ANY($1)
-		ORDER BY user_message_id, created_at ASC
+		SELECT
+			t.id,
+			t.user_message_id,
+			t.from_user_id,
+			COALESCE(NULLIF(BTRIM(p.display_name), ''), NULLIF(BTRIM(t.username), ''), ''),
+			t.message_text,
+			t.created_at,
+			t.reply_to_id
+		FROM miniapp_training_feed_thread t
+		LEFT JOIN miniapp_user_profile p
+			ON p.user_id = t.from_user_id AND p.pack_chat_id = t.pack_chat_id
+		WHERE t.user_message_id = ANY($1)
+		ORDER BY t.user_message_id, t.created_at ASC
 	`
 	rows, err := d.db.Query(q, pq.Array(userMessageIDs))
 	if err != nil {
