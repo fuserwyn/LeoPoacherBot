@@ -322,19 +322,32 @@
   text-align: center;
 }
 
+.profile__achievement:not(.is-earned) {
+  --achievement-outline: #666874;
+  --achievement-shell: #f1f1f4;
+  --achievement-bean: #c5c6ce;
+  --achievement-claw: #b8bcc6;
+  --achievement-badge: rgba(255, 255, 255, 0.02);
+  --achievement-day-color: #8b8d98;
+}
+
 .profile__achievement:not(.is-earned) .profile__achievement-badge {
-  filter: grayscale(0.14) saturate(0.82);
-  opacity: 0.48;
+  filter: grayscale(1) saturate(0.2) brightness(0.92);
+  opacity: 0.62;
 }
 
 .profile__achievement.is-earned .profile__achievement-badge {
   transform: translateY(-1px);
-  filter: saturate(1.05);
+  filter: saturate(1.18) brightness(1.04);
   box-shadow: 0 6px 14px rgba(0, 0, 0, 0.18);
 }
 
 .profile__achievement:not(.is-earned) .profile__achievement-label {
-  opacity: 0.72;
+  opacity: 0.62;
+}
+
+.profile__achievement.is-earned .profile__achievement-label {
+  color: var(--text);
 }
 
 .profile__achievement--7 {
