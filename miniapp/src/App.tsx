@@ -9,7 +9,6 @@ import { RulesScreen } from "./components/RulesScreen";
 import { sendMiniappPrivateText, sendMiniappTrainingWithPhoto } from "./lib/miniappPrivateSend";
 import { fetchLeoPendingCount } from "./lib/leoPersonalInbox";
 import { clearFeedThreadUnread, fetchFeedThreadUnreadCount } from "./lib/feedThreadUnread";
-import { miniappLevelFromCups } from "./lib/miniappLevel";
 import { ensureMiniappOnboarding } from "./lib/miniappOnboarding";
 import { syncTimezoneIfNeeded } from "./lib/timezoneSync";
 import "./App.css";
@@ -53,7 +52,6 @@ export function App() {
   const [leoPending, setLeoPending] = useState(0);
   const [feedUnread, setFeedUnread] = useState(0);
   const [feedRefreshToken, setFeedRefreshToken] = useState(0);
-  const [inactivityRemovalAt, setInactivityRemovalAt] = useState<string | null>(null);
   const [daysSinceLastTraining, setDaysSinceLastTraining] = useState<number>(-1);
   const tzSyncedRef = useRef(false);
 
@@ -91,7 +89,6 @@ export function App() {
         days_since_last_training?: number;
       };
       if (!res.ok || !j.ok) return;
-      setInactivityRemovalAt(typeof j.inactivity_removal_at === "string" ? j.inactivity_removal_at : null);
       setDaysSinceLastTraining(typeof j.days_since_last_training === "number" ? j.days_since_last_training : -1);
       setStreak(typeof j.streak_days === "number" ? j.streak_days : 0);
       setRecordStreak(typeof j.max_streak_days === "number" ? j.max_streak_days : 0);
@@ -168,14 +165,12 @@ export function App() {
       {tab === "feed" && (
         <FeedScreen
           name={name}
-          level={miniappLevelFromCups(xp)}
           streak={streak}
           userId={userId}
           initData={initData}
           inTelegram={inTelegram}
           showAlert={showAlert}
           refreshToken={feedRefreshToken}
-          inactivityRemovalAt={inactivityRemovalAt}
           onRefreshAll={async () => {
             await Promise.all([refreshProfileStats(), refreshTabBadges()]);
           }}

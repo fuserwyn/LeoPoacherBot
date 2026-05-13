@@ -13,7 +13,6 @@ import {
 } from "../lib/packFeed";
 import { timeAgoFromISO } from "../lib/timeAgo";
 import { streakStreakAriaLabel } from "../lib/streakLabel";
-import { formatInactivityRemovalHint } from "../lib/formatInactivityRemoval";
 import {
   sortWorkoutCategoryIds,
   trainingDoneMatchesAnyCategory,
@@ -26,16 +25,12 @@ const apiBase = (import.meta.env.VITE_MINIAPP_API_URL as string | undefined)?.re
 
 type Props = {
   name: string;
-  /** Уровень пользователя (ленточная шапка), считается в App от кубков (XP). */
-  level: number;
   streak: number;
   userId: number;
   initData: string;
   inTelegram: boolean;
   showAlert: (m: string) => void;
   refreshToken?: number;
-  /** ISO: возможный кик за неактивность (из profile/load). */
-  inactivityRemovalAt?: string | null;
   /** Перезагрузить общие данные (стрик, уровень, кубки) — вызывается при pull-to-refresh. */
   onRefreshAll?: () => Promise<void> | void;
 };
@@ -65,14 +60,12 @@ function mockFallback(_name: string, streak: number): ActivityCardProps[] {
 
 export function FeedScreen({
   name,
-  level,
   streak,
   userId,
   initData,
   inTelegram,
   showAlert,
   refreshToken = 0,
-  inactivityRemovalAt = null,
   onRefreshAll,
 }: Props) {
   const [sub, setSub] = useState<Sub>("activity");
@@ -379,7 +372,7 @@ export function FeedScreen({
     };
   }, []);
 
-  const removalHint = formatInactivityRemovalHint(inactivityRemovalAt ?? undefined);
+  const displayName = name.trim() || "друг";
 
   const handlePullRefresh = useCallback(async () => {
     hapticLight();
@@ -423,7 +416,9 @@ export function FeedScreen({
       >
       <div className="feed__sticky">
         <header className="feed__header">
-          <div className="feed__stats">
+          <div className="feed__brand">Fat Leopard</div>
+          <div className="feed__hero">
+            <h1 className="feed__welcome">Привет, {displayName}</h1>
             <div className="feed__streak" aria-label={streakStreakAriaLabel(streak)} title={streakStreakAriaLabel(streak)}>
               <span className="feed__streak-emoji" aria-hidden>
                 🔥
@@ -433,24 +428,7 @@ export function FeedScreen({
                 <span className="feed__streak-num">{streak}</span>
               </span>
             </div>
-            <div
-              className="feed__level"
-              aria-label={`Уровень ${level}`}
-              title={`Уровень ${level} (по кубкам в профиле)`}
-            >
-              <span className="feed__level-k">Ур.</span>
-              <span className="feed__level-v">{level}</span>
-            </div>
           </div>
-          {removalHint ? (
-            <div
-              className="feed__kick-hint"
-              title="Если не отправишь #training_done — исключение из стаи (МСК)"
-              aria-label={`Лео тебя не съест до ${removalHint}`}
-            >
-              Лео тебя не съест до {removalHint}
-            </div>
-          ) : null}
         </header>
         <div className="feed__subtabs" role="tablist" aria-label="Стая">
           <button
