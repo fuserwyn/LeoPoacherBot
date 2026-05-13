@@ -9,7 +9,6 @@ const api = (import.meta.env.VITE_MINIAPP_API_URL as string | undefined)?.replac
 export type ProfileData = {
   gender: "m" | "f" | "";
   displayName: string;
-  age: string;
   timezoneOffset: number;
 };
 
@@ -54,8 +53,7 @@ export function ProfileScreen({
   userPhotoUrl,
   showAlert,
 }: Props) {
-  const [profile, setProfile] = useState<ProfileData>({ gender: "", displayName: "", age: "", timezoneOffset: 0 });
-  const [initialAgeSet, setInitialAgeSet] = useState(false);
+  const [profile, setProfile] = useState<ProfileData>({ gender: "", displayName: "", timezoneOffset: 0 });
   const [profileLoading, setProfileLoading] = useState(true);
   const [profileSaving, setProfileSaving] = useState(false);
 
@@ -86,7 +84,6 @@ export function ProfileScreen({
         error?: string;
         gender?: string;
         display_name?: string;
-        age?: number | null;
         timezone_offset?: number;
         inactivity_removal_at?: string;
       };
@@ -105,10 +102,8 @@ export function ProfileScreen({
       setProfile({
         gender: g,
         displayName: dn,
-        age: j.age != null && j.age > 0 ? String(j.age) : "",
         timezoneOffset: tz,
       });
-      setInitialAgeSet(j.age != null && j.age > 0);
     } catch (e) {
       showAlert(e instanceof Error ? e.message : "Сеть");
     } finally {
@@ -217,29 +212,17 @@ export function ProfileScreen({
         display_name: profile.displayName.trim(),
         timezone_offset: profile.timezoneOffset,
       };
-      const a = profile.age.trim();
-      if (a === "") {
-        if (initialAgeSet) {
-          body.age = 0;
-        }
-      } else {
-        const n = parseInt(a, 10);
-        if (Number.isFinite(n) && n > 0) {
-          body.age = n;
-        }
-      }
       const res = await fetch(`${api}/api/miniapp/profile/save`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(body),
       });
-      const j = (await res.json().catch(() => ({}))) as { ok?: boolean; error?: string; age?: number | null };
+      const j = (await res.json().catch(() => ({}))) as { ok?: boolean; error?: string };
       if (!res.ok) {
         showAlert(j.error ?? `Сохранение: ${res.status}`);
         return;
       }
       if (j.ok) {
-        setInitialAgeSet(j.age != null && j.age > 0);
         void window.Telegram?.WebApp?.HapticFeedback?.notificationOccurred?.("success");
         showAlert("Сохранено. Лео подстроит обращения.");
       }
@@ -248,7 +231,7 @@ export function ProfileScreen({
     } finally {
       setProfileSaving(false);
     }
-  }, [inTelegram, initData, profile, initialAgeSet, showAlert]);
+  }, [inTelegram, initData, profile, showAlert]);
 
   const noTrainingAlert = daysSinceLastTraining >= 5;
   const noTrainingDanger = daysSinceLastTraining >= 7;
@@ -382,19 +365,6 @@ export function ProfileScreen({
           </select>
         </label>
         <label className="profile__field">
-          <span>Возраст</span>
-          <input
-            type="number"
-            className="profile__input"
-            inputMode="numeric"
-            min={1}
-            max={120}
-            value={profile.age}
-            onChange={(e) => setProfile((p) => ({ ...p, age: e.target.value.replace(/\D/g, "").slice(0, 3) }))}
-            disabled={profileLoading}
-          />
-        </label>
-        <label className="profile__field">
           <span>Часовой пояс</span>
           <select
             className="profile__input"
@@ -492,8 +462,6 @@ export function ProfileScreen({
         </div>
       )}
 
-      <h2 className="section-title">Заморозка</h2>
-      <p className="profile__hint muted">Осталось: 1 из 1 в месяц (Free)</p>
     </div>
   );
 }
