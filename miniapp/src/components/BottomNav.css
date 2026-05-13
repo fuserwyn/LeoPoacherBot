@@ -33,11 +33,10 @@
 }
 
 .bottom-nav__add {
-  min-width: 124px;
-  height: 42px;
-  margin-bottom: 10px;
-  padding: 0 14px;
-  border-radius: 999px;
+  width: 54px;
+  height: 54px;
+  margin-bottom: 8px;
+  border-radius: 50%;
   border: 1px solid color-mix(in srgb, var(--accent) 65%, #ffffff 35%);
   background: linear-gradient(180deg, color-mix(in srgb, var(--accent) 82%, #ffffff 18%) 0%, var(--accent) 100%);
   box-shadow:
@@ -58,12 +57,11 @@
   transform: translateY(1px) scale(0.98);
 }
 
-.bottom-nav__add-label {
-  font-size: 12px;
-  font-weight: 800;
+.bottom-nav__add-plus {
+  font-size: 30px;
+  font-weight: 500;
   line-height: 1;
-  letter-spacing: 0.01em;
-  white-space: nowrap;
+  margin-top: -2px;
 }
 
 .bottom-nav__item.is-active {

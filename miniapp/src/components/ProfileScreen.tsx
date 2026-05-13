@@ -253,6 +253,7 @@ export function ProfileScreen({
   }, [inTelegram, initData, profile, initialAgeSet, showAlert]);
 
   const noTrainingAlert = daysSinceLastTraining >= 5;
+  const noTrainingDanger = daysSinceLastTraining >= 7;
 
   return (
     <div className="profile">
@@ -266,7 +267,7 @@ export function ProfileScreen({
           {onSick ? <span className="profile__avatar-med">🌡️</span> : null}
           {daysSinceLastTraining > 0 ? (
             <span
-              className={`profile__no-train${noTrainingAlert ? " profile__no-train--alert" : ""}`}
+              className={`profile__no-train${noTrainingAlert ? " profile__no-train--alert" : ""}${noTrainingDanger ? " profile__no-train--danger" : ""}`}
               title={`Без тренировок: ${daysSinceLastTraining} ${daysWordRu(daysSinceLastTraining)}`}
               aria-label={`Без тренировок: ${daysSinceLastTraining} ${daysWordRu(daysSinceLastTraining)}`}
             >
@@ -283,6 +284,9 @@ export function ProfileScreen({
             <p className="profile__kick muted" title="Если не отправишь #training_done — исключение из стаи (МСК)">
               Лео тебя не съест до {inactivityKickHint}
             </p>
+          ) : null}
+          {noTrainingDanger ? (
+            <p className="profile__danger">Позанимайся до конца дня или Лео съест тебя</p>
           ) : null}
           {onSick ? (
             <button

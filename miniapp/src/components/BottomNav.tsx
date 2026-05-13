@@ -88,8 +88,8 @@ export function BottomNav({
         aria-label="Добавить тренировку #training_done"
         title="Добавить тренировку"
       >
-        <span className="bottom-nav__add-label" aria-hidden>
-          #training_done
+        <span className="bottom-nav__add-plus" aria-hidden>
+          +
         </span>
       </button>
       <button
