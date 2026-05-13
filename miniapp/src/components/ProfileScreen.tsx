@@ -250,15 +250,6 @@ export function ProfileScreen({
             "🐆"
           )}
           {onSick ? <span className="profile__avatar-med">🌡️</span> : null}
-          {daysSinceLastTraining > 0 ? (
-            <span
-              className={`profile__no-train${noTrainingAlert ? " profile__no-train--alert" : ""}${noTrainingDanger ? " profile__no-train--danger" : ""}`}
-              title={`Без тренировок: ${daysSinceLastTraining} ${daysWordRu(daysSinceLastTraining)}`}
-              aria-label={`Без тренировок: ${daysSinceLastTraining} ${daysWordRu(daysSinceLastTraining)}`}
-            >
-              {daysSinceLastTraining} {daysWordRu(daysSinceLastTraining)}
-            </span>
-          ) : null}
         </div>
         <div>
           <h1 className="profile__name">{(profile.displayName || name).trim() || "Стая"}</h1>
@@ -274,7 +265,7 @@ export function ProfileScreen({
             </p>
           ) : null}
           {noTrainingDanger ? (
-            <p className="profile__danger">Позанимайся до конца дня или Лео съест тебя</p>
+            <p className="profile__danger">ПОТРЕНИРУЙСЯ ДО 00:00 ИЛИ ЛЕО СЪЕСТ ТЕБЯ</p>
           ) : null}
           {onSick ? (
             <button
