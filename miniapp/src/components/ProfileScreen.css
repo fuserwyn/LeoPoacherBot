@@ -96,6 +96,16 @@
   font-size: 11px;
   margin-top: 4px;
   line-height: 1.35;
+  color: rgba(255, 255, 255, 0.62);
+}
+
+.profile__kick--alert {
+  color: #ff7b68;
+}
+
+.profile__kick--danger {
+  color: #ff4d3b;
+  font-weight: 800;
 }
 
 .profile__danger {

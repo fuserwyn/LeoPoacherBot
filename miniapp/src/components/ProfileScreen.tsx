@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
 import { miniappCupsLevelProgress, miniappLevelFromCups, miniappLevelName } from "../lib/miniappLevel";
-import { formatInactivityRemovalHint } from "../lib/formatInactivityRemoval";
 import { cupsWordRu, daysWordRu } from "../lib/streakLabel";
 import "./ProfileScreen.css";
 
@@ -69,7 +68,6 @@ export function ProfileScreen({
   const [sickFormOpen, setSickFormOpen] = useState(false);
   const [sickReason, setSickReason] = useState("");
   const [healthBusy, setHealthBusy] = useState(false);
-  const [inactivityKickHint, setInactivityKickHint] = useState<string | null>(null);
 
   const cupProgress = miniappCupsLevelProgress(xp);
   const levelTitle = miniappLevelName(miniappLevelFromCups(xp)) || "—";
@@ -93,14 +91,12 @@ export function ProfileScreen({
         gender?: string;
         display_name?: string;
         timezone_offset?: number;
-        inactivity_removal_at?: string;
       };
       if (!res.ok) {
         showAlert(j.error ?? `Профиль: ошибка ${res.status}`);
         return;
       }
       if (!j.ok) return;
-      setInactivityKickHint(formatInactivityRemovalHint(j.inactivity_removal_at));
       const g = j.gender === "m" || j.gender === "f" ? j.gender : "";
       const dn = (j.display_name ?? "").trim() || (name && name !== "друг" ? name : "");
       const tz =
@@ -269,9 +265,12 @@ export function ProfileScreen({
           <p className="profile__level muted">
             Уровень {miniappLevelFromCups(xp)} · {levelTitle}
           </p>
-          {inactivityKickHint ? (
-            <p className="profile__kick muted" title="Если не отправишь #training_done — исключение из стаи (МСК)">
-              Лео тебя не съест до {inactivityKickHint}
+          {daysSinceLastTraining > 0 ? (
+            <p
+              className={`profile__kick${noTrainingAlert ? " profile__kick--alert" : ""}${noTrainingDanger ? " profile__kick--danger" : ""}`}
+              title={`Дней без тренировок: ${daysSinceLastTraining}`}
+            >
+              Дней без тренировок: {daysSinceLastTraining}
             </p>
           ) : null}
           {noTrainingDanger ? (
