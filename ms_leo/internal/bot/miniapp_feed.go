@@ -35,6 +35,18 @@ type PackFeedThreadReply struct {
 	LikeMe          bool   `json:"like_me,omitempty"`
 }
 
+type PackFeedPollOption struct {
+	Label string `json:"label"`
+	Votes int    `json:"votes"`
+}
+
+type PackFeedPoll struct {
+	Question    string               `json:"question"`
+	Options     []PackFeedPollOption `json:"options"`
+	TotalVotes  int                  `json:"total_votes"`
+	MyVoteIndex *int                 `json:"my_vote_index,omitempty"`
+}
+
 // PackFeedItem — JSON для мини-апpa.
 type PackFeedItem struct {
 	ID               int64  `json:"id"`
@@ -52,6 +64,7 @@ type PackFeedItem struct {
 	PackTitle  string                `json:"pack_title,omitempty"`
 	Reactions  []PackFeedReaction    `json:"reactions,omitempty"`
 	Thread     []PackFeedThreadReply `json:"thread,omitempty"`
+	Poll       *PackFeedPoll         `json:"poll,omitempty"`
 }
 
 // PackFeedForViewer — лента «стаи» из user_messages (отчёты) для участника/оплатившего.
@@ -95,13 +108,14 @@ func (b *Bot) PackFeedForViewer(viewerUserID int64, initD initdata.InitData, ini
 		})
 	}
 	out = b.enrichPackFeedTrainingSocial(out, viewerUserID, chatID)
+	out = b.enrichPackFeedPolls(out, viewerUserID, chatID)
 	out = b.enrichPackFeedAuthorPhotos(out, chatID, initDataRaw)
 	return out, nil
 }
 
 func packFeedIsLeoNoticeType(t string) bool {
 	switch t {
-	case "pack_join", "pack_rejoin", "daily_wisdom", "pack_removed", "admin_post":
+	case "pack_join", "pack_rejoin", "daily_wisdom", "pack_removed", "admin_post", "admin_poll":
 		return true
 	default:
 		return false

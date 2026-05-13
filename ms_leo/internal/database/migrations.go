@@ -882,6 +882,26 @@ var Migrations = []Migration{
 			DROP TABLE IF EXISTS miniapp_support_chat;
 		`,
 	},
+	{
+		Version:     43,
+		Description: "Miniapp feed poll votes for admin polls",
+		UpSQL: `
+			CREATE TABLE IF NOT EXISTS miniapp_feed_poll_votes (
+				id BIGSERIAL PRIMARY KEY,
+				user_message_id BIGINT NOT NULL REFERENCES user_messages(id) ON DELETE CASCADE,
+				user_id BIGINT NOT NULL,
+				option_index INTEGER NOT NULL,
+				created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
+				UNIQUE (user_message_id, user_id)
+			);
+			CREATE INDEX IF NOT EXISTS idx_miniapp_feed_poll_votes_message
+				ON miniapp_feed_poll_votes (user_message_id);
+		`,
+		DownSQL: `
+			DROP INDEX IF EXISTS idx_miniapp_feed_poll_votes_message;
+			DROP TABLE IF EXISTS miniapp_feed_poll_votes;
+		`,
+	},
 }
 
 // MigrationRecord представляет запись о выполненной миграции
