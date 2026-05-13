@@ -9,8 +9,8 @@ import (
 )
 
 type adminSession struct {
-	Mode         string // text | photo | video | poll
-	Step         string // await_chat_id | await_text | await_photo | await_video | await_poll_question | await_poll_options
+	Mode         string // feed_text | poll | support
+	Step         string // await_text | await_chat_id | await_support_text | await_poll_question | await_poll_options
 	TargetChatID int64
 	TargetUserID int64
 	PollQuestion string
@@ -36,11 +36,7 @@ func (b *Bot) showAdminMenu(chatID int64) {
 			tgbotapi.NewInlineKeyboardButtonData("💬 Поддержка", "admin_support_inbox"),
 		),
 		tgbotapi.NewInlineKeyboardRow(
-			tgbotapi.NewInlineKeyboardButtonData("📝 Текст", "admin_mode_text"),
-			tgbotapi.NewInlineKeyboardButtonData("🖼 Фото", "admin_mode_photo"),
-		),
-		tgbotapi.NewInlineKeyboardRow(
-			tgbotapi.NewInlineKeyboardButtonData("🎬 Видео", "admin_mode_video"),
+			tgbotapi.NewInlineKeyboardButtonData("📝 Текст", "admin_mode_feed_text"),
 			tgbotapi.NewInlineKeyboardButtonData("🗳 Опрос", "admin_mode_poll"),
 		),
 		tgbotapi.NewInlineKeyboardRow(
@@ -89,15 +85,9 @@ func (b *Bot) handleAdminCallbackQuery(callback *tgbotapi.CallbackQuery) {
 		b.showAdminSupportInbox(callback.Message.Chat.ID)
 	case "admin_support_back":
 		b.showAdminSupportInbox(callback.Message.Chat.ID)
-	case "admin_mode_text":
-		b.startAdminFlow(callback.From.ID, "text")
-		b.api.Send(tgbotapi.NewMessage(callback.Message.Chat.ID, "📝 Введи chat_id для отправки текста."))
-	case "admin_mode_photo":
-		b.startAdminFlow(callback.From.ID, "photo")
-		b.api.Send(tgbotapi.NewMessage(callback.Message.Chat.ID, "🖼 Введи chat_id для отправки фото."))
-	case "admin_mode_video":
-		b.startAdminFlow(callback.From.ID, "video")
-		b.api.Send(tgbotapi.NewMessage(callback.Message.Chat.ID, "🎬 Введи chat_id для отправки видео."))
+	case "admin_mode_feed_text":
+		b.startAdminFlow(callback.From.ID, "feed_text")
+		b.api.Send(tgbotapi.NewMessage(callback.Message.Chat.ID, "📝 Напиши кастомный текст для ленты стаи. Он появится как отдельный админский пост."))
 	case "admin_mode_poll":
 		b.startAdminFlow(callback.From.ID, "poll")
 		b.api.Send(tgbotapi.NewMessage(callback.Message.Chat.ID, "🗳 Введи chat_id для опроса."))
@@ -113,9 +103,13 @@ func (b *Bot) handleAdminCallbackQuery(callback *tgbotapi.CallbackQuery) {
 func (b *Bot) startAdminFlow(userID int64, mode string) {
 	b.adminSessionsMutex.Lock()
 	defer b.adminSessionsMutex.Unlock()
+	step := "await_chat_id"
+	if mode == "feed_text" {
+		step = "await_text"
+	}
 	b.adminSessions[userID] = &adminSession{
 		Mode: mode,
-		Step: "await_chat_id",
+		Step: step,
 	}
 }
 
@@ -210,44 +204,22 @@ func (b *Bot) handleAdminFlowMessage(msg *tgbotapi.Message) bool {
 		return true
 
 	case "await_text":
-		out := tgbotapi.NewMessage(session.TargetChatID, msg.Text)
-		if _, err := b.api.Send(out); err != nil {
-			b.api.Send(tgbotapi.NewMessage(msg.Chat.ID, "❌ Не удалось отправить текст: "+err.Error()))
+		text := strings.TrimSpace(msg.Text)
+		if text == "" {
+			b.api.Send(tgbotapi.NewMessage(msg.Chat.ID, "⚠️ Текст пустой. Отправь текст поста или /cancel."))
+			return true
+		}
+		if session.Mode != "feed_text" {
+			b.clearAdminFlow(msg.From.ID)
+			b.api.Send(tgbotapi.NewMessage(msg.Chat.ID, "❌ Неизвестный текстовый режим. Начни заново: /admin"))
+			return true
+		}
+		if err := b.saveAdminCustomPackFeed(msg.From.ID, text); err != nil {
+			b.api.Send(tgbotapi.NewMessage(msg.Chat.ID, "❌ Не удалось опубликовать пост: "+err.Error()))
 			return true
 		}
 		b.clearAdminFlow(msg.From.ID)
-		b.api.Send(tgbotapi.NewMessage(msg.Chat.ID, "✅ Текст отправлен."))
-		return true
-
-	case "await_photo":
-		if len(msg.Photo) == 0 {
-			b.api.Send(tgbotapi.NewMessage(msg.Chat.ID, "⚠️ Ожидаю фото. Отправь именно фото-сообщение."))
-			return true
-		}
-		photo := msg.Photo[len(msg.Photo)-1]
-		out := tgbotapi.NewPhoto(session.TargetChatID, tgbotapi.FileID(photo.FileID))
-		out.Caption = msg.Caption
-		if _, err := b.api.Send(out); err != nil {
-			b.api.Send(tgbotapi.NewMessage(msg.Chat.ID, "❌ Не удалось отправить фото: "+err.Error()))
-			return true
-		}
-		b.clearAdminFlow(msg.From.ID)
-		b.api.Send(tgbotapi.NewMessage(msg.Chat.ID, "✅ Фото отправлено."))
-		return true
-
-	case "await_video":
-		if msg.Video == nil {
-			b.api.Send(tgbotapi.NewMessage(msg.Chat.ID, "⚠️ Ожидаю видео. Отправь именно видео-сообщение."))
-			return true
-		}
-		out := tgbotapi.NewVideo(session.TargetChatID, tgbotapi.FileID(msg.Video.FileID))
-		out.Caption = msg.Caption
-		if _, err := b.api.Send(out); err != nil {
-			b.api.Send(tgbotapi.NewMessage(msg.Chat.ID, "❌ Не удалось отправить видео: "+err.Error()))
-			return true
-		}
-		b.clearAdminFlow(msg.From.ID)
-		b.api.Send(tgbotapi.NewMessage(msg.Chat.ID, "✅ Видео отправлено."))
+		b.api.Send(tgbotapi.NewMessage(msg.Chat.ID, "✅ Кастомный пост опубликован в ленте стаи."))
 		return true
 
 	case "await_poll_question":

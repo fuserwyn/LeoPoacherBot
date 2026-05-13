@@ -31,6 +31,28 @@
   background: linear-gradient(160deg, var(--card) 0%, rgba(255, 90, 31, 0.07) 100%);
 }
 
+.act-card--light {
+  background: linear-gradient(180deg, #fffdf8 0%, #f4efe3 100%);
+  border-color: rgba(255, 244, 214, 0.95);
+  box-shadow: 0 8px 26px rgba(0, 0, 0, 0.16);
+}
+
+.act-card--light .act-card__avatar {
+  background: rgba(39, 33, 17, 0.08);
+  color: #2f2618;
+}
+
+.act-card--light .act-card__name,
+.act-card--light .act-card__type,
+.act-card--light .act-card__comment {
+  color: #20180e;
+}
+
+.act-card--light .act-card__time,
+.act-card--light .act-card__details {
+  color: rgba(32, 24, 14, 0.72);
+}
+
 .act-card__head {
   display: flex;
   align-items: flex-start;

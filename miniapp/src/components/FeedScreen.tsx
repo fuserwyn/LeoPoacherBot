@@ -552,6 +552,7 @@ export function FeedScreen({
                   it.type === "pack_rejoin" ||
                   it.type === "daily_wisdom" ||
                   it.type === "pack_removed" ||
+                  it.type === "admin_post" ||
                   it.type === "inactive_notice";
                 const slotClass = `feed__card-slot${it.is_you && !isLeoSystemFeed ? " feed__card-slot--mine" : " feed__card-slot--them"}`;
                 if (it.type !== "training_done" && it.type !== "healthy") {

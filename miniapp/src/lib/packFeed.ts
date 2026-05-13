@@ -164,6 +164,8 @@ function typeMeta(t: string): { emoji: string; activity: string; details: string
       return { emoji: "🌅", activity: "Мудрость дня", details: "Мудрость дня" };
     case "pack_removed":
       return { emoji: "🐆", activity: "Лео · стая", details: "Выбыл за неактивность" };
+    case "admin_post":
+      return { emoji: "📢", activity: "Админ · объявление", details: "Кастомный пост" };
     case "inactive_notice":
       return { emoji: "⏳", activity: "Лео · напоминание стае", details: "Таймер неактивности (дубль контекста)" };
     default:
@@ -209,6 +211,7 @@ export function dtoToCard(d: PackFeedItemDTO): ActivityCardProps {
     d.type === "pack_rejoin" ||
     d.type === "daily_wisdom" ||
     d.type === "pack_removed";
+  const isAdminPost = d.type === "admin_post";
   const newcomer = (d.username || "").trim() || `Участник ${d.user_id}`;
   const pic = resolveFeedAvatarUrl(d.author_photo_url);
   let commentRaw = d.text.trim();
@@ -243,6 +246,20 @@ export function dtoToCard(d: PackFeedItemDTO): ActivityCardProps {
       emoji: m.emoji,
       activity: m.activity,
       details: leoDetails,
+      comment,
+    };
+  }
+  if (isAdminPost) {
+    return {
+      avatar: "📢",
+      name: "Админ",
+      streak: 0,
+      hideStreak: true,
+      lightTone: true,
+      timeAgo: timeAgoFromISO(d.created_at),
+      emoji: m.emoji,
+      activity: m.activity,
+      details: "",
       comment,
     };
   }

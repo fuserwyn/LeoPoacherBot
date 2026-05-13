@@ -14,6 +14,7 @@ const (
 	userMessageTypePackRejoin   = "pack_rejoin"
 	userMessageTypeDailyWisdom  = "daily_wisdom"
 	userMessageTypePackRemoved  = "pack_removed"
+	userMessageTypeAdminPost    = "admin_post"
 )
 
 // Текст для ленты стаи: короткое объявление (приветствие остаётся только в личке).
@@ -132,4 +133,26 @@ func (b *Bot) savePackRemovedMiniappFeed(chatID, userID int64, username string) 
 	if err := b.db.SaveUserMessage(um); err != nil {
 		b.logger.Warnf("miniapp pack feed pack_removed user=%d: %v", userID, err)
 	}
+}
+
+func (b *Bot) saveAdminCustomPackFeed(adminUserID int64, text string) error {
+	if b == nil || b.db == nil || b.config == nil || b.config.MonetizedChatID == 0 {
+		return fmt.Errorf("pack feed unavailable")
+	}
+	t := strings.TrimSpace(text)
+	if t == "" {
+		return fmt.Errorf("empty text")
+	}
+	um := &domain.UserMessage{
+		UserID:      0,
+		ChatID:      b.config.MonetizedChatID,
+		Username:    "Админ",
+		MessageText: t,
+		MessageType: userMessageTypeAdminPost,
+	}
+	if err := b.db.SaveUserMessage(um); err != nil {
+		return err
+	}
+	b.logger.Infof("admin custom pack feed post published by admin=%d", adminUserID)
+	return nil
 }

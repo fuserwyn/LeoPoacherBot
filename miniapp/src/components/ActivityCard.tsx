@@ -177,6 +177,8 @@ export type ActivityCardProps = {
   streak: number;
   /** Для системных карточек (приветствие Лео) — не показывать стрик. */
   hideStreak?: boolean;
+  /** Светлая подсветка для специальных карточек админа/системы. */
+  lightTone?: boolean;
   timeAgo: string;
   emoji: string;
   activity: string;
@@ -208,6 +210,7 @@ export function ActivityCard({
   name,
   streak,
   hideStreak = false,
+  lightTone = false,
   timeAgo,
   emoji,
   activity,
@@ -266,7 +269,7 @@ export function ActivityCard({
   const threadCount = threadReplies.length;
   return (
     <article
-      className={`act-card${hideStreak ? " act-card--leo" : ""}${threadOpen && hasThread ? " act-card--thread-open" : ""}${trainingPhotoUrl ? " act-card--has-photo" : ""}`}
+      className={`act-card${hideStreak ? " act-card--leo" : ""}${lightTone ? " act-card--light" : ""}${threadOpen && hasThread ? " act-card--thread-open" : ""}${trainingPhotoUrl ? " act-card--has-photo" : ""}`}
     >
       <header className="act-card__head">
         <div className="act-card__avatar" aria-hidden>

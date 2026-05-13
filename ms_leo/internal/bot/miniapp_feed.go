@@ -101,7 +101,7 @@ func (b *Bot) PackFeedForViewer(viewerUserID int64, initD initdata.InitData, ini
 
 func packFeedIsLeoNoticeType(t string) bool {
 	switch t {
-	case "pack_join", "pack_rejoin", "daily_wisdom", "pack_removed":
+	case "pack_join", "pack_rejoin", "daily_wisdom", "pack_removed", "admin_post":
 		return true
 	default:
 		return false
