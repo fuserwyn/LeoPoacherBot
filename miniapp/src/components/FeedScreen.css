@@ -338,6 +338,11 @@
   margin-bottom: 0;
 }
 
+.feed__section-title {
+  text-transform: none;
+  letter-spacing: 0.02em;
+}
+
 .feed__refresh-btn {
   flex-shrink: 0;
   width: 32px;
