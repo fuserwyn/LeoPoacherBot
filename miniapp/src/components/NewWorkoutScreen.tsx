@@ -165,7 +165,7 @@ export function NewWorkoutScreen({ onClose, onSave, showAlert }: Props) {
         <button type="button" className="nwo__close" onClick={onClose} aria-label="Закрыть">
           ✕
         </button>
-        <h1 className="nwo__title">#training_done</h1>
+        <h1 className="nwo__title">Тренировка</h1>
         <span className="nwo__spacer" aria-hidden />
       </header>
 

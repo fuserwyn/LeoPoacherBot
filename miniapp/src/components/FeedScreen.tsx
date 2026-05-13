@@ -420,9 +420,6 @@ export function FeedScreen({
           <div className="feed__hero">
             <h1 className="feed__welcome">Привет, {displayName}</h1>
             <div className="feed__streak" aria-label={streakStreakAriaLabel(streak)} title={streakStreakAriaLabel(streak)}>
-              <span className="feed__streak-emoji" aria-hidden>
-                🔥
-              </span>
               <span className="feed__streak-row">
                 <span className="feed__streak-word">Стрик</span>
                 <span className="feed__streak-num">{streak}</span>

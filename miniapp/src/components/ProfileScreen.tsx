@@ -312,9 +312,7 @@ export function ProfileScreen({
       <div className="profile__grid3">
         <div className="stat-card">
           <div className="stat-card__label">Дней подряд</div>
-          <div className="stat-card__val">
-            <span className="stat-card__streak-ico">🔥</span> {streak}
-          </div>
+          <div className="stat-card__val">{streak}</div>
         </div>
         <div className="stat-card">
           <div className="stat-card__label">Рекорд стрика</div>

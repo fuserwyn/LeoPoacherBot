@@ -192,12 +192,6 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 4px;
-}
-
-.stat-card__streak-ico {
-  font-size: 16px;
-  filter: drop-shadow(0 0 6px rgba(255, 50, 30, 0.45));
 }
 
 .profile__grid2 {

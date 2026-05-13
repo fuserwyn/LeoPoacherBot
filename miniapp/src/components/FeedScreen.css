@@ -89,17 +89,10 @@
 .feed__streak {
   display: flex;
   align-items: center;
-  gap: 4px;
   background: var(--card);
   border: 1px solid var(--border-subtle);
   padding: 5px 8px;
   border-radius: 999px;
-  flex-shrink: 0;
-}
-
-.feed__streak-emoji {
-  font-size: 1.15rem;
-  line-height: 1;
   flex-shrink: 0;
 }
 

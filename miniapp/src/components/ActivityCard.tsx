@@ -285,7 +285,6 @@ export function ActivityCard({
                 aria-label={streakStreakAriaLabel(streak)}
                 title={streakStreakAriaLabel(streak)}
               >
-                <span aria-hidden>🔥</span>
                 <span className="pill__streak-word">Стрик</span>
                 <span className="pill__streak-num">{streak}</span>
               </span>
