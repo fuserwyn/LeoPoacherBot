@@ -92,6 +92,11 @@ func (b *Bot) notifyAdminsAboutSupportMessage(userID int64, text string) {
 	body := clipAdminSupportText(text, 500)
 	for _, adminID := range adminIDs {
 		msg := tgbotapi.NewMessage(adminID, title+"\n\n"+body+"\n\nОткрой /admin → Поддержка.")
+		msg.ReplyMarkup = tgbotapi.NewInlineKeyboardMarkup(
+			tgbotapi.NewInlineKeyboardRow(
+				tgbotapi.NewInlineKeyboardButtonData("✍️ Ответить", fmt.Sprintf("admin_support_reply_%d", userID)),
+			),
+		)
 		if _, err := b.api.Send(msg); err != nil {
 			b.logger.Warnf("support notify admin=%d user=%d: %v", adminID, userID, err)
 		}
