@@ -27,10 +27,7 @@ func PackRemovedFeedNotice(p prompts.Bundle, displayName string) string {
 	if raw != "" {
 		return strings.ReplaceAll(raw, "{{name}}", d)
 	}
-	return fmt.Sprintf(
-		"%s покинул стаю после 7 дней без отчёта (#training_done). XP и платный вход по связке сняты. Для стаи: возвращение только через новую оплату при желании вернуться. 🐆",
-		d,
-	)
+	return fmt.Sprintf("%s исключён", d)
 }
 
 // saveInactiveNoticePackFeed — короткая отметка в общей ленте (дубликат темы предупреждения Лео в ЛС).

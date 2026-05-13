@@ -184,6 +184,11 @@ export type ActivityCardProps = {
   activity: string;
   details: string;
   comment?: string;
+  poll?: {
+    totalVotes: number;
+    options: { label: string; votes: number; selected?: boolean }[];
+    onVote?: (optionIndex: number) => void;
+  };
   aiText?: string;
   reactions?: { emoji: string; count: number; me?: boolean; voters?: string[] }[];
   /** Клик по эмодзи (лента training_done). */
@@ -216,6 +221,7 @@ export function ActivityCard({
   activity,
   details,
   comment,
+  poll,
   aiText,
   reactions = [],
   onReactionClick,
@@ -302,6 +308,22 @@ export function ActivityCard({
         </p>
         {details.trim() !== "" && <p className="act-card__details">{details}</p>}
         {comment && <p className="act-card__comment">{comment}</p>}
+        {poll && poll.options.length > 0 && (
+          <div className="act-card__poll" role="group" aria-label="Опрос">
+            {poll.options.map((option, optionIndex) => (
+              <button
+                key={`${optionIndex}-${option.label}`}
+                type="button"
+                className={`act-card__poll-option${option.selected ? " act-card__poll-option--selected" : ""}`}
+                onClick={() => poll.onVote?.(optionIndex)}
+              >
+                <span className="act-card__poll-label">{option.label}</span>
+                <span className="act-card__poll-votes">{option.votes}</span>
+              </button>
+            ))}
+            <p className="act-card__poll-total">{poll.totalVotes} голосов</p>
+          </div>
+        )}
         {trainingPhotoUrl && !photoFailed ? (
           <div
             className="act-card__photo-wrap"

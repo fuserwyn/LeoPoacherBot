@@ -181,6 +181,35 @@ export function FeedScreen({
     [apiBase, initData, load, showAlert],
   );
 
+  const voteFeedPoll = useCallback(
+    async (userMessageId: number, optionIndex: number) => {
+      if (!apiBase || !initData) return;
+      try {
+        const res = await fetch(`${apiBase}/api/miniapp/feed/poll/vote`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ init_data: initData, user_message_id: userMessageId, option_index: optionIndex }),
+        });
+        const j = (await res.json().catch(() => ({}))) as { error?: string };
+        if (!res.ok) {
+          const errMap: Record<string, string> = {
+            not_found: "Опрос не найден",
+            invalid_option: "Неверный вариант",
+            forbidden: "Нет доступа",
+            chat_mismatch: "Открой miniapp из чата стаи",
+            poll_vote_error: "Не удалось сохранить голос",
+          };
+          showAlert(errMap[j.error ?? ""] ?? j.error ?? `Ошибка ${res.status}`);
+          return;
+        }
+        await load();
+      } catch (e) {
+        showAlert(e instanceof Error ? e.message : "Сеть");
+      }
+    },
+    [apiBase, initData, load, showAlert],
+  );
+
   const postTrainingThread = useCallback(
     async (userMessageId: number, text: string, replyToThreadId?: number) => {
       const t = text.trim();
@@ -553,12 +582,28 @@ export function FeedScreen({
                   it.type === "daily_wisdom" ||
                   it.type === "pack_removed" ||
                   it.type === "admin_post" ||
+                  it.type === "admin_poll" ||
                   it.type === "inactive_notice";
                 const slotClass = `feed__card-slot${it.is_you && !isLeoSystemFeed ? " feed__card-slot--mine" : " feed__card-slot--them"}`;
                 if (it.type !== "training_done" && it.type !== "healthy") {
                   return (
                     <div key={it.id} className={slotClass}>
-                      <ActivityCard {...base} />
+                      <ActivityCard
+                        {...base}
+                        poll={
+                          it.poll
+                            ? {
+                                totalVotes: it.poll.total_votes ?? 0,
+                                options: (it.poll.options ?? []).map((option, optionIndex) => ({
+                                  label: option.label,
+                                  votes: option.votes,
+                                  selected: it.poll?.my_vote_index === optionIndex,
+                                })),
+                                onVote: (optionIndex) => void voteFeedPoll(it.id, optionIndex),
+                              }
+                            : undefined
+                        }
+                      />
                     </div>
                   );
                 }

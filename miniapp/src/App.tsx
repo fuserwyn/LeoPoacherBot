@@ -48,6 +48,7 @@ export function App() {
   const [supportOpen, setSupportOpen] = useState(false);
   const [streak, setStreak] = useState(hookStreak);
   const [recordStreak, setRecordStreak] = useState(hookStreak);
+  const [profileDisplayName, setProfileDisplayName] = useState("");
   const [xp, setXP] = useState(0);
   const [achievementCount, setAchievementCount] = useState(0);
   const [achievementsMax, setAchievementsMax] = useState(7);
@@ -90,6 +91,7 @@ export function App() {
       });
       const j = (await res.json().catch(() => ({}))) as {
         ok?: boolean;
+        display_name?: string;
         streak_days?: number;
         max_streak_days?: number;
         xp?: number;
@@ -102,6 +104,7 @@ export function App() {
         days_since_last_training?: number;
       };
       if (!res.ok || !j.ok) return;
+      setProfileDisplayName((j.display_name ?? "").trim());
       setDaysSinceLastTraining(typeof j.days_since_last_training === "number" ? j.days_since_last_training : -1);
       setStreak(typeof j.streak_days === "number" ? j.streak_days : 0);
       setRecordStreak(typeof j.max_streak_days === "number" ? j.max_streak_days : 0);
@@ -178,6 +181,8 @@ export function App() {
     void refreshTabBadges();
   }, [refreshTabBadges]);
 
+  const effectiveName = profileDisplayName.trim() || name.trim() || "друг";
+
   if (accessGateStatus === "checking") {
     return <div className="app" />;
   }
@@ -196,7 +201,7 @@ export function App() {
         <SupportScreen initData={initData} inTelegram={inTelegram} showAlert={showAlert} />
       ) : tab === "chat" ? (
         <ChatScreen
-          name={name}
+          name={effectiveName}
           initData={initData}
           inTelegram={inTelegram}
           showAlert={showAlert}
@@ -205,7 +210,7 @@ export function App() {
       ) : null}
       {!supportOpen && tab === "feed" && (
         <FeedScreen
-          name={name}
+          name={effectiveName}
           streak={streak}
           userId={userId}
           initData={initData}
@@ -220,7 +225,7 @@ export function App() {
       {!supportOpen && tab === "rules" && <RulesScreen />}
       {!supportOpen && tab === "profile" && (
         <ProfileScreen
-          name={name}
+          name={effectiveName}
           streak={streak}
           workouts={workouts}
           initData={initData}
@@ -232,6 +237,9 @@ export function App() {
           achievementsMax={achievementsMax}
           daysSinceLastTraining={daysSinceLastTraining}
           showAlert={showAlert}
+          onProfileSaved={(displayName) => {
+            setProfileDisplayName(displayName.trim());
+          }}
           onSupport={() => {
             setWorkoutOpen(false);
             setSupportOpen(true);

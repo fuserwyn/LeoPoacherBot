@@ -10,8 +10,7 @@ import (
 
 type adminSession struct {
 	Mode         string // feed_text | poll | support
-	Step         string // await_text | await_chat_id | await_support_text | await_poll_question | await_poll_options
-	TargetChatID int64
+	Step         string // await_text | await_support_text | await_poll_question | await_poll_options
 	TargetUserID int64
 	PollQuestion string
 }
@@ -90,7 +89,7 @@ func (b *Bot) handleAdminCallbackQuery(callback *tgbotapi.CallbackQuery) {
 		b.api.Send(tgbotapi.NewMessage(callback.Message.Chat.ID, "📝 Напиши кастомный текст для ленты стаи. Он появится как отдельный админский пост."))
 	case "admin_mode_poll":
 		b.startAdminFlow(callback.From.ID, "poll")
-		b.api.Send(tgbotapi.NewMessage(callback.Message.Chat.ID, "🗳 Введи chat_id для опроса."))
+		b.api.Send(tgbotapi.NewMessage(callback.Message.Chat.ID, "🗳 Напиши вопрос для опроса в ленте miniapp."))
 	case "admin_cancel":
 		b.clearAdminFlow(callback.From.ID)
 		b.api.Send(tgbotapi.NewMessage(callback.Message.Chat.ID, "❎ Действие отменено."))
@@ -103,8 +102,10 @@ func (b *Bot) handleAdminCallbackQuery(callback *tgbotapi.CallbackQuery) {
 func (b *Bot) startAdminFlow(userID int64, mode string) {
 	b.adminSessionsMutex.Lock()
 	defer b.adminSessionsMutex.Unlock()
-	step := "await_chat_id"
-	if mode == "feed_text" {
+	step := "await_text"
+	if mode == "poll" {
+		step = "await_poll_question"
+	} else if mode == "feed_text" {
 		step = "await_text"
 	}
 	b.adminSessions[userID] = &adminSession{
@@ -177,32 +178,6 @@ func (b *Bot) handleAdminFlowMessage(msg *tgbotapi.Message) bool {
 		b.showAdminSupportThread(msg.Chat.ID, targetUserID)
 		return true
 
-	case "await_chat_id":
-		chatID, err := parseAdminChatID(msg.Text)
-		if err != nil {
-			b.api.Send(tgbotapi.NewMessage(msg.Chat.ID, "❌ Неверный chat_id. Пример: -1003246054143"))
-			return true
-		}
-		session.TargetChatID = chatID
-		switch session.Mode {
-		case "text":
-			session.Step = "await_text"
-			b.api.Send(tgbotapi.NewMessage(msg.Chat.ID, "✍️ Теперь отправь текст сообщения."))
-		case "photo":
-			session.Step = "await_photo"
-			b.api.Send(tgbotapi.NewMessage(msg.Chat.ID, "🖼 Теперь отправь фото (подпись можно добавить сразу)."))
-		case "video":
-			session.Step = "await_video"
-			b.api.Send(tgbotapi.NewMessage(msg.Chat.ID, "🎬 Теперь отправь видео (подпись можно добавить сразу)."))
-		case "poll":
-			session.Step = "await_poll_question"
-			b.api.Send(tgbotapi.NewMessage(msg.Chat.ID, "❓ Отправь вопрос для опроса."))
-		default:
-			b.clearAdminFlow(msg.From.ID)
-			b.api.Send(tgbotapi.NewMessage(msg.Chat.ID, "❌ Неизвестный режим. Начни заново: /admin"))
-		}
-		return true
-
 	case "await_text":
 		text := strings.TrimSpace(msg.Text)
 		if text == "" {
@@ -266,13 +241,12 @@ func (b *Bot) handleAdminFlowMessage(msg *tgbotapi.Message) bool {
 				return true
 			}
 		}
-		poll := tgbotapi.NewPoll(session.TargetChatID, session.PollQuestion, options...)
-		if _, err := b.api.Send(poll); err != nil {
-			b.api.Send(tgbotapi.NewMessage(msg.Chat.ID, "❌ Не удалось отправить опрос: "+err.Error()))
+		if err := b.saveAdminPollPackFeed(msg.From.ID, session.PollQuestion, options); err != nil {
+			b.api.Send(tgbotapi.NewMessage(msg.Chat.ID, "❌ Не удалось опубликовать опрос: "+err.Error()))
 			return true
 		}
 		b.clearAdminFlow(msg.From.ID)
-		b.api.Send(tgbotapi.NewMessage(msg.Chat.ID, "✅ Опрос отправлен."))
+		b.api.Send(tgbotapi.NewMessage(msg.Chat.ID, "✅ Опрос опубликован в ленте miniapp."))
 		return true
 	}
 
@@ -401,21 +375,3 @@ func clipAdminSupportText(s string, limit int) string {
 	return string(r[:limit-1]) + "…"
 }
 
-func parseAdminChatID(raw string) (int64, error) {
-	idRaw := strings.TrimSpace(raw)
-	idRaw = strings.ReplaceAll(idRaw, "–", "-")
-	idRaw = strings.ReplaceAll(idRaw, "—", "-")
-	idRaw = strings.ReplaceAll(idRaw, "\u00A0", " ")
-
-	var filtered strings.Builder
-	for i, r := range idRaw {
-		if i == 0 && r == '-' {
-			filtered.WriteRune(r)
-			continue
-		}
-		if r >= '0' && r <= '9' {
-			filtered.WriteRune(r)
-		}
-	}
-	return strconv.ParseInt(filtered.String(), 10, 64)
-}

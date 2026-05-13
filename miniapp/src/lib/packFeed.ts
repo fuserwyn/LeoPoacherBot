@@ -87,6 +87,18 @@ export const HEALTHY_FEED_EMOJIS = ["🎉", "🥳", "😄", "💚", "❤️", "�
 
 export type PackFeedReactionDTO = { emoji: string; count: number; me: boolean; voters?: string[] };
 
+export type PackFeedPollOptionDTO = {
+  label: string;
+  votes: number;
+};
+
+export type PackFeedPollDTO = {
+  question: string;
+  options: PackFeedPollOptionDTO[];
+  total_votes: number;
+  my_vote_index?: number;
+};
+
 export type PackFeedThreadReplyDTO = {
   id: number;
   user_id: number;
@@ -120,6 +132,7 @@ export type PackFeedItemDTO = {
   author_photo_url?: string;
   reactions?: PackFeedReactionDTO[];
   thread?: PackFeedThreadReplyDTO[];
+  poll?: PackFeedPollDTO;
   /** Публичный URL фото из мини‑аппа после POST /api/miniapp/workout */
   training_photo_url?: string;
 };
@@ -166,6 +179,8 @@ function typeMeta(t: string): { emoji: string; activity: string; details: string
       return { emoji: "🐆", activity: "Лео · стая", details: "Выбыл за неактивность" };
     case "admin_post":
       return { emoji: "📢", activity: "Админ · объявление", details: "Кастомный пост" };
+    case "admin_poll":
+      return { emoji: "🗳️", activity: "Админ · опрос", details: "Голосование в miniapp" };
     case "inactive_notice":
       return { emoji: "⏳", activity: "Лео · напоминание стае", details: "Таймер неактивности (дубль контекста)" };
     default:
@@ -212,6 +227,7 @@ export function dtoToCard(d: PackFeedItemDTO): ActivityCardProps {
     d.type === "daily_wisdom" ||
     d.type === "pack_removed";
   const isAdminPost = d.type === "admin_post";
+  const isAdminPoll = d.type === "admin_poll";
   const newcomer = (d.username || "").trim() || `Участник ${d.user_id}`;
   const pic = resolveFeedAvatarUrl(d.author_photo_url);
   let commentRaw = d.text.trim();
@@ -261,6 +277,20 @@ export function dtoToCard(d: PackFeedItemDTO): ActivityCardProps {
       activity: m.activity,
       details: "",
       comment,
+    };
+  }
+  if (isAdminPoll) {
+    return {
+      avatar: "🗳️",
+      name: "Админ",
+      streak: 0,
+      hideStreak: true,
+      lightTone: true,
+      timeAgo: timeAgoFromISO(d.created_at),
+      emoji: m.emoji,
+      activity: m.activity,
+      details: d.poll?.total_votes ? `${d.poll.total_votes} голосов` : "",
+      comment: d.poll?.question?.trim() || comment,
     };
   }
   return {

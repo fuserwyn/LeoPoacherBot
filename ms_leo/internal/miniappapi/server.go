@@ -63,6 +63,8 @@ func (s *Server) serve(w http.ResponseWriter, r *http.Request) {
 		s.handleGetUserAvatar(w, r)
 	case path == "/api/miniapp/feed/training/react" && r.Method == http.MethodPost:
 		s.handlePostFeedTrainingReact(w, r)
+	case path == "/api/miniapp/feed/poll/vote" && r.Method == http.MethodPost:
+		s.handlePostFeedPollVote(w, r)
 	case path == "/api/miniapp/feed/training/thread" && r.Method == http.MethodPost:
 		s.handlePostFeedTrainingThread(w, r)
 	case path == "/api/miniapp/feed/training/thread/delete" && r.Method == http.MethodPost:
@@ -406,6 +408,68 @@ func (s *Server) handlePostFeed(w http.ResponseWriter, r *http.Request) {
 	}
 	w.Header().Set("Content-Type", "application/json; charset=utf-8")
 	_ = json.NewEncoder(w).Encode(map[string]any{"ok": true, "items": items})
+}
+
+func (s *Server) handlePostFeedPollVote(w http.ResponseWriter, r *http.Request) {
+	corsWriteHeaders(w, r)
+	if s.bot == nil || s.token == "" {
+		s.jsonErr(w, http.StatusServiceUnavailable, "server_unavailable")
+		return
+	}
+	var body struct {
+		InitData     string `json:"init_data"`
+		UserMessageID int64 `json:"user_message_id"`
+		OptionIndex  int    `json:"option_index"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		s.jsonErr(w, http.StatusBadRequest, "invalid_json")
+		return
+	}
+	if body.InitData == "" {
+		s.jsonErr(w, http.StatusBadRequest, "missing_init_data")
+		return
+	}
+	if body.UserMessageID == 0 {
+		s.jsonErr(w, http.StatusBadRequest, "missing_user_message_id")
+		return
+	}
+	if err := initdata.Validate(body.InitData, s.token, 24*time.Hour); err != nil {
+		s.logger.Warnf("miniapp feed poll vote invalid init: %v", err)
+		s.jsonErr(w, http.StatusUnauthorized, "invalid_init_data")
+		return
+	}
+	parsed, err := initdata.Parse(body.InitData)
+	if err != nil {
+		s.jsonErr(w, http.StatusBadRequest, "parse_init_data")
+		return
+	}
+	if parsed.User.ID == 0 {
+		s.jsonErr(w, http.StatusBadRequest, "user_missing")
+		return
+	}
+	if err := s.bot.PackFeedPollVote(parsed.User.ID, parsed, body.UserMessageID, body.OptionIndex); err != nil {
+		if errors.Is(err, bot.ErrMiniAppChatMismatch) {
+			s.jsonErr(w, http.StatusConflict, "chat_mismatch")
+			return
+		}
+		if errors.Is(err, bot.ErrPackFeedForbidden) {
+			s.jsonErr(w, http.StatusForbidden, "forbidden")
+			return
+		}
+		if errors.Is(err, bot.ErrPackFeedPollNotFound) {
+			s.jsonErr(w, http.StatusNotFound, "not_found")
+			return
+		}
+		if errors.Is(err, bot.ErrPackFeedPollInvalidOption) {
+			s.jsonErr(w, http.StatusBadRequest, "invalid_option")
+			return
+		}
+		s.logger.Errorf("pack feed poll vote: %v", err)
+		s.jsonErr(w, http.StatusInternalServerError, "poll_vote_error")
+		return
+	}
+	w.Header().Set("Content-Type", "application/json; charset=utf-8")
+	_ = json.NewEncoder(w).Encode(map[string]any{"ok": true})
 }
 
 func (s *Server) handleGetUserAvatar(w http.ResponseWriter, r *http.Request) {

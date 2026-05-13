@@ -15,6 +15,7 @@ const (
 	userMessageTypeDailyWisdom  = "daily_wisdom"
 	userMessageTypePackRemoved  = "pack_removed"
 	userMessageTypeAdminPost    = "admin_post"
+	userMessageTypeAdminPoll    = "admin_poll"
 )
 
 // Текст для ленты стаи: короткое объявление (приветствие остаётся только в личке).

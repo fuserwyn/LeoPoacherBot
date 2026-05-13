@@ -34,6 +34,7 @@ type Props = {
   /** Ссылка на аватар из Telegram WebApp (initDataUnsafe.user.photo_url), если бот открыл мини-апп. */
   userPhotoUrl?: string;
   showAlert: (m: string) => void;
+  onProfileSaved?: (displayName: string) => void;
   onSupport?: () => void;
 };
 
@@ -60,6 +61,7 @@ export function ProfileScreen({
   inTelegram,
   userPhotoUrl,
   showAlert,
+  onProfileSaved,
   onSupport,
 }: Props) {
   const [profile, setProfile] = useState<ProfileData>({ gender: "", displayName: "", timezoneOffset: 0 });
@@ -230,6 +232,7 @@ export function ProfileScreen({
       }
       if (j.ok) {
         void window.Telegram?.WebApp?.HapticFeedback?.notificationOccurred?.("success");
+        onProfileSaved?.(profile.displayName.trim());
         showAlert("Сохранено. Лео подстроит обращения.");
       }
     } catch (e) {
@@ -237,7 +240,7 @@ export function ProfileScreen({
     } finally {
       setProfileSaving(false);
     }
-  }, [inTelegram, initData, profile, showAlert]);
+  }, [inTelegram, initData, onProfileSaved, profile, showAlert]);
 
   const noTrainingAlert = daysSinceLastTraining >= 5;
   const noTrainingDanger = daysSinceLastTraining >= 7;
