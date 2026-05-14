@@ -53,3 +53,24 @@ func TestPaywallInvoiceErrLogAndShortHint(t *testing.T) {
 		t.Fatalf("short hint: %q", sh)
 	}
 }
+
+func TestPaywallRequiresRepurchase(t *testing.T) {
+	cases := []struct {
+		name            string
+		isDeleted       bool
+		hasActiveAccess bool
+		want            bool
+	}{
+		{name: "deleted overrides active access", isDeleted: true, hasActiveAccess: true, want: true},
+		{name: "deleted without active access", isDeleted: true, hasActiveAccess: false, want: true},
+		{name: "active access keeps user in pack", isDeleted: false, hasActiveAccess: true, want: false},
+		{name: "no access requires payment", isDeleted: false, hasActiveAccess: false, want: true},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := paywallRequiresRepurchase(tc.isDeleted, tc.hasActiveAccess); got != tc.want {
+				t.Fatalf("paywallRequiresRepurchase(%v, %v) = %v, want %v", tc.isDeleted, tc.hasActiveAccess, got, tc.want)
+			}
+		})
+	}
+}

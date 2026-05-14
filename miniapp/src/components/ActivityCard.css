@@ -26,6 +26,10 @@
   max-height: none;
 }
 
+.act-card--has-photo .act-card__body {
+  overflow: visible;
+}
+
 .act-card--leo {
   border-color: rgba(255, 90, 31, 0.35);
   background: linear-gradient(160deg, var(--card) 0%, rgba(255, 90, 31, 0.07) 100%);
@@ -694,7 +698,6 @@
   background: var(--card-inner);
   display: block;
   width: 100%;
-  max-height: min(420px, 55vh);
   cursor: zoom-in;
   -webkit-tap-highlight-color: transparent;
 }
@@ -705,9 +708,8 @@
 
 .act-card__photo {
   width: 100%;
-  max-height: min(420px, 55vh);
+  height: auto;
   display: block;
-  object-fit: contain;
 }
 
 .act-card__lightbox {

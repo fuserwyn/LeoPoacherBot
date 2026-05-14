@@ -64,7 +64,7 @@ func allowedEmojiForType(messageType, emoji string) (string, bool) {
 		allowed = trainingFeedAllowedEmojis
 	case "sick_leave":
 		allowed = sickLeaveAllowedEmojis
-	case "healthy":
+	case "healthy", userMessageTypeAdminPost, userMessageTypeAdminPoll:
 		allowed = healthyAllowedEmojis
 	default:
 		return "", false
@@ -98,7 +98,7 @@ func (b *Bot) assertPackFeedSocialViewer(viewerUserID int64) error {
 	return nil
 }
 
-// PackTrainingFeedReact — реакция на training_done/sick_leave/healthy (повтор с той же эмодзи снимает).
+// PackTrainingFeedReact — реакция на карточку ленты с соц. активностью (повтор с той же эмодзи снимает).
 func (b *Bot) PackTrainingFeedReact(viewerUserID int64, initD initdata.InitData, userMessageID int64, emoji string) error {
 	if err := b.AssertMiniAppPackChatAligns(initD); err != nil {
 		return err
@@ -460,7 +460,7 @@ func (b *Bot) PackFeedThreadRepliesForViewer(viewerUserID, userMessageID int64) 
 	return b.threadRowsToPackReplies(m[userMessageID], viewerUserID, chatID), nil
 }
 
-// enrichPackFeedTrainingSocial — реакции и треды для карточек training_done/sick_leave.
+// enrichPackFeedTrainingSocial — реакции и треды для карточек ленты с соц. активностью.
 func (b *Bot) enrichPackFeedTrainingSocial(items []PackFeedItem, viewerUserID int64, chatID int64) []PackFeedItem {
 	socialIDs := make([]int64, 0)
 	reactionIDs := make([]int64, 0)
@@ -468,7 +468,7 @@ func (b *Bot) enrichPackFeedTrainingSocial(items []PackFeedItem, viewerUserID in
 		if packFeedSupportsThread(it.Type) {
 			socialIDs = append(socialIDs, it.ID)
 		}
-		if it.Type == "training_done" || it.Type == "sick_leave" || it.Type == "healthy" {
+		if it.Type == "training_done" || it.Type == "sick_leave" || it.Type == "healthy" || it.Type == userMessageTypeAdminPost || it.Type == userMessageTypeAdminPoll {
 			reactionIDs = append(reactionIDs, it.ID)
 		}
 	}
@@ -500,7 +500,7 @@ func (b *Bot) enrichPackFeedTrainingSocial(items []PackFeedItem, viewerUserID in
 			allowed := trainingFeedAllowedEmojis
 			if items[i].Type == "sick_leave" {
 				allowed = sickLeaveAllowedEmojis
-			} else if items[i].Type == "healthy" {
+			} else if items[i].Type == "healthy" || items[i].Type == userMessageTypeAdminPost || items[i].Type == userMessageTypeAdminPoll {
 				allowed = healthyAllowedEmojis
 			}
 			for _, a := range database.SortReactionAggsForDisplay(aggs, allowed) {

@@ -1,6 +1,7 @@
 package bot
 
 import (
+	"database/sql"
 	"errors"
 	"fmt"
 	"strconv"
@@ -725,7 +726,15 @@ func (b *Bot) handlePaywallReturnToPackCallback(callback *tgbotapi.CallbackQuery
 	_, _ = b.api.Request(tgbotapi.NewCallback(callback.ID, "Открой сообщение ниже — там выбор оплаты."))
 }
 
-// paywallPrivateNeedsPayFirst — личка, paywall включён, не владелец, нет активной (не истёкшей) оплаты.
+func paywallRequiresRepurchase(isDeleted bool, hasActiveAccess bool) bool {
+	if isDeleted {
+		return true
+	}
+	return !hasActiveAccess
+}
+
+// paywallPrivateNeedsPayFirst — личка, paywall включён, не владелец, нет активной (не истёкшей) оплаты
+// или пользователь уже кикнут за неактивность и должен проходить повторный вход заново.
 func (b *Bot) paywallPrivateNeedsPayFirst(userID int64) bool {
 	if !b.paywallActive() || userID == 0 {
 		return false
@@ -733,12 +742,20 @@ func (b *Bot) paywallPrivateNeedsPayFirst(userID int64) bool {
 	if b.config.IsAdminTelegramUser(userID) {
 		return false
 	}
+	if ml, err := b.db.GetMessageLogAnyState(userID, b.config.MonetizedChatID); err == nil && ml != nil {
+		if paywallRequiresRepurchase(ml.IsDeleted, true) {
+			return true
+		}
+	} else if err != nil && !errors.Is(err, sql.ErrNoRows) {
+		b.logger.Errorf("paywall deletion check: %v", err)
+		return true
+	}
 	ok, err := b.db.UserHasActivePaywallAccess(userID, b.config.MonetizedChatID)
 	if err != nil {
 		b.logger.Errorf("paywall access check: %v", err)
 		return true
 	}
-	return !ok
+	return paywallRequiresRepurchase(false, ok)
 }
 
 func parsePaywallPayload(payload string) (requestID int64, ok bool) {
