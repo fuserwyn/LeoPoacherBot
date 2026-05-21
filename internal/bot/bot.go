@@ -31,6 +31,8 @@ type Bot struct {
 	sickApprovalMutex    sync.Mutex
 	adminSessions        map[int64]*adminSession
 	adminSessionsMutex   sync.Mutex
+	recentPhotosMu       sync.RWMutex
+	recentPhotos         map[int64][]chatPhotoRef // chatID → недавние фото для вопросов «что на фото»
 }
 
 var (
@@ -509,27 +511,9 @@ func (b *Bot) handleMessage(msg *tgbotapi.Message) {
 	hasCommand := hasTrainingDone || hasWritingDone || hasSickLeave || hasHealthy || hasChange || hasTimeZone
 
 	shouldHandleAI := false
-	if !hasCommand && msg.Entities != nil && text != "" {
-		for _, entity := range msg.Entities {
-			if entity.Type == "mention" {
-				mentionText := ""
-				if entity.Offset+entity.Length <= len(text) {
-					mentionText = text[entity.Offset : entity.Offset+entity.Length]
-				}
-				botUsername := b.api.Self.UserName
-				if botUsername == "" {
-					botUsername = strings.TrimPrefix(mentionText, "@")
-				}
-				if strings.EqualFold(mentionText, "@"+botUsername) ||
-					strings.EqualFold(mentionText, botUsername) ||
-					strings.Contains(strings.ToLower(text), "@"+strings.ToLower(botUsername)) ||
-					strings.Contains(strings.ToLower(text), strings.ToLower(botUsername)+" ") {
-					shouldHandleAI = true
-					b.logger.Infof("Bot mention detected: %s in message: %s", mentionText, text)
-					break
-				}
-			}
-		}
+	if !hasCommand && text != "" && b.detectBotMention(text, msg) {
+		shouldHandleAI = true
+		b.logger.Infof("Bot mention detected in message: %s", text)
 	}
 	if !hasCommand && !shouldHandleAI && msg.ReplyToMessage != nil {
 		if msg.ReplyToMessage.From != nil && msg.ReplyToMessage.From.IsBot &&
@@ -611,8 +595,7 @@ func (b *Bot) handleMessage(msg *tgbotapi.Message) {
 		return // Выходим, не обрабатывая через ИИ
 	}
 
-	hasPhoto := b.hasPhoto(msg)
-	if shouldHandleAI && (text != "" || hasPhoto) {
+	if shouldHandleAI && (text != "" || b.hasVisualAttachment(msg)) {
 		b.handleAIQuestion(msg, text)
 		return
 	}
@@ -3733,11 +3716,21 @@ func (b *Bot) handleAIQuestion(msg *tgbotapi.Message, questionText string) {
 		finalQuestion += attributionRule
 	}
 
-	photoURLs := b.collectPhotoURLs(msg)
+	photoURLs, photoFromRecent := b.resolvePhotoURLsForAI(msg, questionText)
 	if len(photoURLs) > 0 && msg.From != nil {
 		asker := telegramUserLabel(msg.From)
-		contextText.WriteString(fmt.Sprintf("\n=== ФОТО В ЭТОМ СООБЩЕНИИ (прислал %s, id=%d) ===\n", asker, msg.From.ID))
-		if desc, derr := b.aiClient.DescribeImage(photoURLs[0], b.messageCaptionOrText(msg), asker, b.config.OpenRouterVisionModel); derr == nil {
+		if photoFromRecent {
+			contextText.WriteString(fmt.Sprintf("\n=== НЕДАВНЕЕ ФОТО В ЧАТЕ (вопрос про него, спрашивает %s, id=%d) ===\n", asker, msg.From.ID))
+			finalQuestion += "\n\nК запросу приложено недавнее фото из этого чата (отдельным сообщением выше). " +
+				"Опиши, что на нём. Не говори, что не видишь фото — оно передано в vision-модель."
+		} else {
+			contextText.WriteString(fmt.Sprintf("\n=== ФОТО В ЭТОМ СООБЩЕНИИ (прислал %s, id=%d) ===\n", asker, msg.From.ID))
+		}
+		caption := b.messageCaptionOrText(msg)
+		if msg.ReplyToMessage != nil && caption == "" {
+			caption = b.messageCaptionOrText(msg.ReplyToMessage)
+		}
+		if desc, derr := b.aiClient.DescribeImage(photoURLs[0], caption, asker, b.config.OpenRouterVisionModel); derr == nil {
 			contextText.WriteString(desc)
 		}
 	}

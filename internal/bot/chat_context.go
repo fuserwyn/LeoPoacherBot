@@ -28,6 +28,47 @@ func telegramUserLabel(u *tgbotapi.User) string {
 	return fmt.Sprintf("user_%d", u.ID)
 }
 
+// messageMentionEntities — entities для текста или подписи к фото/медиа.
+func messageMentionEntities(msg *tgbotapi.Message) []tgbotapi.MessageEntity {
+	if msg == nil {
+		return nil
+	}
+	if len(msg.Entities) > 0 {
+		return msg.Entities
+	}
+	return msg.CaptionEntities
+}
+
+// detectBotMention проверяет упоминание бота в тексте или подписи к медиа.
+func (b *Bot) detectBotMention(text string, msg *tgbotapi.Message) bool {
+	text = strings.TrimSpace(text)
+	if text == "" {
+		return false
+	}
+	botUsername := strings.TrimSpace(b.api.Self.UserName)
+	if botUsername == "" {
+		return false
+	}
+	lower := strings.ToLower(text)
+	if strings.Contains(lower, "@"+strings.ToLower(botUsername)) {
+		return true
+	}
+	for _, entity := range messageMentionEntities(msg) {
+		if entity.Type != "mention" {
+			continue
+		}
+		if entity.Offset+entity.Length > len(text) {
+			continue
+		}
+		mentionText := text[entity.Offset : entity.Offset+entity.Length]
+		if strings.EqualFold(mentionText, "@"+botUsername) ||
+			strings.EqualFold(mentionText, botUsername) {
+			return true
+		}
+	}
+	return false
+}
+
 func formatChatMemoryLine(ts time.Time, userID int64, username, kind, text string) string {
 	user := strings.TrimSpace(username)
 	if user == "" {
@@ -116,7 +157,7 @@ func (b *Bot) appendReplyThreadContext(ctx *strings.Builder, msg *tgbotapi.Messa
 		text = strings.TrimSpace(r.Caption)
 	}
 	kind := "текст"
-	if len(r.Photo) > 0 {
+	if b.hasVisualAttachment(r) {
 		kind = "фото"
 		if text == "" {
 			text = "(фото без подписи)"

@@ -50,6 +50,7 @@ func (b *Bot) ingestChatMessage(msg *tgbotapi.Message, messageType string) {
 }
 
 func (b *Bot) ingestPhotoMessage(msg *tgbotapi.Message, messageType, author, caption string) {
+	b.recordChatPhoto(msg)
 	if b.aiClient != nil {
 		b.indexPhotoMessageAsync(msg, messageType)
 		return

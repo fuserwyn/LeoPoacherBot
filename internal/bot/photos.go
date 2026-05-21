@@ -2,11 +2,23 @@ package bot
 
 import (
 	"strings"
+	"time"
 
 	"leo-bot/internal/domain"
 
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 )
+
+const recentPhotoMaxPerChat = 30
+const recentPhotoLookback = 15 * time.Minute
+
+type chatPhotoRef struct {
+	FileID    string
+	MessageID int
+	UserID    int64
+	Username  string
+	At        time.Time
+}
 
 func (b *Bot) messageCaptionOrText(msg *tgbotapi.Message) string {
 	if msg == nil {
@@ -46,6 +58,137 @@ func (b *Bot) hasVisualAttachment(msg *tgbotapi.Message) bool {
 
 func (b *Bot) hasPhoto(msg *tgbotapi.Message) bool {
 	return b.hasVisualAttachment(msg)
+}
+
+func questionRefersToPhoto(question string) bool {
+	q := strings.ToLower(strings.TrimSpace(question))
+	markers := []string{
+		"на фото", "на картин", "про фото", "это фото", "прислан",
+		"изображен", "что на фото", "что там", "опиши фото", "что за фото",
+		"видишь фото", "на снимк", "на картинке", "что на картинке",
+		"что на изображ", "расскажи про фото", "опиши картин",
+	}
+	for _, m := range markers {
+		if strings.Contains(q, m) {
+			return true
+		}
+	}
+	return false
+}
+
+// recordChatPhoto сохраняет file_id сразу при приёме — до async vision.
+func (b *Bot) recordChatPhoto(msg *tgbotapi.Message) {
+	if msg == nil || msg.From == nil {
+		return
+	}
+	fid := b.photoFileID(msg)
+	if fid == "" {
+		return
+	}
+	ref := chatPhotoRef{
+		FileID:    fid,
+		MessageID: msg.MessageID,
+		UserID:    msg.From.ID,
+		Username:  telegramUserLabel(msg.From),
+		At:        time.Now(),
+	}
+	b.recentPhotosMu.Lock()
+	defer b.recentPhotosMu.Unlock()
+	if b.recentPhotos == nil {
+		b.recentPhotos = make(map[int64][]chatPhotoRef)
+	}
+	list := append(b.recentPhotos[msg.Chat.ID], ref)
+	if len(list) > recentPhotoMaxPerChat {
+		list = list[len(list)-recentPhotoMaxPerChat:]
+	}
+	b.recentPhotos[msg.Chat.ID] = list
+}
+
+func (b *Bot) recentPhotoFileIDs(msg *tgbotapi.Message, within time.Duration, preferUserID int64) []string {
+	if msg == nil {
+		return nil
+	}
+	b.recentPhotosMu.RLock()
+	list := append([]chatPhotoRef(nil), b.recentPhotos[msg.Chat.ID]...)
+	b.recentPhotosMu.RUnlock()
+	if len(list) == 0 {
+		return nil
+	}
+	cutoff := time.Now().Add(-within)
+	var sameUser, anyUser []string
+	seen := make(map[string]struct{})
+	for i := len(list) - 1; i >= 0; i-- {
+		p := list[i]
+		if p.At.Before(cutoff) || p.FileID == "" {
+			continue
+		}
+		if _, ok := seen[p.FileID]; ok {
+			continue
+		}
+		seen[p.FileID] = struct{}{}
+		if preferUserID != 0 && p.UserID == preferUserID {
+			sameUser = append(sameUser, p.FileID)
+		} else {
+			anyUser = append(anyUser, p.FileID)
+		}
+	}
+	if len(sameUser) > 0 {
+		return sameUser[:1]
+	}
+	if len(anyUser) > 0 {
+		return anyUser[:1]
+	}
+	return nil
+}
+
+func (b *Bot) fileIDsToURLs(fileIDs []string) []string {
+	var urls []string
+	seen := make(map[string]struct{})
+	for _, fid := range fileIDs {
+		if fid == "" {
+			continue
+		}
+		if _, ok := seen[fid]; ok {
+			continue
+		}
+		url, err := b.telegramFileURL(fid)
+		if err != nil {
+			b.logger.Warnf("photo file url: %v", err)
+			continue
+		}
+		seen[fid] = struct{}{}
+		urls = append(urls, url)
+	}
+	return urls
+}
+
+// resolvePhotoURLsForAI: фото в сообщении, реплае или недавнее в чате (отдельным сообщением).
+func (b *Bot) resolvePhotoURLsForAI(msg *tgbotapi.Message, question string) (urls []string, fromRecent bool) {
+	var msgs []*tgbotapi.Message
+	if msg != nil {
+		msgs = append(msgs, msg)
+		if msg.ReplyToMessage != nil {
+			msgs = append(msgs, msg.ReplyToMessage)
+		}
+	}
+	urls = b.collectPhotoURLs(msgs...)
+	if len(urls) > 0 {
+		return urls, false
+	}
+	needRecent := questionRefersToPhoto(question)
+	if msg != nil && msg.ReplyToMessage != nil && b.hasVisualAttachment(msg.ReplyToMessage) {
+		needRecent = true
+	}
+	if !needRecent || msg == nil {
+		return nil, false
+	}
+	preferID := int64(0)
+	if msg.From != nil {
+		preferID = msg.From.ID
+	}
+	fids := b.recentPhotoFileIDs(msg, recentPhotoLookback, preferID)
+	urls = b.fileIDsToURLs(fids)
+	return urls, len(urls) > 0
 }
 
 // indexPhotoMessageAsync: GPT-4o-mini vision → Postgres + Qdrant с автором отправителя.
