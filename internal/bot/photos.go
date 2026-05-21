@@ -1,6 +1,7 @@
 package bot
 
 import (
+	"fmt"
 	"strings"
 	"time"
 
@@ -189,6 +190,40 @@ func (b *Bot) resolvePhotoURLsForAI(msg *tgbotapi.Message, question string) (url
 	fids := b.recentPhotoFileIDs(msg, recentPhotoLookback, preferID)
 	urls = b.fileIDsToURLs(fids)
 	return urls, len(urls) > 0
+}
+
+// appendTrainingReportPhotoContext — фото к #training_done: нейтральное описание в контекст ИИ.
+func (b *Bot) appendTrainingReportPhotoContext(ctx *strings.Builder, msg *tgbotapi.Message, username string) []string {
+	if !b.hasVisualAttachment(msg) {
+		return nil
+	}
+	urls := b.collectPhotoURLs(msg)
+	if len(urls) == 0 {
+		return nil
+	}
+	ctx.WriteString("К отчёту приложено фото.\n")
+	if b.aiClient != nil {
+		caption := strings.ReplaceAll(b.messageCaptionOrText(msg), "#training_done", "")
+		caption = strings.ReplaceAll(caption, "#writing_done", "")
+		caption = strings.TrimSpace(caption)
+		if desc, err := b.aiClient.DescribeImageForTrainingReport(urls[0], caption, username, b.config.OpenRouterVisionModel); err == nil {
+			desc = strings.TrimSpace(desc)
+			if desc != "" {
+				ctx.WriteString(fmt.Sprintf("На фото: %s\n", desc))
+			}
+		}
+	}
+	return urls
+}
+
+func trainingPromptPhotoSuffix(hasPhoto bool, chatType string) string {
+	if !hasPhoto {
+		return ""
+	}
+	if chatType == "writing" {
+		return " К отчёту приложено фото: в конце добавь одно короткое сдержанное предложение про снимок (что видно), без восторга и восклицаний — спокойный нейтральный тон."
+	}
+	return " К отчёту приложено фото: в конце добавь одно короткое сдержанное предложение про снимок (что видно), без энтузиазма и пафоса — ровный тон тренера, как констатация факта."
 }
 
 // indexPhotoMessageAsync: GPT-4o-mini vision → Postgres + Qdrant с автором отправителя.

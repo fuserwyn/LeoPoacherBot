@@ -66,3 +66,21 @@ func (c *OpenRouterClient) DescribeImage(imageURL, caption, authorLabel, model s
 		model,
 	)
 }
+
+// DescribeImageForTrainingReport — нейтральное описание фото к отчёту #training_done.
+func (c *OpenRouterClient) DescribeImageForTrainingReport(imageURL, caption, authorLabel, model string) (string, error) {
+	if model == "" {
+		model = "openai/gpt-4o-mini"
+	}
+	prompt := fmt.Sprintf(
+		"Пользователь %s приложил фото к отчёту. Подпись: %q. "+
+			"Одно короткое предложение: что на снимке. Без оценок, без восторга, без советов.",
+		authorLabel, caption,
+	)
+	return c.AnswerWithVision(
+		"Сухой нейтральный комментарий. Только факты. Без Markdown.",
+		prompt,
+		[]string{imageURL},
+		model,
+	)
+}

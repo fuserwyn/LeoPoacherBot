@@ -1020,7 +1020,8 @@ func (b *Bot) handleTrainingDone(msg *tgbotapi.Message) {
 			}()
 
 			// Формируем вопрос для единого AI-сообщения (объединяем приписку и мудрость в одно)
-			question := b.getUnifiedTrainingPrompt(newStreakDays, totalCalories, currentCups, wasOnSickLeave, chatType)
+			hasReportPhoto := b.hasVisualAttachment(msg)
+			question := b.getUnifiedTrainingPrompt(newStreakDays, totalCalories, currentCups, wasOnSickLeave, chatType, hasReportPhoto)
 			var ctxBuilder strings.Builder
 			ctxBuilder.WriteString("КРИТИЧЕСКИ ВАЖНО: Отвечай ТОЛЬКО на этот отчёт. НЕ используй историю чата, последние сообщения или сообщения других участников. Комментируй исключительно то, что написано в этом сообщении.\n\n")
 			ctxBuilder.WriteString(fmt.Sprintf("Пользователь: %s\n", username))
@@ -1133,10 +1134,12 @@ func (b *Bot) handleTrainingDone(msg *tgbotapi.Message) {
 				}
 			}
 
+			photoURLs := b.appendTrainingReportPhotoContext(&ctxBuilder, msg, username)
+
 			// КРИТИЧЕСКИ ВАЖНО: НЕ добавляем историю сообщений и контекст других участников.
 			// Ответ должен быть ТОЛЬКО на этот отчёт о тренировке/писательстве — без смешивания с другими сообщениями чата.
 
-			if aiResponse, err := b.aiClient.AnswerUserQuestion(question, ctxBuilder.String()); err == nil {
+			if aiResponse, err := b.aiClient.AnswerUserQuestion(question, ctxBuilder.String(), photoURLs...); err == nil {
 				aiResponse = strings.TrimSpace(strings.ReplaceAll(aiResponse, "**", ""))
 				if aiResponse != "" {
 					messageText = messageText + "\n\n" + aiResponse
@@ -1222,6 +1225,9 @@ func (b *Bot) handleTrainingDone(msg *tgbotapi.Message) {
 			}
 			now := utils.GetMoscowTime()
 			question := doubleTrainingPrompts[now.Unix()%int64(len(doubleTrainingPrompts))]
+			if b.hasVisualAttachment(msg) {
+				question += trainingPromptPhotoSuffix(true, chatType)
+			}
 			var ctxBuilder strings.Builder
 			ctxBuilder.WriteString("КРИТИЧЕСКИ ВАЖНО: Отвечай ТОЛЬКО на этот отчёт. НЕ используй историю чата или сообщения других участников.\n\n")
 			ctxBuilder.WriteString(fmt.Sprintf("Пользователь: %s\n", username))
@@ -1270,10 +1276,12 @@ func (b *Bot) handleTrainingDone(msg *tgbotapi.Message) {
 				}
 			}
 
+			photoURLs := b.appendTrainingReportPhotoContext(&ctxBuilder, msg, username)
+
 			// КРИТИЧЕСКИ ВАЖНО: НЕ добавляем историю сообщений и контекст других участников.
 			// Ответ только на этот отчёт — без смешивания с другими сообщениями чата.
 
-			if aiResponse, err := b.aiClient.AnswerUserQuestion(question, ctxBuilder.String()); err == nil {
+			if aiResponse, err := b.aiClient.AnswerUserQuestion(question, ctxBuilder.String(), photoURLs...); err == nil {
 				aiResponse = strings.TrimSpace(strings.ReplaceAll(aiResponse, "**", ""))
 				if aiResponse != "" {
 					messageText = messageText + "\n\n" + aiResponse
@@ -4112,7 +4120,7 @@ func (b *Bot) detectGenderFromMessage(text string) string {
 }
 
 // getUnifiedTrainingPrompt генерирует единый промпт для AI, объединяющий приписку и мудрость в одно сообщение
-func (b *Bot) getUnifiedTrainingPrompt(streakDays, totalCalories, totalCups int, wasOnSickLeave bool, chatType string) string {
+func (b *Bot) getUnifiedTrainingPrompt(streakDays, totalCalories, totalCups int, wasOnSickLeave bool, chatType string, hasPhoto bool) string {
 	now := utils.GetMoscowTime()
 	hour := now.Hour()
 	weekday := now.Weekday()
@@ -4226,7 +4234,7 @@ func (b *Bot) getUnifiedTrainingPrompt(streakDays, totalCalories, totalCups int,
 
 	// Выбираем случайный промпт
 	selectedPrompt := prompts[now.Unix()%int64(len(prompts))]
-	return selectedPrompt
+	return selectedPrompt + trainingPromptPhotoSuffix(hasPhoto, chatType)
 }
 
 // getVariedTrainingPrompt генерирует разнообразные промпты для AI в зависимости от контекста (оставлено для совместимости)
