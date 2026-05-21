@@ -649,7 +649,7 @@
   /* Явный font как у .act-card__thread-text — иначе WebView рисует плейсхолдер крупнее текста комментария */
   font: 400 var(--act-thread-font-size) / var(--act-thread-line-height) var(--font);
   scroll-margin-bottom: calc(
-    max(var(--feed-bottom-nav-h, 88px), var(--feed-keyboard-bottom, 0px)) + var(--safe-bottom, 0px) + 18px
+    max(var(--feed-bottom-nav-h, 88px), var(--app-keyboard-bottom, 0px)) + var(--safe-bottom, 0px) + 18px
   );
 }
 

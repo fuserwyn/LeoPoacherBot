@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState, type CSSProperties } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import { usePullToRefresh } from "../hooks/usePullToRefresh";
 import { ActivityCard, type ActivityCardProps } from "./ActivityCard";
 import { PackGroupChatPanel } from "./PackGroupChatPanel";
@@ -39,7 +39,6 @@ type Sub = "activity" | "room";
 
 type FeedViewportStyle = CSSProperties & {
   "--feed-vvh"?: string;
-  "--feed-keyboard-bottom"?: string;
   "--feed-bottom-nav-h"?: string;
 };
 
@@ -85,6 +84,7 @@ export function FeedScreen({
   /** Мультивыбор типов тренировок (пусто = «все типы»). */
   const [feedCategoryIds, setFeedCategoryIds] = useState<WorkoutCategoryId[]>([]);
   const [viewportStyle, setViewportStyle] = useState<FeedViewportStyle>({});
+  const feedHeaderRef = useRef<HTMLDivElement>(null);
 
   const categoryFilterSet = useMemo(() => new Set(feedCategoryIds), [feedCategoryIds]);
 
@@ -343,6 +343,22 @@ export function FeedScreen({
     void load();
   }, [load, refreshToken]);
 
+  useLayoutEffect(() => {
+    const el = feedHeaderRef.current;
+    const feedRoot = el?.closest<HTMLElement>(".feed");
+    if (!el || !feedRoot) return;
+    const write = () => {
+      feedRoot.style.setProperty("--feed-header-h", `${Math.ceil(el.getBoundingClientRect().height)}px`);
+    };
+    write();
+    const ro = new ResizeObserver(write);
+    ro.observe(el);
+    return () => {
+      ro.disconnect();
+      feedRoot.style.removeProperty("--feed-header-h");
+    };
+  }, [sub, feedCategoryIds.length, feedOnlyMine]);
+
   useEffect(() => {
     let raf = 0;
 
@@ -355,9 +371,6 @@ export function FeedScreen({
       // карточка резко сжимается в момент тапа по textarea и iOS не успевает корректно
       // докрутить поле над клавиатурой.
       const layoutH = Math.max(320, Math.floor(window.innerHeight || vv?.height || 320));
-      const visualH = Math.floor(vv?.height ?? layoutH);
-      const visualOffsetTop = Math.floor(vv?.offsetTop ?? 0);
-      const keyboardBottom = Math.max(0, layoutH - visualH - visualOffsetTop);
       const bottomNavH = Math.ceil(
         document.querySelector<HTMLElement>(".bottom-nav")?.getBoundingClientRect().height ?? 0,
       );
@@ -365,12 +378,10 @@ export function FeedScreen({
       setViewportStyle((prev) => {
         const next: FeedViewportStyle = {
           "--feed-vvh": `${layoutH}px`,
-          "--feed-keyboard-bottom": `${keyboardBottom}px`,
           "--feed-bottom-nav-h": `${bottomNavH}px`,
         };
         if (
           prev["--feed-vvh"] === next["--feed-vvh"] &&
-          prev["--feed-keyboard-bottom"] === next["--feed-keyboard-bottom"] &&
           prev["--feed-bottom-nav-h"] === next["--feed-bottom-nav-h"]
         ) {
           return prev;
@@ -436,14 +447,8 @@ export function FeedScreen({
           <span className="feed__ptr-label">{ptrStatusText}</span>
         </div>
       ) : null}
-      <div
-        className="feed__pull-shift"
-        style={{
-          transform: `translateY(${ptr.status === "refreshing" || ptr.pull > 0 ? ptr.pull : 0}px)`,
-          transition: ptr.status === "pulling" || ptr.status === "ready" ? "none" : "transform 220ms ease",
-        }}
-      >
-      <div className="feed__sticky">
+      <div className="feed__sticky" ref={feedHeaderRef}>
+        <div className="feed__sticky-inner">
         <header className="feed__header">
           <div className="feed__brand">Fat Leopard</div>
           <div className="feed__hero">
@@ -519,7 +524,15 @@ export function FeedScreen({
             </div>
           </div>
         )}
+        </div>
       </div>
+      <div
+        className="feed__pull-shift"
+        style={{
+          transform: `translateY(${ptr.status === "refreshing" || ptr.pull > 0 ? ptr.pull : 0}px)`,
+          transition: ptr.status === "pulling" || ptr.status === "ready" ? "none" : "transform 220ms ease",
+        }}
+      >
       {sub === "room" && (
         <PackGroupChatPanel
           initData={initData}

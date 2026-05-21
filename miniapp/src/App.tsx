@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { useAppKeyboardInset } from "./hooks/useAppKeyboardInset";
 import { useTelegramWebApp } from "./hooks/useTelegramWebApp";
 import { BottomNav } from "./components/BottomNav";
 import { ChatScreen } from "./components/ChatScreen";
@@ -38,6 +39,7 @@ function formatTrainingDoneAlert(replyParts: string[]): string {
 }
 
 export function App() {
+  useAppKeyboardInset();
   const { name, streak: hookStreak, initData, userId, photoUrl, inTelegram, tg } = useTelegramWebApp();
   const showAlert = useCallback((m: string) => {
     if (tg?.showAlert) void tg.showAlert(m);

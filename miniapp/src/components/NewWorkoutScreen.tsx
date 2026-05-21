@@ -3,26 +3,61 @@ import { WORKOUT_TYPES as TYPES, type WorkoutCategoryId } from "../lib/workoutCa
 import { PhotoCropper } from "./PhotoCropper";
 import "./NewWorkoutScreen.css";
 
-/** Высота шторки по видимой области (клавиатура). Debounce + порог: без ложных перерисовок при микродрожании viewport. */
-function useVisibleViewportHeight(): number {
-  const [h, setH] = useState(() =>
-    typeof window !== "undefined" ? window.visualViewport?.height ?? window.innerHeight : 640,
-  );
+type ViewportMetrics = {
+  /** Высота видимой области (над клавиатурой). */
+  visualH: number;
+  /** Высота layout viewport — не сжимается при клавиатуре на iOS. */
+  layoutH: number;
+  /** Отступ снизу до клавиатуры (для fixed-кнопки «Отправить»). */
+  keyboardBottom: number;
+};
+
+/** Видимая область + inset клавиатуры. Debounce + порог: без ложных перерисовок. */
+function useViewportMetrics(): ViewportMetrics {
+  const [m, setM] = useState<ViewportMetrics>(() => {
+    if (typeof window === "undefined") {
+      return { visualH: 640, layoutH: 640, keyboardBottom: 0 };
+    }
+    const layoutH = window.innerHeight;
+    const visualH = window.visualViewport?.height ?? layoutH;
+    return { visualH, layoutH, keyboardBottom: 0 };
+  });
 
   useEffect(() => {
     let t: ReturnType<typeof setTimeout> | undefined;
 
     const read = () => {
       const vv = window.visualViewport;
-      const raw =
+      const layoutH = Math.max(
+        320,
+        window.innerHeight ||
+          (typeof window.Telegram?.WebApp?.viewportHeight === "number"
+            ? window.Telegram.WebApp.viewportHeight
+            : 0) ||
+          320,
+      );
+      const visualH = Math.max(
+        200,
         vv && vv.height > 0
           ? vv.height
           : typeof window.Telegram?.WebApp?.viewportHeight === "number" &&
               window.Telegram.WebApp.viewportHeight > 0
             ? window.Telegram.WebApp.viewportHeight
-            : window.innerHeight;
-      // Игнорируем микродрожание (IME, полосы прокрутки) — не триггерим лишний layout
-      setH((prev) => (Math.abs(prev - raw) < 12 ? prev : raw));
+            : layoutH,
+      );
+      const visualOffsetTop = Math.floor(vv?.offsetTop ?? 0);
+      const keyboardBottom = Math.max(0, Math.floor(layoutH - visualH - visualOffsetTop));
+
+      setM((prev) => {
+        if (
+          Math.abs(prev.visualH - visualH) < 12 &&
+          Math.abs(prev.layoutH - layoutH) < 12 &&
+          Math.abs(prev.keyboardBottom - keyboardBottom) < 8
+        ) {
+          return prev;
+        }
+        return { visualH, layoutH, keyboardBottom };
+      });
     };
 
     const schedule = () => {
@@ -33,19 +68,21 @@ function useVisibleViewportHeight(): number {
     read();
     const vv = window.visualViewport;
     vv?.addEventListener("resize", schedule);
+    vv?.addEventListener("scroll", schedule);
     window.addEventListener("orientationchange", read);
     const tg = window.Telegram?.WebApp as { onEvent?: (e: string, fn: () => void) => void } | undefined;
     tg?.onEvent?.("viewportChanged", schedule);
     return () => {
       if (t) window.clearTimeout(t);
       vv?.removeEventListener("resize", schedule);
+      vv?.removeEventListener("scroll", schedule);
       window.removeEventListener("orientationchange", read);
       const tgOff = window.Telegram?.WebApp as { offEvent?: (e: string, fn: () => void) => void } | undefined;
       tgOff?.offEvent?.("viewportChanged", schedule);
     };
   }, []);
 
-  return h;
+  return m;
 }
 
 const INTENSITIES: { v: 1 | 2 | 3 | 4 | 5; label: string }[] = [
@@ -87,10 +124,13 @@ const NOTE_MAX = 1500;
 const OTHER_LABEL_MAX = 80;
 
 export function NewWorkoutScreen({ onClose, onSave, showAlert }: Props) {
-  const viewportH = useVisibleViewportHeight();
+  const { visualH, keyboardBottom } = useViewportMetrics();
   const bodyRef = useRef<HTMLDivElement>(null);
   const noteTaRef = useRef<HTMLTextAreaElement>(null);
   const noteFocusedRef = useRef(false);
+  const [inputFocused, setInputFocused] = useState(false);
+  const keyboardOpen = keyboardBottom > 0;
+  const showKeyboardBar = inputFocused;
 
   const [type, setType] = useState<WorkoutCategoryId | "">("");
   const [min, setMin] = useState(15);
@@ -119,7 +159,33 @@ export function NewWorkoutScreen({ onClose, onSave, showAlert }: Props) {
     if (!noteFocusedRef.current) return;
     const t = window.setTimeout(nudgeTextareaIntoView, 120);
     return () => window.clearTimeout(t);
-  }, [viewportH, nudgeTextareaIntoView]);
+  }, [visualH, nudgeTextareaIntoView]);
+
+  const handleSubmit = useCallback(async () => {
+    if (busy) return;
+    if (!type) {
+      (showAlert ?? window.alert)("Выбери тип тренировки.");
+      return;
+    }
+    if (type === "other" && !otherLabel.trim()) {
+      (showAlert ?? window.alert)("Укажи свой тип активности или выбери категорию из списка.");
+      return;
+    }
+    setBusy(true);
+    try {
+      const r = await onSave({
+        type,
+        min,
+        intensity,
+        otherLabel: type === "other" ? otherLabel.trim() : undefined,
+        note: note.trim(),
+        photo,
+      });
+      if (r !== false) onClose();
+    } finally {
+      setBusy(false);
+    }
+  }, [busy, type, otherLabel, min, intensity, note, photo, onSave, onClose, showAlert]);
 
   useEffect(() => {
     let raf = 0;
@@ -153,20 +219,24 @@ export function NewWorkoutScreen({ onClose, onSave, showAlert }: Props) {
 
   return (
     <div
-      className="nwo"
+      className={`nwo${showKeyboardBar ? " nwo--keyboard" : ""}`}
       style={{
-        // Без клавиатуры: layout - таббар (BottomNav остаётся видимым).
-        // С клавиатурой: visualViewport.height — таббар и так скрыт за клавиатурой.
-        height: `min(${viewportH}px, calc(100dvh - var(--bottom-nav-h, 0px)))`,
-        maxHeight: `min(${viewportH}px, calc(100dvh - var(--bottom-nav-h, 0px)))`,
+        // Без клавиатуры: над таббаром. С клавиатурой: только видимая область, таббар скрыт классом nwo-keyboard-open.
+        height: keyboardOpen
+          ? `${visualH}px`
+          : `min(${visualH}px, calc(100dvh - var(--bottom-nav-h, 72px)))`,
+        maxHeight: keyboardOpen
+          ? `${visualH}px`
+          : `min(${visualH}px, calc(100dvh - var(--bottom-nav-h, 72px)))`,
       }}
     >
       <header className="nwo__head">
-        <button type="button" className="nwo__close" onClick={onClose} aria-label="Закрыть">
-          ✕
-        </button>
-        <h1 className="nwo__title">Тренировка</h1>
-        <span className="nwo__spacer" aria-hidden />
+        <div className="nwo__head-title-row">
+          <button type="button" className="nwo__close" onClick={onClose} aria-label="Закрыть">
+            ✕
+          </button>
+          <h1 className="nwo__title">Тренировка</h1>
+        </div>
       </header>
 
       <div className="nwo__body" ref={bodyRef}>
@@ -185,10 +255,14 @@ export function NewWorkoutScreen({ onClose, onSave, showAlert }: Props) {
             spellCheck
             onFocus={() => {
               noteFocusedRef.current = true;
+              setInputFocused(true);
               window.setTimeout(nudgeTextareaIntoView, 180);
             }}
             onBlur={() => {
               noteFocusedRef.current = false;
+              window.setTimeout(() => {
+                if (!document.activeElement?.closest(".nwo")) setInputFocused(false);
+              }, 80);
             }}
           />
           <p className="nwo__note-cnt" aria-live="polite">
@@ -232,6 +306,12 @@ export function NewWorkoutScreen({ onClose, onSave, showAlert }: Props) {
                 placeholder="Пилатес, скалолазанье…"
                 autoComplete="off"
                 enterKeyHint="done"
+                onFocus={() => setInputFocused(true)}
+                onBlur={() => {
+                  window.setTimeout(() => {
+                    if (!document.activeElement?.closest(".nwo")) setInputFocused(false);
+                  }, 80);
+                }}
               />
             </div>
           )}
@@ -277,9 +357,13 @@ export function NewWorkoutScreen({ onClose, onSave, showAlert }: Props) {
                       setMinDraft(s);
                       if (s !== "") applyMinutes(parseInt(s, 10));
                     }}
+                    onFocus={() => setInputFocused(true)}
                     onBlur={() => {
                       if (minDraft === "") applyMinutes(min);
                       else applyMinutes(parseInt(minDraft, 10) || min);
+                      window.setTimeout(() => {
+                        if (!document.activeElement?.closest(".nwo")) setInputFocused(false);
+                      }, 80);
                     }}
                   />
                 </div>
@@ -345,40 +429,24 @@ export function NewWorkoutScreen({ onClose, onSave, showAlert }: Props) {
         </div>
       </div>
 
-      <footer className="nwo__foot">
-        <button
-          type="button"
-          className="nwo__save"
-          disabled={busy}
-          onClick={async () => {
-            if (busy) return;
-            if (!type) {
-              (showAlert ?? window.alert)("Выбери тип тренировки.");
-              return;
-            }
-            if (type === "other" && !otherLabel.trim()) {
-              (showAlert ?? window.alert)("Укажи свой тип активности или выбери категорию из списка.");
-              return;
-            }
-            setBusy(true);
-            try {
-              const r = await onSave({
-                type,
-                min,
-                intensity,
-                otherLabel: type === "other" ? otherLabel.trim() : undefined,
-                note: note.trim(),
-                photo,
-              });
-              if (r !== false) onClose();
-            } finally {
-              setBusy(false);
-            }
-          }}
-        >
+      <footer className="nwo__foot" hidden={showKeyboardBar}>
+        <button type="button" className="nwo__save" disabled={busy} onClick={() => void handleSubmit()}>
           {busy ? "Отправка…" : "Отправить отчёт"}
         </button>
       </footer>
+
+      {showKeyboardBar ? (
+        <div className="nwo__keyboard-bar" role="toolbar" aria-label="Отправка отчёта">
+          <button
+            type="button"
+            className="nwo__keyboard-send"
+            disabled={busy}
+            onClick={() => void handleSubmit()}
+          >
+            {busy ? "Отправка…" : "Отправить"}
+          </button>
+        </div>
+      ) : null}
       {pendingCrop ? (
         <PhotoCropper
           file={pendingCrop}

@@ -49,7 +49,7 @@
 .nwo__head {
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  justify-content: center;
   flex: 0 0 auto;
   flex-shrink: 0;
   padding: 2px 6px;
@@ -57,6 +57,13 @@
   width: 100%;
   margin: 0 auto;
   box-sizing: border-box;
+}
+
+.nwo__head-title-row {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  max-width: 100%;
 }
 
 .nwo__close {
@@ -76,15 +83,10 @@
 .nwo__title {
   font: 600 var(--nwo-title-fs) / var(--nwo-chip-lh) var(--font);
   color: var(--text, #e8e8f0);
-  flex: 1;
-  text-align: center;
-  padding: 0 2px;
+  text-align: left;
+  padding: 0;
   margin: 0;
-}
-
-.nwo__spacer {
-  width: 32px;
-  flex-shrink: 0;
+  white-space: nowrap;
 }
 
 .nwo__body {
@@ -442,6 +444,49 @@
 }
 
 .nwo__save:active {
+  transform: scale(0.99);
+  opacity: 0.95;
+}
+
+/* Клавиатура открыта: нижний футер скрыт, отправка — в панели над клавиатурой. */
+.nwo--keyboard .nwo__body {
+  padding-bottom: calc(52px + var(--app-keyboard-bottom, 0px));
+}
+
+.nwo__keyboard-bar {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: var(--app-keyboard-bottom, 0px);
+  z-index: 210;
+  display: flex;
+  align-items: stretch;
+  padding: 8px 12px calc(8px + env(safe-area-inset-bottom, 0px));
+  box-sizing: border-box;
+  background: var(--bg);
+  border-top: 1px solid var(--border-subtle);
+}
+
+.nwo__keyboard-send {
+  width: 100%;
+  padding: 10px 16px;
+  border-radius: 10px;
+  border: 1px solid rgba(255, 90, 31, 0.45);
+  background: linear-gradient(180deg, #ff6a35, #e54a15);
+  color: #fff;
+  font: 700 0.95rem / 1.2 var(--font);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  box-shadow: 0 3px 12px rgba(255, 90, 31, 0.22);
+  cursor: pointer;
+}
+
+.nwo__keyboard-send:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.nwo__keyboard-send:active {
   transform: scale(0.99);
   opacity: 0.95;
 }

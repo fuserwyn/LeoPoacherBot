@@ -2,6 +2,7 @@
   position: fixed;
   left: 0;
   right: 0;
+  /* Всегда низ layout-viewport; при клавиатуре скрывается через html.app-keyboard-open */
   bottom: 0;
   z-index: 100;
   display: flex;

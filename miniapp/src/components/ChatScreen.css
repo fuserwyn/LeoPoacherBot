@@ -17,8 +17,7 @@
 }
 
 .chat {
-  /* Высота = layout - таббар. Форма ввода фиксирована над таббаром, iOS Telegram
-     при открытии клавиатуры сам поднимает оба position:fixed-элемента над ней. */
+  /* Высота = layout - таббар. Форма над таббаром; при клавиатуре — над ней (--app-keyboard-bottom). */
   height: calc(100dvh - var(--bottom-nav-h, 72px));
   max-height: calc(100dvh - var(--bottom-nav-h, 72px));
   display: flex;
@@ -280,10 +279,6 @@
 }
 
 .chat__form {
-  /* bottom:0 — чтобы iOS Telegram при клавиатуре трансформировал нас идентично
-     BottomNav (если у элементов разное bottom, iOS их сдвигает независимо и
-     между ними появляется зазор). Низ формы перекрывается BottomNav (z:100), а
-     инпут выглядывает прямо над ним за счёт padding-bottom = высота таббара. */
   position: fixed;
   bottom: 0;
   left: 0;
@@ -295,6 +290,12 @@
   gap: 8px;
   padding: 6px 12px calc(2px + var(--bottom-nav-h, 72px));
   background: linear-gradient(180deg, transparent 0%, #0d0d12 24%);
+  box-sizing: border-box;
+}
+
+html.app-keyboard-open .chat__form {
+  bottom: var(--app-keyboard-bottom, 0px);
+  padding-bottom: calc(6px + env(safe-area-inset-bottom, 0px));
 }
 
 /* Шире мобилки — чат и форма ввода на всю ширину окна. */

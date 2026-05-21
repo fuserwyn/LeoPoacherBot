@@ -57,6 +57,16 @@ body {
   padding-bottom: calc(88px + var(--safe-bottom));
 }
 
+/* При вводе текста: таббар на bottom:0, не поднимается с клавиатурой (скрыт за ней). */
+html.app-keyboard-open .bottom-nav {
+  visibility: hidden;
+  pointer-events: none;
+}
+
+html.app-keyboard-open #root {
+  padding-bottom: var(--safe-bottom);
+}
+
 /* iOS WebKit: rubber-band на документе утаскивает каретку position:fixed инпута.
    Когда чат с Лео активен — фиксируем body, скроллится только .chat__log внутри. */
 body.body--lock {
