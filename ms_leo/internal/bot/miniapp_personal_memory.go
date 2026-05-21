@@ -60,9 +60,12 @@ func (b *Bot) savePersonalChatMessage(userID int64, role, text string) {
 	if role != "user" && role != "leo" {
 		return
 	}
-	if _, err := b.db.InsertMiniappPersonalChatMessage(userID, b.config.MonetizedChatID, role, t); err != nil {
+	id, err := b.db.InsertMiniappPersonalChatMessage(userID, b.config.MonetizedChatID, role, t)
+	if err != nil {
 		b.logger.Warnf("save personal chat user=%d role=%s: %v", userID, role, err)
+		return
 	}
+	b.indexPersonalChatRAG(userID, role, t, id)
 }
 
 // MiniappPersonalChatHistory — последние N сообщений приватного чата юзера с Лео.

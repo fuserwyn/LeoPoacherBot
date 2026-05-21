@@ -57,6 +57,13 @@ type Config struct {
 	// MiniappPublicBaseURL — публичный origin HTTP API мини-приложения (MINIAPP_PUBLIC_BASE_URL), без path.
 	// Используется для канонизации URL фото тренировки в ленте; должен совпадать с тем, что в VITE_MINIAPP_API_URL.
 	MiniappPublicBaseURL string
+
+	// RAG (Qdrant): изолированные сессии personal_leo и pack_group.
+	RAGEnabled          bool
+	QdrantURL           string
+	QdrantAPIKey        string
+	QdrantCollection    string
+	RAGEmbeddingModel   string
 }
 
 func Load() (*Config, error) {
@@ -143,6 +150,12 @@ func Load() (*Config, error) {
 		YookassaCurrency:        ykCur,
 
 		MiniappPublicBaseURL: strings.TrimSpace(getEnv("MINIAPP_PUBLIC_BASE_URL", "")),
+
+		RAGEnabled:        parseEnvBool(getEnv("RAG_ENABLED", "false")),
+		QdrantURL:         strings.TrimSpace(getEnv("QDRANT_URL", "")),
+		QdrantAPIKey:      strings.TrimSpace(getEnv("QDRANT_API_KEY", "")),
+		QdrantCollection:  strings.TrimSpace(getEnv("QDRANT_COLLECTION", "leo_chat_rag")),
+		RAGEmbeddingModel: strings.TrimSpace(getEnv("RAG_EMBEDDING_MODEL", "openai/text-embedding-3-small")),
 	}, nil
 }
 

@@ -104,8 +104,10 @@ func (b *Bot) ProcessMiniAppPackGroupMessage(d initdata.InitData, text string) (
 	}
 	uname := displayNameFromInitData(d)
 
-	if _, err := b.db.InsertMiniappPackGroupMessage(chatID, d.User.ID, uname, false, text); err != nil {
+	if id, err := b.db.InsertMiniappPackGroupMessage(chatID, d.User.ID, uname, false, text); err != nil {
 		b.logger.Warnf("pack miniapp insert user row: %v", err)
+	} else {
+		b.indexPackGroupChatRAG(chatID, d.User.ID, "user", text, id)
 	}
 
 	botName := ""
@@ -145,8 +147,10 @@ func (b *Bot) ProcessMiniAppPackGroupMessage(d initdata.InitData, text string) (
 	if b.api != nil && b.api.Self.ID != 0 && b.api.Self.UserName != "" {
 		leoName = "@" + b.api.Self.UserName
 	}
-	if _, err := b.db.InsertMiniappPackGroupMessage(chatID, 0, leoName, true, reply); err != nil {
+	if id, err := b.db.InsertMiniappPackGroupMessage(chatID, 0, leoName, true, reply); err != nil {
 		b.logger.Warnf("pack miniapp insert Leo row: %v", err)
+	} else {
+		b.indexPackGroupChatRAG(chatID, 0, "leo", reply, id)
 	}
 	out.ReplyText = reply
 	return out, nil

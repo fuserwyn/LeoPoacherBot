@@ -14,6 +14,7 @@ import (
 	"leo-bot/internal/domain"
 	"leo-bot/internal/game/leopardmoney"
 	"leo-bot/internal/logger"
+	"leo-bot/internal/rag"
 	"leo-bot/internal/usecase/sickleave"
 	"leo-bot/internal/utils"
 
@@ -27,6 +28,7 @@ type Bot struct {
 	config               *config.Config
 	timers               map[int64]*domain.TimerInfo
 	aiClient             *ai.OpenRouterClient
+	ragStore             rag.Store
 	sickApprovalWatchers map[int64]chan struct{}
 	sickApprovalMutex    sync.Mutex
 	adminSessions        map[int64]*adminSession
@@ -98,6 +100,19 @@ func New(cfg *config.Config, db *database.Database, log logger.Logger) (*Bot, er
 		log.Warn("OpenRouter API key not provided, AI features will be disabled")
 	}
 
+	var ragStore rag.Store = rag.NoopStore{}
+	if cfg.RAGEnabled && cfg.QdrantURL != "" && cfg.OpenRouterAPIKey != "" {
+		emb := ai.NewEmbeddingClient(cfg.OpenRouterAPIKey, cfg.RAGEmbeddingModel, cfg.OpenRouterTimeout)
+		ragStore = rag.NewQdrantStore(rag.QdrantConfig{
+			URL:        cfg.QdrantURL,
+			APIKey:     cfg.QdrantAPIKey,
+			Collection: cfg.QdrantCollection,
+		}, emb, log)
+		log.Infof("RAG/Qdrant enabled: url=%s collection=%s", cfg.QdrantURL, cfg.QdrantCollection)
+	} else if cfg.RAGEnabled {
+		log.Warn("RAG_ENABLED=true but QDRANT_URL or OPENROUTER_API_KEY missing — RAG disabled")
+	}
+
 	return &Bot{
 		api:                  api,
 		db:                   db,
@@ -105,6 +120,7 @@ func New(cfg *config.Config, db *database.Database, log logger.Logger) (*Bot, er
 		config:               cfg,
 		timers:               make(map[int64]*domain.TimerInfo),
 		aiClient:             aiClient,
+		ragStore:             ragStore,
 		sickApprovalWatchers: make(map[int64]chan struct{}),
 		adminSessions:        make(map[int64]*adminSession),
 		miniappPersonalQueue: make(map[int64][]string),
@@ -113,6 +129,11 @@ func New(cfg *config.Config, db *database.Database, log logger.Logger) (*Bot, er
 
 func (b *Bot) Start(ctx context.Context) error {
 	b.logger.Info("Starting bot...")
+	if b.ragStore != nil && b.ragStore.Enabled() {
+		if err := b.ragStore.EnsureCollection(ctx); err != nil {
+			b.logger.Warnf("RAG ensure collection: %v", err)
+		}
+	}
 	if b.config.PaywallEnabled {
 		if b.config.MonetizedChatID == 0 {
 			b.logger.Warn("PAYWALL_ENABLED=true but MONETIZED_CHAT_ID is not set")
@@ -1900,6 +1921,9 @@ func (b *Bot) handleAIQuestion(msg *tgbotapi.Message, questionText string, perso
 	b.logger.Infof("Processing AI question: %s", questionText)
 
 	stateChat := b.packTrainingStateChatID(msg)
+	ctxChannel := b.aiContextChannel(msg, skipTelegram, compactContext)
+	ragCtx, ragCancel := context.WithTimeout(context.Background(), 20*time.Second)
+	defer ragCancel()
 
 	histLimit := 50
 	if compactContext {
@@ -2020,8 +2044,10 @@ func (b *Bot) handleAIQuestion(msg *tgbotapi.Message, questionText string, perso
 		contextText.WriteString("\n⚠️ Данные пользователя не найдены\n")
 	}
 
-	// Недавний контекст беседы (последние 2 часа)
-	{
+	// Недавний контекст беседы: общий чат — только pack_group; личка — user_messages / личный чат.
+	if ctxChannel == rag.ChannelPackGroup {
+		b.appendPackGroupSQLContext(stateChat, &contextText, 12)
+	} else {
 		recentLimit := 10
 		if compactContext {
 			recentLimit = 5
@@ -2347,17 +2373,20 @@ func (b *Bot) handleAIQuestion(msg *tgbotapi.Message, questionText string, perso
 		}
 	}
 
-	// Добавляем историю личного чата с Лео (последние 10 сообщений) — так Лео помнит разговор.
-	if b.config.MonetizedChatID != 0 && b.db != nil {
-		history, histErr := b.db.ListMiniappPersonalChat(msg.From.ID, b.config.MonetizedChatID, 10, 0)
-		if histErr == nil && len(history) > 0 {
-			contextText.WriteString("\n=== ИСТОРИЯ ПЕРЕПИСКИ (от старых к новым) ===\n")
-			for _, h := range history {
-				role := "Пользователь"
-				if h.Role == "leo" {
-					role = "Лео"
+	// RAG + история диалога: изолированные сессии (личка vs общий чат).
+	b.appendRAGContext(ragCtx, ctxChannel, msg.From.ID, stateChat, questionText, &contextText)
+	if ctxChannel == rag.ChannelPersonalLeo && b.config.MonetizedChatID != 0 && b.db != nil {
+		if b.ragStore == nil || !b.ragStore.Enabled() {
+			history, histErr := b.db.ListMiniappPersonalChat(msg.From.ID, b.config.MonetizedChatID, 10, 0)
+			if histErr == nil && len(history) > 0 {
+				contextText.WriteString("\n=== ИСТОРИЯ ПЕРЕПИСКИ (от старых к новым) ===\n")
+				for _, h := range history {
+					role := "Пользователь"
+					if h.Role == "leo" {
+						role = "Лео"
+					}
+					contextText.WriteString(fmt.Sprintf("%s: %s\n", role, h.Text))
 				}
-				contextText.WriteString(fmt.Sprintf("%s: %s\n", role, h.Text))
 			}
 		}
 	}
