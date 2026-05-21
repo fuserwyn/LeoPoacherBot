@@ -21,9 +21,11 @@ type Props = {
   meId: number;
   showAlert: (m: string) => void;
   onHaptic?: () => void;
+  /** Подвкладка «Чат» в ленте видима (keep-alive). */
+  active?: boolean;
 };
 
-export function PackGroupChatPanel({ initData, inTelegram, meId, showAlert, onHaptic }: Props) {
+export function PackGroupChatPanel({ initData, inTelegram, meId, showAlert, onHaptic, active = true }: Props) {
   const [items, setItems] = useState<PackGroupMessage[]>([]);
   const [text, setText] = useState("");
   const [sending, setSending] = useState(false);
@@ -79,20 +81,25 @@ export function PackGroupChatPanel({ initData, inTelegram, meId, showAlert, onHa
   }, [inTelegram, initData]);
 
   useEffect(() => {
+    if (!active) return;
     void load();
-  }, [load]);
+  }, [load, active]);
 
-  // Как в ChatScreen: без body--lock iOS/WebView подтягивает страницу к фокусу — поле «плывёт» вверх.
+  // body--lock только пока открыта подвкладка «Чат» стаи.
   useEffect(() => {
+    if (!active) {
+      document.body.classList.remove("body--lock");
+      return;
+    }
     document.body.classList.add("body--lock");
     return () => document.body.classList.remove("body--lock");
-  }, []);
+  }, [active]);
 
   useEffect(() => {
-    if (!apiBase || !inTelegram || !initData) return;
+    if (!active || !apiBase || !inTelegram || !initData) return;
     const t = setInterval(() => void load(), 5000);
     return () => clearInterval(t);
-  }, [load, inTelegram, initData]);
+  }, [load, active, inTelegram, initData]);
 
   // Отслеживаем, прокрутил ли пользователь вверх, чтобы не перебивать позицию при поллинге.
   useEffect(() => {

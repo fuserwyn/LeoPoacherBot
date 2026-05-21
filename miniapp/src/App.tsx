@@ -7,6 +7,7 @@ import { FeedScreen } from "./components/FeedScreen";
 import { ProfileScreen } from "./components/ProfileScreen";
 import { NewWorkoutScreen } from "./components/NewWorkoutScreen";
 import { RulesScreen } from "./components/RulesScreen";
+import { TabKeepAlive } from "./components/TabKeepAlive";
 import { MiniappRemovedScreen } from "./components/MiniappRemovedScreen";
 import { SupportScreen } from "./components/SupportScreen";
 import { sendMiniappPrivateText, sendMiniappTrainingWithPhoto } from "./lib/miniappPrivateSend";
@@ -184,6 +185,7 @@ export function App() {
   }, [refreshTabBadges]);
 
   const effectiveName = profileDisplayName.trim() || name.trim() || "друг";
+  const tabsVisible = !supportOpen && !workoutOpen;
 
   if (accessGateStatus === "checking") {
     return <div className="app" />;
@@ -199,55 +201,64 @@ export function App() {
 
   return (
     <div className="app">
+      <div className="app__tabs">
+        <TabKeepAlive active={tab === "feed"} hidden={!tabsVisible}>
+          <FeedScreen
+            active={tab === "feed" && tabsVisible}
+            name={effectiveName}
+            streak={streak}
+            userId={userId}
+            initData={initData}
+            inTelegram={inTelegram}
+            showAlert={showAlert}
+            refreshToken={feedRefreshToken}
+            onRefreshAll={async () => {
+              await Promise.all([refreshProfileStats(), refreshTabBadges()]);
+            }}
+          />
+        </TabKeepAlive>
+        <TabKeepAlive active={tab === "chat"} hidden={!tabsVisible}>
+          <ChatScreen
+            active={tab === "chat" && tabsVisible}
+            name={effectiveName}
+            initData={initData}
+            inTelegram={inTelegram}
+            showAlert={showAlert}
+            onInboxDrained={onLeoInboxDrained}
+          />
+        </TabKeepAlive>
+        <TabKeepAlive active={tab === "rules"} hidden={!tabsVisible}>
+          <RulesScreen />
+        </TabKeepAlive>
+        <TabKeepAlive active={tab === "profile"} hidden={!tabsVisible}>
+          <ProfileScreen
+            active={tab === "profile" && tabsVisible}
+            name={effectiveName}
+            streak={streak}
+            workouts={workouts}
+            initData={initData}
+            inTelegram={inTelegram}
+            userPhotoUrl={photoUrl}
+            xp={xp}
+            recordStreak={recordStreak}
+            achievementCount={achievementCount}
+            achievementsMax={achievementsMax}
+            daysSinceLastTraining={daysSinceLastTraining}
+            showAlert={showAlert}
+            onProfileSaved={(displayName) => {
+              setProfileDisplayName(displayName.trim());
+            }}
+            onSupport={() => {
+              setWorkoutOpen(false);
+              setSupportOpen(true);
+            }}
+          />
+        </TabKeepAlive>
+      </div>
+
       {supportOpen ? (
         <SupportScreen initData={initData} inTelegram={inTelegram} showAlert={showAlert} />
-      ) : !workoutOpen && tab === "chat" ? (
-        <ChatScreen
-          name={effectiveName}
-          initData={initData}
-          inTelegram={inTelegram}
-          showAlert={showAlert}
-          onInboxDrained={onLeoInboxDrained}
-        />
       ) : null}
-      {!supportOpen && !workoutOpen && tab === "feed" && (
-        <FeedScreen
-          name={effectiveName}
-          streak={streak}
-          userId={userId}
-          initData={initData}
-          inTelegram={inTelegram}
-          showAlert={showAlert}
-          refreshToken={feedRefreshToken}
-          onRefreshAll={async () => {
-            await Promise.all([refreshProfileStats(), refreshTabBadges()]);
-          }}
-        />
-      )}
-      {!supportOpen && !workoutOpen && tab === "rules" && <RulesScreen />}
-      {!supportOpen && !workoutOpen && tab === "profile" && (
-        <ProfileScreen
-          name={effectiveName}
-          streak={streak}
-          workouts={workouts}
-          initData={initData}
-          inTelegram={inTelegram}
-          userPhotoUrl={photoUrl}
-          xp={xp}
-          recordStreak={recordStreak}
-          achievementCount={achievementCount}
-          achievementsMax={achievementsMax}
-          daysSinceLastTraining={daysSinceLastTraining}
-          showAlert={showAlert}
-          onProfileSaved={(displayName) => {
-            setProfileDisplayName(displayName.trim());
-          }}
-          onSupport={() => {
-            setWorkoutOpen(false);
-            setSupportOpen(true);
-          }}
-        />
-      )}
 
       <BottomNav
         active={tab}

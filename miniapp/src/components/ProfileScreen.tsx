@@ -46,6 +46,8 @@ type Props = {
   showAlert: (m: string) => void;
   onProfileSaved?: (displayName: string) => void;
   onSupport?: () => void;
+  /** Вкладка «Профиль» видима (keep-alive). */
+  active?: boolean;
 };
 
 const ACHIEVEMENTS = [
@@ -73,6 +75,7 @@ export function ProfileScreen({
   showAlert,
   onProfileSaved,
   onSupport,
+  active = true,
 }: Props) {
   const [profile, setProfile] = useState<ProfileData>(EMPTY_PROFILE);
   const [savedProfile, setSavedProfile] = useState<ProfileData>(EMPTY_PROFILE);
@@ -152,8 +155,9 @@ export function ProfileScreen({
   }, [inTelegram, initData, name, showAlert]);
 
   useEffect(() => {
+    if (!active) return;
     void load();
-  }, [load]);
+  }, [load, active]);
 
   const loadHealth = useCallback(async () => {
     if (!api || !inTelegram || !initData?.trim()) {
@@ -176,8 +180,9 @@ export function ProfileScreen({
   }, [inTelegram, initData]);
 
   useEffect(() => {
+    if (!active) return;
     void loadHealth();
-  }, [loadHealth]);
+  }, [loadHealth, active]);
 
   const sendHealthMessage = useCallback(
     async (text: string) => {

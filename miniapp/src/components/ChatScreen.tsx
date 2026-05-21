@@ -13,6 +13,8 @@ type Props = {
   showAlert: (m: string) => void;
   /** После забора очереди лички с сервера (для сброса бейджа). */
   onInboxDrained?: () => void;
+  /** Вкладка видима (keep-alive: false — без поллинга и body--lock). */
+  active?: boolean;
 };
 
 // Сообщение в локальном UI: серверное (с числовым id и ISO created_at) и
@@ -102,7 +104,7 @@ function maxServerID(items: ChatMsg[]): number {
   return max;
 }
 
-export function ChatScreen({ name, initData, inTelegram, showAlert, onInboxDrained }: Props) {
+export function ChatScreen({ name, initData, inTelegram, showAlert, onInboxDrained, active = true }: Props) {
   const [text, setText] = useState("");
   const [sending, setSending] = useState(false);
   /** После POST /messages: ответ ИИ пишется асинхронно — «печатает» до появления строки Лео в фиде. */
@@ -118,13 +120,17 @@ export function ChatScreen({ name, initData, inTelegram, showAlert, onInboxDrain
   const baselineMaxForPendingLeoRef = useRef(0);
 
   // iOS WebKit: при rubber-band-скролле документа каретка фокусированного position:fixed
-  // инпута визуально уезжает вверх. Пока чат смонтирован — лочим body, скроллится только .chat__log.
+  // инпута визуально уезжает вверх. Лочим body только пока вкладка «Лео» активна.
   useEffect(() => {
+    if (!active) {
+      document.body.classList.remove("body--lock");
+      return;
+    }
     document.body.classList.add("body--lock");
     return () => {
       document.body.classList.remove("body--lock");
     };
-  }, []);
+  }, [active]);
 
   useEffect(() => {
     const el = logRef.current;
@@ -172,7 +178,7 @@ export function ChatScreen({ name, initData, inTelegram, showAlert, onInboxDrain
   // Это даёт синхронизацию между всеми устройствами одного юзера (Telegram
   // Desktop / iPhone и т.д.).
   useEffect(() => {
-    if (!envApi || !inTelegram || !initData?.trim()) return;
+    if (!active || !envApi || !inTelegram || !initData?.trim()) return;
     let cancelled = false;
     let timer: ReturnType<typeof setTimeout> | null = null;
 
@@ -222,11 +228,11 @@ export function ChatScreen({ name, initData, inTelegram, showAlert, onInboxDrain
       cancelled = true;
       if (timer) clearTimeout(timer);
     };
-  }, [inTelegram, initData]);
+  }, [active, inTelegram, initData]);
 
   /** Дополнительно дёрнуть очередь поллинга-warning'ов: бейдж в табах сбрасываем. */
   useEffect(() => {
-    if (!envApi || !inTelegram || !initData?.trim()) return;
+    if (!active || !envApi || !inTelegram || !initData?.trim()) return;
     let cancelled = false;
     (async () => {
       const parts = await drainLeoPersonalInbox(initData);
@@ -241,7 +247,7 @@ export function ChatScreen({ name, initData, inTelegram, showAlert, onInboxDrain
     return () => {
       cancelled = true;
     };
-  }, [inTelegram, initData, onInboxDrained]);
+  }, [active, inTelegram, initData, onInboxDrained]);
 
   const send = useCallback(async () => {
     const t = text.trim();

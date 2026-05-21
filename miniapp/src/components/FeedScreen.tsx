@@ -33,6 +33,8 @@ type Props = {
   refreshToken?: number;
   /** Перезагрузить общие данные (стрик, уровень, кубки) — вызывается при pull-to-refresh. */
   onRefreshAll?: () => Promise<void> | void;
+  /** Вкладка «Стая» видима (keep-alive). */
+  active?: boolean;
 };
 
 type Sub = "activity" | "room";
@@ -66,6 +68,7 @@ export function FeedScreen({
   showAlert,
   refreshToken = 0,
   onRefreshAll,
+  active = true,
 }: Props) {
   const [sub, setSub] = useState<Sub>("activity");
 
@@ -340,8 +343,9 @@ export function FeedScreen({
   );
 
   useEffect(() => {
+    if (!active) return;
     void load();
-  }, [load, refreshToken]);
+  }, [load, refreshToken, active]);
 
   useLayoutEffect(() => {
     const sticky = feedHeaderRef.current;
@@ -535,8 +539,9 @@ export function FeedScreen({
           {ptrStatusText ? <span className="feed__ptr-label">{ptrStatusText}</span> : null}
         </div>
       ) : null}
-      {sub === "room" && (
+      <div className={`feed__subpane${sub !== "room" ? " feed__subpane--hidden" : ""}`}>
         <PackGroupChatPanel
+          active={active && sub === "room"}
           initData={initData}
           inTelegram={inTelegram}
           meId={userId}
@@ -546,9 +551,8 @@ export function FeedScreen({
             w?.HapticFeedback?.impactOccurred?.("light");
           }}
         />
-      )}
-      {sub === "activity" && (
-        <>
+      </div>
+      <div className={`feed__subpane${sub !== "activity" ? " feed__subpane--hidden" : ""}`}>
           <div className="feed__section-row">
             <h2 className="section-title feed__section-title">Тренировки стаи</h2>
             {apiBase && inTelegram && initData && (
@@ -708,8 +712,7 @@ export function FeedScreen({
                 );
               })}
           </div>
-        </>
-      )}
+      </div>
       </div>
     </div>
   );
