@@ -17,6 +17,7 @@ type Config struct {
 	OpenRouterAPIKey        string
 	OpenRouterModel         string // Модель OpenRouter (по умолчанию deepseek/deepseek-chat)
 	OpenRouterEmbeddingModel string
+	OpenRouterVisionModel    string
 	ScanHistoryOnStart      bool // Сканировать историю при старте (по умолчанию false)
 	QdrantURL               string
 	QdrantAPIKey            string
@@ -48,6 +49,7 @@ func Load() (*Config, error) {
 		OpenRouterAPIKey:         getEnv("OPENROUTER_API_KEY", ""),
 		OpenRouterModel:          getEnv("OPENROUTER_MODEL", "deepseek/deepseek-chat"),
 		OpenRouterEmbeddingModel: getEnv("OPENROUTER_EMBEDDING_MODEL", "openai/text-embedding-3-small"),
+		OpenRouterVisionModel:    getEnv("OPENROUTER_VISION_MODEL", "openai/gpt-4o-mini"),
 		ScanHistoryOnStart:       scanHistoryOnStart,
 		QdrantURL:                getEnv("QDRANT_URL", ""),
 		QdrantAPIKey:             getEnv("QDRANT_API_KEY", ""),

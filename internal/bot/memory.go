@@ -18,6 +18,52 @@ func (b *Bot) memoryEnabled() bool {
 	return b.vectorStore != nil && b.vectorStore.Enabled() && b.aiClient != nil
 }
 
+func formatTextMemory(userID int64, username, text string) string {
+	return fmt.Sprintf("[ТЕКСТ] %s (id=%d): %s", strings.TrimSpace(username), userID, strings.TrimSpace(text))
+}
+
+// ingestChatMessage — единая точка: каждое входящее сообщение → Postgres + Qdrant с автором.
+func (b *Bot) ingestChatMessage(msg *tgbotapi.Message, messageType string) {
+	if msg == nil || msg.From == nil {
+		return
+	}
+	if strings.TrimSpace(messageType) == "" {
+		messageType = "general"
+	}
+	author := telegramUserLabel(msg.From)
+	body := b.messageCaptionOrText(msg)
+
+	if b.hasPhoto(msg) {
+		b.ingestPhotoMessage(msg, messageType, author, body)
+		return
+	}
+	if body == "" {
+		return
+	}
+	b.persistChatMessage(&domain.UserMessage{
+		UserID:      msg.From.ID,
+		ChatID:      msg.Chat.ID,
+		Username:    author,
+		MessageText: formatTextMemory(msg.From.ID, author, body),
+		MessageType: messageType,
+	})
+}
+
+func (b *Bot) ingestPhotoMessage(msg *tgbotapi.Message, messageType, author, caption string) {
+	if b.aiClient != nil {
+		go b.indexPhotoMessageAsync(msg, messageType)
+		return
+	}
+	text := buildPhotoMemoryText(msg.From.ID, author, caption, "(фото, распознавание недоступно)")
+	b.persistChatMessage(&domain.UserMessage{
+		UserID:      msg.From.ID,
+		ChatID:      msg.Chat.ID,
+		Username:    author,
+		MessageText: text,
+		MessageType: messageType,
+	})
+}
+
 // persistChatMessage сохраняет в Postgres и асинхронно индексирует в Qdrant.
 func (b *Bot) persistChatMessage(msg *domain.UserMessage) {
 	if msg == nil || strings.TrimSpace(msg.MessageText) == "" {
@@ -59,7 +105,7 @@ func (b *Bot) appendVectorChatContext(ctx *strings.Builder, chatID int64, questi
 	if !b.memoryEnabled() {
 		return
 	}
-	hits, err := b.vectorStore.SearchChat(chatID, question, 28)
+	hits, err := b.vectorStore.SearchChat(chatID, question, 32)
 	if err != nil {
 		b.logger.Warnf("Qdrant search chat %d: %v", chatID, err)
 		return
@@ -67,7 +113,8 @@ func (b *Bot) appendVectorChatContext(ctx *strings.Builder, chatID int64, questi
 	if len(hits) == 0 {
 		return
 	}
-	ctx.WriteString("\n=== ПАМЯТЬ ЧАТА (семантический поиск по всей переписке) ===\n")
+	ctx.WriteString("\n=== ПАМЯТЬ ЧАТА (RAG, вся переписка, у каждой строки — автор) ===\n")
+	ctx.WriteString("Формат: [время] @ник (id=…) [тип]: текст. Не путай авторов.\n")
 	seen := make(map[int64]struct{}, len(hits))
 	for _, h := range hits {
 		if h.MessageID != 0 {
@@ -77,6 +124,27 @@ func (b *Bot) appendVectorChatContext(ctx *strings.Builder, chatID int64, questi
 			seen[h.MessageID] = struct{}{}
 		}
 		ctx.WriteString(vector.FormatHitLine(h))
+		ctx.WriteString("\n")
+	}
+}
+
+func (b *Bot) appendRecentChatContext(ctx *strings.Builder, chatID int64, limit int) {
+	if limit <= 0 {
+		limit = 40
+	}
+	end := time.Now()
+	start := end.AddDate(0, 0, -30)
+	msgs, err := b.db.GetMessagesInRange(chatID, start, end)
+	if err != nil || len(msgs) == 0 {
+		return
+	}
+	ctx.WriteString("\n=== ПОСЛЕДНИЕ СООБЩЕНИЯ ЧАТА (хронология, с авторами) ===\n")
+	startIdx := 0
+	if len(msgs) > limit {
+		startIdx = len(msgs) - limit
+	}
+	for _, m := range msgs[startIdx:] {
+		ctx.WriteString(formatHistoryLine(m))
 		ctx.WriteString("\n")
 	}
 }
@@ -161,4 +229,29 @@ func (b *Bot) handleBackfillQdrant(msg *tgbotapi.Message) {
 		}
 		b.api.Send(tgbotapi.NewMessage(msg.Chat.ID, text))
 	}()
+}
+
+func detectInboundMessageType(
+	text string,
+	hasTrainingDone, hasWritingDone, hasSickLeave, hasHealthy, hasChange, hasTimeZone, shouldHandleAI bool,
+) string {
+	if hasTrainingDone || hasWritingDone {
+		return "training_done"
+	}
+	if hasSickLeave {
+		return "sick_leave"
+	}
+	if hasHealthy {
+		return "healthy"
+	}
+	if hasChange {
+		return "change"
+	}
+	if hasTimeZone {
+		return "timezone"
+	}
+	if shouldHandleAI {
+		return "question"
+	}
+	return "general"
 }

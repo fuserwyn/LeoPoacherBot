@@ -183,7 +183,7 @@ func (s *Store) SearchChat(chatID int64, query string, limit int) ([]SearchHit, 
 	return hits, nil
 }
 
-// FormatIndexText — текст для эмбеддинга (с метаданными).
+// FormatIndexText — текст для эмбеддинга (автор и chat привязаны в тексте и payload).
 func FormatIndexText(p ChatPoint) string {
 	ts := p.CreatedAt.Format("2006-01-02 15:04")
 	user := strings.TrimSpace(p.Username)
@@ -194,10 +194,11 @@ func FormatIndexText(p ChatPoint) string {
 	if typ == "" {
 		typ = "general"
 	}
-	return fmt.Sprintf("[%s] %s (%s): %s", ts, user, typ, strings.TrimSpace(p.MessageText))
+	text := strings.TrimSpace(p.MessageText)
+	return fmt.Sprintf("[%s] author=%s user_id=%d chat_id=%d type=%s | %s", ts, user, p.UserID, p.ChatID, typ, text)
 }
 
-// FormatHitLine — строка для промпта LLM.
+// FormatHitLine — строка для промпта LLM (явный автор).
 func FormatHitLine(h SearchHit) string {
 	ts := h.CreatedAt.Format("2006-01-02 15:04")
 	if h.CreatedAt.IsZero() {
@@ -207,15 +208,19 @@ func FormatHitLine(h SearchHit) string {
 	if user == "" {
 		user = fmt.Sprintf("user_%d", h.UserID)
 	}
-	typ := ""
-	if h.MessageType != "" && h.MessageType != "general" {
-		typ = " [" + strings.ToUpper(h.MessageType) + "]"
-	}
+	kind := "текст"
 	text := strings.TrimSpace(h.MessageText)
+	if strings.HasPrefix(text, "[ФОТО]") {
+		kind = "фото"
+	}
+	typeTag := ""
+	if h.MessageType != "" && h.MessageType != "general" {
+		typeTag = " [" + h.MessageType + "]"
+	}
 	if len(text) > 400 {
 		text = text[:400] + "…"
 	}
-	return fmt.Sprintf("• [%s]%s %s: %s", ts, typ, user, text)
+	return fmt.Sprintf("• [%s] %s (id=%d)%s [%s]: %s", ts, user, h.UserID, typeTag, kind, text)
 }
 
 func (s *Store) do(method, path string, payload interface{}) (int, string, error) {

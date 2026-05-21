@@ -266,29 +266,7 @@ func (b *Bot) handleUpdate(update tgbotapi.Update) {
 		if text == "" && msg.Caption != "" {
 			text = msg.Caption
 		}
-		if text != "" {
-			username := ""
-			if msg.From.UserName != "" {
-				username = "@" + msg.From.UserName
-			} else if msg.From.FirstName != "" {
-				username = msg.From.FirstName
-				if msg.From.LastName != "" {
-					username += " " + msg.From.LastName
-				}
-			} else {
-				username = fmt.Sprintf("User%d", msg.From.ID)
-			}
-
-			userMsg := &domain.UserMessage{
-				UserID:      msg.From.ID,
-				ChatID:      msg.Chat.ID,
-				Username:    username,
-				MessageText: text,
-				MessageType: "command",
-			}
-			b.persistChatMessage(userMsg)
-		}
-
+		b.ingestChatMessage(msg, "command")
 		b.handleCommand(msg)
 		return
 	}
@@ -530,6 +508,40 @@ func (b *Bot) handleMessage(msg *tgbotapi.Message) {
 	hasTimeZone := strings.Contains(strings.ToLower(text), "#timezone")
 	hasCommand := hasTrainingDone || hasWritingDone || hasSickLeave || hasHealthy || hasChange || hasTimeZone
 
+	shouldHandleAI := false
+	if !hasCommand && msg.Entities != nil && text != "" {
+		for _, entity := range msg.Entities {
+			if entity.Type == "mention" {
+				mentionText := ""
+				if entity.Offset+entity.Length <= len(text) {
+					mentionText = text[entity.Offset : entity.Offset+entity.Length]
+				}
+				botUsername := b.api.Self.UserName
+				if botUsername == "" {
+					botUsername = strings.TrimPrefix(mentionText, "@")
+				}
+				if strings.EqualFold(mentionText, "@"+botUsername) ||
+					strings.EqualFold(mentionText, botUsername) ||
+					strings.Contains(strings.ToLower(text), "@"+strings.ToLower(botUsername)) ||
+					strings.Contains(strings.ToLower(text), strings.ToLower(botUsername)+" ") {
+					shouldHandleAI = true
+					b.logger.Infof("Bot mention detected: %s in message: %s", mentionText, text)
+					break
+				}
+			}
+		}
+	}
+	if !hasCommand && !shouldHandleAI && msg.ReplyToMessage != nil {
+		if msg.ReplyToMessage.From != nil && msg.ReplyToMessage.From.IsBot &&
+			msg.ReplyToMessage.From.ID == b.api.Self.ID {
+			shouldHandleAI = true
+			b.logger.Infof("Reply to bot message detected")
+		}
+	}
+
+	msgType := detectInboundMessageType(text, hasTrainingDone, hasWritingDone, hasSickLeave, hasHealthy, hasChange, hasTimeZone, shouldHandleAI)
+	b.ingestChatMessage(msg, msgType)
+
 	// Если есть команда, обрабатываем её и НЕ обрабатываем через ИИ
 	if hasCommand {
 		// Получаем никнейм пользователя
@@ -543,29 +555,6 @@ func (b *Bot) handleMessage(msg *tgbotapi.Message) {
 			}
 		} else {
 			username = fmt.Sprintf("User%d", msg.From.ID)
-		}
-
-		// Сохраняем сообщение в БД для RAG контекста
-		if text != "" {
-			messageType := "general"
-			if hasTrainingDone || hasWritingDone {
-				messageType = "training_done" // Используем единый тип для обоих хештегов
-			} else if hasSickLeave {
-				messageType = "sick_leave"
-			} else if hasHealthy {
-				messageType = "healthy"
-			} else if hasTimeZone {
-				messageType = "timezone"
-			}
-
-			userMsg := &domain.UserMessage{
-				UserID:      msg.From.ID,
-				ChatID:      msg.Chat.ID,
-				Username:    username,
-				MessageText: text,
-				MessageType: messageType,
-			}
-			b.persistChatMessage(userMsg)
 		}
 
 		// Получаем существующие данные пользователя
@@ -622,108 +611,19 @@ func (b *Bot) handleMessage(msg *tgbotapi.Message) {
 		return // Выходим, не обрабатывая через ИИ
 	}
 
-	// Если нет команд, проверяем обращение к боту (для вопросов к ИИ)
-	// 1. Упоминание через @ в тексте
-	// 2. Ответ на сообщение бота (reply)
-	// 3. Выбор бота из списка участников (bot_command или просто упоминание)
-	shouldHandleAI := false
-
-	// Проверяем упоминание через @ в тексте
-	if msg.Entities != nil && text != "" {
-		for _, entity := range msg.Entities {
-			if entity.Type == "mention" {
-				mentionText := ""
-				if entity.Offset+entity.Length <= len(text) {
-					mentionText = text[entity.Offset : entity.Offset+entity.Length]
-				}
-
-				// Проверяем несколько вариантов имени бота
-				botUsername := b.api.Self.UserName
-				if botUsername == "" {
-					// Если UserName пустой, получаем из текста упоминания
-					botUsername = strings.TrimPrefix(mentionText, "@")
-				}
-
-				// Проверяем различные форматы упоминания
-				if strings.EqualFold(mentionText, "@"+botUsername) ||
-					strings.EqualFold(mentionText, botUsername) ||
-					strings.Contains(strings.ToLower(text), "@"+strings.ToLower(botUsername)) ||
-					strings.Contains(strings.ToLower(text), strings.ToLower(botUsername)+" ") {
-					shouldHandleAI = true
-					b.logger.Infof("Bot mention detected: %s in message: %s", mentionText, text)
-					break
-				}
-			}
-		}
-	}
-
-	// Проверяем ответ на сообщение бота
-	if !shouldHandleAI && msg.ReplyToMessage != nil {
-		if msg.ReplyToMessage.From != nil && msg.ReplyToMessage.From.IsBot &&
-			msg.ReplyToMessage.From.ID == b.api.Self.ID {
-			shouldHandleAI = true
-			b.logger.Infof("Reply to bot message detected")
-		}
-	}
-
-	// Если обращение к боту обнаружено и есть текст вопроса
-	// НО сначала сохраняем сообщение в БД для контекста
-	if shouldHandleAI && text != "" {
-		// Сохраняем вопрос в БД перед обработкой
-		username := ""
-		if msg.From.UserName != "" {
-			username = "@" + msg.From.UserName
-		} else if msg.From.FirstName != "" {
-			username = msg.From.FirstName
-			if msg.From.LastName != "" {
-				username += " " + msg.From.LastName
-			}
-		} else {
-			username = fmt.Sprintf("User%d", msg.From.ID)
-		}
-
-		userMsg := &domain.UserMessage{
-			UserID:      msg.From.ID,
-			ChatID:      msg.Chat.ID,
-			Username:    username,
-			MessageText: text,
-			MessageType: "question", // Отмечаем как вопрос к ИИ
-		}
-		b.persistChatMessage(userMsg)
-
+	hasPhoto := b.hasPhoto(msg)
+	if shouldHandleAI && (text != "" || hasPhoto) {
 		b.handleAIQuestion(msg, text)
 		return
 	}
 
-	// Если дошли сюда, значит нет ни команд, ни обращения к боту - сохраняем обычное сообщение в БД
-	if text != "" {
-		username := ""
-		if msg.From.UserName != "" {
-			username = "@" + msg.From.UserName
-		} else if msg.From.FirstName != "" {
-			username = msg.From.FirstName
-			if msg.From.LastName != "" {
-				username += " " + msg.From.LastName
-			}
-		} else {
-			username = fmt.Sprintf("User%d", msg.From.ID)
-		}
-
-		// Сохраняем в user_messages для контекста
-		userMsg := &domain.UserMessage{
-			UserID:      msg.From.ID,
-			ChatID:      msg.Chat.ID,
-			Username:    username,
-			MessageText: text,
-			MessageType: "general", // Обычное сообщение
-		}
-		b.persistChatMessage(userMsg)
-
-		// Обновляем LastMessage в message_log
+	// Обновляем LastMessage в message_log для участников чата
+	if body := b.messageCaptionOrText(msg); body != "" && msg.From != nil {
+		username := telegramUserLabel(msg.From)
 		messageLog, err := b.db.GetMessageLog(msg.From.ID, msg.Chat.ID)
 		if err == nil {
 			messageLog.Username = username
-			messageLog.LastMessage = text
+			messageLog.LastMessage = body
 			messageLog.IsDeleted = false
 			if err := b.db.SaveMessageLog(messageLog); err != nil {
 				b.logger.Errorf("Failed to update message log: %v", err)
@@ -3365,30 +3265,27 @@ func (b *Bot) handleAIQuestion(msg *tgbotapi.Message, questionText string) {
 		contextText.WriteString("=== ИСТОРИЯ ТРЕНИРОВОК ПОЛЬЗОВАТЕЛЯ ===\n\n")
 	}
 
-	// Семантическая память всего чата (Qdrant)
+	// Семантическая память всего чата (Qdrant, с авторами)
 	b.appendVectorChatContext(&contextText, msg.Chat.ID, questionText)
+	b.appendRecentChatContext(&contextText, msg.Chat.ID, 50)
 
-	// Добавляем историю сообщений
+	asker := telegramUserLabel(msg.From)
+	contextText.WriteString(fmt.Sprintf("\n=== КТО СЕЙЧАС СПРАШИВАЕТ ===\n%s (id=%d)\n", asker, msg.From.ID))
+
+	b.appendReplyThreadContext(&contextText, msg)
+
+	// История отчётов и событий этого пользователя
 	if len(history) > 0 {
-		for _, msg := range history {
-			messageType := ""
-			if msg.MessageType == "training_done" {
-				messageType = " [ТРЕНИРОВКА]"
-			} else if msg.MessageType == "sick_leave" {
-				messageType = " [БОЛЬНИЧНЫЙ]"
-			} else if msg.MessageType == "healthy" {
-				messageType = " [ВЫЗДОРОВЛЕНИЕ]"
-			}
-			contextText.WriteString(fmt.Sprintf("[%s]%s %s: %s\n",
-				msg.CreatedAt.Format("2006-01-02 15:04"), messageType, msg.Username, msg.MessageText))
+		contextText.WriteString("\n=== ИСТОРИЯ СООБЩЕНИЙ ЭТОГО ПОЛЬЗОВАТЕЛЯ ===\n")
+		for _, hist := range history {
+			contextText.WriteString(formatHistoryLine(hist))
+			contextText.WriteString("\n")
 		}
-	} else {
-		contextText.WriteString("История пуста\n")
 	}
 
-	// Добавляем предыдущее сообщение бота только если пользователь отвечает на него
 	lastBotMessageText := ""
-	if msg.ReplyToMessage != nil && msg.ReplyToMessage.From != nil && msg.ReplyToMessage.From.IsBot && msg.ReplyToMessage.From.ID == b.api.Self.ID {
+	if msg.ReplyToMessage != nil && msg.ReplyToMessage.From != nil && msg.ReplyToMessage.From.IsBot &&
+		msg.ReplyToMessage.From.ID == b.api.Self.ID {
 		replyText := strings.TrimSpace(msg.ReplyToMessage.Text)
 		if replyText == "" && msg.ReplyToMessage.Caption != "" {
 			replyText = strings.TrimSpace(msg.ReplyToMessage.Caption)
@@ -3820,10 +3717,16 @@ func (b *Bot) handleAIQuestion(msg *tgbotapi.Message, questionText string) {
 		)
 	}
 
+	attributionRule := "\n\nКРИТИЧЕСКИ ВАЖНО: в контексте каждое сообщение привязано к автору (ник и id). " +
+		"Различай, кто что писал и кто что присылал. Не приписывай слова одного участника другому. " +
+		"Если спрашивают «кто сказал» — отвечай по строкам памяти чата с указанием автора."
+
 	if chatType == "writing" {
 		finalQuestion += "\n\nВАЖНО: Это чат для писательства. Ты мудрый литературный наставник Fat Leopard. Используй весь контекст переписки из этого чата для понимания темы и сюжета. Отвечай в контексте писательства, поддерживай обсуждение литературных тем, помогай с развитием сюжета, персонажей и стиля. Не переходи на темы тренировок, если об этом явно не спрашивают."
+		finalQuestion += attributionRule
 	} else {
 		finalQuestion += "\n\nОТВЕЧАЙ СТРОГО ПО СУТИ ВОПРОСА ПОЛЬЗОВАТЕЛЯ. СНАЧАЛА ДАЙ ПОЛНЫЙ, ПОДРОБНЫЙ ОТВЕТ ПО ВОПРОСУ. ЕСЛИ ВОПРОС НЕ ПРО ТРЕНИРОВКИ ИЛИ БОЛЬНИЧНЫЙ, НЕ ПЕРЕХОДИ К ЭТИМ ТЕМАМ БЕЗ ЯВНОГО ЗАПРОСА И НЕ ВЫПОЛНЯЙ НЕПРОСИМЫЕ ПРЕДУПРЕЖДЕНИЯ. ЛЮБЫЕ МОТИВИРУЮЩИЕ ДОПОЛНЕНИЯ МОЖНО ДАВАТЬ ТОЛЬКО В КОНЦЕ И ТОЛЬКО ЕСЛИ ОНИ ПОДЧЕРКИВАЮТ СУТЬ ОТВЕТА."
+		finalQuestion += attributionRule
 	}
 
 	answer, err := b.aiClient.AnswerUserQuestion(finalQuestion, contextText.String())
@@ -3858,12 +3761,17 @@ func (b *Bot) handleAIQuestion(msg *tgbotapi.Message, questionText string) {
 		b.logger.Errorf("Failed to send AI answer: %v", err)
 	}
 
-	// Сохраняем ответ ИИ для анти‑повторов и Qdrant
+	botName := b.api.Self.UserName
+	if botName == "" {
+		botName = "FatLeopard"
+	} else {
+		botName = "@" + botName
+	}
 	b.persistChatMessage(&domain.UserMessage{
 		UserID:      b.api.Self.ID,
 		ChatID:      msg.Chat.ID,
-		Username:    b.api.Self.UserName,
-		MessageText: answer,
+		Username:    botName,
+		MessageText: formatTextMemory(b.api.Self.ID, botName, answer),
 		MessageType: "ai_reply",
 		CreatedAt:   time.Now(),
 	})
@@ -4006,6 +3914,11 @@ func (b *Bot) scanChatHistory(ctx context.Context, daysBack int) {
 			CreatedAt:   msgTime,
 		}
 
+		if msg.From != nil && text != "" {
+			author := telegramUserLabel(msg.From)
+			userMsg.Username = author
+			userMsg.MessageText = formatTextMemory(msg.From.ID, author, text)
+		}
 		if _, err := b.db.SaveUserMessage(userMsg); err != nil {
 			b.logger.Errorf("Failed to save scanned message: %v", err)
 		} else {

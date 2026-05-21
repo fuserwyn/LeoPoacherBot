@@ -21,8 +21,8 @@ type OpenRouterClient struct {
 }
 
 type ChatMessage struct {
-	Role    string `json:"role"`
-	Content string `json:"content"`
+	Role    string      `json:"role"`
+	Content interface{} `json:"content"`
 }
 
 type ChatRequest struct {
@@ -126,7 +126,30 @@ func (c *OpenRouterClient) Chat(messages []ChatMessage, model string) (string, e
 		return "", fmt.Errorf("no choices in response")
 	}
 
-	return response.Choices[0].Message.Content, nil
+	return messageContentString(response.Choices[0].Message.Content), nil
+}
+
+func messageContentString(content interface{}) string {
+	switch v := content.(type) {
+	case string:
+		return v
+	case []interface{}:
+		var parts []string
+		for _, item := range v {
+			m, ok := item.(map[string]interface{})
+			if !ok {
+				continue
+			}
+			if m["type"] == "text" {
+				if t, ok := m["text"].(string); ok {
+					parts = append(parts, t)
+				}
+			}
+		}
+		return strings.Join(parts, "\n")
+	default:
+		return fmt.Sprint(v)
+	}
 }
 
 // GenerateDailySummary генерирует ежедневную сводку о тренировках
