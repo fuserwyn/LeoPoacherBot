@@ -21,6 +21,8 @@
   left: 0;
   right: 0;
   top: 0;
+  bottom: var(--bottom-nav-h, 72px);
+  height: auto;
   z-index: 200;
   display: flex;
   flex-direction: column;
@@ -30,6 +32,10 @@
   padding-top: var(--safe-top);
   box-sizing: border-box;
   font-family: var(--font);
+}
+
+.nwo.nwo--keyboard {
+  bottom: 0;
 }
 
 
@@ -417,10 +423,12 @@
 .nwo__foot {
   flex: 0 0 auto;
   flex-shrink: 0;
-  padding: 6px 10px calc(6px + env(safe-area-inset-bottom, 0px));
+  margin-top: auto;
+  padding: 4px 10px 2px;
   max-width: 100%;
   width: 100%;
-  margin: 0 auto;
+  margin-left: auto;
+  margin-right: auto;
   box-sizing: border-box;
   border-top: 1px solid var(--border-subtle);
   background: var(--bg);
@@ -448,20 +456,21 @@
   opacity: 0.95;
 }
 
-/* Клавиатура открыта: нижний футер скрыт, отправка — в фиксированной панели над клавиатурой. */
+/* Клавиатура: панель в потоке flex у низа visual viewport — без чёрного зазора над кнопкой. */
 .nwo--keyboard .nwo__body {
-  padding-bottom: 4px;
+  flex: 0 1 auto;
+  min-height: 0;
+  max-height: calc(100% - 40px - 54px);
+  padding-bottom: 2px;
 }
 
 .nwo__keyboard-bar {
-  position: fixed;
-  left: 0;
-  right: 0;
-  bottom: var(--app-keyboard-bottom, 0px);
-  z-index: 210;
+  flex: 0 0 auto;
+  margin-top: auto;
   display: flex;
   align-items: stretch;
-  padding: 8px 12px calc(8px + env(safe-area-inset-bottom, 0px));
+  width: 100%;
+  padding: 8px 12px 6px;
   box-sizing: border-box;
   background: var(--bg);
   border-top: 1px solid var(--border-subtle);

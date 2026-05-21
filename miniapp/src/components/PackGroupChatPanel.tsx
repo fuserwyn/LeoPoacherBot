@@ -32,7 +32,26 @@ export function PackGroupChatPanel({ initData, inTelegram, meId, showAlert, onHa
   const logRef = useRef<HTMLDivElement | null>(null);
   /** true когда пользователь прокрутил вверх — не перебиваем позицию при поллинге */
   const userScrolledUpRef = useRef(false);
-  const initialLoadedRef = useRef(false);
+  const didInitialScrollRef = useRef(false);
+  /** После отправки — всегда вниз, даже если читал историю выше */
+  const forceScrollRef = useRef(false);
+
+  const isNearBottom = useCallback((el: HTMLDivElement, threshold = 96) => {
+    return el.scrollHeight - el.scrollTop - el.clientHeight < threshold;
+  }, []);
+
+  const scrollToBottom = useCallback((behavior: ScrollBehavior = "auto") => {
+    const el = logRef.current;
+    if (!el) return;
+    const run = () => {
+      el.scrollTo({ top: el.scrollHeight, behavior });
+    };
+    run();
+    requestAnimationFrame(() => {
+      run();
+      requestAnimationFrame(run);
+    });
+  }, []);
 
   const load = useCallback(async () => {
     if (!apiBase || !inTelegram || !initData) return;
@@ -80,27 +99,51 @@ export function PackGroupChatPanel({ initData, inTelegram, meId, showAlert, onHa
     const el = logRef.current;
     if (!el) return;
     const onScroll = () => {
-      const nearBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 80;
-      userScrolledUpRef.current = !nearBottom;
+      userScrolledUpRef.current = !isNearBottom(el);
     };
     el.addEventListener("scroll", onScroll, { passive: true });
     return () => el.removeEventListener("scroll", onScroll);
-  }, []);
+  }, [isNearBottom]);
+
+  // Рост ленты (поллинг, картинки) — держим конец видимым, если пользователь внизу.
+  useEffect(() => {
+    const el = logRef.current;
+    if (!el) return;
+    const inner = el.firstElementChild;
+    if (!(inner instanceof HTMLElement)) return;
+
+    const ro = new ResizeObserver(() => {
+      if (forceScrollRef.current || !userScrolledUpRef.current) {
+        scrollToBottom("auto");
+      }
+    });
+    ro.observe(inner);
+    return () => ro.disconnect();
+  }, [items.length, scrollToBottom]);
 
   useEffect(() => {
     const el = logRef.current;
     if (!el || items.length === 0) return;
-    if (!initialLoadedRef.current) {
-      // Первая загрузка — сразу на последнее сообщение (без анимации).
-      el.scrollTop = el.scrollHeight;
-      initialLoadedRef.current = true;
+
+    if (!didInitialScrollRef.current) {
+      didInitialScrollRef.current = true;
+      userScrolledUpRef.current = false;
+      scrollToBottom("auto");
       return;
     }
-    // Поллинг: скроллим только если пользователь и так в конце.
-    if (!userScrolledUpRef.current) {
-      endRef.current?.scrollIntoView({ behavior: "smooth" });
+
+    if (forceScrollRef.current) {
+      forceScrollRef.current = false;
+      userScrolledUpRef.current = false;
+      scrollToBottom("auto");
+      return;
     }
-  }, [items]);
+
+    if (!userScrolledUpRef.current || isNearBottom(el)) {
+      userScrolledUpRef.current = false;
+      scrollToBottom("auto");
+    }
+  }, [items, isNearBottom, scrollToBottom]);
 
   const send = useCallback(async () => {
     const t = text.trim();
@@ -116,7 +159,7 @@ export function PackGroupChatPanel({ initData, inTelegram, meId, showAlert, onHa
     setSending(true);
     onHaptic?.();
     setText("");
-    // После отправки пользователь хочет видеть своё сообщение внизу.
+    forceScrollRef.current = true;
     userScrolledUpRef.current = false;
     try {
       const res = await fetch(`${apiBase}/api/miniapp/pack-group/messages`, {
@@ -165,12 +208,9 @@ export function PackGroupChatPanel({ initData, inTelegram, meId, showAlert, onHa
 
   return (
     <div className="packroom">
-      <p className="packroom__hint">
-        Общий чат стаи живёт здесь, в мини-аппе. Лео отвечает, если написать <strong>@leo</strong> или
-        <strong> @…</strong> (username бота); без @ — без ответа ИИ.
-      </p>
       {err && <p className="packroom__err">{err}</p>}
       <div className="packroom__log" role="log" aria-label="Чат стаи" ref={logRef}>
+        <div className="packroom__log-inner">
         {items.map((m) => {
           const mine = !m.is_leo && m.user_id === meId;
           return (
@@ -212,7 +252,8 @@ export function PackGroupChatPanel({ initData, inTelegram, meId, showAlert, onHa
             </div>
           );
         })}
-        <div ref={endRef} />
+        <div ref={endRef} className="packroom__log-end" aria-hidden />
+        </div>
       </div>
       <form
         className="packroom__form"
@@ -229,9 +270,9 @@ export function PackGroupChatPanel({ initData, inTelegram, meId, showAlert, onHa
           maxLength={4000}
           autoComplete="off"
           onFocus={() => {
-            window.setTimeout(() => {
-              logRef.current?.scrollTo({ top: logRef.current.scrollHeight, behavior: "smooth" });
-            }, 300);
+            userScrolledUpRef.current = false;
+            window.setTimeout(() => scrollToBottom("smooth"), 80);
+            window.setTimeout(() => scrollToBottom("auto"), 320);
           }}
         />
         <button type="submit" className="packroom__send" disabled={sending || !text.trim()}>

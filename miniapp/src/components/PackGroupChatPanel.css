@@ -15,24 +15,31 @@
   color: #e0a0a0;
 }
 
-.packroom__hint {
-  font-size: 0.82rem;
-  line-height: 1.45;
-  color: var(--muted, #8b8b9a);
-  margin: 0 0 4px;
-  padding: 0 2px;
-  flex-shrink: 0;
-}
-
 .packroom__log {
   flex: 1;
   min-height: 0;
   overflow-y: auto;
   -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
+  padding: 4px 0 0;
+}
+
+/* Короткая лента — сообщения у поля ввода; длинная — скролл с привязкой к низу. */
+.packroom__log-inner {
+  min-height: 100%;
   display: flex;
   flex-direction: column;
+  justify-content: flex-end;
   gap: 8px;
-  padding: 4px 0 calc(52px + var(--bottom-nav-h, var(--feed-bottom-nav-h, 72px)));
+  padding-bottom: calc(52px + var(--bottom-nav-h, var(--feed-bottom-nav-h, 72px)));
+  box-sizing: border-box;
+}
+
+.packroom__log-end {
+  flex-shrink: 0;
+  height: 0;
+  width: 100%;
+  overflow: hidden;
 }
 
 .packroom__row {
@@ -178,12 +185,13 @@
 
 html.app-keyboard-open .packroom__form {
   bottom: var(--app-keyboard-bottom, 0px);
-  padding: 6px 8px 0;
+  /* 3px снизу — чтобы синий контур фокуса инпута не обрезался клавиатурой */
+  padding: 6px 8px 3px;
   background: var(--bg, #0d0d12);
 }
 
-html.app-keyboard-open .packroom__log {
-  padding-bottom: 52px;
+html.app-keyboard-open .packroom__log-inner {
+  padding-bottom: 55px;
 }
 
 .packroom__input {
@@ -195,6 +203,13 @@ html.app-keyboard-open .packroom__log {
   color: #e8e8f0;
   padding: 0 10px;
   font-size: 0.9rem;
+  box-sizing: border-box;
+}
+
+.packroom__input:focus {
+  outline: none;
+  border-color: rgba(61, 90, 238, 0.85);
+  box-shadow: inset 0 0 0 1px rgba(61, 90, 238, 0.45);
 }
 
 .packroom__send {

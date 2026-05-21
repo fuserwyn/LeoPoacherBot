@@ -226,11 +226,11 @@ export function NewWorkoutScreen({ onClose, onSave, showAlert }: Props) {
   return (
     <div
       className={`nwo${showKeyboardBar ? " nwo--keyboard" : ""}`}
-      style={{
-        // Всегда на весь экран: при сжатии до visualH просвечивала вкладка «Правила» под оверлеем.
-        height: keyboardOpen ? "100dvh" : `min(${visualH}px, calc(100dvh - var(--bottom-nav-h, 72px)))`,
-        maxHeight: keyboardOpen ? "100dvh" : `min(${visualH}px, calc(100dvh - var(--bottom-nav-h, 72px)))`,
-      }}
+      style={
+        keyboardOpen
+          ? { height: `${visualH}px`, maxHeight: `${visualH}px` }
+          : undefined
+      }
     >
       <header className="nwo__head">
         <div className="nwo__head-title-row">
