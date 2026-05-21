@@ -1,5 +1,5 @@
 .feed {
-  padding: 6px 8px 0;
+  padding: 0 8px 0;
   max-width: 520px;
   margin: 0 auto;
   position: relative;
@@ -35,14 +35,14 @@
   z-index: 1;
   max-width: 520px;
   margin: 0 auto;
-  padding: 6px 8px 8px;
+  padding: 6px 8px 4px;
   box-sizing: border-box;
   background: var(--bg);
   pointer-events: auto;
 }
 
 .feed__pull-shift {
-  padding-top: var(--feed-header-h, 168px);
+  padding-top: var(--feed-header-h, 0px);
   will-change: transform;
   box-sizing: border-box;
 }
@@ -157,7 +157,7 @@
 }
 
 .feed__filters {
-  margin-bottom: 6px;
+  margin-bottom: 4px;
 }
 
 .feed__filter-scope {
@@ -343,8 +343,8 @@
   box-shadow: 0 4px 20px rgba(34, 139, 87, 0.12);
 }
 
-.feed .section-title {
-  margin-bottom: 6px;
+.feed__pull-shift .feed__list {
+  margin-top: 0;
 }
 
 .feed__err {
@@ -363,7 +363,8 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  margin-bottom: 6px;
+  margin: 0 0 6px;
+  gap: 8px;
 }
 
 .feed__section-row .section-title {

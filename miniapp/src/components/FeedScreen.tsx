@@ -344,17 +344,25 @@ export function FeedScreen({
   }, [load, refreshToken]);
 
   useLayoutEffect(() => {
-    const el = feedHeaderRef.current;
-    const feedRoot = el?.closest<HTMLElement>(".feed");
-    if (!el || !feedRoot) return;
+    const sticky = feedHeaderRef.current;
+    const feedRoot = sticky?.closest<HTMLElement>(".feed");
+    if (!sticky || !feedRoot) return;
+    // Реальный зазор: низ fixed-шапки минус верх .feed (учитывает safe-area, app padding, border).
     const write = () => {
-      feedRoot.style.setProperty("--feed-header-h", `${Math.ceil(el.getBoundingClientRect().height)}px`);
+      const feedTop = feedRoot.getBoundingClientRect().top;
+      const headerBottom = sticky.getBoundingClientRect().bottom;
+      const offset = headerBottom - feedTop;
+      feedRoot.style.setProperty("--feed-header-h", `${Math.max(0, Math.ceil(offset))}px`);
     };
     write();
     const ro = new ResizeObserver(write);
-    ro.observe(el);
+    ro.observe(sticky);
+    const onLoad = () => write();
+    window.addEventListener("load", onLoad);
+    requestAnimationFrame(write);
     return () => {
       ro.disconnect();
+      window.removeEventListener("load", onLoad);
       feedRoot.style.removeProperty("--feed-header-h");
     };
   }, [sub, feedCategoryIds.length, feedOnlyMine]);
