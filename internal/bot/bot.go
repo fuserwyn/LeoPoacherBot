@@ -125,6 +125,12 @@ func (b *Bot) getUserLocalDate(offsetFromMoscow int) string {
 	return b.getUserLocalNow(offsetFromMoscow).Format("2006-01-02")
 }
 
+// shouldSkipReportAIAddendum — не генерировать ИИ-приписку в 4:00–5:59 по локальному времени пользователя.
+func shouldSkipReportAIAddendum(localNow time.Time) bool {
+	h := localNow.Hour()
+	return h >= 4 && h < 6
+}
+
 func parseTimezoneOffsetFromCommand(text string) (int, error) {
 	lower := strings.ToLower(text)
 	idx := strings.Index(lower, "#timezone")
@@ -731,7 +737,7 @@ func (b *Bot) handleTrainingDone(msg *tgbotapi.Message) {
 		return
 	}
 	localNow := b.getUserLocalNow(messageLog.TimezoneOffsetFromMoscow)
-	suppressTrainingReplyAt0420 := localNow.Hour() == 4 && localNow.Minute() == 20
+	skipReportAIAddendum := shouldSkipReportAIAddendum(localNow)
 
 	// Фиксируем кубки до начислений, чтобы сохранить точный cups_added в training_sessions.
 	cupsBefore, err := b.db.GetUserCups(msg.From.ID, msg.Chat.ID)
@@ -833,7 +839,7 @@ func (b *Bot) handleTrainingDone(msg *tgbotapi.Message) {
 			} else {
 				b.logger.Infof("Successfully added 420 cups for monthly achievement")
 				// Проверяем, достиг ли пользователь 420 кубков и является ли 3-м
-				if cupsBefore < 420 && !suppressTrainingReplyAt0420 {
+				if cupsBefore < 420 {
 					b.checkMerchGiveawayCompletion(msg, msg.Chat.ID)
 				}
 			}
@@ -863,7 +869,7 @@ func (b *Bot) handleTrainingDone(msg *tgbotapi.Message) {
 			} else {
 				b.logger.Infof("Successfully added 420 cups for 60-day achievement")
 				// Проверяем, достиг ли пользователь 420 кубков и является ли 3-м
-				if cupsBefore < 420 && !suppressTrainingReplyAt0420 {
+				if cupsBefore < 420 {
 					b.checkMerchGiveawayCompletion(msg, msg.Chat.ID)
 				}
 			}
@@ -877,7 +883,7 @@ func (b *Bot) handleTrainingDone(msg *tgbotapi.Message) {
 			} else {
 				b.logger.Infof("Successfully added 420 cups for quarterly achievement")
 				// Проверяем, достиг ли пользователь 420 кубков и является ли 3-м
-				if cupsBefore < 420 && !suppressTrainingReplyAt0420 {
+				if cupsBefore < 420 {
 					b.checkMerchGiveawayCompletion(msg, msg.Chat.ID)
 				}
 			}
@@ -943,16 +949,14 @@ func (b *Bot) handleTrainingDone(msg *tgbotapi.Message) {
 		// Новая тренировка БЕЗ achievement - готовим базовый текст
 		var baseMessage string
 		if chatType == "coding" {
-			baseMessage = fmt.Sprintf("✅ Отчёт принят! 💪\n🦁 Дней подряд с отчётами: %d, всего задач: %d\n🏆 +1 кубок за задачу\n🏆 Всего кубков: %d", newStreakDays, solvedTotal, currentCups)
+			baseMessage = fmt.Sprintf("🦁 стрик: %d\n🏆 +1 кубок за задачу!\n🏆 Всего кубков: %d", newStreakDays, currentCups)
 		} else {
 			baseMessage = fmt.Sprintf("✅ Отчёт принят! 💪\n🦁 Ты тренируешься дней подряд: %d, всего тренировок: %d\n🏆 +1 кубок за тренировку!\n🏆 Всего кубков: %d", newStreakDays, solvedTotal, currentCups)
 		}
 		messageText := baseMessage
 		var codingPlainFallback string
-		skipEarlyMorningAddendum := suppressTrainingReplyAt0420
-
-		// Дополняем короткой ИИ-припиской по текущему контексту
-		if b.aiClient != nil && !skipEarlyMorningAddendum {
+		// Дополняем короткой ИИ-припиской по текущему контексту (не в 4:00–5:59 — без «мудрости дня»)
+		if b.aiClient != nil && !skipReportAIAddendum {
 			// Индикатор набора, чтобы показать «typing...» пока генерируется ответ
 			action := tgbotapi.NewChatAction(msg.Chat.ID, tgbotapi.ChatTyping)
 			b.api.Send(action)
@@ -972,7 +976,7 @@ func (b *Bot) handleTrainingDone(msg *tgbotapi.Message) {
 			}()
 
 			// Формируем вопрос для единого AI-сообщения (единый промпт приписки)
-			question := b.getUnifiedTrainingPrompt(newStreakDays, 0, currentCups, wasOnSickLeave, chatType)
+			question := b.getUnifiedTrainingPrompt(newStreakDays, 0, currentCups, wasOnSickLeave, chatType, localNow)
 			var ctxBuilder strings.Builder
 			ctxBuilder.WriteString("КРИТИЧЕСКИ ВАЖНО: Отвечай ТОЛЬКО на этот отчёт. НЕ используй историю чата, последние сообщения или сообщения других участников. Комментируй исключительно то, что написано в этом сообщении.\n\n")
 			if chatType == "coding" {
@@ -1037,7 +1041,9 @@ func (b *Bot) handleTrainingDone(msg *tgbotapi.Message) {
 			} else {
 				timeOfDay = "ночь"
 			}
-			ctxBuilder.WriteString(fmt.Sprintf("Время суток: %s\n", timeOfDay))
+			if chatType != "coding" {
+				ctxBuilder.WriteString(fmt.Sprintf("Время суток: %s\n", timeOfDay))
+			}
 
 			if wasOnSickLeave {
 				if chatType == "coding" {
@@ -1087,11 +1093,7 @@ func (b *Bot) handleTrainingDone(msg *tgbotapi.Message) {
 			// Ответ должен быть ТОЛЬКО на этот отчёт о тренировке/писательстве — без смешивания с другими сообщениями чата.
 
 			if aiResponse, err := b.aiClient.AnswerReportAddendum(question, ctxBuilder.String(), chatType); err == nil {
-				aiResponse = strings.TrimSpace(aiResponse)
-				if chatType != "coding" {
-					aiResponse = strings.ReplaceAll(aiResponse, "**", "")
-					aiResponse = firstSentence(aiResponse)
-				}
+				aiResponse = sanitizeReportAddendum(aiResponse, chatType)
 				if aiResponse != "" {
 					if chatType == "coding" {
 						codingPlainFallback = baseMessage + "\n\n" + aiResponse
@@ -1103,34 +1105,30 @@ func (b *Bot) handleTrainingDone(msg *tgbotapi.Message) {
 			} else {
 				b.logger.Warnf("AI response generation failed: %v", err)
 			}
-		} else if skipEarlyMorningAddendum {
-			b.logger.Infof("Skipping AI addendum for training report at 04:20")
+		} else if skipReportAIAddendum {
+			b.logger.Infof("Skipping AI addendum for training report during early morning (hour=%d)", localNow.Hour())
 		}
 
-		if suppressTrainingReplyAt0420 {
-			b.logger.Infof("Suppressing training reply at 04:20")
-		} else {
-			reply := tgbotapi.NewMessage(msg.Chat.ID, messageText)
-			if chatType == "coding" && codingPlainFallback != "" {
-				reply.ParseMode = tgbotapi.ModeHTML
-			}
+		reply := tgbotapi.NewMessage(msg.Chat.ID, messageText)
+		if chatType == "coding" && codingPlainFallback != "" {
+			reply.ParseMode = tgbotapi.ModeHTML
+		}
 
-			b.logger.Infof("Sending training done message to chat %d", msg.Chat.ID)
-			_, err = b.api.Send(reply)
+		b.logger.Infof("Sending training done message to chat %d", msg.Chat.ID)
+		_, err = b.api.Send(reply)
+		if err != nil {
+			if chatType == "coding" && codingPlainFallback != "" {
+				b.logger.Warnf("training_done HTML send failed, retrying plain: %v", err)
+				fallback := tgbotapi.NewMessage(msg.Chat.ID, codingPlainFallback)
+				_, err = b.api.Send(fallback)
+			}
 			if err != nil {
-				if chatType == "coding" && codingPlainFallback != "" {
-					b.logger.Warnf("training_done HTML send failed, retrying plain: %v", err)
-					fallback := tgbotapi.NewMessage(msg.Chat.ID, codingPlainFallback)
-					_, err = b.api.Send(fallback)
-				}
-				if err != nil {
-					b.logger.Errorf("Failed to send training done message: %v", err)
-				} else {
-					b.logger.Infof("Successfully sent training done message to chat %d", msg.Chat.ID)
-				}
+				b.logger.Errorf("Failed to send training done message: %v", err)
 			} else {
 				b.logger.Infof("Successfully sent training done message to chat %d", msg.Chat.ID)
 			}
+		} else {
+			b.logger.Infof("Successfully sent training done message to chat %d", msg.Chat.ID)
 		}
 	} else if !hasAnyAchievement {
 		solvedTotal, incErr := b.db.IncrementSolvedTasksCount(msg.From.ID, msg.Chat.ID)
@@ -1164,10 +1162,8 @@ func (b *Bot) handleTrainingDone(msg *tgbotapi.Message) {
 		}
 		messageText := baseMessage
 		var codingPlainFallback string
-		skipEarlyMorningAddendum := suppressTrainingReplyAt0420
-
-		// Короткая ИИ-приписка и здесь
-		if b.aiClient != nil && !skipEarlyMorningAddendum {
+		// Короткая ИИ-приписка и здесь (не в 4:00–5:59)
+		if b.aiClient != nil && !skipReportAIAddendum {
 			action := tgbotapi.NewChatAction(msg.Chat.ID, tgbotapi.ChatTyping)
 			b.api.Send(action)
 			stopTyping := make(chan struct{})
@@ -1189,9 +1185,9 @@ func (b *Bot) handleTrainingDone(msg *tgbotapi.Message) {
 			var doubleTrainingPrompts []string
 			if chatType == "coding" {
 				doubleTrainingPrompts = []string{
-					"Второй отчёт по задаче за день. Напиши 2-3 предложения: первое — конкретно по задаче/коду из отчёта, второе — короткий инженерный совет (тесты, рефакторинг, читаемость). НИКАКОГО спорта, «разминки для глаз/шеи», офисной гимнастики. Только про разработку. Код при необходимости — только в fenced-блоке ```язык ... ```.",
-					"Двойной фокус на код за день — редкость. 2-3 предложения: похвала по сути отчёта и один практический следующий шаг в коде. Запрещены зал, бег, растяжка, советы про шею/глаза/сон вместо кода. Код — только ```язык ... ```.",
-					"Ещё один отчёт о коде сегодня. 2-3 предложения: отметь прогресс по задаче и дай совет по качеству или дисциплине разработки. Только софт и инженерия; без «разгрузки телом». Примеры кода — ```язык ... ```.",
+					"Второй отчёт по задаче за день. 1-2 предложения на русском: только про код/задачу из отчёта (алгоритм, структура, тесты, отладка). Без спорта, без «разминки», без блоков кода и без ```.",
+					"Двойной фокус на код за день. 1-2 предложения: короткий техлид-комментарий к сути отчёта и один инженерный нюанс. Запрещены зал, бег, философия дня, калории, кубки, таймеры, хэштеги.",
+					"Ещё один отчёт о коде сегодня. 1-2 предложения: прогресс по задаче или совет по качеству кода. Только софт; без мотивационных проповедей и без повторения статистики из чата.",
 				}
 			} else {
 				doubleTrainingPrompts = []string{
@@ -1201,8 +1197,7 @@ func (b *Bot) handleTrainingDone(msg *tgbotapi.Message) {
 					"Ещё одна тренировка сегодня — энергия впечатляет. Напиши 2-3 предложения: первое — отметь упражнения, второе — практический совет. Используй ТОЛЬКО этот отчёт. Без Markdown.",
 				}
 			}
-			now := utils.GetMoscowTime()
-			question := doubleTrainingPrompts[now.Unix()%int64(len(doubleTrainingPrompts))]
+			question := doubleTrainingPrompts[localNow.Unix()%int64(len(doubleTrainingPrompts))]
 			var ctxBuilder strings.Builder
 			ctxBuilder.WriteString("КРИТИЧЕСКИ ВАЖНО: Отвечай ТОЛЬКО на этот отчёт. НЕ используй историю чата или сообщения других участников.\n\n")
 			if chatType == "coding" {
@@ -1259,11 +1254,7 @@ func (b *Bot) handleTrainingDone(msg *tgbotapi.Message) {
 			// Ответ только на этот отчёт — без смешивания с другими сообщениями чата.
 
 			if aiResponse, err := b.aiClient.AnswerReportAddendum(question, ctxBuilder.String(), chatType); err == nil {
-				aiResponse = strings.TrimSpace(aiResponse)
-				if chatType != "coding" {
-					aiResponse = strings.ReplaceAll(aiResponse, "**", "")
-					aiResponse = firstSentence(aiResponse)
-				}
+				aiResponse = sanitizeReportAddendum(aiResponse, chatType)
 				if aiResponse != "" {
 					if chatType == "coding" {
 						codingPlainFallback = baseMessage + "\n\n" + aiResponse
@@ -1275,34 +1266,30 @@ func (b *Bot) handleTrainingDone(msg *tgbotapi.Message) {
 			} else {
 				b.logger.Warnf("AI response generation (double) failed: %v", err)
 			}
-		} else if skipEarlyMorningAddendum {
-			b.logger.Infof("Skipping AI addendum for second training report at 04:20")
+		} else if skipReportAIAddendum {
+			b.logger.Infof("Skipping AI addendum for second training report during early morning (hour=%d)", localNow.Hour())
 		}
 
-		if suppressTrainingReplyAt0420 {
-			b.logger.Infof("Suppressing second training reply at 04:20")
-		} else {
-			reply := tgbotapi.NewMessage(msg.Chat.ID, messageText)
-			if chatType == "coding" && codingPlainFallback != "" {
-				reply.ParseMode = tgbotapi.ModeHTML
-			}
+		reply := tgbotapi.NewMessage(msg.Chat.ID, messageText)
+		if chatType == "coding" && codingPlainFallback != "" {
+			reply.ParseMode = tgbotapi.ModeHTML
+		}
 
-			b.logger.Infof("Sending already trained today message to chat %d", msg.Chat.ID)
-			_, err = b.api.Send(reply)
+		b.logger.Infof("Sending already trained today message to chat %d", msg.Chat.ID)
+		_, err = b.api.Send(reply)
+		if err != nil {
+			if chatType == "coding" && codingPlainFallback != "" {
+				b.logger.Warnf("double session HTML send failed, retrying plain: %v", err)
+				fallback := tgbotapi.NewMessage(msg.Chat.ID, codingPlainFallback)
+				_, err = b.api.Send(fallback)
+			}
 			if err != nil {
-				if chatType == "coding" && codingPlainFallback != "" {
-					b.logger.Warnf("double session HTML send failed, retrying plain: %v", err)
-					fallback := tgbotapi.NewMessage(msg.Chat.ID, codingPlainFallback)
-					_, err = b.api.Send(fallback)
-				}
-				if err != nil {
-					b.logger.Errorf("Failed to send already trained today message: %v", err)
-				} else {
-					b.logger.Infof("Successfully sent already trained today message to chat %d", msg.Chat.ID)
-				}
+				b.logger.Errorf("Failed to send already trained today message: %v", err)
 			} else {
 				b.logger.Infof("Successfully sent already trained today message to chat %d", msg.Chat.ID)
 			}
+		} else {
+			b.logger.Infof("Successfully sent already trained today message to chat %d", msg.Chat.ID)
 		}
 	}
 
@@ -1311,13 +1298,9 @@ func (b *Bot) handleTrainingDone(msg *tgbotapi.Message) {
 	// Если пользователь был на больничном, сбрасываем флаги больничного и помечаем как здорового
 	if wasOnSickLeave {
 		// Отправляем предупреждение о забытом #healthy
-		if suppressTrainingReplyAt0420 {
-			b.logger.Infof("Suppressing forgotten #healthy warning at 04:20 for user %d (%s)", msg.From.ID, username)
-		} else {
-			warningMessage := tgbotapi.NewMessage(msg.Chat.ID, fmt.Sprintf("⚠️ Внимание, %s!\n\nне забывай отправлять #healthy перед тренировкой!\n\n✅ Я автоматически засчитал выздоровление, но в следующий раз не забывай отправлять #healthy перед #training_done", username))
-			b.logger.Infof("Sending forgotten #healthy warning to user %d (%s)", msg.From.ID, username)
-			b.api.Send(warningMessage)
-		}
+		warningMessage := tgbotapi.NewMessage(msg.Chat.ID, fmt.Sprintf("⚠️ Внимание, %s!\n\nне забывай отправлять #healthy перед тренировкой!\n\n✅ Я автоматически засчитал выздоровление, но в следующий раз не забывай отправлять #healthy перед #training_done", username))
+		b.logger.Infof("Sending forgotten #healthy warning to user %d (%s)", msg.From.ID, username)
+		b.api.Send(warningMessage)
 
 		// ВАЖНО: перечитываем актуальную запись из БД, чтобы не перетереть свежие
 		// начисления кубков/калорий и обновления серий устаревшим messageLog.
@@ -2655,7 +2638,7 @@ func (b *Bot) auditProcessTrainingDone(um *domain.UserMessage) {
 		}
 		var text string
 		if chatType == "coding" {
-			text = fmt.Sprintf("✅ Отчёт принят! 💪\n🦁 Дней подряд с отчётами: %d, всего задач: %d\n🏆 +1 кубок за задачу\n🏆 Всего кубков: %d", newStreakDays, solvedTotal, currentCups)
+			text = fmt.Sprintf("🦁 стрик: %d\n🏆 +1 кубок за задачу!\n🏆 Всего кубков: %d", newStreakDays, currentCups)
 		} else {
 			text = fmt.Sprintf("✅ Отчёт принят! 💪\n🦁 Ты тренируешься дней подряд: %d, всего тренировок: %d\n🏆 +1 кубок за тренировку!\n🏆 Всего кубков: %d", newStreakDays, solvedTotal, currentCups)
 		}
@@ -3753,48 +3736,47 @@ func (b *Bot) detectGenderFromMessage(text string) string {
 }
 
 // getUnifiedTrainingPrompt генерирует единый промпт для AI-ответа после отчёта
-func (b *Bot) getUnifiedTrainingPrompt(streakDays, totalCalories, totalCups int, wasOnSickLeave bool, chatType string) string {
-	now := utils.GetMoscowTime()
-	hour := now.Hour()
-	weekday := now.Weekday()
+func (b *Bot) getUnifiedTrainingPrompt(streakDays, totalCalories, totalCups int, wasOnSickLeave bool, chatType string, localNow time.Time) string {
+	hour := localNow.Hour()
+	weekday := localNow.Weekday()
 
 	var prompts []string
 
 	// Отдельные промпты для программирования — без упоминаний физической активности.
 	if chatType == "coding" {
 		prompts = []string{
-			"Напиши 2-3 предложения после отчёта о коде: первое — конкретно по задаче/алгоритму/языку из сообщения, второе — короткий инженерный совет (читаемость, граничные случаи, тест). ЗАПРЕЩЕНО: спорт, зал, бег, «размяться», фитнес. Только разработка. Код — только в fenced-блоке ```язык ... ```.",
-			"Сделай 2-3 предложения как техлид: оцени, что сделано в коде по тексту отчёта, и дай один следующий шаг (рефакторинг, именование, декомпозиция). Никаких упражнений и тренировок. Примеры кода — ```язык ... ```.",
-			"2-3 предложения: комментарий к решению задачи из отчёта + совет по отладке или проверке гипотез. Не упоминай спорт и «физическую нагрузку». Код — ```язык ... ```.",
-			"2-3 предложения: отметь прогресс по коду/фиче из сообщения и мягко подскажи по git-гигиене, ревью или маленькому коммиту. Только софт. Код — ```язык ... ```.",
-			"2-3 предложения: разбери суть отчёта (что писал/дебажил) и дай совет по сложности или структуре решения. Запрет: зал, растяжка, кардио, «сбросить голову телом». Код — ```язык ... ```.",
-			"2-3 предложения: похвала за фокус на разработке + один практический совет по тестам или автоматизации проверки. Без спорта. Код — ```язык ... ```.",
-			"2-3 предложения: иронично-поддерживающий тон техлида — про код, дисциплину в задачах и ясность мысли в репозитории. Не переводи в атлетику. Код — ```язык ... ```.",
+			"1-2 предложения после отчёта о коде: конкретно по задаче/алгоритму/языку из сообщения или короткий инженерный совет (читаемость, граничные случаи, тест). ЗАПРЕЩЕНО: спорт, философия дня, калории, кубки, таймеры, хэштеги, блоки кода.",
+			"1-2 предложения как техлид: что сделано в коде по тексту отчёта и один следующий шаг (рефакторинг, именование, декомпозиция). Без упражнений, без ```.",
+			"1-2 предложения: комментарий к решению из отчёта или совет по отладке/проверке гипотез. Не упоминай спорт и «физическую нагрузку».",
+			"1-2 предложения: прогресс по коду/фиче из сообщения или подсказка по git-гигиене, ревью, маленькому коммиту. Только софт.",
+			"1-2 предложения: суть отчёта (что писал/дебажил) и совет по сложности или структуре решения. Запрет: зал, растяжка, кардио, мудрость дня.",
+			"1-2 предложения: фокус на разработке и практический совет по тестам или автоматизации проверки. Без спорта.",
+			"1-2 предложения в тоне техлида: про код и ясность решения в репозитории. Не переводи в атлетику и не повторяй статистику чата.",
 		}
 		if wasOnSickLeave {
-			prompts = append(prompts, "Напиши 2-3 предложения после #coding_done: пользователь вернулся после больничного. Похвали за возвращение в разработку и дай один спокойный совет по темпу. Без спорта и тренировок. Код — ```язык ... ```.")
+			prompts = append(prompts, "1-2 предложения: пользователь вернулся после больничного — коротко по делу про возвращение в разработку и темп. Без спорта, без мудрости дня.")
 		}
 		if streakDays >= 7 && streakDays < 14 {
-			prompts = append(prompts, "Сделай 2-3 предложения: уже неделя подряд с отчётами по задачам. Отметь дисциплину в программировании и дай один практический совет по инженерной привычке. Код — ```язык ... ```.")
+			prompts = append(prompts, "1-2 предложения: уже неделя подряд с отчётами по задачам — только инженерная дисциплина или совет по привычке в коде, без философии.")
 		}
 		if streakDays >= 21 {
-			prompts = append(prompts, "Сделай 2-3 предложения: длинная серия отчётов по задачам. Отметь стабильность и дай совет по устойчивому темпу разработки. Без тренировок, только про код. Код — ```язык ... ```.")
+			prompts = append(prompts, "1-2 предложения: длинная серия отчётов — устойчивый темп разработки или глубина практики в коде, без тренировочных метафор.")
 		}
 		if hour >= 17 && hour < 22 {
-			prompts = append(prompts, "Вечерний отчёт по задаче: 2-3 предложения, отметь фокус в конце дня и дай короткий совет по качественному завершению работы. Код — ```язык ... ```.")
+			prompts = append(prompts, "Вечерний отчёт по задаче: 1-2 предложения про завершение работы над кодом или качество сдачи задачи, без бытовой мудрости.")
 		}
 		// «Поздний» coding-промпт только 22:00–03:59; 04:00–05:59 не считаем ночью (иначе в 4:20 утра лезет лишняя мудрость)
 		if hour >= 22 || hour < 4 {
-			prompts = append(prompts, "Поздний отчёт по задаче: 2-3 предложения, похвали за упорство и мягко напомни про баланс и ясную голову для завтрашнего кода. Код — ```язык ... ```.")
+			prompts = append(prompts, "Поздний отчёт по задаче: 1-2 предложения про ясность кода завтра или аккуратное завершение сессии — без проповедей про жизнь.")
 		}
 		if weekday == time.Saturday || weekday == time.Sunday {
-			prompts = append(prompts, "Coding в выходной: 2-3 предложения, отметь дисциплину и предложи один аккуратный шаг по улучшению проекта. Код — ```язык ... ```.")
+			prompts = append(prompts, "Coding в выходной: 1-2 предложения — один шаг по улучшению проекта или ревью своего кода, без мотивационных речей.")
 		}
 		if totalCups >= 1000 {
-			prompts = append(prompts, "Сделай 2-3 предложения для опытного участника coding-чата: уважительный тон, конкретный комментарий по текущей задаче и один инженерный совет. Код — ```язык ... ```.")
+			prompts = append(prompts, "1-2 предложения для опытного участника coding-чата: уважительно и по сути текущей задачи, без перечисления кубков.")
 		}
 
-		selectedPrompt := prompts[now.Unix()%int64(len(prompts))]
+		selectedPrompt := prompts[localNow.Unix()%int64(len(prompts))]
 		return selectedPrompt
 	}
 
@@ -3854,7 +3836,7 @@ func (b *Bot) getUnifiedTrainingPrompt(streakDays, totalCalories, totalCups int,
 	}
 
 	// Выбираем случайный промпт
-	selectedPrompt := prompts[now.Unix()%int64(len(prompts))]
+	selectedPrompt := prompts[localNow.Unix()%int64(len(prompts))]
 	return selectedPrompt
 }
 
@@ -3905,6 +3887,152 @@ func (b *Bot) getVariedTrainingPrompt(streakDays, totalCalories, totalCups int, 
 	// Выбираем случайный промпт
 	selectedPrompt := prompts[now.Unix()%int64(len(prompts))]
 	return selectedPrompt
+}
+
+func stripFencedCodeBlocks(s string) string {
+	for strings.Contains(s, "```") {
+		start := strings.Index(s, "```")
+		if start == -1 {
+			break
+		}
+		rest := s[start+3:]
+		end := strings.Index(rest, "```")
+		if end == -1 {
+			return strings.TrimSpace(s[:start])
+		}
+		s = strings.TrimSpace(s[:start] + rest[end+3:])
+	}
+	return strings.TrimSpace(s)
+}
+
+func looksLikeDailyWisdomSpam(text string) bool {
+	low := strings.ToLower(strings.TrimSpace(text))
+	if low == "" {
+		return false
+	}
+	if strings.Contains(low, "мудрость дня") {
+		return true
+	}
+	if strings.Contains(low, "сегодняшн") && strings.Contains(low, "день") {
+		return true
+	}
+	if strings.Contains(low, "сегодняшний день") {
+		return true
+	}
+	if strings.Contains(low, "терпен") && (strings.Contains(low, "прогресс") || strings.Contains(low, "шаг")) {
+		return true
+	}
+	if strings.Contains(low, "верой") && strings.Contains(low, "сил") {
+		return true
+	}
+	if strings.Contains(low, "маленьк") && strings.Contains(low, "побед") {
+		return true
+	}
+	if strings.Contains(low, "двигайся вперед") || strings.Contains(low, "двигайся вперёд") {
+		return true
+	}
+	if strings.Contains(low, "осознанно") && strings.Contains(low, "вызов") {
+		return true
+	}
+	if strings.Contains(low, "выносливост") && strings.Contains(low, "ментальн") {
+		return true
+	}
+	if strings.Contains(low, "дух") && strings.Contains(low, "вол") {
+		return true
+	}
+	return false
+}
+
+func sanitizeReportAddendum(text, chatType string) string {
+	text = strings.TrimSpace(text)
+	if text == "" {
+		return ""
+	}
+	if looksLikeDailyWisdomSpam(text) {
+		return ""
+	}
+	if chatType == "coding" {
+		return finalizeCodingReportAddendum(text)
+	}
+	text = strings.ReplaceAll(text, "**", "")
+	return firstSentence(text)
+}
+
+func lineLooksLikeCodingAddendumNoise(line string) bool {
+	low := strings.ToLower(strings.TrimSpace(line))
+	if low == "" {
+		return true
+	}
+	if looksLikeDailyWisdomSpam(low) {
+		return true
+	}
+	if strings.Contains(low, "калор") {
+		return true
+	}
+	if strings.Contains(low, "таймер") {
+		return true
+	}
+	if strings.Contains(low, "⏰") || strings.Contains(low, "🔥") {
+		return true
+	}
+	if strings.Contains(low, "#coding_done") || strings.Contains(low, "#training_done") {
+		return true
+	}
+	if strings.Contains(low, "отчёт принят") || strings.Contains(low, "отчет принят") {
+		return true
+	}
+	if strings.Contains(low, "продолжай кодить") {
+		return true
+	}
+	if strings.Contains(low, "примечани") {
+		return true
+	}
+	return false
+}
+
+func firstTwoSentences(text string) string {
+	text = strings.TrimSpace(text)
+	if text == "" {
+		return ""
+	}
+	endings := 0
+	for i, r := range text {
+		if r == '.' || r == '!' || r == '?' {
+			endings++
+			if endings >= 2 {
+				return strings.TrimSpace(text[:i+1])
+			}
+		}
+	}
+	return strings.TrimSpace(text)
+}
+
+// finalizeCodingReportAddendum оставляет 1-2 предложения про код и вычищает дубли статистики/«мудрости», которые модель иногда копирует из чата.
+func finalizeCodingReportAddendum(s string) string {
+	s = strings.TrimSpace(s)
+	s = stripFencedCodeBlocks(s)
+	s = strings.ReplaceAll(s, "**", "")
+	var parts []string
+	for _, line := range strings.Split(s, "\n") {
+		line = strings.TrimSpace(line)
+		line = strings.Trim(line, "()")
+		if lineLooksLikeCodingAddendumNoise(line) {
+			continue
+		}
+		if line != "" {
+			parts = append(parts, line)
+		}
+	}
+	s = strings.TrimSpace(strings.Join(parts, " "))
+	s = firstTwoSentences(s)
+	if len([]rune(s)) > 280 {
+		runes := []rune(s)
+		s = string(runes[:280])
+		if dot := strings.LastIndexAny(s, ".!?"); dot > 40 {
+			s = strings.TrimSpace(s[:dot+1])
+		}
+	}
+	return strings.TrimSpace(s)
 }
 
 func firstSentence(text string) string {

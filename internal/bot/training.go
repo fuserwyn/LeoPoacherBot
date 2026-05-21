@@ -12,6 +12,13 @@ import (
 )
 
 func (b *Bot) processTrainingDone(msg *tgbotapi.Message) {
+	// Legacy path retained for backward compatibility.
+	// Delegate to the canonical handler where calorie output is disabled.
+	if b != nil && b.db != nil {
+		b.handleTrainingDone(msg)
+		return
+	}
+
 	username := ""
 	if msg.From.UserName != "" {
 		username = "@" + msg.From.UserName

@@ -759,3 +759,44 @@ func TestCalculateCaloriesDoubleTraining(t *testing.T) {
 
 	t.Log("Double training logic test passed")
 }
+
+func TestShouldSkipReportAIAddendum(t *testing.T) {
+	loc := time.FixedZone("MSK", 3*3600)
+	cases := []struct {
+		hour int
+		want bool
+	}{
+		{3, false},
+		{4, true},
+		{5, true},
+		{6, false},
+		{20, false},
+	}
+	for _, tc := range cases {
+		got := shouldSkipReportAIAddendum(time.Date(2026, 5, 21, tc.hour, 20, 0, 0, loc))
+		if got != tc.want {
+			t.Errorf("hour=%d: want skip=%v, got %v", tc.hour, tc.want, got)
+		}
+	}
+}
+
+func TestLooksLikeDailyWisdomSpam(t *testing.T) {
+	wisdom := "Сегодняшний день — это возможность проявить терпение и увидеть прогресс в каждом шаге. Действуй осознанно, принимай вызовы с ясным умом и верой в свои силы."
+	if !looksLikeDailyWisdomSpam(wisdom) {
+		t.Fatal("expected wisdom spam to be detected")
+	}
+	ok := "Отличная работа с приседаниями — следи за коленями на эксцентрике."
+	if looksLikeDailyWisdomSpam(ok) {
+		t.Fatal("expected normal training comment not to be flagged as wisdom")
+	}
+}
+
+func TestSanitizeReportAddendumDropsWisdom(t *testing.T) {
+	wisdom := "Сегодняшний день — это возможность проявить терпение."
+	if got := sanitizeReportAddendum(wisdom, "training"); got != "" {
+		t.Fatalf("expected empty training addendum, got %q", got)
+	}
+	if got := sanitizeReportAddendum(wisdom, "coding"); got != "" {
+		t.Fatalf("expected empty coding addendum, got %q", got)
+	}
+}
