@@ -295,7 +295,8 @@
 
 html.app-keyboard-open .chat__form {
   bottom: var(--app-keyboard-bottom, 0px);
-  padding-bottom: calc(6px + env(safe-area-inset-bottom, 0px));
+  padding: 6px 12px 0;
+  background: var(--bg, #0d0d12);
 }
 
 /* Шире мобилки — чат и форма ввода на всю ширину окна. */

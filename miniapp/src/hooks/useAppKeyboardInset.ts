@@ -25,10 +25,26 @@ export function useAppKeyboardInset() {
 
     const readKeyboard = () => {
       const vv = window.visualViewport;
-      const layoutH = Math.max(320, Math.floor(window.innerHeight || 320));
-      const visualH = Math.floor(vv?.height ?? layoutH);
+      const tg = window.Telegram?.WebApp;
+      const tgStable =
+        typeof tg?.viewportStableHeight === "number" && tg.viewportStableHeight > 200
+          ? Math.floor(tg.viewportStableHeight)
+          : 0;
+      const tgCurrent =
+        typeof tg?.viewportHeight === "number" && tg.viewportHeight > 100
+          ? Math.floor(tg.viewportHeight)
+          : 0;
+
+      const layoutH = Math.max(320, tgStable || Math.floor(window.innerHeight || 320));
+      const visualH = Math.floor(vv && vv.height > 0 ? vv.height : tgCurrent || layoutH);
       const offsetTop = Math.floor(vv?.offsetTop ?? 0);
-      const kb = Math.max(0, layoutH - visualH - offsetTop);
+
+      let kb = Math.max(0, layoutH - visualH - offsetTop);
+      if (tgStable > 0 && tgCurrent > 0 && textFocused) {
+        // В TG Mini App visualViewport часто завышает inset → зазор между полем и клавиатурой.
+        kb = Math.max(0, tgStable - tgCurrent);
+      }
+
       const px = `${kb}px`;
       root.style.setProperty("--app-keyboard-bottom", px);
       root.style.setProperty("--feed-keyboard-bottom", px);
@@ -48,6 +64,9 @@ export function useAppKeyboardInset() {
       textFocused = true;
       syncOpenClass();
       readKeyboard();
+      window.setTimeout(readKeyboard, 0);
+      window.setTimeout(readKeyboard, 100);
+      window.setTimeout(readKeyboard, 280);
     };
 
     const onFocusOut = () => {

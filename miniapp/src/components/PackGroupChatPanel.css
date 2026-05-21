@@ -32,7 +32,7 @@
   display: flex;
   flex-direction: column;
   gap: 8px;
-  padding: 4px 0 calc(58px + var(--safe-bottom, 0px));
+  padding: 4px 0 calc(52px + var(--bottom-nav-h, var(--feed-bottom-nav-h, 72px)));
 }
 
 .packroom__row {
@@ -160,24 +160,30 @@
   text-underline-offset: 2px;
 }
 
-/* Фиксировано над таббаром; при клавиатуре не поднимается (--app-keyboard-bottom не используем). */
+/* Вплотную к таббару (высота уже включает safe-area); при клавиатуре — над ней. */
 .packroom__form {
   position: fixed;
   left: 0;
   right: 0;
-  bottom: calc(var(--feed-bottom-nav-h, 88px) + var(--safe-bottom, 0px));
-  z-index: 52;
+  bottom: 0;
+  z-index: 90;
   max-width: 520px;
   margin: 0 auto;
   display: flex;
   gap: 8px;
-  padding: 6px 8px;
-  background: linear-gradient(180deg, transparent 0%, var(--bg, #0d0d12) 28%);
+  padding: 6px 8px calc(2px + var(--bottom-nav-h, var(--feed-bottom-nav-h, 72px)));
+  background: var(--bg, #0d0d12);
   box-sizing: border-box;
 }
 
 html.app-keyboard-open .packroom__form {
-  bottom: calc(var(--feed-bottom-nav-h, 88px) + var(--safe-bottom, 0px));
+  bottom: var(--app-keyboard-bottom, 0px);
+  padding: 6px 8px 0;
+  background: var(--bg, #0d0d12);
+}
+
+html.app-keyboard-open .packroom__log {
+  padding-bottom: 52px;
 }
 
 .packroom__input {
