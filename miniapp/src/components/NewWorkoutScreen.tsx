@@ -125,6 +125,12 @@ const OTHER_LABEL_MAX = 80;
 
 export function NewWorkoutScreen({ onClose, onSave, showAlert }: Props) {
   const { visualH, keyboardBottom } = useViewportMetrics();
+
+  useEffect(() => {
+    window.scrollTo(0, 0);
+    document.documentElement.scrollTop = 0;
+    document.body.scrollTop = 0;
+  }, []);
   const bodyRef = useRef<HTMLDivElement>(null);
   const noteTaRef = useRef<HTMLTextAreaElement>(null);
   const noteFocusedRef = useRef(false);
@@ -221,13 +227,9 @@ export function NewWorkoutScreen({ onClose, onSave, showAlert }: Props) {
     <div
       className={`nwo${showKeyboardBar ? " nwo--keyboard" : ""}`}
       style={{
-        // Без клавиатуры: над таббаром. С клавиатурой: только видимая область, таббар скрыт классом nwo-keyboard-open.
-        height: keyboardOpen
-          ? `${visualH}px`
-          : `min(${visualH}px, calc(100dvh - var(--bottom-nav-h, 72px)))`,
-        maxHeight: keyboardOpen
-          ? `${visualH}px`
-          : `min(${visualH}px, calc(100dvh - var(--bottom-nav-h, 72px)))`,
+        // Всегда на весь экран: при сжатии до visualH просвечивала вкладка «Правила» под оверлеем.
+        height: keyboardOpen ? "100dvh" : `min(${visualH}px, calc(100dvh - var(--bottom-nav-h, 72px)))`,
+        maxHeight: keyboardOpen ? "100dvh" : `min(${visualH}px, calc(100dvh - var(--bottom-nav-h, 72px)))`,
       }}
     >
       <header className="nwo__head">

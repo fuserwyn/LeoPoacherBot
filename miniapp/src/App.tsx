@@ -201,7 +201,7 @@ export function App() {
     <div className="app">
       {supportOpen ? (
         <SupportScreen initData={initData} inTelegram={inTelegram} showAlert={showAlert} />
-      ) : tab === "chat" ? (
+      ) : !workoutOpen && tab === "chat" ? (
         <ChatScreen
           name={effectiveName}
           initData={initData}
@@ -210,7 +210,7 @@ export function App() {
           onInboxDrained={onLeoInboxDrained}
         />
       ) : null}
-      {!supportOpen && tab === "feed" && (
+      {!supportOpen && !workoutOpen && tab === "feed" && (
         <FeedScreen
           name={effectiveName}
           streak={streak}
@@ -224,8 +224,8 @@ export function App() {
           }}
         />
       )}
-      {!supportOpen && tab === "rules" && <RulesScreen />}
-      {!supportOpen && tab === "profile" && (
+      {!supportOpen && !workoutOpen && tab === "rules" && <RulesScreen />}
+      {!supportOpen && !workoutOpen && tab === "profile" && (
         <ProfileScreen
           name={effectiveName}
           streak={streak}

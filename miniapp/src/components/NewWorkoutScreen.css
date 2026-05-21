@@ -448,9 +448,9 @@
   opacity: 0.95;
 }
 
-/* Клавиатура открыта: нижний футер скрыт, отправка — в панели над клавиатурой. */
+/* Клавиатура открыта: нижний футер скрыт, отправка — в фиксированной панели над клавиатурой. */
 .nwo--keyboard .nwo__body {
-  padding-bottom: calc(52px + var(--app-keyboard-bottom, 0px));
+  padding-bottom: 4px;
 }
 
 .nwo__keyboard-bar {
