@@ -45,16 +45,7 @@ func formatChatMemoryLine(ts time.Time, userID int64, username, kind, text strin
 }
 
 func (b *Bot) largestPhotoFileID(msg *tgbotapi.Message) string {
-	if msg == nil || len(msg.Photo) == 0 {
-		return ""
-	}
-	best := msg.Photo[0]
-	for _, p := range msg.Photo[1:] {
-		if p.FileSize > best.FileSize {
-			best = p
-		}
-	}
-	return best.FileID
+	return b.photoFileID(msg)
 }
 
 func (b *Bot) telegramFileURL(fileID string) (string, error) {
@@ -75,7 +66,7 @@ func (b *Bot) collectPhotoURLs(msgs ...*tgbotapi.Message) []string {
 		if m == nil {
 			continue
 		}
-		fid := b.largestPhotoFileID(m)
+		fid := b.photoFileID(m)
 		if fid == "" {
 			continue
 		}
@@ -97,7 +88,7 @@ func buildPhotoMemoryText(userID int64, username, caption, description string) s
 	var b strings.Builder
 	b.WriteString("[ФОТО] ")
 	b.WriteString(strings.TrimSpace(username))
-	b.WriteString(fmt.Sprintf(" (id=%d)", userID))
+	b.WriteString(fmt.Sprintf(" (id=%d) прислал фото", userID))
 	if strings.TrimSpace(caption) != "" {
 		b.WriteString(" | подпись: ")
 		b.WriteString(strings.TrimSpace(caption))

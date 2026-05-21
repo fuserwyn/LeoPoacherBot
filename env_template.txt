@@ -34,6 +34,9 @@ OPENROUTER_API_KEY=your_openrouter_api_key_here
 # Список моделей: https://openrouter.ai/models
 OPENROUTER_MODEL=deepseek/deepseek-r1-0528
 
+# Vision-модель для распознавания фото в память чата и ответов с картинкой (GPT-4o-mini на OpenRouter)
+OPENROUTER_VISION_MODEL=openai/gpt-4o-mini
+
 # Сканирование истории при старте (true/false, по умолчанию false)
 # Если true - бот попытается просканировать доступную историю сообщений при первом запуске (если БД пустая)
 # Если false - сканирование не запускается, новые сообщения будут сохраняться автоматически

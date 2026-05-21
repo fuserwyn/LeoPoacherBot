@@ -13,11 +13,12 @@ import (
 )
 
 type OpenRouterClient struct {
-	apiKey     string
-	baseURL    string
-	model      string // Модель по умолчанию
-	logger     logger.Logger
-	httpClient *http.Client
+	apiKey      string
+	baseURL     string
+	model       string // Модель по умолчанию
+	visionModel string // GPT-4o-mini и аналоги для фото
+	logger      logger.Logger
+	httpClient  *http.Client
 }
 
 type ChatMessage struct {
@@ -57,15 +58,19 @@ type UserTrainingData struct {
 	TrainingMessage string
 }
 
-func NewOpenRouterClient(apiKey string, defaultModel string, log logger.Logger) *OpenRouterClient {
+func NewOpenRouterClient(apiKey, defaultModel, visionModel string, log logger.Logger) *OpenRouterClient {
 	if defaultModel == "" {
 		defaultModel = "deepseek/deepseek-r1-0528" // Fallback
 	}
+	if visionModel == "" {
+		visionModel = "openai/gpt-4o-mini"
+	}
 	return &OpenRouterClient{
-		apiKey:  apiKey,
-		baseURL: "https://openrouter.ai/api/v1/chat/completions",
-		model:   defaultModel,
-		logger:  log,
+		apiKey:      apiKey,
+		baseURL:     "https://openrouter.ai/api/v1/chat/completions",
+		model:       defaultModel,
+		visionModel: visionModel,
+		logger:      log,
 		httpClient: &http.Client{
 			Timeout: 60 * time.Second,
 		},
@@ -371,7 +376,7 @@ func (c *OpenRouterClient) GenerateMonthlySummary(usersData []UserTrainingData) 
 }
 
 // AnswerUserQuestion отвечает на вопрос пользователя на основе его истории тренировок
-func (c *OpenRouterClient) AnswerUserQuestion(question string, userContext string) (string, error) {
+func (c *OpenRouterClient) AnswerUserQuestion(question string, userContext string, imageURLs ...string) (string, error) {
 	systemPrompt := `Ты - СТРОГИЙ тренер-леопард по имени Fat Leopard, который следит за тренировками пользователей.
 Ты имеешь полный доступ к истории тренировок, статистике и данным пользователя.
 
@@ -537,12 +542,31 @@ func (c *OpenRouterClient) AnswerUserQuestion(question string, userContext strin
 
 	prompt := fmt.Sprintf("Вопрос пользователя: %s\n\n=== ПОЛНЫЙ КОНТЕКСТ ПОЛЬЗОВАТЕЛЯ ===\n%s", question, userContext)
 
-	messages := []ChatMessage{
-		{Role: "system", Content: systemPrompt},
-		{Role: "user", Content: prompt},
+	model := ""
+	var userContent interface{} = prompt
+	if len(imageURLs) > 0 {
+		model = c.visionModel
+		parts := []visionContentPart{{Type: "text", Text: prompt}}
+		for _, url := range imageURLs {
+			if url == "" {
+				continue
+			}
+			parts = append(parts, visionContentPart{
+				Type: "image_url",
+				ImageURL: &struct {
+					URL string `json:"url"`
+				}{URL: url},
+			})
+		}
+		userContent = parts
 	}
 
-	return c.Chat(messages, "")
+	messages := []ChatMessage{
+		{Role: "system", Content: systemPrompt},
+		{Role: "user", Content: userContent},
+	}
+
+	return c.Chat(messages, model)
 }
 
 // GenerateDailyWisdom генерирует короткую «мудрость дня» о силе духа и спорте/писательстве

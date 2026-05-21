@@ -33,7 +33,7 @@ func (b *Bot) ingestChatMessage(msg *tgbotapi.Message, messageType string) {
 	author := telegramUserLabel(msg.From)
 	body := b.messageCaptionOrText(msg)
 
-	if b.hasPhoto(msg) {
+	if b.hasVisualAttachment(msg) {
 		b.ingestPhotoMessage(msg, messageType, author, body)
 		return
 	}
@@ -51,7 +51,7 @@ func (b *Bot) ingestChatMessage(msg *tgbotapi.Message, messageType string) {
 
 func (b *Bot) ingestPhotoMessage(msg *tgbotapi.Message, messageType, author, caption string) {
 	if b.aiClient != nil {
-		go b.indexPhotoMessageAsync(msg, messageType)
+		b.indexPhotoMessageAsync(msg, messageType)
 		return
 	}
 	text := buildPhotoMemoryText(msg.From.ID, author, caption, "(фото, распознавание недоступно)")

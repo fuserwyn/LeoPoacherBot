@@ -59,7 +59,7 @@ func New(cfg *config.Config, db *database.Database, log logger.Logger) (*Bot, er
 	// Создаем клиент OpenRouter для ИИ
 	var aiClient *ai.OpenRouterClient
 	if cfg.OpenRouterAPIKey != "" {
-		aiClient = ai.NewOpenRouterClient(cfg.OpenRouterAPIKey, cfg.OpenRouterModel, log)
+		aiClient = ai.NewOpenRouterClient(cfg.OpenRouterAPIKey, cfg.OpenRouterModel, cfg.OpenRouterVisionModel, log)
 		log.Infof("OpenRouter AI client initialized with model: %s", cfg.OpenRouterModel)
 	} else {
 		log.Warn("OpenRouter API key not provided, AI features will be disabled")
@@ -3230,11 +3230,15 @@ func (b *Bot) handleAIQuestion(msg *tgbotapi.Message, questionText string) {
 	questionText = strings.ReplaceAll(questionText, "@", "")
 	questionText = strings.TrimSpace(questionText)
 
-	if questionText == "" {
+	hasVisual := b.hasVisualAttachment(msg)
+	if questionText == "" && !hasVisual {
 		b.logger.Infof("Question text is empty after cleaning")
 		reply := tgbotapi.NewMessage(msg.Chat.ID, "💬 Привет! 👋 Задай мне вопрос!\n\nНапример:\n• Что я делал вчера?\n• Как мой прогресс?\n• Что улучшить в тренировках?\n• Как лечиться?")
 		b.api.Send(reply)
 		return
+	}
+	if questionText == "" && hasVisual {
+		questionText = "Пользователь прислал фото. Ответь по сути подписи (если есть) и по содержимому изображения."
 	}
 
 	b.logger.Infof("Processing AI question: %s", questionText)
@@ -3729,7 +3733,15 @@ func (b *Bot) handleAIQuestion(msg *tgbotapi.Message, questionText string) {
 		finalQuestion += attributionRule
 	}
 
-	answer, err := b.aiClient.AnswerUserQuestion(finalQuestion, contextText.String())
+	photoURLs := b.collectPhotoURLs(msg)
+	if len(photoURLs) > 0 && msg.From != nil {
+		asker := telegramUserLabel(msg.From)
+		contextText.WriteString(fmt.Sprintf("\n=== ФОТО В ЭТОМ СООБЩЕНИИ (прислал %s, id=%d) ===\n", asker, msg.From.ID))
+		if desc, derr := b.aiClient.DescribeImage(photoURLs[0], b.messageCaptionOrText(msg), asker, b.config.OpenRouterVisionModel); derr == nil {
+			contextText.WriteString(desc)
+		}
+	}
+	answer, err := b.aiClient.AnswerUserQuestion(finalQuestion, contextText.String(), photoURLs...)
 	if err != nil {
 		b.logger.Errorf("Failed to generate AI answer: %v", err)
 
