@@ -2,7 +2,10 @@
   display: flex;
   flex-direction: column;
   gap: 10px;
-  min-height: 200px;
+  min-height: calc(100dvh - var(--feed-header-h, 220px) - var(--feed-bottom-nav-h, 88px));
+  max-height: calc(100dvh - var(--feed-header-h, 220px) - var(--feed-bottom-nav-h, 88px));
+  overflow: hidden;
+  box-sizing: border-box;
 }
 
 .packroom__warn,
@@ -18,15 +21,18 @@
   color: var(--muted, #8b8b9a);
   margin: 0 0 4px;
   padding: 0 2px;
+  flex-shrink: 0;
 }
 
 .packroom__log {
-  max-height: min(52dvh, 480px);
+  flex: 1;
+  min-height: 0;
   overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
   display: flex;
   flex-direction: column;
   gap: 8px;
-  padding: 4px 0;
+  padding: 4px 0 calc(58px + var(--safe-bottom, 0px));
 }
 
 .packroom__row {
@@ -79,7 +85,6 @@
   text-align: right;
 }
 
-/* Свои сообщения — колонка справа и аватарка справа от пузыря (как в мессенджерах). */
 .packroom__row--me .packroom__row-inner {
   flex-direction: row-reverse;
 }
@@ -95,8 +100,22 @@
   color: var(--muted, #6b6b7a);
 }
 
+.packroom__bubble-wrap {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+  max-width: 100%;
+}
+
+.packroom__row--me .packroom__bubble-wrap {
+  align-items: flex-end;
+}
+
 .packroom__bubble {
-  display: inline-block;
+  display: block;
+  width: fit-content;
+  max-width: 100%;
   padding: 8px 12px;
   border-radius: 12px;
   font-size: 0.9rem;
@@ -104,6 +123,7 @@
   white-space: pre-wrap;
   word-break: break-word;
   text-align: start;
+  box-sizing: border-box;
 }
 
 .packroom__row--leo .packroom__bubble {
@@ -129,7 +149,7 @@
 }
 
 .packroom__del {
-  margin-top: 4px;
+  display: block;
   border: none;
   background: transparent;
   color: var(--muted, #8b8b9a);
@@ -140,10 +160,24 @@
   text-underline-offset: 2px;
 }
 
+/* Фиксировано над таббаром; при клавиатуре не поднимается (--app-keyboard-bottom не используем). */
 .packroom__form {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: calc(var(--feed-bottom-nav-h, 88px) + var(--safe-bottom, 0px));
+  z-index: 52;
+  max-width: 520px;
+  margin: 0 auto;
   display: flex;
   gap: 8px;
-  margin-top: 4px;
+  padding: 6px 8px;
+  background: linear-gradient(180deg, transparent 0%, var(--bg, #0d0d12) 28%);
+  box-sizing: border-box;
+}
+
+html.app-keyboard-open .packroom__form {
+  bottom: calc(var(--feed-bottom-nav-h, 88px) + var(--safe-bottom, 0px));
 }
 
 .packroom__input {
@@ -165,6 +199,7 @@
   background: #268a5a;
   color: #fff;
   cursor: pointer;
+  flex-shrink: 0;
 }
 
 .packroom__send:disabled {

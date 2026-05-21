@@ -63,6 +63,12 @@ export function PackGroupChatPanel({ initData, inTelegram, meId, showAlert, onHa
     void load();
   }, [load]);
 
+  // Как в ChatScreen: без body--lock iOS/WebView подтягивает страницу к фокусу — поле «плывёт» вверх.
+  useEffect(() => {
+    document.body.classList.add("body--lock");
+    return () => document.body.classList.remove("body--lock");
+  }, []);
+
   useEffect(() => {
     if (!apiBase || !inTelegram || !initData) return;
     const t = setInterval(() => void load(), 5000);
@@ -186,19 +192,21 @@ export function PackGroupChatPanel({ initData, inTelegram, meId, showAlert, onHa
                   <div className="packroom__meta">
                     {m.is_leo ? "Лео" : m.username} · {formatChatTime(m.created_at)} · {timeAgoFromISO(m.created_at)}
                   </div>
-                  <div className="packroom__bubble">{m.text}</div>
-                  {mine && (
-                    <button
-                      type="button"
-                      className="packroom__del"
-                      onClick={() => {
-                        if (!window.confirm("Удалить сообщение?")) return;
-                        void removeMine(m.id);
-                      }}
-                    >
-                      Удалить
-                    </button>
-                  )}
+                  <div className="packroom__bubble-wrap">
+                    <div className="packroom__bubble">{m.text}</div>
+                    {mine && (
+                      <button
+                        type="button"
+                        className="packroom__del"
+                        onClick={() => {
+                          if (!window.confirm("Удалить сообщение?")) return;
+                          void removeMine(m.id);
+                        }}
+                      >
+                        Удалить
+                      </button>
+                    )}
+                  </div>
                 </div>
               </div>
             </div>
