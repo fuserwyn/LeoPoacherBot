@@ -99,7 +99,7 @@ SCAN_HISTORY_ON_START=false
 # DB_CONNECT_MAX_ATTEMPTS=30
 # DB_CONNECT_RETRY_DELAY_SEC=2
 
-# RAG / Qdrant — изолированные сессии: личка с Лео и общий чат стаи (разные session_id в одной коллекции).
+# RAG / Qdrant — изолированные сессии: личка с Лео (personal:…) и общий чат стаи (pack_group:…). Комментарии в ленте — только Postgres.
 # Railway: QDRANT_URL=https://qdrant-main.up.railway.app:6333
 # RAG_ENABLED=true
 # QDRANT_URL=https://qdrant-main.up.railway.app:6333
