@@ -7,21 +7,67 @@ import (
 	"leo-bot/internal/utils"
 )
 
-// SaveUserMessage сохраняет сообщение пользователя для RAG контекста
-func (d *Database) SaveUserMessage(msg *domain.UserMessage) error {
+// SaveUserMessage сохраняет сообщение пользователя для RAG контекста и возвращает id.
+func (d *Database) SaveUserMessage(msg *domain.UserMessage) (int64, error) {
 	query := `
 		INSERT INTO user_messages (user_id, chat_id, username, message_text, message_type, created_at)
 		VALUES ($1, $2, $3, $4, $5, $6)
+		RETURNING id
 	`
-	// Используем московское время
-	moscowTime := utils.FormatMoscowTime(utils.GetMoscowTime())
-	createdAt, err := time.Parse("2006-01-02 15:04:05", moscowTime)
-	if err != nil {
-		createdAt = time.Now()
+	createdAt := msg.CreatedAt
+	if createdAt.IsZero() {
+		moscowTime := utils.FormatMoscowTime(utils.GetMoscowTime())
+		parsed, err := time.Parse("2006-01-02 15:04:05", moscowTime)
+		if err != nil {
+			createdAt = time.Now()
+		} else {
+			createdAt = parsed
+		}
 	}
 
-	_, err = d.db.Exec(query, msg.UserID, msg.ChatID, msg.Username, msg.MessageText, msg.MessageType, createdAt)
-	return err
+	var id int64
+	err := d.db.QueryRow(query, msg.UserID, msg.ChatID, msg.Username, msg.MessageText, msg.MessageType, createdAt).Scan(&id)
+	if err == nil {
+		msg.ID = id
+		msg.CreatedAt = createdAt
+	}
+	return id, err
+}
+
+// CountUserMessages возвращает число сообщений в user_messages.
+func (d *Database) CountUserMessages() (int, error) {
+	var count int
+	err := d.db.QueryRow(`SELECT COUNT(*) FROM user_messages`).Scan(&count)
+	return count, err
+}
+
+// ListUserMessagesBatch постранично читает сообщения для бекфила в Qdrant.
+func (d *Database) ListUserMessagesBatch(afterID int64, limit int) ([]*domain.UserMessage, error) {
+	if limit <= 0 {
+		limit = 100
+	}
+	query := `
+		SELECT id, user_id, chat_id, username, message_text, message_type, created_at
+		FROM user_messages
+		WHERE id > $1
+		ORDER BY id ASC
+		LIMIT $2
+	`
+	rows, err := d.db.Query(query, afterID, limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var messages []*domain.UserMessage
+	for rows.Next() {
+		var msg domain.UserMessage
+		if err := rows.Scan(&msg.ID, &msg.UserID, &msg.ChatID, &msg.Username, &msg.MessageText, &msg.MessageType, &msg.CreatedAt); err != nil {
+			return nil, err
+		}
+		messages = append(messages, &msg)
+	}
+	return messages, rows.Err()
 }
 
 // GetUserMessages получает сообщения пользователя за указанный период

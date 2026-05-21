@@ -684,18 +684,30 @@ func (d *Database) SetChatType(chatID int64, chatType string) error {
 	return err
 }
 
-// GetChatWritingContext получает полный контекст переписки для чата писательства
-// Возвращает последние сообщения из user_messages (до limit сообщений)
+// GetChatWritingContext получает полный контекст переписки для чата.
+// excludeUserID <= 0 — не исключать никого (весь чат).
 func (d *Database) GetChatWritingContext(chatID int64, excludeUserID int64, limit int) ([]*domain.UserMessage, error) {
-	query := `
+	var query string
+	var args []interface{}
+	if excludeUserID > 0 {
+		query = `
 		SELECT id, user_id, chat_id, username, message_text, message_type, created_at
 		FROM user_messages
 		WHERE chat_id = $1 AND user_id != $2
 		ORDER BY created_at DESC
-		LIMIT $3
-	`
+		LIMIT $3`
+		args = []interface{}{chatID, excludeUserID, limit}
+	} else {
+		query = `
+		SELECT id, user_id, chat_id, username, message_text, message_type, created_at
+		FROM user_messages
+		WHERE chat_id = $1
+		ORDER BY created_at DESC
+		LIMIT $2`
+		args = []interface{}{chatID, limit}
+	}
 
-	rows, err := d.db.Query(query, chatID, excludeUserID, limit)
+	rows, err := d.db.Query(query, args...)
 	if err != nil {
 		return nil, err
 	}

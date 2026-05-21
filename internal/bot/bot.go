@@ -14,6 +14,7 @@ import (
 	"leo-bot/internal/domain"
 	"leo-bot/internal/logger"
 	"leo-bot/internal/utils"
+	"leo-bot/internal/vector"
 
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 )
@@ -25,6 +26,7 @@ type Bot struct {
 	config               *config.Config
 	timers               map[string]*domain.TimerInfo
 	aiClient             *ai.OpenRouterClient
+	vectorStore          *vector.Store
 	sickApprovalWatchers map[int64]chan struct{}
 	sickApprovalMutex    sync.Mutex
 	adminSessions        map[int64]*adminSession
@@ -63,6 +65,28 @@ func New(cfg *config.Config, db *database.Database, log logger.Logger) (*Bot, er
 		log.Warn("OpenRouter API key not provided, AI features will be disabled")
 	}
 
+	var vectorStore *vector.Store
+	if cfg.QdrantURL != "" && aiClient != nil {
+		embedModel := cfg.OpenRouterEmbeddingModel
+		vectorStore = vector.NewStore(
+			cfg.QdrantURL,
+			cfg.QdrantAPIKey,
+			cfg.QdrantCollection,
+			uint64(cfg.QdrantVectorSize),
+			func(text string) ([]float32, error) {
+				return aiClient.CreateEmbedding(text, embedModel)
+			},
+		)
+		if err := vectorStore.EnsureCollection(); err != nil {
+			log.Warnf("Qdrant collection init failed (memory disabled until fixed): %v", err)
+			vectorStore = nil
+		} else {
+			log.Infof("Qdrant memory enabled: %s collection=%s", cfg.QdrantURL, cfg.QdrantCollection)
+		}
+	} else if cfg.QdrantURL != "" {
+		log.Warn("QDRANT_URL set but OpenRouter missing — vector memory disabled")
+	}
+
 	return &Bot{
 		api:                  api,
 		db:                   db,
@@ -70,6 +94,7 @@ func New(cfg *config.Config, db *database.Database, log logger.Logger) (*Bot, er
 		config:               cfg,
 		timers:               make(map[string]*domain.TimerInfo),
 		aiClient:             aiClient,
+		vectorStore:          vectorStore,
 		sickApprovalWatchers: make(map[int64]chan struct{}),
 		adminSessions:        make(map[int64]*adminSession),
 	}, nil
@@ -99,9 +124,20 @@ func (b *Bot) Start(ctx context.Context) error {
 		b.logger.Info("SCAN_HISTORY_ON_START=false, skipping history scan. New messages will be saved automatically.")
 	}
 
-	// Запускаем ежемесячную сводку (1-го числа 16:20) и «мудрость дня» (ежедневно 04:20)
+	// Ежемесячная сводка (1-го числа 16:20)
 	go b.startDailySummaryScheduler(ctx)
-	go b.startDailyWisdomScheduler(ctx)
+
+	if b.memoryEnabled() && b.config.QdrantBackfillOnStart {
+		go func() {
+			b.logger.Info("QDRANT_BACKFILL_ON_START=true — starting vector backfill...")
+			indexed, failed, err := b.BackfillVectorMemory(ctx)
+			if err != nil {
+				b.logger.Errorf("Qdrant backfill on start failed: %v", err)
+				return
+			}
+			b.logger.Infof("Qdrant backfill on start done: indexed=%d failed=%d", indexed, failed)
+		}()
+	}
 
 	u := tgbotapi.NewUpdate(0)
 	u.Timeout = 60
@@ -250,9 +286,7 @@ func (b *Bot) handleUpdate(update tgbotapi.Update) {
 				MessageText: text,
 				MessageType: "command",
 			}
-			if err := b.db.SaveUserMessage(userMsg); err != nil {
-				b.logger.Errorf("Failed to save user command: %v", err)
-			}
+			b.persistChatMessage(userMsg)
 		}
 
 		b.handleCommand(msg)
@@ -303,6 +337,8 @@ func (b *Bot) handleCommand(msg *tgbotapi.Message) {
 		b.handleAdmin(msg)
 	case "audit_last24":
 		b.auditLast24h()
+	case "backfill_qdrant":
+		b.handleBackfillQdrant(msg)
 	case "set_chat_type":
 		b.handleSetChatType(msg)
 	default:
@@ -529,9 +565,7 @@ func (b *Bot) handleMessage(msg *tgbotapi.Message) {
 				MessageText: text,
 				MessageType: messageType,
 			}
-			if err := b.db.SaveUserMessage(userMsg); err != nil {
-				b.logger.Errorf("Failed to save user message: %v", err)
-			}
+			b.persistChatMessage(userMsg)
 		}
 
 		// Получаем существующие данные пользователя
@@ -655,9 +689,7 @@ func (b *Bot) handleMessage(msg *tgbotapi.Message) {
 			MessageText: text,
 			MessageType: "question", // Отмечаем как вопрос к ИИ
 		}
-		if err := b.db.SaveUserMessage(userMsg); err != nil {
-			b.logger.Errorf("Failed to save user question: %v", err)
-		}
+		b.persistChatMessage(userMsg)
 
 		b.handleAIQuestion(msg, text)
 		return
@@ -685,9 +717,7 @@ func (b *Bot) handleMessage(msg *tgbotapi.Message) {
 			MessageText: text,
 			MessageType: "general", // Обычное сообщение
 		}
-		if err := b.db.SaveUserMessage(userMsg); err != nil {
-			b.logger.Errorf("Failed to save user message: %v", err)
-		}
+		b.persistChatMessage(userMsg)
 
 		// Обновляем LastMessage в message_log
 		messageLog, err := b.db.GetMessageLog(msg.From.ID, msg.Chat.ID)
@@ -2534,17 +2564,14 @@ func (b *Bot) handleSendToChat(msg *tgbotapi.Message) {
 		if botUsername == "" {
 			botUsername = fmt.Sprintf("bot_%d", b.api.Self.ID)
 		}
-		if saveErr := b.db.SaveUserMessage(&domain.UserMessage{
+		b.persistChatMessage(&domain.UserMessage{
 			UserID:      b.api.Self.ID,
 			ChatID:      chatID,
 			Username:    botUsername,
 			MessageText: messageText,
 			MessageType: "ai_reply",
-		}); saveErr != nil {
-			b.logger.Warnf("Failed to persist send_to_chat message for chat %d: %v", chatID, saveErr)
-		} else {
-			b.logger.Infof("Persisted send_to_chat message for chat %d", chatID)
-		}
+		})
+		b.logger.Infof("Persisted send_to_chat message for chat %d", chatID)
 
 		successMsg := fmt.Sprintf("✅ Сообщение успешно отправлено в чат %d", chatID)
 		reply := tgbotapi.NewMessage(msg.Chat.ID, successMsg)
@@ -3338,6 +3365,9 @@ func (b *Bot) handleAIQuestion(msg *tgbotapi.Message, questionText string) {
 		contextText.WriteString("=== ИСТОРИЯ ТРЕНИРОВОК ПОЛЬЗОВАТЕЛЯ ===\n\n")
 	}
 
+	// Семантическая память всего чата (Qdrant)
+	b.appendVectorChatContext(&contextText, msg.Chat.ID, questionText)
+
 	// Добавляем историю сообщений
 	if len(history) > 0 {
 		for _, msg := range history {
@@ -3438,31 +3468,29 @@ func (b *Bot) handleAIQuestion(msg *tgbotapi.Message, questionText string) {
 		contextText.WriteString("\n⚠️ Данные пользователя не найдены\n")
 	}
 
-	// Недавний контекст беседы (зависит от типа чата)
-	{
+	// Недавний контекст беседы (fallback, если Qdrant выключен)
+	if !b.memoryEnabled() {
 		if chatType == "writing" {
-			// Для чатов писательства используем полную историю переписки
-			writingContext, err := b.db.GetChatWritingContext(msg.Chat.ID, msg.From.ID, 420)
+			writingContext, err := b.db.GetChatWritingContext(msg.Chat.ID, 0, 420)
 			if err == nil && len(writingContext) > 0 {
 				contextText.WriteString("\n=== КОНТЕКСТ ПЕРЕПИСКИ (писательство, последние 420 сообщений) ===\n")
-				for _, msg := range writingContext {
-					text := strings.TrimSpace(msg.MessageText)
+				for _, wm := range writingContext {
+					text := strings.TrimSpace(wm.MessageText)
 					if text == "" {
 						continue
 					}
 					if len(text) > 300 {
 						text = text[:300] + "…"
 					}
-					ts := msg.CreatedAt.In(time.FixedZone("MSK", 3*3600)).Format("2006-01-02 15:04")
+					ts := wm.CreatedAt.In(time.FixedZone("MSK", 3*3600)).Format("2006-01-02 15:04")
 					messageType := ""
-					if msg.MessageType == "ai_reply" {
+					if wm.MessageType == "ai_reply" {
 						messageType = " [БОТ]"
 					}
-					contextText.WriteString(fmt.Sprintf("• [%s]%s %s: %s\n", ts, messageType, msg.Username, text))
+					contextText.WriteString(fmt.Sprintf("• [%s]%s %s: %s\n", ts, messageType, wm.Username, text))
 				}
 			}
 		} else {
-			// Для чатов тренировок используем последние 2 часа
 			end := time.Now()
 			start := end.Add(-2 * time.Hour)
 			recentChat, err := b.db.GetMessagesInRange(msg.Chat.ID, start, end)
@@ -3830,9 +3858,9 @@ func (b *Bot) handleAIQuestion(msg *tgbotapi.Message, questionText string) {
 		b.logger.Errorf("Failed to send AI answer: %v", err)
 	}
 
-	// Сохраняем ответ ИИ для анти‑повторов (тип ai_reply)
-	_ = b.db.SaveUserMessage(&domain.UserMessage{
-		UserID:      msg.From.ID,
+	// Сохраняем ответ ИИ для анти‑повторов и Qdrant
+	b.persistChatMessage(&domain.UserMessage{
+		UserID:      b.api.Self.ID,
 		ChatID:      msg.Chat.ID,
 		Username:    b.api.Self.UserName,
 		MessageText: answer,
@@ -3978,10 +4006,11 @@ func (b *Bot) scanChatHistory(ctx context.Context, daysBack int) {
 			CreatedAt:   msgTime,
 		}
 
-		if err := b.db.SaveUserMessage(userMsg); err != nil {
+		if _, err := b.db.SaveUserMessage(userMsg); err != nil {
 			b.logger.Errorf("Failed to save scanned message: %v", err)
 		} else {
 			savedCount++
+			b.indexMessageAsync(userMsg)
 		}
 
 		processedCount++

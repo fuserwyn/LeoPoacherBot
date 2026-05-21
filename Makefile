@@ -69,6 +69,10 @@ db-reset:
 migrate:
 	go run ./cmd/migrate
 
+# Бекфил: все сообщения из Postgres → Qdrant
+backfill-qdrant:
+	go run ./cmd/backfill-qdrant
+
 # Сборка команды миграций
 build-migrate:
 	go build -o bin/migrate ./cmd/migrate
