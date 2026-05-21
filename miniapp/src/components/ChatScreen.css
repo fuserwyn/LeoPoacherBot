@@ -22,9 +22,7 @@
   max-height: calc(100dvh - var(--bottom-nav-h, 72px));
   display: flex;
   flex-direction: column;
-  /* Видимая часть формы (input + paddings) ~52px, плюс ~16px зазор, чтобы последнее
-     сообщение не уезжало под прозрачный градиент сверху формы. */
-  padding: 0 0 68px;
+  padding: 0;
   max-width: 480px;
   margin: 0 auto;
   box-sizing: border-box;
@@ -171,12 +169,17 @@
 .chat__log {
   flex: 1;
   min-height: 0;
-  padding: 16px;
+  padding: 16px 16px calc(16px + 58px);
   display: flex;
   flex-direction: column;
   gap: 12px;
   overflow-y: auto;
   -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
+}
+
+html.app-keyboard-open .chat__log {
+  padding-bottom: calc(16px + 55px);
 }
 
 .chat__row {
@@ -203,7 +206,7 @@
   border: 1px solid #2a2a36;
   background: #14141c;
   align-self: flex-end;
-  margin-bottom: 1px;
+  margin-bottom: 2px;
 }
 
 .chat__bubble-wrap {
@@ -280,22 +283,22 @@
 
 .chat__form {
   position: fixed;
-  bottom: 0;
   left: 0;
   right: 0;
+  bottom: var(--bottom-nav-h, 72px);
   z-index: 90;
   max-width: 480px;
   margin: 0 auto;
   display: flex;
   gap: 8px;
-  padding: 6px 12px calc(2px + var(--bottom-nav-h, 72px));
-  background: linear-gradient(180deg, transparent 0%, #0d0d12 24%);
+  padding: 6px 12px 4px;
+  background: var(--bg, #0d0d12);
   box-sizing: border-box;
 }
 
 html.app-keyboard-open .chat__form {
   bottom: var(--app-keyboard-bottom, 0px);
-  padding: 6px 12px 0;
+  padding: 6px 12px 3px;
   background: var(--bg, #0d0d12);
 }
 

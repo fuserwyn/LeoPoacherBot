@@ -83,6 +83,7 @@ export function ProfileScreen({
   const [sickFormOpen, setSickFormOpen] = useState(false);
   const [sickReason, setSickReason] = useState("");
   const [healthBusy, setHealthBusy] = useState(false);
+  const [healthInputFocused, setHealthInputFocused] = useState(false);
 
   const cupProgress = miniappCupsLevelProgress(xp);
   const levelTitle = miniappLevelName(miniappLevelFromCups(xp)) || "—";
@@ -270,8 +271,10 @@ export function ProfileScreen({
   const noTrainingAlert = daysSinceLastTraining >= 5;
   const noTrainingDanger = daysSinceLastTraining >= 7;
 
+  const healthActionsKeyboard = sickFormOpen && healthInputFocused;
+
   return (
-    <div className="profile">
+    <div className={`profile${healthActionsKeyboard ? " profile--health-keyboard" : ""}`}>
       <header className="profile__hero">
         <div className={`profile__avatar${noTrainingAlert ? " profile__avatar--alert" : ""}`} aria-hidden>
           {userPhotoUrl ? (
@@ -408,8 +411,19 @@ export function ProfileScreen({
             rows={3}
             maxLength={500}
             disabled={healthBusy}
+            onFocus={() => setHealthInputFocused(true)}
+            onBlur={() => {
+              window.setTimeout(() => {
+                const el = document.activeElement;
+                if (el instanceof HTMLElement && el.closest(".profile__health-actions")) return;
+                setHealthInputFocused(false);
+              }, 80);
+            }}
           />
-          <div className="profile__health-actions">
+          {healthActionsKeyboard ? <div className="profile__health-actions-spacer" aria-hidden /> : null}
+          <div
+            className={`profile__health-actions${healthActionsKeyboard ? " profile__health-actions--keyboard" : ""}`}
+          >
             <button
               type="button"
               className="profile__save profile__health-btn"
@@ -424,6 +438,7 @@ export function ProfileScreen({
               onClick={() => {
                 setSickFormOpen(false);
                 setSickReason("");
+                setHealthInputFocused(false);
               }}
               disabled={healthBusy}
             >

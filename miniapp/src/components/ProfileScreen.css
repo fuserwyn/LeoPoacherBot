@@ -480,10 +480,33 @@
   border: 1.5px solid var(--border-subtle);
 }
 
+.profile__health-actions-spacer {
+  height: 56px;
+  flex-shrink: 0;
+}
+
 .profile__health-actions {
   display: flex;
   gap: 10px;
   align-items: stretch;
+}
+
+.profile__health-actions--keyboard {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: var(--bottom-nav-h, 72px);
+  z-index: 90;
+  max-width: 520px;
+  margin: 0 auto;
+  padding: 8px 16px 4px;
+  background: var(--bg);
+  box-sizing: border-box;
+}
+
+html.app-keyboard-open .profile__health-actions--keyboard {
+  bottom: var(--app-keyboard-bottom, 0px);
+  padding-bottom: 4px;
 }
 
 .profile__health-actions .profile__health-btn {
