@@ -8,20 +8,36 @@
 /* Шапка ленты: fixed, вне feed__pull-shift (transform ломает sticky в WebView/Telegram). */
 .feed__sticky {
   position: fixed;
-  top: var(--safe-top, 0px);
+  top: 0;
   left: 0;
   right: 0;
   z-index: 55;
+  padding-top: var(--safe-top, 0px);
   background: var(--bg);
   box-sizing: border-box;
+  pointer-events: none;
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.feed__sticky::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: -120px;
+  height: 120px;
+  background: var(--bg);
   pointer-events: none;
 }
 
 .feed__sticky-inner {
+  position: relative;
+  z-index: 1;
   max-width: 520px;
   margin: 0 auto;
-  padding: 6px 8px 0;
+  padding: 6px 8px 8px;
   box-sizing: border-box;
+  background: var(--bg);
   pointer-events: auto;
 }
 
