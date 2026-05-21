@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { miniappCupsLevelProgress, miniappLevelFromCups, miniappLevelName } from "../lib/miniappLevel";
 import { cupsWordRu, daysWordRu } from "../lib/streakLabel";
 import "./ProfileScreen.css";
@@ -84,6 +84,24 @@ export function ProfileScreen({
   const [sickReason, setSickReason] = useState("");
   const [healthBusy, setHealthBusy] = useState(false);
   const [healthInputFocused, setHealthInputFocused] = useState(false);
+  const healthTextareaRef = useRef<HTMLTextAreaElement | null>(null);
+
+  const scrollHealthAboveKeyboard = useCallback(() => {
+    const ta = healthTextareaRef.current;
+    if (!ta) return;
+    const vv = window.visualViewport;
+    const visualH = vv?.height ?? window.innerHeight;
+    const offsetTop = vv?.offsetTop ?? 0;
+    const keyboardTop = offsetTop + visualH;
+    const bar = document.querySelector<HTMLElement>(".profile__health-actions--keyboard");
+    const barH = bar?.getBoundingClientRect().height ?? 44;
+    const gap = 10;
+    const taRect = ta.getBoundingClientRect();
+    const maxBottom = keyboardTop - barH - gap;
+    if (taRect.bottom > maxBottom) {
+      window.scrollBy({ top: taRect.bottom - maxBottom, behavior: "smooth" });
+    }
+  }, []);
 
   const cupProgress = miniappCupsLevelProgress(xp);
   const levelTitle = miniappLevelName(miniappLevelFromCups(xp)) || "—";
@@ -273,6 +291,21 @@ export function ProfileScreen({
 
   const healthActionsKeyboard = sickFormOpen && healthInputFocused;
 
+  useEffect(() => {
+    if (!healthInputFocused || !sickFormOpen) return;
+    const run = () => scrollHealthAboveKeyboard();
+    run();
+    window.setTimeout(run, 100);
+    window.setTimeout(run, 280);
+    const vv = window.visualViewport;
+    vv?.addEventListener("resize", run);
+    vv?.addEventListener("scroll", run);
+    return () => {
+      vv?.removeEventListener("resize", run);
+      vv?.removeEventListener("scroll", run);
+    };
+  }, [healthInputFocused, sickFormOpen, scrollHealthAboveKeyboard]);
+
   return (
     <div className={`profile${healthActionsKeyboard ? " profile--health-keyboard" : ""}`}>
       <header className="profile__hero">
@@ -404,6 +437,7 @@ export function ProfileScreen({
         <div className="profile__health">
           <p className="profile__hint muted">Опиши, что случилось — Лео решит, принимать ли больничный.</p>
           <textarea
+            ref={healthTextareaRef}
             className="profile__input profile__health-textarea"
             value={sickReason}
             onChange={(e) => setSickReason(e.target.value.slice(0, 500))}
@@ -411,7 +445,10 @@ export function ProfileScreen({
             rows={3}
             maxLength={500}
             disabled={healthBusy}
-            onFocus={() => setHealthInputFocused(true)}
+            onFocus={() => {
+              setHealthInputFocused(true);
+              window.setTimeout(() => scrollHealthAboveKeyboard(), 80);
+            }}
             onBlur={() => {
               window.setTimeout(() => {
                 const el = document.activeElement;

@@ -468,10 +468,19 @@
   min-height: 72px;
   font-size: 14px;
   line-height: 1.4;
+  box-sizing: border-box;
+}
+
+.profile__health-textarea:focus {
+  box-shadow: inset 0 0 0 1px var(--accent);
 }
 
 .profile__health-btn {
   width: 100%;
+  margin-top: 0;
+  padding: 10px 14px;
+  font-size: 14px;
+  line-height: 1.2;
 }
 
 .profile__health-btn--secondary {
@@ -481,14 +490,15 @@
 }
 
 .profile__health-actions-spacer {
-  height: 56px;
+  height: 44px;
   flex-shrink: 0;
 }
 
 .profile__health-actions {
   display: flex;
-  gap: 10px;
+  gap: 8px;
   align-items: stretch;
+  margin-top: 4px;
 }
 
 .profile__health-actions--keyboard {
@@ -499,8 +509,10 @@
   z-index: 90;
   max-width: 520px;
   margin: 0 auto;
-  padding: 8px 16px 4px;
+  margin-top: 0;
+  padding: 6px 16px 4px;
   background: var(--bg);
+  border-top: 1px solid var(--border-subtle);
   box-sizing: border-box;
 }
 
@@ -514,8 +526,10 @@ html.app-keyboard-open .profile__health-actions--keyboard {
 }
 
 .profile__health-cancel {
-  padding: 14px 18px;
+  padding: 10px 14px;
   border-radius: 999px;
+  font-size: 14px;
+  line-height: 1.2;
   background: transparent;
   color: var(--text-muted);
   border: 1.5px solid var(--border-subtle);
