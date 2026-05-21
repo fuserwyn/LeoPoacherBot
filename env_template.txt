@@ -34,8 +34,11 @@ OPENROUTER_API_KEY=your_openrouter_api_key_here
 # Список моделей: https://openrouter.ai/models
 OPENROUTER_MODEL=deepseek/deepseek-r1-0528
 
-# Vision-модель для распознавания фото в память чата и ответов с картинкой (GPT-4o-mini на OpenRouter)
-OPENROUTER_VISION_MODEL=openai/gpt-4o-mini
+# Vision: распознавание фото (RAG, ответы с картинкой, #training_done+фото)
+# Бесплатной Qwen VL на OpenRouter нет. Дешёвая Qwen с vision (~копейки за фото):
+OPENROUTER_VISION_MODEL=qwen/qwen3-vl-8b-instruct
+# Полностью бесплатно (не Qwen): openrouter/free или nvidia/nemotron-nano-12b-v2-vl:free
+# Нужна настройка privacy: https://openrouter.ai/settings/privacy → Enable free endpoints
 
 # Сканирование истории при старте (true/false, по умолчанию false)
 # Если true - бот попытается просканировать доступную историю сообщений при первом запуске (если БД пустая)

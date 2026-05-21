@@ -49,7 +49,7 @@ func Load() (*Config, error) {
 		OpenRouterAPIKey:         getEnv("OPENROUTER_API_KEY", ""),
 		OpenRouterModel:          getEnv("OPENROUTER_MODEL", "deepseek/deepseek-chat"),
 		OpenRouterEmbeddingModel: getEnv("OPENROUTER_EMBEDDING_MODEL", "openai/text-embedding-3-small"),
-		OpenRouterVisionModel:    getEnv("OPENROUTER_VISION_MODEL", "openai/gpt-4o-mini"),
+		OpenRouterVisionModel:    getEnv("OPENROUTER_VISION_MODEL", "qwen/qwen3-vl-8b-instruct"),
 		ScanHistoryOnStart:       scanHistoryOnStart,
 		QdrantURL:                getEnv("QDRANT_URL", ""),
 		QdrantAPIKey:             getEnv("QDRANT_API_KEY", ""),

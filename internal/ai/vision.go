@@ -15,7 +15,7 @@ type visionContentPart struct {
 // AnswerWithVision отвечает с учётом изображений (GPT-4o-mini и аналоги на OpenRouter).
 func (c *OpenRouterClient) AnswerWithVision(systemPrompt, question string, imageURLs []string, model string) (string, error) {
 	if model == "" {
-		model = "openai/gpt-4o-mini"
+		model = "qwen/qwen3-vl-8b-instruct"
 	}
 	if len(imageURLs) == 0 {
 		return c.AnswerUserQuestion(question, "")
@@ -50,7 +50,7 @@ func (c *OpenRouterClient) AnswerWithVision(systemPrompt, question string, image
 // DescribeImage кратко описывает фото для памяти чата.
 func (c *OpenRouterClient) DescribeImage(imageURL, caption, authorLabel, model string) (string, error) {
 	if model == "" {
-		model = "openai/gpt-4o-mini"
+		model = "qwen/qwen3-vl-8b-instruct"
 	}
 	prompt := fmt.Sprintf(
 		"Пользователь %s прислал это фото в групповой чат. "+
@@ -70,7 +70,7 @@ func (c *OpenRouterClient) DescribeImage(imageURL, caption, authorLabel, model s
 // DescribeImageForTrainingReport — сдержанная тренерская реплика про фото к отчёту (не описание кадра).
 func (c *OpenRouterClient) DescribeImageForTrainingReport(imageURL, caption, authorLabel, model string) (string, error) {
 	if model == "" {
-		model = "openai/gpt-4o-mini"
+		model = "qwen/qwen3-vl-8b-instruct"
 	}
 	prompt := fmt.Sprintf(
 		"Пользователь %s приложил фото к отчёту о тренировке. Подпись: %q. "+

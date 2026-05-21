@@ -63,7 +63,7 @@ func NewOpenRouterClient(apiKey, defaultModel, visionModel string, log logger.Lo
 		defaultModel = "deepseek/deepseek-r1-0528" // Fallback
 	}
 	if visionModel == "" {
-		visionModel = "openai/gpt-4o-mini"
+		visionModel = "qwen/qwen3-vl-8b-instruct"
 	}
 	return &OpenRouterClient{
 		apiKey:      apiKey,
