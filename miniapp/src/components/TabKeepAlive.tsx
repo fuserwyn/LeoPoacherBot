@@ -14,8 +14,14 @@ export function TabKeepAlive({ active, hidden = false, className, children }: Pr
   const show = active && !hidden;
   return (
     <div
-      className={["tab-pane", show ? "tab-pane--active" : "", className].filter(Boolean).join(" ")}
-      hidden={hidden ? true : !active}
+      className={[
+        "tab-pane",
+        show ? "tab-pane--active" : "",
+        hidden ? "tab-pane--overlay-hidden" : "",
+        className,
+      ]
+        .filter(Boolean)
+        .join(" ")}
       aria-hidden={!show}
       {...(!show ? { inert: true as const } : {})}
     >
