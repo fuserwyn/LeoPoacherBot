@@ -1,7 +1,6 @@
 package bot
 
 import (
-	"fmt"
 	"strings"
 	"time"
 
@@ -192,7 +191,7 @@ func (b *Bot) resolvePhotoURLsForAI(msg *tgbotapi.Message, question string) (url
 	return urls, len(urls) > 0
 }
 
-// appendTrainingReportPhotoContext — фото к #training_done: нейтральное описание в контекст ИИ.
+// appendTrainingReportPhotoContext — фото к #training_done: URL для vision и подсказка тренеру.
 func (b *Bot) appendTrainingReportPhotoContext(ctx *strings.Builder, msg *tgbotapi.Message, username string) []string {
 	if !b.hasVisualAttachment(msg) {
 		return nil
@@ -201,18 +200,10 @@ func (b *Bot) appendTrainingReportPhotoContext(ctx *strings.Builder, msg *tgbota
 	if len(urls) == 0 {
 		return nil
 	}
-	ctx.WriteString("К отчёту приложено фото.\n")
-	if b.aiClient != nil {
-		caption := strings.ReplaceAll(b.messageCaptionOrText(msg), "#training_done", "")
-		caption = strings.ReplaceAll(caption, "#writing_done", "")
-		caption = strings.TrimSpace(caption)
-		if desc, err := b.aiClient.DescribeImageForTrainingReport(urls[0], caption, username, b.config.OpenRouterVisionModel); err == nil {
-			desc = strings.TrimSpace(desc)
-			if desc != "" {
-				ctx.WriteString(fmt.Sprintf("На фото: %s\n", desc))
-			}
-		}
-	}
+	ctx.WriteString(
+		"К отчёту приложено фото. В приписке — одна короткая реплика тренера про сам факт приложения снимка " +
+			"(фиксация, дисциплина, серьёзность отчёта). Не описывай объекты, пейзаж и надписи на картинке.\n",
+	)
 	return urls
 }
 
@@ -221,9 +212,14 @@ func trainingPromptPhotoSuffix(hasPhoto bool, chatType string) string {
 		return ""
 	}
 	if chatType == "writing" {
-		return " К отчёту приложено фото: в конце добавь одно короткое сдержанное предложение про снимок (что видно), без восторга и восклицаний — спокойный нейтральный тон."
+		return " К отчёту приложено фото: в конце одно короткое предложение от литературного наставника — " +
+			"про то, что к отчёту приложена иллюстрация (работа над текстом, фиксация процесса). " +
+			"НЕ перечисляй, что изображено на снимке. Сдержанно, без восторга."
 	}
-	return " К отчёту приложено фото: в конце добавь одно короткое сдержанное предложение про снимок (что видно), без энтузиазма и пафоса — ровный тон тренера, как констатация факта."
+	return " К отчёту приложено фото: в конце одно короткое предложение от тренера Fat Leopard — " +
+		"про приложение снимка к отчёту (дисциплина, фиксация, отчёт не пустой). " +
+		"НЕ описывай содержимое картинки (рюкзак, закат, текст и т.п.). " +
+		"Сдержанно, без энтузиазма — реплика наставника, не репортаж."
 }
 
 // indexPhotoMessageAsync: GPT-4o-mini vision → Postgres + Qdrant с автором отправителя.
