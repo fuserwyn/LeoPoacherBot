@@ -36,9 +36,9 @@ func Load() (*Config, error) {
 	scanHistoryOnStart := parseBoolEnv("SCAN_HISTORY_ON_START", false)
 	qdrantBackfillOnStart := parseBoolEnv("QDRANT_BACKFILL_ON_START", false)
 
-	vectorSize, _ := strconv.Atoi(getEnv("QDRANT_VECTOR_SIZE", "1536"))
+	vectorSize, _ := strconv.Atoi(getEnv("QDRANT_VECTOR_SIZE", "2048"))
 	if vectorSize <= 0 {
-		vectorSize = 1536
+		vectorSize = 2048
 	}
 
 	return &Config{
@@ -48,12 +48,12 @@ func Load() (*Config, error) {
 		LogLevel:                 getEnv("LOG_LEVEL", "info"),
 		OpenRouterAPIKey:         getEnv("OPENROUTER_API_KEY", ""),
 		OpenRouterModel:          getEnv("OPENROUTER_MODEL", "deepseek/deepseek-chat"),
-		OpenRouterEmbeddingModel: getEnv("OPENROUTER_EMBEDDING_MODEL", "openai/text-embedding-3-small"),
+		OpenRouterEmbeddingModel: getEnv("OPENROUTER_EMBEDDING_MODEL", "nvidia/llama-nemotron-embed-vl-1b-v2:free"),
 		OpenRouterVisionModel:    getEnv("OPENROUTER_VISION_MODEL", "qwen/qwen3-vl-8b-instruct"),
 		ScanHistoryOnStart:       scanHistoryOnStart,
 		QdrantURL:                getEnv("QDRANT_URL", ""),
 		QdrantAPIKey:             getEnv("QDRANT_API_KEY", ""),
-		QdrantCollection:         getEnv("QDRANT_COLLECTION", "leopard_chat"),
+		QdrantCollection:         getEnv("QDRANT_COLLECTION", "leopard_chat_v2"),
 		QdrantVectorSize:         vectorSize,
 		QdrantBackfillOnStart:    qdrantBackfillOnStart,
 	}, nil

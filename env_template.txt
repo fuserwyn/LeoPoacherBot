@@ -50,10 +50,11 @@ SCAN_HISTORY_ON_START=false
 # Railway: https://qdarnt-production.up.railway.app (порт 6333 проксируется автоматически)
 QDRANT_URL=
 QDRANT_API_KEY=
-QDRANT_COLLECTION=leopard_chat
-QDRANT_VECTOR_SIZE=1536
-# Модель эмбеддингов OpenRouter (должна давать 1536 измерений)
-OPENROUTER_EMBEDDING_MODEL=openai/text-embedding-3-small
+# Новая коллекция под Nemotron 2048-dim (старая leopard_chat с 1536 не совместима)
+QDRANT_COLLECTION=leopard_chat_v2
+QDRANT_VECTOR_SIZE=2048
+# Бесплатные эмбеддинги Nemotron (2048 измерений). Нужен Enable free endpoints в OpenRouter privacy.
+OPENROUTER_EMBEDDING_MODEL=nvidia/llama-nemotron-embed-vl-1b-v2:free
 # Однократный бекфил Postgres → Qdrant при старте бота (true/false)
 QDRANT_BACKFILL_ON_START=false
 

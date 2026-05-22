@@ -10,7 +10,7 @@ import (
 	"time"
 )
 
-const defaultVectorSize = 1536
+const defaultVectorSize = 2048
 
 // Store — Qdrant + эмбеддинги для памяти чата.
 type Store struct {
@@ -28,7 +28,7 @@ func NewStore(baseURL, apiKey, collection string, vectorSize uint64, embed func(
 		vectorSize = defaultVectorSize
 	}
 	if collection == "" {
-		collection = "leopard_chat"
+		collection = "leopard_chat_v2"
 	}
 	return &Store{
 		baseURL:    baseURL,
@@ -50,6 +50,16 @@ func (s *Store) EnsureCollection() error {
 		return err
 	}
 	if status == http.StatusOK {
+		size, err := parseCollectionVectorSize(body)
+		if err != nil {
+			return err
+		}
+		if size != 0 && size != s.vectorSize {
+			return fmt.Errorf(
+				"collection %q has vector size %d, expected %d — use a new QDRANT_COLLECTION (e.g. leopard_chat_v2) or delete the old collection",
+				s.collection, size, s.vectorSize,
+			)
+		}
 		return nil
 	}
 	if status != http.StatusNotFound {
@@ -295,4 +305,22 @@ func payloadInt64FromID(id interface{}) int64 {
 	default:
 		return 0
 	}
+}
+
+func parseCollectionVectorSize(body string) (uint64, error) {
+	var resp struct {
+		Result struct {
+			Config struct {
+				Params struct {
+					Vectors struct {
+						Size uint64 `json:"size"`
+					} `json:"vectors"`
+				} `json:"params"`
+			} `json:"config"`
+		} `json:"result"`
+	}
+	if err := json.Unmarshal([]byte(body), &resp); err != nil {
+		return 0, nil
+	}
+	return resp.Result.Config.Params.Vectors.Size, nil
 }

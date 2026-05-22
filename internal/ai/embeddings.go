@@ -29,7 +29,7 @@ func (c *OpenRouterClient) CreateEmbedding(text, model string) ([]float32, error
 		return nil, fmt.Errorf("empty embedding input")
 	}
 	if model == "" {
-		model = "openai/text-embedding-3-small"
+		model = "nvidia/llama-nemotron-embed-vl-1b-v2:free"
 	}
 
 	body, err := json.Marshal(embeddingRequest{Model: model, Input: text})
