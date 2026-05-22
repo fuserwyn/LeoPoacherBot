@@ -85,7 +85,7 @@ func (b *Bot) processTrainingDone(msg *tgbotapi.Message) {
 		} else if updatedCalories >= 100 && updatedCalories-caloriesToAdd < 100 {
 			messageText := fmt.Sprintf("🎉 Поздравляю! 🎉\n\n%s, достигнуто %d калорий!\n\n🔄 Теперь можешь совершить обмен!\n💡 Напиши #change для обмена 100 калорий на 42 кубка!", username, updatedCalories)
 
-			if b.aiClient != nil {
+			if b.aiClient != nil && !shouldSkipReportAIAddendum(b.getUserLocalNow(messageLog.TimezoneOffsetFromMoscow)) {
 				action := tgbotapi.NewChatAction(msg.Chat.ID, tgbotapi.ChatTyping)
 				b.api.Send(action)
 				stopTyping := make(chan struct{})
@@ -122,7 +122,7 @@ func (b *Bot) processTrainingDone(msg *tgbotapi.Message) {
 				ctxBuilder.WriteString(fmt.Sprintf("Текущие калории: %d\n", updatedCalories))
 				ctxBuilder.WriteString(fmt.Sprintf("Текущие кубки: %d\n", totalCups))
 				if add, err := b.aiClient.AnswerUserQuestion(q, ctxBuilder.String()); err == nil {
-					add = strings.TrimSpace(strings.ReplaceAll(add, "**", ""))
+					add = sanitizeOptionalAIAddendum(add, "training")
 					if add != "" {
 						messageText = messageText + "\n\n" + add
 					}

@@ -150,8 +150,8 @@ func (b *Bot) activateSickLeave(msg *tgbotapi.Message, messageLog *domain.Messag
 		messageText = fmt.Sprintf("🏥 Больничный принят! 🤒\n\n⏸️ Таймер приостановлен на время болезни\n\n❄️ После выздоровления останется: %s до удаления\n\n💪 Выздоравливай и возвращайся к тренировкам!\n\n📝 Когда поправишься, отправь #healthy для возобновления таймера", remainingTimeFormatted)
 	}
 
-	// ИИ‑приписка: пожелание выздоровления (5 предложений)
-	if b.aiClient != nil {
+	// ИИ‑приписка: пожелание выздоровления (5 предложений); не в 4:00–6:59
+	if b.aiClient != nil && !shouldSkipReportAIAddendum(b.getUserLocalNow(messageLog.TimezoneOffsetFromMoscow)) {
 		action := tgbotapi.NewChatAction(msg.Chat.ID, tgbotapi.ChatTyping)
 		b.api.Send(action)
 		stopTyping := make(chan struct{})
@@ -197,7 +197,7 @@ func (b *Bot) activateSickLeave(msg *tgbotapi.Message, messageLog *domain.Messag
 		ctxBuilder.WriteString(fmt.Sprintf("Всего калорий: %d\n", messageLog.Calories))
 		ctxBuilder.WriteString(fmt.Sprintf("Всего кубков: %d\n", totalCups))
 		if addendum, err := b.aiClient.AnswerUserQuestion(question, ctxBuilder.String()); err == nil {
-			addendum = strings.TrimSpace(strings.ReplaceAll(addendum, "**", ""))
+			addendum = sanitizeOptionalAIAddendum(addendum, chatType)
 			if addendum != "" {
 				messageText = messageText + "\n\n" + addendum
 			}
@@ -545,8 +545,8 @@ func (b *Bot) handleHealthy(msg *tgbotapi.Message) {
 	// Отправляем подтверждение с информацией о времени до удаления
 	messageText := fmt.Sprintf("💪 Выздоровление принято! 🎉\n\n⏰ Таймер возобновлён с места остановки!\n\n⏳ До удаления осталось: %s", remainingTimeFormatted)
 
-	// ИИ‑приписка: поздравление с выздоровлением (5 предложений)
-	if b.aiClient != nil {
+	// ИИ‑приписка: поздравление с выздоровлением (5 предложений); не в 4:00–6:59
+	if b.aiClient != nil && !shouldSkipReportAIAddendum(b.getUserLocalNow(messageLog.TimezoneOffsetFromMoscow)) {
 		action := tgbotapi.NewChatAction(msg.Chat.ID, tgbotapi.ChatTyping)
 		b.api.Send(action)
 		stopTyping := make(chan struct{})
@@ -590,7 +590,11 @@ func (b *Bot) handleHealthy(msg *tgbotapi.Message) {
 		ctxBuilder.WriteString(fmt.Sprintf("Всего калорий: %d\n", messageLog.Calories))
 		ctxBuilder.WriteString(fmt.Sprintf("Всего кубков: %d\n", totalCups))
 		if addendum, err := b.aiClient.AnswerUserQuestion(question, ctxBuilder.String()); err == nil {
-			addendum = strings.TrimSpace(strings.ReplaceAll(addendum, "**", ""))
+			chatType, chatErr := b.db.GetChatType(msg.Chat.ID)
+			if chatErr != nil {
+				chatType = "training"
+			}
+			addendum = sanitizeOptionalAIAddendum(addendum, chatType)
 			if addendum != "" {
 				messageText = messageText + "\n\n" + addendum
 			}

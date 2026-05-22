@@ -769,7 +769,8 @@ func TestShouldSkipReportAIAddendum(t *testing.T) {
 		{3, false},
 		{4, true},
 		{5, true},
-		{6, false},
+		{6, true},
+		{7, false},
 		{20, false},
 	}
 	for _, tc := range cases {
@@ -798,5 +799,12 @@ func TestSanitizeReportAddendumDropsWisdom(t *testing.T) {
 	}
 	if got := sanitizeReportAddendum(wisdom, "coding"); got != "" {
 		t.Fatalf("expected empty coding addendum, got %q", got)
+	}
+}
+
+func TestLooksLikeDailyWisdomSpamNewRhythmPhrase(t *testing.T) {
+	wisdom := "Сегодня не гонись за скоростью — найди свой ритм. Пусть каждое движение будет осознанным. Продуктивность придет сама, когда ты в потоке."
+	if !looksLikeDailyWisdomSpam(wisdom) {
+		t.Fatal("expected new rhythm wisdom phrase to be detected")
 	}
 }

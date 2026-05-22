@@ -232,8 +232,8 @@ func (b *Bot) sendWarning(userID, chatID int64, username string) {
 	}
 	messageText := fmt.Sprintf("⚠️ Предупреждение!\n\n%s, ты не отправляешь отчет о %s уже 6 дней!\n\n⏰ У тебя остался 1 день до удаления из чата!\n\n🎯 Отправь %s прямо сейчас!", who, activityLabel, reportTag)
 
-	// Добавляем короткую ИИ‑приписку к предупреждению
-	if b.aiClient != nil {
+	// Добавляем короткую ИИ‑приписку к предупреждению (не в 4:00–6:59 по локальному времени пользователя)
+	if b.aiClient != nil && !b.shouldSkipReportAIAddendumForUser(userID, chatID) {
 		action := tgbotapi.NewChatAction(chatID, tgbotapi.ChatTyping)
 		b.api.Send(action)
 		stopTyping := make(chan struct{})
@@ -280,13 +280,15 @@ func (b *Bot) sendWarning(userID, chatID int64, username string) {
 
 		question := "Сделай очень короткую (1–2 предложения) приписку к предупреждению: строго, но дружелюбно, мотивируй не лениться и напомни, что я 'ем' только ленивых. Добавь легкий юмор про то, что если не будет тренироваться, станет обедом. Не повторяй цифры и факты из текста. Без Markdown."
 		if addendum, err := b.aiClient.AnswerUserQuestion(question, ctxBuilder.String()); err == nil {
-			addendum = strings.TrimSpace(strings.ReplaceAll(addendum, "**", ""))
+			addendum = sanitizeOptionalAIAddendum(addendum, chatType)
 			if addendum != "" {
 				messageText = messageText + "\n\n" + addendum
 			}
 		} else {
 			b.logger.Warnf("AI addendum generation (warning) failed: %v", err)
 		}
+	} else if b.aiClient != nil {
+		b.logger.Infof("Skipping AI addendum for timer warning during early morning (user=%d)", userID)
 	}
 
 	msg := tgbotapi.NewMessage(chatID, messageText)
@@ -312,8 +314,8 @@ func (b *Bot) sendCriticalWarning(userID, chatID int64, username string) {
 	}
 	messageText := fmt.Sprintf("🚨 КРИТИЧЕСКОЕ ПРЕДУПРЕЖДЕНИЕ! 🚨\n\n%s, я уже готовлюсь к обеду! Расставляю тарелки, накрываю на стол... Осталось всего 3 ЧАСА до удаления из чата!\n\n⏰ Это твой последний шанс!\n\n🎯 Отправь %s ПРЯМО СЕЙЧАС — или станешь главным блюдом! 😬", who, reportTag)
 
-	// Добавляем короткую ИИ‑приписку в духе «Леопард уже ест»
-	if b.aiClient != nil {
+	// Добавляем короткую ИИ‑приписку в духе «Леопард уже ест» (не в 4:00–6:59)
+	if b.aiClient != nil && !b.shouldSkipReportAIAddendumForUser(userID, chatID) {
 		action := tgbotapi.NewChatAction(chatID, tgbotapi.ChatTyping)
 		b.api.Send(action)
 		stopTyping := make(chan struct{})
@@ -352,13 +354,15 @@ func (b *Bot) sendCriticalWarning(userID, chatID int64, username string) {
 
 		question := "Сделай очень короткую (1 предложение) приписку к КРИТИЧЕСКОМУ предупреждению: я Fat Leopard, уже готовлюсь к обеду, расставляю тарелки, скоро буду есть. Строго и с юмором — пользователь станет обедом через 3 часа, если не отправит #training_done. Срочно! Без Markdown."
 		if addendum, err := b.aiClient.AnswerUserQuestion(question, ctxBuilder.String()); err == nil {
-			addendum = strings.TrimSpace(strings.ReplaceAll(addendum, "**", ""))
+			addendum = sanitizeOptionalAIAddendum(addendum, chatType)
 			if addendum != "" {
 				messageText = messageText + "\n\n" + addendum
 			}
 		} else {
 			b.logger.Warnf("AI addendum generation (critical warning) failed: %v", err)
 		}
+	} else if b.aiClient != nil {
+		b.logger.Infof("Skipping AI addendum for critical timer warning during early morning (user=%d)", userID)
 	}
 
 	msg := tgbotapi.NewMessage(chatID, messageText)

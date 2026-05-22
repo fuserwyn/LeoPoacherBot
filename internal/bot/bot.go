@@ -99,7 +99,8 @@ func (b *Bot) Start(ctx context.Context) error {
 		b.logger.Info("SCAN_HISTORY_ON_START=false, skipping history scan. New messages will be saved automatically.")
 	}
 
-	// Ежемесячная сводка отключена по запросу.
+	// Ежемесячная сводка и «мудрость дня» в 04:20 отключены.
+	b.logger.Info("Daily wisdom scheduler: disabled (no 04:20 MSK broadcasts)")
 
 	u := tgbotapi.NewUpdate(0)
 	u.Timeout = 60
@@ -125,10 +126,33 @@ func (b *Bot) getUserLocalDate(offsetFromMoscow int) string {
 	return b.getUserLocalNow(offsetFromMoscow).Format("2006-01-02")
 }
 
-// shouldSkipReportAIAddendum — не генерировать ИИ-приписку в 4:00–5:59 по локальному времени пользователя.
+// shouldSkipReportAIAddendum — не генерировать ИИ-приписки и «мудрость» в 4:00–6:59 по локальному времени пользователя (#timezone).
 func shouldSkipReportAIAddendum(localNow time.Time) bool {
 	h := localNow.Hour()
-	return h >= 4 && h < 6
+	return h >= 4 && h < 7
+}
+
+func (b *Bot) shouldSkipReportAIAddendumForUser(userID, chatID int64) bool {
+	offset := 0
+	if log, err := b.db.GetMessageLog(userID, chatID); err == nil && log != nil {
+		offset = log.TimezoneOffsetFromMoscow
+	}
+	return shouldSkipReportAIAddendum(b.getUserLocalNow(offset))
+}
+
+// sanitizeOptionalAIAddendum убирает «мудрость дня» из коротких ИИ-приписок (таймер, больничный и т.д.).
+func sanitizeOptionalAIAddendum(text, chatType string) string {
+	text = strings.TrimSpace(strings.ReplaceAll(text, "**", ""))
+	if text == "" {
+		return ""
+	}
+	if looksLikeDailyWisdomSpam(text) {
+		return ""
+	}
+	if chatType == "coding" {
+		return finalizeCodingReportAddendum(text)
+	}
+	return firstSentence(text)
 }
 
 func parseTimezoneOffsetFromCommand(text string) (int, error) {
@@ -955,7 +979,7 @@ func (b *Bot) handleTrainingDone(msg *tgbotapi.Message) {
 		}
 		messageText := baseMessage
 		var codingPlainFallback string
-		// Дополняем короткой ИИ-припиской по текущему контексту (не в 4:00–5:59 — без «мудрости дня»)
+		// Дополняем короткой ИИ-припиской по текущему контексту (не в 4:00–6:59 — без «мудрости дня»)
 		if b.aiClient != nil && !skipReportAIAddendum {
 			// Индикатор набора, чтобы показать «typing...» пока генерируется ответ
 			action := tgbotapi.NewChatAction(msg.Chat.ID, tgbotapi.ChatTyping)
@@ -1162,7 +1186,7 @@ func (b *Bot) handleTrainingDone(msg *tgbotapi.Message) {
 		}
 		messageText := baseMessage
 		var codingPlainFallback string
-		// Короткая ИИ-приписка и здесь (не в 4:00–5:59)
+		// Короткая ИИ-приписка и здесь (не в 4:00–6:59)
 		if b.aiClient != nil && !skipReportAIAddendum {
 			action := tgbotapi.NewChatAction(msg.Chat.ID, tgbotapi.ChatTyping)
 			b.api.Send(action)
@@ -3932,6 +3956,18 @@ func looksLikeDailyWisdomSpam(text string) bool {
 		return true
 	}
 	if strings.Contains(low, "осознанно") && strings.Contains(low, "вызов") {
+		return true
+	}
+	if strings.Contains(low, "гонись за скорост") || strings.Contains(low, "найди свой ритм") {
+		return true
+	}
+	if strings.Contains(low, "продуктивност") && strings.Contains(low, "поток") {
+		return true
+	}
+	if strings.Contains(low, "слышать себя") && strings.Contains(low, "дисциплин") {
+		return true
+	}
+	if strings.Contains(low, "сегодня не гонись") || (strings.Contains(low, "сегодня не ") && strings.Contains(low, "ритм")) {
 		return true
 	}
 	if strings.Contains(low, "выносливост") && strings.Contains(low, "ментальн") {
