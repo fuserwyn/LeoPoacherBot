@@ -6,10 +6,13 @@
   margin-bottom: 14px;
   /* Компактная карточка; при открытых комментариях см. .act-card--thread-open */
   max-height: min(33dvh, 33vh);
+  max-width: 100%;
   display: flex;
   flex-direction: column;
   overflow: hidden;
+  overflow-x: clip;
   box-sizing: border-box;
+  touch-action: pan-y;
   scroll-margin-bottom: calc(var(--feed-bottom-nav-h, 88px) + var(--safe-bottom, 0px) + 18px);
 }
 
@@ -19,6 +22,7 @@
     620px,
     calc(var(--feed-vvh, 100dvh) - var(--feed-bottom-nav-h, 88px) - var(--safe-top, 0px) - 18px)
   );
+  touch-action: pan-y;
 }
 
 /* Карточка с фото — фото показываем целиком, а не обрезанным */
@@ -131,16 +135,20 @@
 .act-card__body {
   width: 100%;
   min-width: 0;
+  max-width: 100%;
   flex: 1;
   min-height: 0;
+  overflow-x: clip;
   overflow-y: auto;
   -webkit-overflow-scrolling: touch;
+  overscroll-behavior-x: none;
+  touch-action: pan-y;
 }
 
 .act-card--thread-open .act-card__body {
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
+  flex: 0 1 auto;
+  max-height: min(28dvh, 28vh);
+  overflow-y: auto;
 }
 
 .act-card__details {
@@ -148,6 +156,9 @@
   line-height: 1.35;
   margin-bottom: 4px;
   color: var(--text-muted);
+  overflow-wrap: break-word;
+  word-break: break-word;
+  max-width: 100%;
 }
 
 .act-card__comment {
@@ -155,6 +166,9 @@
   line-height: 1.35;
   margin-bottom: 6px;
   color: var(--text);
+  overflow-wrap: break-word;
+  word-break: break-word;
+  max-width: 100%;
 }
 
 .act-card__poll {
@@ -350,10 +364,17 @@
   margin-top: 6px;
   padding-top: 6px;
   border-top: 1px solid var(--border-subtle);
-  flex: 1 1 auto;
-  min-height: 0;
+  flex: 0 0 auto;
+  min-width: 0;
+  max-width: 100%;
   display: flex;
   flex-direction: column;
+  overflow-x: clip;
+}
+
+.act-card--thread-open .act-card__thread {
+  flex: 1 1 auto;
+  min-height: 0;
   overflow: hidden;
 }
 
@@ -363,6 +384,8 @@
   justify-content: space-between;
   width: 100%;
   gap: 8px;
+  box-sizing: border-box;
+  min-height: 32px;
   padding: 6px 8px;
   margin-bottom: 0;
   border: 1px solid var(--border-subtle);
@@ -372,6 +395,8 @@
   font: inherit;
   font-size: 12px;
   font-weight: 500;
+  line-height: 1.35;
+  flex-shrink: 0;
   cursor: pointer;
   text-align: left;
 }
@@ -395,9 +420,14 @@
 .act-card__thread-body {
   flex: 1 1 auto;
   min-height: 0;
+  min-width: 0;
+  max-width: 100%;
+  overflow-x: clip;
   overflow-y: auto;
   -webkit-overflow-scrolling: touch;
-  overscroll-behavior: contain;
+  overscroll-behavior-x: none;
+  overscroll-behavior-y: contain;
+  touch-action: pan-y;
   padding-bottom: 4px;
 }
 
@@ -533,7 +563,9 @@
   line-height: 1.35;
   color: var(--text-muted);
   white-space: pre-wrap;
+  overflow-wrap: anywhere;
   word-break: break-word;
+  max-width: 100%;
 }
 
 .act-card__thread-answer {
@@ -617,7 +649,9 @@
   font-size: var(--act-thread-font-size);
   line-height: var(--act-thread-line-height);
   white-space: pre-wrap;
+  overflow-wrap: anywhere;
   word-break: break-word;
+  max-width: 100%;
 }
 
 .act-card__thread-compose {
@@ -628,6 +662,9 @@
   flex-direction: column;
   gap: 8px;
   flex: 0 0 auto;
+  min-width: 0;
+  max-width: 100%;
+  overflow-x: clip;
   padding-top: 8px;
   background: var(--card);
   border-top: 1px solid var(--border-subtle);

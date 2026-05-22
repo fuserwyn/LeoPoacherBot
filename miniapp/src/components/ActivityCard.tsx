@@ -360,8 +360,9 @@ export function ActivityCard({
             <TrainingReactionsBar reactions={reactions} onReactionClick={onReactionClick} />
           </div>
         )}
-        {hasThread && (
-          <div className="act-card__thread">
+      </div>
+      {hasThread && (
+        <div className="act-card__thread">
             <button
               type="button"
               className="act-card__thread-toggle"
@@ -554,7 +555,6 @@ export function ActivityCard({
             )}
           </div>
         )}
-      </div>
       {lightboxOpen && trainingPhotoUrl ? (
         <div
           className="act-card__lightbox"

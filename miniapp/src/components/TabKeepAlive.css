@@ -4,6 +4,8 @@
 
 .tab-pane--active {
   display: block;
+  overflow-x: clip;
+  max-width: 100%;
   animation: tab-fade-in 180ms ease forwards;
 }
 
