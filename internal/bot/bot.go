@@ -129,6 +129,9 @@ func (b *Bot) Start(ctx context.Context) error {
 	// Ежемесячная сводка (1-го числа 16:20)
 	go b.startDailySummaryScheduler(ctx)
 
+	// Мудрость дня (ежедневно 04:20 МСК)
+	go b.startDailyWisdomScheduler(ctx)
+
 	if b.memoryEnabled() && b.config.QdrantBackfillOnStart {
 		go func() {
 			b.logger.Info("QDRANT_BACKFILL_ON_START=true — starting vector backfill...")
