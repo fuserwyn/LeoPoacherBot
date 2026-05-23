@@ -2807,7 +2807,10 @@ func (b *Bot) generateAndSendDailyWisdom() {
 			idx := int(time.Now().Unix() % int64(len(candidates)))
 			wisdom = candidates[idx]
 		} else {
-			wisdom = strings.ReplaceAll(wisdom, "**", "")
+			wisdom = sanitizeDailyWisdom(wisdom)
+			if wisdom == "" {
+				wisdom = "Сила духа рождается в простых шагах. Дисциплина — форма заботы о себе. День начинается с одного спокойного действия."
+			}
 		}
 
 		for _, chatID := range trainingChats {
@@ -2834,7 +2837,10 @@ func (b *Bot) generateAndSendDailyWisdom() {
 			idx := int(time.Now().Unix() % int64(len(candidates)))
 			wisdom = candidates[idx]
 		} else {
-			wisdom = strings.ReplaceAll(wisdom, "**", "")
+			wisdom = sanitizeDailyWisdom(wisdom)
+			if wisdom == "" {
+				wisdom = "Сила слова рождается в простых предложениях. Дисциплина письма — форма заботы о творчестве. День начинается с одной ясной мысли."
+			}
 		}
 
 		for _, chatID := range writingChats {
