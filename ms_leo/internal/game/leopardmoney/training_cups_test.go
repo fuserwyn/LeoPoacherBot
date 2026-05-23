@@ -29,13 +29,18 @@ func TestTrainingCupsFromParts_specExamples(t *testing.T) {
 }
 
 func TestParseTrainingDoneReport(t *testing.T) {
-	text := "#training_done — Силовая, 60 мин, инт. 3/5\nnotes"
+	text := "силовая, 60 мин, инт. 3/5\nnotes"
 	d, in, cat, ok := ParseTrainingDoneReport(text)
 	if !ok || d != 60 || in != 3 || cat != "strength" {
 		t.Fatalf("got ok=%v d=%d in=%d cat=%q", ok, d, in, cat)
 	}
 	if TrainingCupsFromParts(d, in, cat) != 36 {
 		t.Fatal("cups for 60/3/strength")
+	}
+	legacy := "#training_done — бег, 15 мин, инт. 2/5"
+	d2, in2, cat2, ok2 := ParseTrainingDoneReport(legacy)
+	if !ok2 || d2 != 15 || in2 != 2 || cat2 != "run" {
+		t.Fatalf("legacy parse: ok=%v d=%d in=%d cat=%q", ok2, d2, in2, cat2)
 	}
 }
 

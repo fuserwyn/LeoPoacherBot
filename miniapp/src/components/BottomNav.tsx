@@ -85,7 +85,7 @@ export function BottomNav({
         type="button"
         className="bottom-nav__add"
         onClick={onAddWorkout}
-        aria-label="Добавить тренировку #training_done"
+        aria-label="Добавить тренировку"
         title="Добавить тренировку"
       >
         <span className="bottom-nav__add-plus" aria-hidden>

@@ -28,7 +28,7 @@ type TrainingOutcome struct {
 }
 
 // calculateTrainingDayOutcome описывает, что произойдёт при следующем засчитанном отчёте #training_done
-// в этот календарный день пользователя: первая тренировка дня — начисления и обновление серии;
+// в этот календарный день пользователя: первая тренировка дня — начисления и обновление стрика;
 // повтор в тот же день — без начислений (EarnRewards=false).
 func (b *Bot) calculateTrainingDayOutcome(messageLog *domain.MessageLog) TrainingOutcome {
 	localNow := b.getUserLocalNow(messageLog.TimezoneOffsetFromMoscow)
@@ -82,7 +82,7 @@ func (b *Bot) sendStreakReward(
 
 	messageText := fmt.Sprintf(`%s!
 
-%s, серия: %d %s подряд.
+%s, стрик: %d %s подряд.
 %s
 
 🏆 +%d %s (всего: %d)`,
@@ -210,7 +210,7 @@ func daysWordForm(count int) string {
 	return russianPlural(count, "день", "дня", "дней")
 }
 
-// streakMilestone описывает один milestone серии: количество дней, бонусные кубки и текст для отправки.
+// streakMilestone описывает один milestone стрика: количество дней, бонусные кубки и текст для отправки.
 type streakMilestone struct {
 	Days     int
 	Cups     int
@@ -218,7 +218,7 @@ type streakMilestone struct {
 	Subtitle string
 }
 
-// streakMilestones — единственное место где задаются пороги серии и бонусы за них.
+// streakMilestones — единственное место где задаются пороги стрика и бонусы за них.
 // Добавить новый milestone = одна строка в этом списке.
 var streakMilestones = []streakMilestone{
 	{7, 42, "🏆🏆🏆 НЕВЕРОЯТНО! 🏆🏆🏆", "7 дней — первый рубеж. Каждый день ты становишься сильнее!"},
@@ -230,12 +230,12 @@ var streakMilestones = []streakMilestone{
 	{60, 420, "🏆 60 дней!", "🔥 Два месяца без провала — легенда растёт."},
 	{90, 420, "🏆 90 дней!", "🏁 Квартал дисциплины — элита так и тренируется."},
 	{100, 4200, "🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆 БЕССМЕРТНАЯ ЛЕГЕНДА! 🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆", "100 дней — это уровень единиц. Ты создаёшь историю!"},
-	{180, 420, "🏆 180 дней!", fmt.Sprintf("🔥 Полгода серии — +420 %s!", cupsWordForm(420))},
+	{180, 420, "🏆 180 дней!", fmt.Sprintf("🔥 Полгода стрика — +420 %s!", cupsWordForm(420))},
 	{200, 4200, "🌸 БУКЕТ ИЗ КУБКОВ! 🌸", "200 дней подряд — ты легенда стаи!"},
-	{240, 4200, "🏆 240 дней!", "🔥 240 дней серии — уровень титана!"},
+	{240, 4200, "🏆 240 дней!", "🔥 240 дней стрика — уровень титана!"},
 }
 
-// MilestoneCups возвращает бонусные кубки за milestone текущей серии (0 если milestone не достигнут).
+// MilestoneCups возвращает бонусные кубки за milestone текущего стрика (0 если milestone не достигнут).
 func (o TrainingOutcome) MilestoneCups() int {
 	if !o.EarnRewards {
 		return 0
@@ -248,7 +248,7 @@ func (o TrainingOutcome) MilestoneCups() int {
 	return 0
 }
 
-// sendMilestoneReward отправляет поздравление с milestone серии если текущий streak совпадает с одним из порогов.
+// sendMilestoneReward отправляет поздравление с milestone стрика если текущий streak совпадает с одним из порогов.
 func (b *Bot) sendMilestoneReward(msg *tgbotapi.Message, username string, streakDays int) {
 	for _, m := range streakMilestones {
 		if m.Days == streakDays {

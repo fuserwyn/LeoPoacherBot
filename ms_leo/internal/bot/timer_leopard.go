@@ -193,7 +193,7 @@ func (b *Bot) cancelTimer(userID int64) {
 // sendInactiveRemovalWarning — предупреждение за 72 ч (день 5), 48 ч (день 6) или 24 ч (день 7) до кика в 00:00 локального TZ юзера.
 func (b *Bot) sendInactiveRemovalWarning(userID, chatID int64, username string, hoursBefore int, removalAt time.Time, loc *time.Location) {
 	who := normalizeUserDisplayName(username)
-	tag := "#training_done"
+	tag := "отчётом в мини-аппе"
 	deadlineHuman := formatRemovalAtLocalHuman(removalAt, loc)
 	var windowRU string
 	switch hoursBefore {

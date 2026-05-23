@@ -54,7 +54,7 @@ func trainingCategoryLabelRu(categoryID string) string {
 func trainingReportSemanticHint(reportText string) string {
 	var sb strings.Builder
 	sb.WriteString("ВАЖНО ПРО ФОРМАТ ОТЧЁТА MINI APP:\n")
-	sb.WriteString("Первая строка имеет вид: #training_done — <тип тренировки>, <минуты> мин, инт. <N>/5.\n")
+	sb.WriteString("Первая строка имеет вид: <тип тренировки>, <минуты> мин, инт. <N>/5 (отчёт из мини-аппа).\n")
 	sb.WriteString("`инт.` здесь всегда означает ИНТЕНСИВНОСТЬ нагрузки по шкале 1..5. Это НЕ интервалы, НЕ интервалка и НЕ вид тренировки.\n")
 	if durationMin, intensity, categoryID, ok := leopardmoney.ParseTrainingDoneReport(reportText); ok {
 		sb.WriteString(fmt.Sprintf(
@@ -75,7 +75,7 @@ func (b *Bot) generateShortLeopardChatAck(username, text string, streak, totalCu
 	var ctxBuilder strings.Builder
 	ctxBuilder.WriteString("Контекст отчёта тренировки.\n")
 	ctxBuilder.WriteString(fmt.Sprintf("Пользователь: %s\n", username))
-	ctxBuilder.WriteString(fmt.Sprintf("Серия: %d %s\n", streak, daysWordForm(streak)))
+	ctxBuilder.WriteString(fmt.Sprintf("Стрик: %d %s\n", streak, daysWordForm(streak)))
 	ctxBuilder.WriteString(fmt.Sprintf("Кубки всего: %d\n", totalCups))
 	ctxBuilder.WriteString(fmt.Sprintf("Ачивки: %d\n", ach))
 	ctxBuilder.WriteString(trainingReportSemanticHint(text))
@@ -174,9 +174,9 @@ func (b *Bot) generateLeoTrainingFeedEncouragement(
 
 СОГЛАСОВАНИЕ: строго следуй подсказке про глаголы (м/ж/нейтрально) из контекста.
 
-ФОРМАТ MINI APP ОТЧЁТА: если видишь первую строку вида "#training_done — тип, минуты мин, инт. N/5", то "инт." означает интенсивность нагрузки по шкале 1..5. Это НЕ интервалы и НЕ тип тренировки.
+ФОРМАТ MINI APP ОТЧЁТА: первая строка вида «тип, минуты мин, инт. N/5». "инт." — интенсивность 1..5, не интервалы.
 
-ЗАПРЕТЫ: не пиши цифры кубков, серий, ачивок, таймер; не *рычит*; без Markdown, без нумерованных списков, без кавычек вокруг всего текста. Русский язык. Можно 0–2 эмодзи (не больше).`
+ЗАПРЕТЫ: не пиши цифры кубков, стриков, ачивок, таймер; не *рычит*; без Markdown, без нумерованных списков, без кавычек вокруг всего текста. Русский язык. Можно 0–2 эмодзи (не больше).`
 
 	var ctxBuilder strings.Builder
 	ctxBuilder.WriteString("Контекст.\n")
@@ -188,7 +188,7 @@ func (b *Bot) generateLeoTrainingFeedEncouragement(
 		ctxBuilder.WriteString(fmt.Sprintf("Возраст (для нюанса, не произноси числом, если неловко): %d\n", *profileAge))
 	}
 	ctxBuilder.WriteString(verbHint + "\n")
-	ctxBuilder.WriteString(fmt.Sprintf("Настроение по данным: серия сейчас %d, кубков всего %d, ачивок %d — в тексте НЕ произноси и не обсуждай числа (ниже в приложении дубль статов).\n", newStreak, totalCups, ach))
+	ctxBuilder.WriteString(fmt.Sprintf("Настроение по данным: стрик сейчас %d, кубков всего %d, ачивок %d — в тексте НЕ произноси и не обсуждай числа (ниже в приложении дубль статов).\n", newStreak, totalCups, ach))
 	ctxBuilder.WriteString(fmt.Sprintf("Полных дней без тренировок между прошлой датой отчёта и сегодня (только логика; в ответе числом дни НЕ пиши): %d\n", gapEmptyDays))
 	ctxBuilder.WriteString(gapHint + "\n")
 	ctxBuilder.WriteString(sickHint + "\n")
@@ -349,8 +349,6 @@ func (b *Bot) handleLeopardMoneyTrainingDone(msg *tgbotapi.Message, personalRepl
 		ach = ml.AchievementCount
 	}
 
-	tag := "#training_done"
-
 	session := &domain.TrainingSession{
 		UserID:         msg.From.ID,
 		ChatID:         packChatID,
@@ -392,17 +390,14 @@ func (b *Bot) handleLeopardMoneyTrainingDone(msg *tgbotapi.Message, personalRepl
 
 	statsBlock := fmt.Sprintf(
 		"✅ Отчёт принят! 💪\n\n"+
-			"🦁 Серия: %d %s\n"+
-			"🏆 +%d %s (всего: %d)\n"+
-			"🎖 Ачивок: %d/%d",
+			"🦁 Стрик: %d %s\n"+
+			"🏆 +%d %s (всего: %d)",
 		newStreak, daysWordForm(newStreak),
 		cupsAdd, ruCupsWord(cupsAdd), totalCups,
-		ach, leopardmoney.MaxAchievements,
 	)
 	inactiveBlock := "⏰ Неактивность: 8 дней без отчёта — удаление в 00:00 вашего часового пояса; предупреждения на 5-й, 6-й и 7-й день."
-	tail := fmt.Sprintf("🎯 Отчёт с %s", tag)
-	messageTextMiniapp := statsBlock + "\n\n" + tail
-	messageTextPrivate := statsBlock + "\n\n" + inactiveBlock + "\n\n" + tail
+	messageTextMiniapp := statsBlock
+	messageTextPrivate := statsBlock + "\n\n" + inactiveBlock
 
 	if personalReplyCh != nil {
 		// Mini-app: без блока про неактивность (он только в личке); коммент Лео в ленте — позже, асинхронно.
@@ -508,7 +503,7 @@ func (b *Bot) LeoBanterReplyToUserTrainingFeedThread(
 	reportCtx := truncateForDM(reportText, 900)
 
 	qb := strings.Builder{}
-	qb.WriteString("Ты Лео — Fat Leopard. Пользователь ответил на ТВОЁ сообщение в комментариях под его отчётом #training_done в ленте стаи (мини-апп).\n\n")
+	qb.WriteString("Ты Лео — Fat Leopard. Пользователь ответил на ТВОЁ сообщение в комментариях под его отчётом о тренировке в ленте стаи (мини-апп).\n\n")
 	qb.WriteString("Твоё сообщение, на которое он ответил:\n")
 	qb.WriteString(leoCtx)
 	qb.WriteString("\n\nЕго реплика тебе:\n")

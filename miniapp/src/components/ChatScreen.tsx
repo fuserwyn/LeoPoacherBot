@@ -368,7 +368,7 @@ export function ChatScreen({ name, initData, inTelegram, showAlert, onInboxDrain
           <div className="chat__row chat__row--sys">
             <img className="chat__bubble-avatar" src={LEO_AVATAR_URL} width={36} height={36} alt="" aria-hidden="true" />
             <div className="chat__bubble chat__bubble--sys">
-              Привет! Здесь личный чат с Лео — ИИ отвечает на любой текст, есть #training_done и /start. История
+              Привет! Здесь личный чат с Лео — ИИ отвечает на любой текст. Тренировки — кнопка «+» внизу. История
               синхронизируется между всеми твоими устройствами.
             </div>
           </div>

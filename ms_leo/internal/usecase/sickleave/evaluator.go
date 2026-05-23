@@ -47,7 +47,6 @@ func (e *Evaluator) Evaluate(text string, messageLog *domain.MessageLog) bool {
 	if messageLog != nil {
 		ctxBuilder.WriteString(fmt.Sprintf("Пользователь: %s\n", messageLog.Username))
 		ctxBuilder.WriteString(fmt.Sprintf("StreakDays: %d\n", messageLog.StreakDays))
-		ctxBuilder.WriteString(fmt.Sprintf("CalorieStreakDays: %d\n", messageLog.CalorieStreakDays))
 		ctxBuilder.WriteString(fmt.Sprintf("HasSickLeave: %t\n", messageLog.HasSickLeave))
 		ctxBuilder.WriteString(fmt.Sprintf("HasHealthy: %t\n", messageLog.HasHealthy))
 	}

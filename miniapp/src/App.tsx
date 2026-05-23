@@ -30,9 +30,9 @@ function formatTrainingDoneAlert(replyParts: string[]): string {
     .filter(Boolean);
 
   const title = lines.find((line) => line.startsWith("✅ Отчёт принят")) ?? "";
-  const streakLineRaw = lines.find((line) => /Серия:/i.test(line)) ?? "";
+  const streakLineRaw = lines.find((line) => /Стрик:|Серия:/i.test(line)) ?? "";
   const cupsLineRaw = lines.find((line) => line.startsWith("🏆")) ?? "";
-  const streakLine = streakLineRaw.replace(/^🦁\s*Серия:\s*/i, "Стрик: ");
+  const streakLine = streakLineRaw.replace(/^🦁\s*(Стрик|Серия):\s*/i, "Стрик: ");
   const cupsLine = cupsLineRaw.replace(/^🏆\s*/u, "");
 
   const compact = [title, [streakLine, cupsLine].filter(Boolean).join("\n")].filter(Boolean).join("\n\n").trim();
@@ -321,10 +321,10 @@ export function App() {
             if (type === "other" && otherLabel?.trim()) {
               kind = otherLabel.trim();
             }
-            const base = `#training_done — ${kind}, ${min} мин, инт. ${intensity}/5`;
+            const base = `${kind}, ${min} мин, инт. ${intensity}/5`;
             const line = note ? `${base}\n\n${note}` : base;
             tg?.HapticFeedback?.impactOccurred?.("medium");
-            // #training_done: сервер отдаёт reply_text сразу (серия, кубки, ачивки; без блока про неактивность).
+            // Отчёт: сервер отдаёт reply_text сразу (стрик, кубки, ачивки).
             const result = photo
               ? await sendMiniappTrainingWithPhoto(initData, line, photo)
               : await sendMiniappPrivateText(initData, line);

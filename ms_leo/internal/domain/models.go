@@ -11,7 +11,6 @@ type MessageLog struct {
 	Username                 string     `json:"username" db:"username"`
 	StreakDays               int        `json:"streak_days" db:"streak_days"`
 	MaxStreakDays            int        `json:"max_streak_days" db:"max_streak_days"`
-	CalorieStreakDays        int        `json:"calorie_streak_days" db:"calorie_streak_days"`
 	CupsEarned               int        `json:"cups_earned" db:"cups_earned"`
 	LastTrainingDate         *string    `json:"last_training_date" db:"last_training_date"`
 	LastMessage              string     `json:"last_message" db:"last_message"`

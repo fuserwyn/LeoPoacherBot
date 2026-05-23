@@ -108,7 +108,6 @@ func (b *Bot) appendPackGroupSQLContext(packChatID int64, contextText *strings.B
 	if err != nil || len(msgs) == 0 {
 		return
 	}
-	contextText.WriteString("\n=== ПОСЛЕДНИЕ СООБЩЕНИЯ ОБЩЕГО ЧАТА ===\n")
 	for i := len(msgs) - 1; i >= 0; i-- {
 		m := msgs[i]
 		if m == nil {
@@ -121,6 +120,9 @@ func (b *Bot) appendPackGroupSQLContext(packChatID int64, contextText *strings.B
 		if who == "" {
 			who = "Участник"
 		}
+		if !strings.HasPrefix(who, "@") && who != "Лео" {
+			who = "@" + who
+		}
 		txt := strings.TrimSpace(m.Text)
 		if txt == "" {
 			continue
@@ -128,6 +130,10 @@ func (b *Bot) appendPackGroupSQLContext(packChatID int64, contextText *strings.B
 		if len(txt) > 400 {
 			txt = txt[:400] + "…"
 		}
-		contextText.WriteString(who + ": " + txt + "\n")
+		ts := strings.TrimSpace(m.CreatedAt)
+		if ts == "" {
+			ts = "—"
+		}
+		contextText.WriteString("• [" + ts + "] " + who + ": " + txt + "\n")
 	}
 }

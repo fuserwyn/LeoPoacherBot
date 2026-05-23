@@ -153,7 +153,7 @@ func (c *OpenRouterClient) GenerateDailySummary(usersData []UserTrainingData) (s
 		if user.HasHealthy {
 			userReports.WriteString("  - Выздоровел\n")
 		}
-		userReports.WriteString(fmt.Sprintf("  - Серия тренировок: %d дней\n", user.StreakDays))
+		userReports.WriteString(fmt.Sprintf("  - Стрик: %d дней\n", user.StreakDays))
 		userReports.WriteString(fmt.Sprintf("  - Всего кубков: %d\n\n", user.Cups))
 	}
 
@@ -183,7 +183,7 @@ func (c *OpenRouterClient) GenerateMonthlySummary(usersData []UserTrainingData) 
 		if user.HasHealthy {
 			userReports.WriteString("  - Выздоровел\n")
 		}
-		userReports.WriteString(fmt.Sprintf("  - Текущая серия тренировок: %d дней\n", user.StreakDays))
+		userReports.WriteString(fmt.Sprintf("  - Текущий стрик: %d дней\n", user.StreakDays))
 		userReports.WriteString(fmt.Sprintf("  - Всего кубков: %d\n\n", user.Cups))
 	}
 
@@ -195,15 +195,21 @@ func (c *OpenRouterClient) GenerateMonthlySummary(usersData []UserTrainingData) 
 	return c.Chat(messages, "")
 }
 
-// AnswerUserQuestion отвечает на вопрос пользователя на основе его истории тренировок
+// AnswerUserQuestion отвечает на вопрос пользователя.
+// userContext — либо полный structured user-message (с «Контекст для этого ответа»), либо legacy-плоский контекст + question.
 func (c *OpenRouterClient) AnswerUserQuestion(question string, userContext string) (string, error) {
 	systemPrompt := c.promptsBundle.AnswerUserQuestion
 
-	prompt := fmt.Sprintf("Вопрос пользователя: %s\n\n=== ПОЛНЫЙ КОНТЕКСТ ПОЛЬЗОВАТЕЛЯ ===\n%s", question, userContext)
+	userContent := strings.TrimSpace(userContext)
+	if question != "" && !strings.Contains(userContent, "Контекст для этого ответа") {
+		userContent = prompts.FormatLegacyUserPrompt(question, userContext)
+	} else if userContent == "" && question != "" {
+		userContent = prompts.FormatLegacyUserPrompt(question, "")
+	}
 
 	messages := []ChatMessage{
 		{Role: "system", Content: systemPrompt},
-		{Role: "user", Content: prompt},
+		{Role: "user", Content: userContent},
 	}
 
 	return c.Chat(messages, "")

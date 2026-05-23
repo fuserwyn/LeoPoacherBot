@@ -10,7 +10,7 @@ import (
 // Пороги накопленных кубков (нижняя граница уровня): L1 с 0, L2 с 420, … (§2.5 спеки).
 var LevelStartCups = []int{0, 420, 1260, 2940, 6300, 13020, 26460}
 
-// StreakAchievementMilestones — пороги серии (дней подряд) для получения ачивок в мини-аппе.
+// StreakAchievementMilestones — пороги стрика (дней подряд) для получения ачивок в мини-аппе.
 var StreakAchievementMilestones = []int{7, 14, 21, 30, 42, 50, 100}
 
 // StreakAchievementIndex — 0-based индекс ачивки для данного стрика; -1 если не совпадает ни с одним порогом.
@@ -66,7 +66,8 @@ func ActivityCoeff(categoryID string) float64 {
 }
 
 var (
-	reTrainingHeader = regexp.MustCompile(`(?i)^#training_done\s*[—–\-]\s*([^,]+),\s*(\d+)\s*мин`)
+	// Мини-апп: «бег, 15 мин, инт. 3/5». Старые записи в ленте могли начинаться с #training_done — префикс опционален при разборе.
+	reTrainingHeader = regexp.MustCompile(`(?i)^(?:#training_done\s*[—–\-]\s*)?([^,]+),\s*(\d+)\s*мин`)
 	reIntensity      = regexp.MustCompile(`(?i)инт\.?\s*(\d+)`)
 )
 
@@ -92,8 +93,13 @@ var labelToCategoryID = map[string]string{
 	"отжимание":   "other",
 }
 
-// ParseTrainingDoneReport — первая строка отчёта мини-аппа:
-// `#training_done — бег, 15 мин, инт. 3/5`
+// IsTrainingReportLine — первая строка похожа на отчёт о тренировке из мини-аппа.
+func IsTrainingReportLine(text string) bool {
+	_, _, _, ok := ParseTrainingDoneReport(text)
+	return ok
+}
+
+// ParseTrainingDoneReport — первая строка отчёта мини-аппа, например «бег, 15 мин, инт. 3/5».
 // Возвращает ok=false, если нет распознанного заголовка (тогда начисление — минимум 1 кубок снаружи).
 func ParseTrainingDoneReport(text string) (durationMin, intensity int, categoryID string, ok bool) {
 	line := strings.TrimSpace(text)

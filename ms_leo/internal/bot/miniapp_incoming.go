@@ -7,6 +7,8 @@ import (
 	initdata "github.com/telegram-mini-apps/init-data-golang"
 
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
+
+	"leo-bot/internal/game/leopardmoney"
 )
 
 // PrivateTextMessageFromInitUser — синтетическое входящее сообщение, как в личке.
@@ -55,8 +57,8 @@ type MiniAppTextProcessResult struct {
 	Pending   bool   `json:"pending,omitempty"`
 }
 
-func isMiniappLineTrainingDone(text string) bool {
-	return strings.HasPrefix(strings.ToLower(strings.TrimSpace(text)), "#training_done")
+func isMiniappTrainingReport(text string) bool {
+	return leopardmoney.IsTrainingReportLine(text)
 }
 
 // ProcessMiniAppPrivateText — валидация initData; обработка в фоне, HTTP не ждёт ИИ.
@@ -87,9 +89,8 @@ func (b *Bot) processMiniAppPrivateCore(d initdata.InitData, text string, traini
 	b.miniappPersonalClear(d.User.ID)
 	b.savePersonalChatMessage(d.User.ID, "user", text)
 
-	// #training_done из мини-аппа: один синхронный проход dispatch → reply_text сразу (без poll);
-	// коммент Лео в тред ленты пишется асинхронно в handleLeopardMoneyTrainingDone.
-	if isMiniappLineTrainingDone(text) {
+	// Отчёт о тренировке из мини-аппа: синхронный dispatch → reply_text сразу (без poll).
+	if isMiniappTrainingReport(text) {
 		msg := PrivateTextMessageFromInitUser(d, text)
 		ch := make(chan string, 32)
 		b.markMiniappOrigin(d.User.ID, ch)
@@ -123,7 +124,7 @@ func (b *Bot) processMiniAppPrivateCore(d initdata.InitData, text string, traini
 			return out
 		}
 		b.logger.Warnf("miniapp training_done: empty reply after dispatch user=%d", d.User.ID)
-		out.ReplyText = "✅ Отчёт принят. Если не видишь сводку с кубками и серией — загляни в личку с ботом в Telegram."
+		out.ReplyText = "✅ Отчёт принят. Если не видишь сводку с кубками и стриком — загляни в личку с ботом в Telegram."
 		return out
 	}
 

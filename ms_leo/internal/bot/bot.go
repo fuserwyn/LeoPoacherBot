@@ -14,6 +14,7 @@ import (
 	"leo-bot/internal/domain"
 	"leo-bot/internal/game/leopardmoney"
 	"leo-bot/internal/logger"
+	"leo-bot/internal/prompts"
 	"leo-bot/internal/rag"
 	"leo-bot/internal/usecase/sickleave"
 	"leo-bot/internal/utils"
@@ -52,13 +53,13 @@ const leopardOnboardingBodyText = `Добро пожаловать в стаю, 
 Здесь не нужно быть идеальным — нужно просто двигаться. Пробежка, йога, прогулка или 10 отжиманий — всё считается.
 
 ⚡️ КАК ОТМЕТИТЬ ТРЕНИРОВКУ
-Отправь любое сообщение с тегом #training_done — бот засчитает активный день. Одного тега в день достаточно.
+Открой мини-апп Fat Leopard и нажми «+» — заполни тип, минуты и интенсивность. Одного отчёта в день достаточно.
 
-🏆 КУБКИ И СЕРИЯ
-За отчёт #training_done начисляются кубки по формуле (длина и суть тренировки). Дни подряд без пропуска растят серию и открывают ачивки.
+🏆 КУБКИ И СТРИК
+За отчёт начисляются кубки по формуле (длина и суть тренировки). Дни подряд без пропуска растят стрик и открывают ачивки.
 
 ⏰ ЧТО БУДЕТ, ЕСЛИ ПРОПУСКАТЬ
-- День 5 без #training_done — предупреждение в личку
+- День 5 без тренировки — предупреждение в личку
 - День 6 — второе предупреждение
 - День 7 — кубки обнуляются
 - День 8 — удаление из стаи
@@ -69,7 +70,7 @@ const leopardOnboardingBodyText = `Добро пожаловать в стаю, 
 Ачивки даются на отметках 7, 14, 21, 30, 42, 50 и 100 дней подряд.
 
 Ачивку можно потратить на:
-- Заморозку — серия под защитой 7 дней
+- Заморозку — стрик под защитой 7 дней
 - Спасение — в критический момент ачивка не даёт тебя удалить
 
 ❄️ ПЛАТНАЯ ЗАМОРОЗКА
@@ -78,7 +79,7 @@ const leopardOnboardingBodyText = `Добро пожаловать в стаю, 
 🔄 ВЕРНУТЬСЯ В СТАЮ
 Был удалён — возвращайся за 210 ₽. Кубки и ачивки не сохраняются.
 
-🎯 Начни прямо сейчас — отправь #training_done`
+🎯 Начни прямо сейчас — отметь тренировку в мини-аппе`
 
 func New(cfg *config.Config, db *database.Database, log logger.Logger) (*Bot, error) {
 	api, err := tgbotapi.NewBotAPI(cfg.APIToken)
@@ -454,13 +455,20 @@ func (b *Bot) handleMessage(msg *tgbotapi.Message, personalReplyCh chan<- string
 
 	b.tryHandleSickApprovalReply(msg, text)
 
-	// КРИТИЧЕСКИ ВАЖНО: Сначала проверяем хештеги команд (#training_done, #sick_leave, и т.д.)
-	// Команды имеют приоритет над ИИ-обработкой
-	hasTrainingDone := strings.Contains(strings.ToLower(text), "#training_done")
+	if text != "" && strings.Contains(strings.ToLower(text), "#change") {
+		reply := tgbotapi.NewMessage(msg.Chat.ID, "⚠️ #change больше не работает: обмен калорий убран. Сейчас в игре кубки и стрик — отмечай тренировки в мини-аппе («+»).")
+		if _, err := b.api.Send(reply); err != nil {
+			b.logger.Errorf("send #change deprecation reply: %v", err)
+		}
+		return
+	}
+
+	// Хештеги команд (#sick_leave, #healthy, …). Отчёт о тренировке — только формат мини-аппа, не #training_done.
+	hasTrainingReport := leopardmoney.IsTrainingReportLine(text)
 	hasSickLeave := strings.Contains(strings.ToLower(text), "#sick_leave")
 	hasHealthy := strings.Contains(strings.ToLower(text), "#healthy")
 	hasTimeZone := strings.Contains(strings.ToLower(text), "#timezone")
-	hasCommand := hasTrainingDone || hasSickLeave || hasHealthy || hasTimeZone
+	hasCommand := hasTrainingReport || hasSickLeave || hasHealthy || hasTimeZone
 
 	// Если есть команда, обрабатываем её и НЕ обрабатываем через ИИ
 	if hasCommand {
@@ -488,7 +496,7 @@ func (b *Bot) handleMessage(msg *tgbotapi.Message, personalReplyCh chan<- string
 		}
 		stateChatID := b.packTrainingStateChatID(msg)
 
-		if hasTrainingDone {
+		if hasTrainingReport {
 			if trainingPhotoURLOverride != "" {
 				trainingPhotoURL = trainingPhotoURLOverride
 			} else {
@@ -498,7 +506,7 @@ func (b *Bot) handleMessage(msg *tgbotapi.Message, personalReplyCh chan<- string
 		var trainingDoneFeedMsgID int64
 		if text != "" && !(hasSickLeave && alreadyOnSickLeave) {
 			messageType := "general"
-			if hasTrainingDone {
+			if hasTrainingReport {
 				messageType = "training_done"
 			} else if hasSickLeave {
 				messageType = "sick_leave"
@@ -516,7 +524,7 @@ func (b *Bot) handleMessage(msg *tgbotapi.Message, personalReplyCh chan<- string
 				MessageType:      messageType,
 				TrainingPhotoURL: trainingPhotoURL,
 			}
-			if hasTrainingDone {
+			if hasTrainingReport {
 				id, err := b.db.SaveUserMessageReturningID(userMsg)
 				if err != nil {
 					b.logger.Errorf("Failed to save user message: %v", err)
@@ -559,11 +567,10 @@ func (b *Bot) handleMessage(msg *tgbotapi.Message, personalReplyCh chan<- string
 				UserID:            msg.From.ID,
 				ChatID:            stateChatID,
 				Username:          username,
-				StreakDays:        0,
-				CalorieStreakDays: 0,
-				CupsEarned:        0,
+				StreakDays: 0,
+				CupsEarned: 0,
 				LastMessage:       timerStartTime,
-				HasTrainingDone:   hasTrainingDone,
+				HasTrainingDone:   hasTrainingReport,
 				HasSickLeave:      false,
 				HasHealthy:        false,
 				IsDeleted:         false,
@@ -580,7 +587,7 @@ func (b *Bot) handleMessage(msg *tgbotapi.Message, personalReplyCh chan<- string
 			// Обновляем только необходимые поля, сохраняя streak данные
 			existingLog.Username = username
 			existingLog.LastMessage = utils.FormatMoscowTime(utils.GetMoscowTime())
-			existingLog.HasTrainingDone = hasTrainingDone
+			existingLog.HasTrainingDone = hasTrainingReport
 			existingLog.IsDeleted = false
 
 			if err := b.db.SaveMessageLog(existingLog); err != nil {
@@ -591,7 +598,7 @@ func (b *Bot) handleMessage(msg *tgbotapi.Message, personalReplyCh chan<- string
 		// Обрабатываем хештеги
 		if hasTimeZone {
 			b.handleTimezoneCommand(msg, text)
-		} else if hasTrainingDone {
+		} else if hasTrainingReport {
 			b.handleTrainingDone(msg, personalReplyCh, trainingDoneFeedMsgID)
 		} else if hasSickLeave {
 			b.handleSickLeave(msg)
@@ -819,7 +826,7 @@ func (b *Bot) handleStartTimer(msg *tgbotapi.Message) {
 	}
 
 	// Отправляем отчет
-	reply := tgbotapi.NewMessage(msg.Chat.ID, fmt.Sprintf("🐆 Fat Leopard активирован!\n\n⏱️ Запущено таймеров: %d\n⏰ Время: 7 дней\n💪 Действие: Отправь #training_done", startedCount))
+	reply := tgbotapi.NewMessage(msg.Chat.ID, fmt.Sprintf("🐆 Fat Leopard активирован!\n\n⏱️ Запущено таймеров: %d\n⏰ Время: 7 дней\n💪 Действие: отметь тренировку в мини-аппе", startedCount))
 
 	b.logger.Infof("Sending start timer message to chat %d", msg.Chat.ID)
 	_, err = b.api.Send(reply)
@@ -871,7 +878,7 @@ func (b *Bot) handleHelp(msg *tgbotapi.Message) {
 • /cups — Показать ваши заработанные кубки
 
 💪 Отчеты о тренировке:
-• #training_done — Отправить отчет о тренировке
+• Тренировка — отчёт через мини-апп (кнопка «+»)
 
 🏥 Больничный:
 • #sick_leave — Взять больничный (приостанавливает таймер)
@@ -879,9 +886,9 @@ func (b *Bot) handleHelp(msg *tgbotapi.Message) {
 
 ⏰ Как работает бот:
 • При добавлении бота в чат запускаются таймеры для всех участников
-• При получении #training_done таймер перезапускается на 7 дней
-• Через 6 дней без #training_done - предупреждение
-• Через 7 дней без #training_done - удаление из чата
+• После отчёта о тренировке таймер перезапускается на 7 дней
+• Через 6 дней без тренировки — предупреждение
+• Через 7 дней без тренировки — удаление из чата
 • 🏆 За каждую тренировку = 1 КУБОК! 🏆
 • 🏆 7 дней подряд = 42 КУБКА! 🏆
 • 🏆🏆 14 дней подряд = 42 КУБКА! 🏆🏆
@@ -894,7 +901,7 @@ func (b *Bot) handleHelp(msg *tgbotapi.Message) {
 • 🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆 100 дней подряд = 4200 КУБКОВ! 🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆
 
 📋 Правила:
-• Отчётом считается любое сообщение с тегом #training_done
+• Отчётом считается форма тренировки в мини-аппе (тип, минуты, интенсивность)
 • Если заболели — отправь #sick_leave
 • После выздоровления — отправь #healthy
 • Через 6 дней без отчёта — предупреждение
@@ -1087,7 +1094,7 @@ func (b *Bot) handleCups(msg *tgbotapi.Message) {
 	} else if cups >= 420 {
 		cupsText = fmt.Sprintf("🎊 ПОЗДРАВЛЯЕМ! 🎊\n\n👤 %s\n🎯 Всего заработано кубков: %d\n\n🏆 ТЫ %s ЦЕЛИ РОЗЫГРЫША!\n🎁 Участвуешь в розыгрыше футболки Fat Leopard!\n💪 Ты настоящий %s!\n🔥 Продолжай тренироваться!", username, cups, strings.ToUpper(forms.Reached), forms.Champion)
 	} else {
-		cupsText = fmt.Sprintf("🏆 Ваши кубки:\n\n👤 %s\n🎯 Всего заработано кубков: %d\n\n💡 Отправляйте #training_done для получения кубков!\n\n🎊 Розыгрыш футболки Fat Leopard при достижении 420 кубков!", username, cups)
+		cupsText = fmt.Sprintf("🏆 Ваши кубки:\n\n👤 %s\n🎯 Всего заработано кубков: %d\n\n💡 Отмечайте тренировки в мини-аппе для получения кубков!\n\n🎊 Розыгрыш футболки Fat Leopard при достижении 420 кубков!", username, cups)
 	}
 
 	reply := tgbotapi.NewMessage(msg.Chat.ID, cupsText)
@@ -1819,7 +1826,7 @@ func (b *Bot) generateMonthlySummaryForChat(chatID int64, month time.Time) {
 		sb.WriteString(fmt.Sprintf("Максимум в месяце: %d %s\n\n", maxTrainings, maxLabel))
 	}
 
-	// Сводка по каждому: пользователь, сколько тренировок, серия на момент отчёта
+	// Сводка по каждому: пользователь, сколько тренировок, стрик на момент отчёта
 	for _, u := range usersData {
 		name := u.Username
 		if name == "" {
@@ -1828,7 +1835,7 @@ func (b *Bot) generateMonthlySummaryForChat(chatID int64, month time.Time) {
 
 		lineWorkLabel := trainingsWordForm(u.TrainingCount)
 		sb.WriteString(fmt.Sprintf("• %s: %d %s", name, u.TrainingCount, lineWorkLabel))
-		sb.WriteString(fmt.Sprintf(", серия на момент отчёта: %d %s", u.StreakDays, daysWordForm(u.StreakDays)))
+		sb.WriteString(fmt.Sprintf(", стрик на момент отчёта: %d %s", u.StreakDays, daysWordForm(u.StreakDays)))
 		sb.WriteString(fmt.Sprintf(", %d %s", u.Cups, cupsWordForm(u.Cups)))
 
 		var flags []string
@@ -1941,27 +1948,25 @@ func (b *Bot) handleAIQuestion(msg *tgbotapi.Message, questionText string, perso
 		return
 	}
 
-	// Формируем полный контекст о пользователе
-	var contextText strings.Builder
+	var aiSec aiQuestionSections
+	aiSec.initRules()
 
-	contextText.WriteString("=== ИСТОРИЯ ТРЕНИРОВОК ПОЛЬЗОВАТЕЛЯ ===\n\n")
+	interlocutorName := strings.TrimSpace(msg.From.UserName)
+	if interlocutorName == "" {
+		interlocutorName = fmt.Sprintf("user%d", msg.From.ID)
+	}
 
-	// Добавляем историю сообщений
 	if len(history) > 0 {
-		for _, msg := range history {
-			messageType := ""
-			if msg.MessageType == "training_done" {
-				messageType = " [ТРЕНИРОВКА]"
-			} else if msg.MessageType == "sick_leave" {
-				messageType = " [БОЛЬНИЧНЫЙ]"
-			} else if msg.MessageType == "healthy" {
-				messageType = " [ВЫЗДОРОВЛЕНИЕ]"
-			}
-			contextText.WriteString(fmt.Sprintf("[%s]%s %s: %s\n",
-				msg.CreatedAt.Format("2006-01-02 15:04"), messageType, msg.Username, msg.MessageText))
+		for _, hm := range history {
+			aiSec.facts.WriteString(formatTrainingFactLine(
+				hm.CreatedAt.Format("2006-01-02 15:04"),
+				hm.Username,
+				msg.From.ID,
+				hm.MessageType,
+				hm.MessageText,
+			))
+			aiSec.facts.WriteString("\n")
 		}
-	} else {
-		contextText.WriteString("История пуста\n")
 	}
 
 	// Добавляем предыдущее сообщение бота только если пользователь отвечает на него
@@ -1972,81 +1977,37 @@ func (b *Bot) handleAIQuestion(msg *tgbotapi.Message, questionText string, perso
 			replyText = strings.TrimSpace(msg.ReplyToMessage.Caption)
 		}
 		if replyText != "" {
-			contextText.WriteString("\n=== ПОСЛЕДНЕЕ СООБЩЕНИЕ БОТА (ПРОДОЛЖАЙ ЛОГИКУ) ===\n")
-			contextText.WriteString(replyText)
-			contextText.WriteString("\n")
+			aiSec.thread.WriteString("• [бот] Лео: ")
+			aiSec.thread.WriteString(replyText)
+			aiSec.thread.WriteString("\n")
 			lastBotMessageText = replyText
 		}
 	}
 
-	// Получаем полные данные пользователя
 	userLog, err := b.db.GetMessageLog(msg.From.ID, stateChat)
-	if err == nil {
+	if err == nil && userLog != nil {
+		if strings.TrimSpace(userLog.Username) != "" {
+			interlocutorName = userLog.Username
+		}
 		cups, _ := b.db.GetUserCups(msg.From.ID, stateChat)
-
-		contextText.WriteString("\n=== ТЕКУЩАЯ СТАТИСТИКА ===\n")
-		contextText.WriteString(fmt.Sprintf("👤 Пользователь: %s\n", userLog.Username))
-		contextText.WriteString(fmt.Sprintf("🏆 Всего кубков: %d\n", cups))
-		contextText.WriteString(fmt.Sprintf("💪 Серия тренировок: %d %s подряд\n", userLog.StreakDays, daysWordForm(userLog.StreakDays)))
-
-		if userLog.LastTrainingDate != nil {
-			contextText.WriteString(fmt.Sprintf("📅 Последняя тренировка: %s\n", *userLog.LastTrainingDate))
-		}
-
-		if userLog.HasSickLeave {
-			contextText.WriteString("🏥 Статус: На больничном\n")
-			if userLog.SickLeaveStartTime != nil {
-				contextText.WriteString(fmt.Sprintf("   Начало больничного: %s\n", *userLog.SickLeaveStartTime))
-			}
-		} else if userLog.HasHealthy {
-			contextText.WriteString("✅ Статус: Здоров\n")
-			if userLog.SickLeaveEndTime != nil {
-				contextText.WriteString(fmt.Sprintf("   Выздоровление: %s\n", *userLog.SickLeaveEndTime))
-			}
-		} else {
-			contextText.WriteString("✅ Статус: Активен\n")
-		}
-
+		remaining := ""
 		if userLog.TimerStartTime != nil {
-			contextText.WriteString(fmt.Sprintf("⏰ Таймер запущен: %s\n", *userLog.TimerStartTime))
-		}
-
-		// Добавляем информацию о текущем остатке времени таймера (ВАЖНО: это точное время из БД)
-		// Вычисляем реальное время до удаления прямо сейчас
-		if userLog.TimerStartTime != nil {
-			remainingTime := b.calculateRemainingTime(userLog)
-			if remainingTime > 0 {
-				remainingTimeFormatted := b.formatDurationToDays(remainingTime)
+			if rt := b.calculateRemainingTime(userLog); rt > 0 {
+				remaining = "до удаления: " + b.formatDurationToDays(rt)
 				if userLog.HasSickLeave {
-					contextText.WriteString(fmt.Sprintf("⏳ После выздоровления останется: %s до удаления\n", remainingTimeFormatted))
-				} else {
-					contextText.WriteString(fmt.Sprintf("⏳ До удаления осталось: %s\n", remainingTimeFormatted))
+					remaining = "после #healthy: " + b.formatDurationToDays(rt)
 				}
 			} else {
-				contextText.WriteString("⏳ Время таймера истекло\n")
+				remaining = "таймер истёк"
 			}
 		}
-
-		contextText.WriteString(fmt.Sprintf("💬 Последнее сообщение: %s\n", userLog.LastMessage))
-		genderNormalized := strings.TrimSpace(strings.ToLower(userLog.Gender))
-		if genderNormalized != "" {
-			var genderText string
-			if genderNormalized == "f" {
-				genderText = "женский"
-			} else if genderNormalized == "m" {
-				genderText = "мужской"
-			}
-			if genderText != "" {
-				contextText.WriteString(fmt.Sprintf("👤 Пол: %s\n", genderText))
-			}
-		}
-	} else {
-		contextText.WriteString("\n⚠️ Данные пользователя не найдены\n")
+		aiSec.users.WriteString(formatUserEntityLine(userLog, cups, remaining))
+		aiSec.users.WriteString("\n")
 	}
 
 	// Недавний контекст беседы: общий чат — только pack_group; личка — user_messages / личный чат.
 	if ctxChannel == rag.ChannelPackGroup {
-		b.appendPackGroupSQLContext(stateChat, &contextText, 12)
+		b.appendPackGroupSQLContext(stateChat, &aiSec.thread, 12)
 	} else {
 		recentLimit := 10
 		if compactContext {
@@ -2056,7 +2017,6 @@ func (b *Bot) handleAIQuestion(msg *tgbotapi.Message, questionText string, perso
 		start := end.Add(-2 * time.Hour)
 		recentChat, err := b.db.GetMessagesInRange(msg.Chat.ID, start, end)
 		if err == nil && len(recentChat) > 0 {
-			contextText.WriteString("\n=== НЕДАВНИЙ КОНТЕКСТ БЕСЕДЫ (2 часа) ===\n")
 			count := 0
 			for i := len(recentChat) - 1; i >= 0 && count < recentLimit; i-- {
 				text := strings.TrimSpace(recentChat[i].MessageText)
@@ -2066,8 +2026,10 @@ func (b *Bot) handleAIQuestion(msg *tgbotapi.Message, questionText string, perso
 				if len(text) > 300 {
 					text = text[:300] + "…"
 				}
-				ts := recentChat[i].CreatedAt.In(time.FixedZone("MSK", 3*3600)).Format("15:04")
-				contextText.WriteString("• [" + ts + "] " + text + "\n")
+				ts := recentChat[i].CreatedAt.In(time.FixedZone("MSK", 3*3600)).Format("2006-01-02 15:04")
+				aiSec.thread.WriteString("• [" + ts + "] ")
+				aiSec.thread.WriteString(text)
+				aiSec.thread.WriteString("\n")
 				count++
 			}
 		}
@@ -2094,13 +2056,14 @@ func (b *Bot) handleAIQuestion(msg *tgbotapi.Message, questionText string, perso
 				}
 			}
 			if len(lastReplies) > 0 {
-				contextText.WriteString("\n=== МОИ ПОСЛЕДНИЕ ОТВЕТЫ (ИЗБЕГАЙ ПОВТОРОВ ТЕМ) ===\n")
 				for _, r := range lastReplies {
 					txt := r
 					if len(txt) > maxSnippet {
 						txt = txt[:maxSnippet] + "…"
 					}
-					contextText.WriteString("• " + txt + "\n")
+					aiSec.thread.WriteString("• [бот] Лео: ")
+					aiSec.thread.WriteString(txt)
+					aiSec.thread.WriteString("\n")
 				}
 			}
 		}
@@ -2123,9 +2086,10 @@ func (b *Bot) handleAIQuestion(msg *tgbotapi.Message, questionText string, perso
 				}
 			}
 			if len(picked) > 0 {
-				contextText.WriteString("\n=== ПРИМЕРЫ ИЗ ЭТОГО ЧАТА (АНОНИМНО, ДЛЯ ВАРИАЦИИ СОВЕТОВ) ===\n")
 				for _, p := range picked {
-					contextText.WriteString("• " + p + "\n")
+					aiSec.facts.WriteString("• [пример отчёта] ")
+					aiSec.facts.WriteString(p)
+					aiSec.facts.WriteString("\n")
 				}
 			}
 		}
@@ -2246,59 +2210,15 @@ func (b *Bot) handleAIQuestion(msg *tgbotapi.Message, questionText string, perso
 			// Нашли другого пользователя, получаем всю информацию о нём
 			otherUserLog, err := b.db.GetMessageLog(userID, stateChat)
 			if err == nil {
-				contextText.WriteString("\n=== ИНФОРМАЦИЯ О ЗАПРОШЕННОМ ПОЛЬЗОВАТЕЛЕ ===\n")
-				contextText.WriteString(fmt.Sprintf("Пользователь: %s (ID: %d)\n", otherUserLog.Username, otherUserLog.UserID))
-
-				// Пол (только если указан)
-				genderNormalized := strings.TrimSpace(strings.ToLower(otherUserLog.Gender))
-				if genderNormalized != "" {
-					var genderInfo string
-					// Логируем для отладки
-					b.logger.Infof("DEBUG: User %s (%d) gender from DB (raw): '%s', normalized: '%s'", otherUserLog.Username, otherUserLog.UserID, otherUserLog.Gender, genderNormalized)
-					if genderNormalized == "f" {
-						genderInfo = "женский"
-					} else if genderNormalized == "m" {
-						genderInfo = "мужской"
-					} else {
-						// Если не f и не m, логируем ошибку
-						b.logger.Warnf("DEBUG: Unknown gender value '%s' (normalized: '%s') for user %s (%d)", otherUserLog.Gender, genderNormalized, otherUserLog.Username, otherUserLog.UserID)
-					}
-					if genderInfo != "" {
-						contextText.WriteString(fmt.Sprintf("Пол: %s\n", genderInfo))
-					}
-				}
-
-				// Статистика
 				cups, _ := b.db.GetUserCups(userID, stateChat)
-				contextText.WriteString(fmt.Sprintf("🏆 Всего кубков: %d\n", cups))
-				contextText.WriteString(fmt.Sprintf("💪 Серия тренировок: %d %s подряд\n", otherUserLog.StreakDays, daysWordForm(otherUserLog.StreakDays)))
-
-				if otherUserLog.LastTrainingDate != nil {
-					contextText.WriteString(fmt.Sprintf("📅 Последняя тренировка: %s\n", *otherUserLog.LastTrainingDate))
-				}
-
-				// Статус
-				if otherUserLog.HasSickLeave {
-					contextText.WriteString("🏥 Статус: На больничном\n")
-					if otherUserLog.SickLeaveStartTime != nil {
-						contextText.WriteString(fmt.Sprintf("   Начало больничного: %s\n", *otherUserLog.SickLeaveStartTime))
-					}
-				} else if otherUserLog.HasHealthy {
-					contextText.WriteString("✅ Статус: Здоров\n")
-				} else {
-					contextText.WriteString("✅ Статус: Активен\n")
-				}
-
-				// Таймер
+				remaining := ""
 				if otherUserLog.TimerStartTime != nil {
-					remainingTime := b.calculateRemainingTime(otherUserLog)
-					if remainingTime > 0 {
-						remainingTimeFormatted := b.formatDurationToDays(remainingTime)
-						contextText.WriteString(fmt.Sprintf("⏳ До удаления осталось: %s\n", remainingTimeFormatted))
+					if rt := b.calculateRemainingTime(otherUserLog); rt > 0 {
+						remaining = "до удаления: " + b.formatDurationToDays(rt)
 					}
 				}
-
-				contextText.WriteString(fmt.Sprintf("💬 Последнее сообщение: %s\n", otherUserLog.LastMessage))
+				aiSec.users.WriteString(formatUserEntityLine(otherUserLog, cups, remaining))
+				aiSec.users.WriteString("\n")
 			}
 			break // Нашли одного пользователя, достаточно
 		}
@@ -2309,83 +2229,40 @@ func (b *Bot) handleAIQuestion(msg *tgbotapi.Message, questionText string, perso
 	if strings.Contains(questionLower, "участник") || strings.Contains(questionLower, "кто есть") || strings.Contains(questionLower, "список") {
 		users, err := b.db.GetUsersByChatID(stateChat)
 		if err == nil && len(users) > 0 {
-			contextText.WriteString("\n=== ПОЛНАЯ ИНФОРМАЦИЯ О ВСЕХ УЧАСТНИКАХ ЧАТА ===\n")
 			for i, user := range users {
-				if i >= 15 { // Ограничиваем до 15 участников для краткости
-					contextText.WriteString(fmt.Sprintf("\n... и еще %d участников\n", len(users)-15))
+				if i >= 15 {
+					aiSec.users.WriteString(fmt.Sprintf("… и ещё %d участников\n", len(users)-15))
 					break
 				}
-
-				// Полная информация о каждом участнике
-				contextText.WriteString(fmt.Sprintf("\n--- УЧАСТНИК %d: %s (ID: %d) ---\n", i+1, user.Username, user.UserID))
-
-				// Пол (только если указан)
-				genderNormalized := strings.TrimSpace(strings.ToLower(user.Gender))
-				if genderNormalized != "" {
-					var genderText string
-					// Логируем для отладки
-					b.logger.Infof("DEBUG: User %s (%d) gender from DB (raw): '%s', normalized: '%s'", user.Username, user.UserID, user.Gender, genderNormalized)
-					if genderNormalized == "f" {
-						genderText = "женский"
-					} else if genderNormalized == "m" {
-						genderText = "мужской"
-					} else {
-						// Если не f и не m, логируем ошибку
-						b.logger.Warnf("DEBUG: Unknown gender value '%s' (normalized: '%s') for user %s (%d)", user.Gender, genderNormalized, user.Username, user.UserID)
-					}
-					if genderText != "" {
-						contextText.WriteString(fmt.Sprintf("Пол: %s\n", genderText))
-					}
-				}
-
-				// Статистика
 				cups, _ := b.db.GetUserCups(user.UserID, stateChat)
-				contextText.WriteString(fmt.Sprintf("🏆 Всего кубков: %d\n", cups))
-				contextText.WriteString(fmt.Sprintf("💪 Серия тренировок: %d %s подряд\n", user.StreakDays, daysWordForm(user.StreakDays)))
-
-				if user.LastTrainingDate != nil {
-					contextText.WriteString(fmt.Sprintf("📅 Последняя тренировка: %s\n", *user.LastTrainingDate))
-				}
-
-				// Статус
-				if user.HasSickLeave {
-					contextText.WriteString("🏥 Статус: На больничном\n")
-					if user.SickLeaveStartTime != nil {
-						contextText.WriteString(fmt.Sprintf("   Начало больничного: %s\n", *user.SickLeaveStartTime))
-					}
-				} else if user.HasHealthy {
-					contextText.WriteString("✅ Статус: Здоров\n")
-				} else {
-					contextText.WriteString("✅ Статус: Активен\n")
-				}
-
-				// Таймер
+				remaining := ""
 				if user.TimerStartTime != nil {
-					remainingTime := b.calculateRemainingTime(user)
-					if remainingTime > 0 {
-						remainingTimeFormatted := b.formatDurationToDays(remainingTime)
-						contextText.WriteString(fmt.Sprintf("⏳ До удаления осталось: %s\n", remainingTimeFormatted))
+					if rt := b.calculateRemainingTime(user); rt > 0 {
+						remaining = "до удаления: " + b.formatDurationToDays(rt)
 					}
 				}
-
-				contextText.WriteString(fmt.Sprintf("💬 Последнее сообщение: %s\n", user.LastMessage))
+				aiSec.users.WriteString(formatUserEntityLine(user, cups, remaining))
+				aiSec.users.WriteString("\n")
 			}
 		}
 	}
 
 	// RAG + история диалога: изолированные сессии (личка vs общий чат).
-	b.appendRAGContext(ragCtx, ctxChannel, msg.From.ID, stateChat, questionText, &contextText)
+	b.appendRAGContext(ragCtx, ctxChannel, msg.From.ID, stateChat, questionText, &aiSec.facts)
 	if ctxChannel == rag.ChannelPersonalLeo && b.config.MonetizedChatID != 0 && b.db != nil {
 		if b.ragStore == nil || !b.ragStore.Enabled() {
-			history, histErr := b.db.ListMiniappPersonalChat(msg.From.ID, b.config.MonetizedChatID, 10, 0)
-			if histErr == nil && len(history) > 0 {
-				contextText.WriteString("\n=== ИСТОРИЯ ПЕРЕПИСКИ (от старых к новым) ===\n")
-				for _, h := range history {
-					role := "Пользователь"
+			personalHist, histErr := b.db.ListMiniappPersonalChat(msg.From.ID, b.config.MonetizedChatID, 10, 0)
+			if histErr == nil && len(personalHist) > 0 {
+				for _, h := range personalHist {
+					role := "пользователь"
 					if h.Role == "leo" {
-						role = "Лео"
+						role = "бот"
 					}
-					contextText.WriteString(fmt.Sprintf("%s: %s\n", role, h.Text))
+					ts := strings.TrimSpace(h.CreatedAt)
+					if ts == "" {
+						ts = "—"
+					}
+					aiSec.thread.WriteString(fmt.Sprintf("• [%s] %s: %s\n", ts, role, h.Text))
 				}
 			}
 		}
@@ -2403,7 +2280,18 @@ func (b *Bot) handleAIQuestion(msg *tgbotapi.Message, questionText string, perso
 
 	finalQuestion += b.config.Prompts.CombinedChatInstructionSuffix()
 
-	answer, err := b.aiClient.AnswerUserQuestion(finalQuestion, contextText.String())
+	userPrompt := prompts.FormatAIQuestionUserMessage(prompts.AIQuestionUserPayload{
+		InterlocutorName: interlocutorName,
+		InterlocutorID:   msg.From.ID,
+		UsersBlock:       aiSec.users.String(),
+		RulesBlock:       aiSec.rules.String(),
+		FactsBlock:       aiSec.facts.String(),
+		ChatThread:       aiSec.thread.String(),
+		RouterHint:       prompts.RouterHintForQuestion(questionText),
+		Question:         finalQuestion,
+	})
+
+	answer, err := b.aiClient.AnswerUserQuestion("", userPrompt)
 	if err != nil {
 		b.logger.Errorf("Failed to generate AI answer: %v", err)
 
@@ -2576,7 +2464,7 @@ func (b *Bot) scanChatHistory(ctx context.Context, daysBack int) {
 
 		messageType := "general"
 		textLower := strings.ToLower(text)
-		if strings.Contains(textLower, "#training_done") {
+		if leopardmoney.IsTrainingReportLine(text) {
 			messageType = "training_done"
 		} else if strings.Contains(textLower, "#sick_leave") {
 			messageType = "sick_leave"
@@ -2734,8 +2622,7 @@ func (b *Bot) handleCallbackQuery(callback *tgbotapi.CallbackQuery) {
 /top - Топ пользователей по кубкам
 /cups - Статистика по кубкам
 
-💪 Для тренировки используйте:
-#training_done - Отчет о тренировке`
+💪 Тренировку отмечайте в мини-аппе Fat Leopard (кнопка «+»)`
 
 		reply := tgbotapi.NewMessage(msg.Chat.ID, menuText)
 		b.api.Send(reply)
@@ -2817,7 +2704,7 @@ func (b *Bot) getUnifiedTrainingPrompt(streakDays, _ int, achievementCount int, 
 	now := utils.GetMoscowTime()
 	hour := now.Hour()
 	weekday := now.Weekday()
-	formatHint := " Если в отчёте есть строка вида `#training_done — тип, N мин, инт. X/5`, то `инт.` означает интенсивность нагрузки по шкале 1..5, а не интервалы."
+	formatHint := " Если в отчёте есть строка вида «тип, N мин, инт. X/5», то `инт.` означает интенсивность нагрузки по шкале 1..5, а не интервалы."
 
 	prompts := []string{
 		"Ты Fat Leopard — строгий тренер, который сам любит поесть. Напиши 2-3 предложения после отчёта о тренировке: первое — конкретный комментарий к упражнениям из сообщения, второе — короткое замечание или совет. Можно лёгкий намёк, что ты «не съешь» того, кто тренируется. Используй ТОЛЬКО упражнения из сообщения. Не повторяй цифры. Без Markdown.",
@@ -2830,7 +2717,7 @@ func (b *Bot) getUnifiedTrainingPrompt(streakDays, _ int, achievementCount int, 
 
 		"Ответь как наставник после тренировки (2-3 предложения): первое — что именно понравилось в отчёте, второе — один конкретный совет. Избегай общих фраз про 'дух', 'волю', 'помни'. Используй ТОЛЬКО этот отчёт. Без Markdown.",
 
-		"Напиши 2-3 предложения после #training_done: первое — отметь конкретные упражнения, второе — короткое наблюдение о технике или подходе. Тон: поддерживающий, но с лёгкой строгостью. Используй ТОЛЬКО этот отчёт. Не повторяй цифры. Без Markdown.",
+		"Напиши 2-3 предложения после отчёта о тренировке: первое — отметь конкретные упражнения, второе — короткое наблюдение о технике или подходе. Тон: поддерживающий, но с лёгкой строгостью. Используй ТОЛЬКО этот отчёт. Не повторяй цифры. Без Markdown.",
 
 		"Fat Leopard одобряет. Напиши 2-3 предложения: первое — комментарий к упражнениям из сообщения, второе — короткое замечание. Тон: дружелюбно-строгий. Используй ТОЛЬКО этот отчёт. Без Markdown.",
 
@@ -2846,7 +2733,7 @@ func (b *Bot) getUnifiedTrainingPrompt(streakDays, _ int, achievementCount int, 
 	}
 
 	if streakDays >= 21 {
-		prompts = append(prompts, "Напиши одно связное сообщение (2-3 предложения): пользователь показывает отличную дисциплину с длинной серией. Первое — признай это и отметь упражнения, второе — конкретное замечание о тренировке. НЕ используй абстрактные фразы про 'дух', 'волю', 'помни'. Используй упражнения из сообщения. Без Markdown.")
+		prompts = append(prompts, "Напиши одно связное сообщение (2-3 предложения): пользователь показывает отличную дисциплину с длинным стриком. Первое — признай это и отметь упражнения, второе — конкретное замечание о тренировке. НЕ используй абстрактные фразы про 'дух', 'волю', 'помни'. Используй упражнения из сообщения. Без Markdown.")
 	}
 
 	if hour >= 17 && hour < 22 {
@@ -2867,7 +2754,7 @@ func (b *Bot) getUnifiedTrainingPrompt(streakDays, _ int, achievementCount int, 
 	}
 
 	if achievementCount >= leopardmoney.MaxAchievements {
-		prompts = append(prompts, "Сделай одно цельное сообщение (2-3 предложения): у пользователя максимум ачивок за серии — это опытный участник. Первое — обратись как к ветерану, отметь упражнения, второе — конкретное наблюдение. Избегай абстрактных фраз про 'дух', 'волю', 'помни'. Используй упражнения из сообщения. Без Markdown.")
+		prompts = append(prompts, "Сделай одно цельное сообщение (2-3 предложения): у пользователя максимум ачивок за стрики — это опытный участник. Первое — обратись как к ветерану, отметь упражнения, второе — конкретное наблюдение. Избегай абстрактных фраз про 'дух', 'волю', 'помни'. Используй упражнения из сообщения. Без Markdown.")
 	}
 
 	return prompts[now.Unix()%int64(len(prompts))] + formatHint
@@ -2881,13 +2768,13 @@ func (b *Bot) getVariedTrainingPrompt(streakDays, _, totalCups int, wasOnSickLea
 
 	// Базовые стили промптов
 	prompts := []string{
-		"Сделай очень короткую (1–2 предложения) дружелюбную, но строгую приписку после отчёта #training_done. Не повторяй цифры из сообщения, не перечисляй правила. КРИТИЧЕСКИ ВАЖНО: используй ТОЛЬКО те упражнения и детали, которые указаны в сообщении пользователя. НЕ выдумывай детали, которых нет. Без Markdown.",
+		"Сделай очень короткую (1–2 предложения) дружелюбную, но строгую приписку после отчёта о тренировке. Не повторяй цифры из сообщения, не перечисляй правила. КРИТИЧЕСКИ ВАЖНО: используй ТОЛЬКО те упражнения и детали, которые указаны в сообщении пользователя. НЕ выдумывай детали, которых нет. Без Markdown.",
 
 		"Напиши короткую (1–2 предложения) мотивирующую приписку от лица строгого, но справедливого тренера Fat Leopard после отчёта о тренировке. Будь конкретным про упражнения из сообщения, но не повторяй цифры. Без Markdown.",
 
 		"Сделай короткий (1–2 предложения) комментарий после тренировки: поддерживающий, но с лёгкой строгостью. Упомяни конкретные упражнения из сообщения пользователя, но не цифры. Без Markdown.",
 
-		"Напиши короткую (1–2 предложения) приписку после #training_done в стиле мудрого наставника: дружелюбно, но требовательно. Используй ТОЛЬКО упражнения из сообщения пользователя. Без Markdown.",
+		"Напиши короткую (1–2 предложения) приписку после отчёта о тренировке в стиле мудрого наставника: дружелюбно, но требовательно. Используй ТОЛЬКО упражнения из сообщения пользователя. Без Markdown.",
 
 		"Сделай очень короткую (1–2 предложения) приписку после тренировки: энергично и мотивирующе, но с ноткой строгости. Будь конкретным про упражнения, не упоминай цифры. Без Markdown.",
 	}
@@ -2902,7 +2789,7 @@ func (b *Bot) getVariedTrainingPrompt(streakDays, _, totalCups int, wasOnSickLea
 	}
 
 	if streakDays >= 21 {
-		prompts = append(prompts, "Напиши короткую (1–2 предложения) приписку: пользователь показывает отличную дисциплину с длинной серией. Признай это, но оставайся строгим. Используй упражнения из сообщения. Без Markdown.")
+		prompts = append(prompts, "Напиши короткую (1–2 предложения) приписку: пользователь показывает отличную дисциплину с длинным стриком. Признай это, но оставайся строгим. Используй упражнения из сообщения. Без Markdown.")
 	}
 
 	if hour >= 22 || hour < 6 {
@@ -2941,7 +2828,7 @@ func (b *Bot) getVariedWisdomPrompt(streakDays, _, totalCups int) string {
 
 	// Специальные промпты
 	if streakDays >= 30 {
-		prompts = append(prompts, "Напиши одну короткую мысль (1 предложение) о том, как длинная серия тренировок меняет человека. Используй упражнения из сообщения. Без Markdown.")
+		prompts = append(prompts, "Напиши одну короткую мысль (1 предложение) о том, как длинный стрик тренировок меняет человека. Используй упражнения из сообщения. Без Markdown.")
 	}
 
 	if totalCups >= 500 {

@@ -902,6 +902,18 @@ var Migrations = []Migration{
 			DROP TABLE IF EXISTS miniapp_feed_poll_votes;
 		`,
 	},
+	{
+		Version:     44,
+		Description: "Drop legacy training_state.calorie_streak_days",
+		UpSQL: `
+			ALTER TABLE training_state
+			DROP COLUMN IF EXISTS calorie_streak_days;
+		`,
+		DownSQL: `
+			ALTER TABLE training_state
+			ADD COLUMN IF NOT EXISTS calorie_streak_days INTEGER DEFAULT 0;
+		`,
+	},
 }
 
 // MigrationRecord представляет запись о выполненной миграции

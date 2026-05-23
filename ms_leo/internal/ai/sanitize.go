@@ -106,7 +106,7 @@ func SanitizeTextForUser(text string) string {
 		"приписку к предупреждению",
 		"критическому предупреждению",
 		"не повторяй цифры и факты",
-		"если не отправит #training_done",
+		"если не отправит отчёт о тренировке в мини-аппе",
 	}
 	for _, s := range blockedContains {
 		if strings.Contains(lower, s) {

@@ -188,17 +188,14 @@ function typeMeta(t: string): { emoji: string; activity: string; details: string
   }
 }
 
-/** С первой строки тела отчёта убираем `#training_done — `, остаётся «силовая, 60 мин…». */
+/** С первой строки убираем устаревший префикс #training_done, если есть. */
 function stripFirstLineTrainingDoneTag(text: string): string {
   const t = text.trim();
   if (t === "") return t;
   const nl = t.indexOf("\n");
   const first = nl >= 0 ? t.slice(0, nl) : t;
   const rest = nl >= 0 ? t.slice(nl + 1) : "";
-  let stripped = first.replace(/^#training_done\s*[—–-]\s*/i, "").trim();
-  if (stripped === first.trim()) {
-    stripped = first.replace(/^#training_done\b\s*/i, "").trim();
-  }
+  const stripped = first.replace(/^#training_done\s*[—–-]\s*/i, "").trim();
   const combined = rest ? `${stripped}\n${rest}` : stripped;
   return combined.trim();
 }

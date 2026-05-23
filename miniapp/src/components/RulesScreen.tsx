@@ -28,11 +28,11 @@ export function RulesScreen() {
         <h2 className="rules__h2">Как отправить тренировку</h2>
         <p>
           Жми «+» внизу мини-аппа: выбери тип, минуты, интенсивность 1–5, по желанию фото и комментарий. Аппа отправит
-          в чат стаи отчёт <code className="rules__code">#training_done</code> и начислит кубки.
+          отчёт о тренировке через кнопку «+» в мини-аппе и начислит кубки.
         </p>
         <p className="rules__note">
           Из Telegram это тоже работает — отправь в чат стаи строку вида
-          {" "}<code className="rules__code">#training_done — бег, 30 мин, инт. 3/5</code>.
+          {" "}<code className="rules__code">бег, 30 мин, инт. 3/5</code>.
         </p>
       </section>
 

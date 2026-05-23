@@ -77,13 +77,10 @@ export function trainingDoneCategoryDisplayLabel(text: string): string {
   return WORKOUT_CATEGORY_OPTIONS.find((o) => o.id === cat)?.label ?? "Другое";
 }
 
-/**
- * Первая строка текста отчёта из мини-аппа:
- * `#training_done — бег, 15 мин, инт. 3/5`
- */
+/** Первая строка отчёта: «бег, 15 мин, инт. 3/5» (старые — с префиксом #training_done). */
 export function parseTrainingDoneCategory(text: string): WorkoutCategoryId | null {
   const line = (text.trim().split("\n")[0] ?? "").trim();
-  const m = line.match(/^#training_done\s*[—–-]\s*([^,]+),\s*\d+\s*мин/i);
+  const m = line.match(/^(?:#training_done\s*[—–-]\s*)?([^,]+),\s*\d+\s*мин/i);
   if (!m) return null;
   const raw = m[1].trim().toLowerCase();
   if (LABEL_TO_ID[raw]) return LABEL_TO_ID[raw];
