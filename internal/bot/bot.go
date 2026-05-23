@@ -3243,6 +3243,9 @@ func (b *Bot) handleAIQuestion(msg *tgbotapi.Message, questionText string) {
 
 	b.logger.Infof("Processing AI question: %s", questionText)
 
+	route := classifyAIQuery(questionText, hasVisual)
+	b.logger.Infof("AI pipeline route: kind=%s skip_semantic=%v minimal=%v", route.Kind, route.SkipSemantic, route.MinimalContext)
+
 	// Получаем историю тренировок пользователя
 	history, err := b.db.GetUserTrainingHistory(msg.From.ID, msg.Chat.ID, 50)
 	if err != nil {
@@ -3254,6 +3257,10 @@ func (b *Bot) handleAIQuestion(msg *tgbotapi.Message, questionText string) {
 
 	// Формируем полный контекст о пользователе
 	var contextText strings.Builder
+	botUserID := int64(0)
+	if b.api.Self.ID != 0 {
+		botUserID = b.api.Self.ID
+	}
 
 	// Определяем тип чата для правильного заголовка и контекста
 	chatType, err := b.db.GetChatType(msg.Chat.ID)
@@ -3269,17 +3276,32 @@ func (b *Bot) handleAIQuestion(msg *tgbotapi.Message, questionText string) {
 		contextText.WriteString("=== ИСТОРИЯ ТРЕНИРОВОК ПОЛЬЗОВАТЕЛЯ ===\n\n")
 	}
 
-	// Семантическая память всего чата (Qdrant, с авторами)
-	b.appendVectorChatContext(&contextText, msg.Chat.ID, questionText)
-	b.appendRecentChatContext(&contextText, msg.Chat.ID, 50)
+	// Шаг 2–3: RAG + фильтрация (без ответов бота в контексте)
+	if !route.MinimalContext {
+		var semanticChunks, threadChunks []contextChunk
+		if !route.SkipSemantic {
+			semanticChunks = append(semanticChunks, b.collectSemanticChunks(msg.Chat.ID, questionText, botUserID)...)
+		}
+		end := time.Now()
+		threadMsgs, threadErr := b.db.GetMessagesInRange(msg.Chat.ID, end.AddDate(0, 0, -30), end)
+		if threadErr == nil && len(threadMsgs) > 0 {
+			threadChunks = append(threadChunks, collectThreadChunks(threadMsgs, botUserID, 50)...)
+		}
+		appendChunksToBuilder(&contextText, filterContextChunks(semanticChunks))
+		if len(threadChunks) > 0 {
+			contextText.WriteString("\n=== ПОСЛЕДНИЕ СООБЩЕНИЯ ЧАТА ===\n")
+			appendChunksToBuilder(&contextText, filterContextChunks(threadChunks))
+			contextText.WriteString("Формат: [время] @ник (id=…) [тип]: текст. Не путай авторов.\n")
+		}
+	}
 
 	asker := telegramUserLabel(msg.From)
 	contextText.WriteString(fmt.Sprintf("\n=== КТО СЕЙЧАС СПРАШИВАЕТ ===\n%s (id=%d)\n", asker, msg.From.ID))
 
 	b.appendReplyThreadContext(&contextText, msg)
 
-	// История отчётов и событий этого пользователя
-	if len(history) > 0 {
+	// История отчётов и событий этого пользователя (structured knowledge)
+	if !route.MinimalContext && len(history) > 0 {
 		contextText.WriteString("\n=== ИСТОРИЯ СООБЩЕНИЙ ЭТОГО ПОЛЬЗОВАТЕЛЯ ===\n")
 		for _, hist := range history {
 			contextText.WriteString(formatHistoryLine(hist))
@@ -3415,34 +3437,10 @@ func (b *Bot) handleAIQuestion(msg *tgbotapi.Message, questionText string) {
 	}
 
 	// Добавляем анти‑повторы: последние ответы ИИ для этого пользователя
-	{
-		// Берем последние 30 дней и собираем до 5 последних ai_reply
-		end := time.Now()
-		start := end.AddDate(0, 0, -30)
-		recent, err := b.db.GetUserMessages(msg.From.ID, msg.Chat.ID, start, end)
-		if err == nil {
-			var lastReplies []string
-			for i := len(recent) - 1; i >= 0 && len(lastReplies) < 5; i-- {
-				if strings.ToLower(recent[i].MessageType) == "ai_reply" {
-					lastReplies = append(lastReplies, recent[i].MessageText)
-				}
-			}
-			if len(lastReplies) > 0 {
-				contextText.WriteString("\n=== МОИ ПОСЛЕДНИЕ ОТВЕТЫ (ИЗБЕГАЙ ПОВТОРОВ ТЕМ) ===\n")
-				for _, r := range lastReplies {
-					// укоротим строку
-					txt := r
-					if len(txt) > 400 {
-						txt = txt[:400] + "…"
-					}
-					contextText.WriteString("• " + txt + "\n")
-				}
-			}
-		}
-	}
+	// (удалено из контекста — ответы бота не подмешиваем в RAG, иначе петли)
 
 	// Легкий RAG по чату: несколько анонимных примеров удачных тренировок
-	{
+	if !route.MinimalContext {
 		end := time.Now()
 		start := end.AddDate(0, 0, -14)
 		examples, err := b.db.GetMessagesInRange(msg.Chat.ID, start, end)
@@ -3751,7 +3749,11 @@ func (b *Bot) handleAIQuestion(msg *tgbotapi.Message, questionText string) {
 			contextText.WriteString(desc)
 		}
 	}
-	answer, err := b.aiClient.AnswerUserQuestion(finalQuestion, contextText.String(), photoURLs...)
+	questionForAI := finalQuestion
+	if hint := routerHintForRoute(route, chatType); hint != "" {
+		questionForAI = finalQuestion + "\n\n[Подсказка: " + hint + "]"
+	}
+	answer, err := b.aiClient.AnswerUserQuestionWithOptions(questionForAI, contextText.String(), chatOptionsForRoute(route), photoURLs...)
 	if err != nil {
 		b.logger.Errorf("Failed to generate AI answer: %v", err)
 
@@ -3770,8 +3772,14 @@ func (b *Bot) handleAIQuestion(msg *tgbotapi.Message, questionText string) {
 		return
 	}
 
-	// Удаляем markdown форматирование (**) перед отправкой
-	answer = strings.ReplaceAll(answer, "**", "")
+	// Шаг 6: санитизация ответа
+	answer = sanitizeAIReply(answer)
+	if answer == "" {
+		close(typingDone)
+		reply := tgbotapi.NewMessage(msg.Chat.ID, "Не смог сформулировать ответ — попробуй переформулировать вопрос.")
+		b.api.Send(reply)
+		return
+	}
 
 	// Отправляем ответ с реплаем на исходное сообщение
 	reply := tgbotapi.NewMessage(msg.Chat.ID, answer)
@@ -3789,14 +3797,19 @@ func (b *Bot) handleAIQuestion(msg *tgbotapi.Message, questionText string) {
 	} else {
 		botName = "@" + botName
 	}
-	b.persistChatMessage(&domain.UserMessage{
-		UserID:      b.api.Self.ID,
-		ChatID:      msg.Chat.ID,
-		Username:    botName,
-		MessageText: formatTextMemory(b.api.Self.ID, botName, answer),
-		MessageType: "ai_reply",
-		CreatedAt:   time.Now(),
-	})
+	// Шаг 7: не индексируем плохие / петлевые ответы в vector DB
+	if shouldPersistAIReply(answer) {
+		b.persistChatMessage(&domain.UserMessage{
+			UserID:      b.api.Self.ID,
+			ChatID:      msg.Chat.ID,
+			Username:    botName,
+			MessageText: formatTextMemory(b.api.Self.ID, botName, answer),
+			MessageType: "ai_reply",
+			CreatedAt:   time.Now(),
+		})
+	} else {
+		b.logger.Warnf("AI reply not persisted (filtered): chat=%d user=%d", msg.Chat.ID, msg.From.ID)
+	}
 }
 
 // scanChatHistory сканирует историю сообщений за указанный период и сохраняет в БД
