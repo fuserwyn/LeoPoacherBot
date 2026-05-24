@@ -422,10 +422,6 @@ func (b *Bot) handleCommand(msg *tgbotapi.Message) {
 		b.handleStartTimer(msg)
 	case "help":
 		b.handleHelp(msg)
-	case "support":
-		b.handleSupportCommand(msg)
-	case "cancel":
-		b.handleSupportCancelCommand(msg)
 	case "db":
 		b.handleDB(msg)
 	case "top":
@@ -877,6 +873,8 @@ func (b *Bot) handleHelp(msg *tgbotapi.Message) {
 		reply.ReplyMarkup = b.paywallUnpaidInlineKeyboard()
 		if _, err := b.api.Send(reply); err != nil {
 			b.logger.Errorf("Failed to send paywall-only help: %v", err)
+		} else {
+			b.sendPrivateSupportReplyKeyboard(msg.Chat.ID)
 		}
 		return
 	}
@@ -956,10 +954,8 @@ func (b *Bot) handleStart(msg *tgbotapi.Message) {
 			b.logger.Infof("Sending paywall-only /start to chat %d", msg.Chat.ID)
 			if _, err := b.api.Send(reply); err != nil {
 				b.logger.Errorf("Failed to send paywall /start: %v", err)
-			} else if b.botSupportAvailable() {
-				kb := tgbotapi.NewMessage(msg.Chat.ID, "💬 Вопросы по оплате — кнопка «Поддержка» под полем ввода или inline выше.")
-				kb.ReplyMarkup = b.privateSupportReplyKeyboard()
-				_, _ = b.api.Send(kb)
+			} else {
+				b.sendPrivateSupportReplyKeyboard(msg.Chat.ID)
 			}
 			return
 		}
@@ -1000,7 +996,9 @@ func (b *Bot) handleRejoin(msg *tgbotapi.Message) {
 	if b.paywallPrivateNeedsPayFirst(msg.From.ID) {
 		reply := tgbotapi.NewMessage(msg.Chat.ID, "⚠️ Сначала оплати доступ. Нажми /start, чтобы получить счёт.")
 		reply.ReplyMarkup = b.paywallUnpaidInlineKeyboard()
-		_, _ = b.api.Send(reply)
+		if _, err := b.api.Send(reply); err == nil {
+			b.sendPrivateSupportReplyKeyboard(msg.Chat.ID)
+		}
 		return
 	}
 	_, _ = b.api.Send(tgbotapi.NewMessage(msg.Chat.ID, "✅ Доступ активен. Открой мини-приложение бота — внизу экрана в этом чате (или через меню ⋮)."))
