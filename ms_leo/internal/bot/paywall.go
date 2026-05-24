@@ -190,7 +190,7 @@ func (b *Bot) paywallPrivateUnpaidUserText() string {
 Что получаешь:
 🐆 чат со Стаей
 💬 комментарии Лео к тренировкам
-📈 возможность отследить свой прогресс.
+📈 отслеживание своего прогресса
 
 Выбери, как оплатить — картой для РФ или звёздами телеграма для любой страны. После оплаты ты получишь доступ в Стаю. Пока я тебя не съем....`
 }
@@ -234,20 +234,18 @@ func (b *Bot) paywallUnpaidInlineKeyboard() *tgbotapi.InlineKeyboardMarkup {
 	return &tgbotapi.InlineKeyboardMarkup{InlineKeyboard: rows}
 }
 
-// sendPaywallUnpaidPrivateScreen — экран оплаты в личке: текст + «💬 Поддержка» внизу; inline-способы оплаты отдельным сообщением (API не совмещает оба типа клавиатур).
+// sendPaywallUnpaidPrivateScreen — текст paywall + inline-кнопки оплаты; «💬 Поддержка» отдельно внизу (reply-клавиатура, API не совмещает с inline).
 func (b *Bot) sendPaywallUnpaidPrivateScreen(chatID int64) error {
 	m := tgbotapi.NewMessage(chatID, b.paywallPrivateUnpaidUserText())
-	if kb := b.privateSupportReplyKeyboard(); kb != nil {
-		m.ReplyMarkup = kb
-	}
+	m.ReplyMarkup = b.paywallUnpaidInlineKeyboard()
 	if _, err := b.api.Send(m); err != nil {
 		return err
 	}
-	if ik := b.paywallUnpaidInlineKeyboard(); ik != nil {
-		btn := tgbotapi.NewMessage(chatID, "\u200b")
-		btn.DisableNotification = true
-		btn.ReplyMarkup = ik
-		_, err := b.api.Send(btn)
+	if kb := b.privateSupportReplyKeyboard(); kb != nil {
+		support := tgbotapi.NewMessage(chatID, "\u200b")
+		support.DisableNotification = true
+		support.ReplyMarkup = kb
+		_, err := b.api.Send(support)
 		return err
 	}
 	return nil
