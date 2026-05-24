@@ -73,6 +73,10 @@ db-reset:
 migrate:
 	go run ./cmd/migrate
 
+# Миграции на Railway Postgres (нужны: railway login, railway link в каталоге ms_leo).
+migrate-railway:
+	railway run ./migrate
+
 # Сборка команды миграций
 build-migrate:
 	go build -o bin/migrate ./cmd/migrate
