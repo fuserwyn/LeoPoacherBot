@@ -18,6 +18,9 @@ var reStarOnlyLine = regexp.MustCompile(`(?m)^[ \t]*\*[^*]{1,200}\*(?:[ \t]*[�
 // Ведущая «театральная» ремарка в круглых скобках одной строкой или абзацем (модели всё равно добавляют).
 var reLeadingParenStageBlock = regexp.MustCompile(`(?s)^[ \t]*\([^)]{2,500}\)[ \t]*(?:\n{1,2}|$)`)
 
+// Хвостовая саморефлексия модели в скобках (stage=, символы, «выбрал тон») — не для пользователя.
+var reTrailingAIMetaParen = regexp.MustCompile(`(?is)[\s\n]*\([^)]*(?:stage\s*=|уложил(?:ся|ась)?\s+в\s+\d+|нейтральн\w*\s+тон|выбрал\w*|запрещённ|без\s+запрещённ|для\s+stage)[^)]{0,400}\)\s*$`)
+
 // *Рычит* / *р-р* / *мр-я* (внутри фразы)
 var reStarInlineGimmicks = []*regexp.Regexp{
 	regexp.MustCompile(`(?i)(?:^|[\s,.!?:;—–-]|\(|\)|«|»|])\*рыч(ит|а|у|н(ул|ёшь|ит|ито)?|ь|о)\*(\s*[🐆🦁🐯]?\s*)?`),
@@ -85,6 +88,15 @@ func SanitizeTextForUser(text string) string {
 		return ""
 	}
 
+	clean = stripLeadingParenStageBlocks(clean)
+	for i := 0; i < 3; i++ {
+		next := strings.TrimSpace(reTrailingAIMetaParen.ReplaceAllString(clean, ""))
+		if next == clean {
+			break
+		}
+		clean = next
+	}
+
 	lower := strings.ToLower(clean)
 	blockedStarts := []string{
 		"сделай ",
@@ -107,6 +119,15 @@ func SanitizeTextForUser(text string) string {
 		"критическому предупреждению",
 		"не повторяй цифры и факты",
 		"если не отправит отчёт о тренировке в мини-аппе",
+		"stage=day_",
+		"stage = day",
+		"уложился в",
+		"уложилась в",
+		"нейтральный тон для stage",
+		"выбрал нейтральный",
+		"запрещённых слов",
+		"без запрещённых",
+		"для stage=",
 	}
 	for _, s := range blockedContains {
 		if strings.Contains(lower, s) {
@@ -114,7 +135,6 @@ func SanitizeTextForUser(text string) string {
 		}
 	}
 
-	clean = stripLeadingParenStageBlocks(clean)
 	clean = stripAsteriskStageRemarks(clean)
 	if strings.TrimSpace(clean) == "" {
 		return ""

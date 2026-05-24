@@ -19,7 +19,7 @@ func formatRemovalAtLocalHuman(removalAt time.Time, loc *time.Location) string {
 		"", "января", "февраля", "марта", "апреля", "мая", "июня",
 		"июля", "августа", "сентября", "октября", "ноября", "декабря",
 	}
-	return fmt.Sprintf("%d %s в 00:00 (ваше время)", d.Day(), months[int(d.Month())])
+	return fmt.Sprintf("%d %s, 00:00", d.Day(), months[int(d.Month())])
 }
 
 func (b *Bot) startTimer(userID, chatID int64, username string) {
@@ -193,27 +193,12 @@ func (b *Bot) cancelTimer(userID int64) {
 // sendInactiveRemovalWarning — предупреждение за 72 ч (день 5), 48 ч (день 6) или 24 ч (день 7) до кика в 00:00 локального TZ юзера.
 func (b *Bot) sendInactiveRemovalWarning(userID, chatID int64, username string, hoursBefore int, removalAt time.Time, loc *time.Location) {
 	who := normalizeUserDisplayName(username)
-	tag := "отчётом в мини-аппе"
 	deadlineHuman := formatRemovalAtLocalHuman(removalAt, loc)
-	var windowRU string
-	switch hoursBefore {
-	case 72:
-		windowRU = "примерно трое суток"
-	case 48:
-		windowRU = "примерно двое суток"
-	case 24:
-		windowRU = "примерно сутки"
-	default:
-		windowRU = fmt.Sprintf("примерно %d ч.", hoursBefore)
-	}
 	messageText := fmt.Sprintf(
 		"⚠️ Предупреждение о неактивности\n\n"+
-			"До возможного удаления из стаи осталось %s.\n\n"+
-			"%s, без отчёта с %s кик произойдёт в %s (прогресс — по правилам возврата).\n\n"+
+			"%s, если не отметишь тренировку в мини-аппе, удаление из стаи — %s.\n\n"+
 			"В последний календарный день до этой полуночи отчёт ещё можно сдать до 23:59 МСК.",
-		windowRU,
 		who,
-		tag,
 		deadlineHuman,
 	)
 

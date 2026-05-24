@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { inactivityHighlight } from "../lib/inactivityHighlight";
 import { miniappCupsLevelProgress, miniappLevelFromCups, miniappLevelName } from "../lib/miniappLevel";
 import { cupsWordRu, daysWordRu } from "../lib/streakLabel";
 import "./ProfileScreen.css";
@@ -291,8 +292,9 @@ export function ProfileScreen({
     );
   })();
 
-  const noTrainingAlert = daysSinceLastTraining >= 5;
-  const noTrainingDanger = daysSinceLastTraining >= 7;
+  const inactiveHighlight = inactivityHighlight(daysSinceLastTraining);
+  const showDaysWithoutTraining = daysSinceLastTraining >= 5;
+  const showKickBanner = daysSinceLastTraining >= 7;
 
   const healthActionsKeyboard = sickFormOpen && healthInputFocused;
 
@@ -312,9 +314,18 @@ export function ProfileScreen({
   }, [healthInputFocused, sickFormOpen, scrollHealthAboveKeyboard]);
 
   return (
-    <div className={`profile${healthActionsKeyboard ? " profile--health-keyboard" : ""}`}>
+    <div
+      className={`profile${healthActionsKeyboard ? " profile--health-keyboard" : ""}${
+        inactiveHighlight !== "none" ? ` profile--inactive-${inactiveHighlight}` : ""
+      }`}
+    >
       <header className="profile__hero">
-        <div className={`profile__avatar${noTrainingAlert ? " profile__avatar--alert" : ""}`} aria-hidden>
+        <div
+          className={`profile__avatar${
+            inactiveHighlight !== "none" ? ` profile__avatar--inactive-${inactiveHighlight}` : ""
+          }`}
+          aria-hidden
+        >
           {userPhotoUrl ? (
             <img src={userPhotoUrl} alt="" className="profile__avatar-img" width={88} height={88} />
           ) : (
@@ -327,15 +338,15 @@ export function ProfileScreen({
           <p className="profile__level muted">
             Уровень {miniappLevelFromCups(xp)} · {levelTitle}
           </p>
-          {daysSinceLastTraining > 0 ? (
+          {showDaysWithoutTraining ? (
             <p
-              className={`profile__kick${noTrainingAlert ? " profile__kick--alert" : ""}${noTrainingDanger ? " profile__kick--danger" : ""}`}
+              className={`profile__kick profile__kick--inactive-${inactiveHighlight}`}
               title={`Дней без тренировок: ${daysSinceLastTraining}`}
             >
               Дней без тренировок: {daysSinceLastTraining}
             </p>
           ) : null}
-          {noTrainingDanger ? (
+          {showKickBanner ? (
             <p className="profile__danger">ПОТРЕНИРУЙСЯ ДО 00:00 ИЛИ ЛЕО СЪЕСТ ТЕБЯ</p>
           ) : null}
         </div>
@@ -358,15 +369,27 @@ export function ProfileScreen({
       </header>
 
       <div className="profile__grid3">
-        <div className="stat-card">
+        <div
+          className={`stat-card${
+            inactiveHighlight !== "none" ? ` stat-card--inactive-${inactiveHighlight}` : ""
+          }`}
+        >
           <div className="stat-card__label">Дней подряд</div>
           <div className="stat-card__val">{streak}</div>
         </div>
-        <div className="stat-card">
+        <div
+          className={`stat-card${
+            inactiveHighlight !== "none" ? ` stat-card--inactive-${inactiveHighlight}` : ""
+          }`}
+        >
           <div className="stat-card__label">Рекорд стрика</div>
           <div className="stat-card__val">{recordStreak}</div>
         </div>
-        <div className="stat-card">
+        <div
+          className={`stat-card${
+            inactiveHighlight !== "none" ? ` stat-card--inactive-${inactiveHighlight}` : ""
+          }`}
+        >
           <div className="stat-card__label">Всего тренировок</div>
           <div className="stat-card__val">{workouts}</div>
         </div>

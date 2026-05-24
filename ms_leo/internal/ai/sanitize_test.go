@@ -56,6 +56,18 @@ func TestSanitizeStripsRykInline(t *testing.T) {
 	}
 }
 
+func TestSanitizeStripsTrailingTimerMetaParen(t *testing.T) {
+	t.Parallel()
+	in := "Чувствую, ты замешкался — момент взять и размяться.\n\n(Выбрал нейтральный тон для stage=day_5 — мягкое напоминание. Уложился в 102 символа.)"
+	got := SanitizeTextForUser(in)
+	if strings.Contains(got, "stage=") || strings.Contains(got, "Уложился") {
+		t.Errorf("expected meta paren stripped, got %q", got)
+	}
+	if !strings.Contains(got, "замешкался") {
+		t.Errorf("expected body kept, got %q", got)
+	}
+}
+
 func TestSanitizeStripsLeadingParenStageBlock(t *testing.T) {
 	t.Parallel()
 	in := "(Резко разворачиваюсь, сверкая глазами)\n\nКороткий ответ без ремарок."
