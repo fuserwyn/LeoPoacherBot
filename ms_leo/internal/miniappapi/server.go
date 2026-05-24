@@ -87,6 +87,8 @@ func (s *Server) serve(w http.ResponseWriter, r *http.Request) {
 		s.handlePostProfileSave(w, r)
 	case path == "/api/miniapp/health/status" && r.Method == http.MethodPost:
 		s.handlePostHealthStatus(w, r)
+	case path == "/api/miniapp/streak/save-use" && r.Method == http.MethodPost:
+		s.handlePostStreakSaveUse(w, r)
 	case path == "/api/miniapp/workout" && r.Method == http.MethodPost:
 		s.handlePostWorkoutWithPhoto(w, r)
 	case strings.HasPrefix(path, "/api/miniapp/media/") && r.Method == http.MethodGet:
@@ -1343,18 +1345,21 @@ func (s *Server) handlePostProfileLoad(w http.ResponseWriter, r *http.Request) {
 	kickAt := s.bot.GetMiniappInactivityRemovalDeadlineRFC3339(parsed.User.ID, packID)
 	w.Header().Set("Content-Type", "application/json; charset=utf-8")
 	out := map[string]any{
-		"ok":                       true,
-		"gender":                   g,
-		"display_name":             d,
-		"timezone_offset":          tz,
-		"xp":                       stats.XP,
-		"streak_days":              stats.StreakDays,
-		"max_streak_days":          stats.MaxStreakDays,
-		"achievement_count":        stats.AchievementCount,
-		"achievements_max":         stats.AchievementsMax,
-		"workouts_total":           stats.WorkoutsTotal,
-		"workouts_week":            stats.WorkoutsWeek,
-		"days_since_last_training": stats.DaysSinceLastTraining,
+		"ok":                          true,
+		"gender":                      g,
+		"display_name":                d,
+		"timezone_offset":             tz,
+		"xp":                          stats.XP,
+		"streak_days":                 stats.StreakDays,
+		"max_streak_days":             stats.MaxStreakDays,
+		"achievement_count":           stats.AchievementCount,
+		"achievements_max":            stats.AchievementsMax,
+		"workouts_total":              stats.WorkoutsTotal,
+		"workouts_week":               stats.WorkoutsWeek,
+		"days_since_last_training":    stats.DaysSinceLastTraining,
+		"streak_save_attempts_used":   stats.StreakSaveAttemptsUsed,
+		"streak_save_attempts_max":    stats.StreakSaveAttemptsMax,
+		"streak_save_attempts_avail":  stats.StreakSaveAttemptsAvail,
 	}
 	if kickAt != "" {
 		out["inactivity_removal_at"] = kickAt
@@ -1440,18 +1445,21 @@ func (s *Server) handlePostProfileSave(w http.ResponseWriter, r *http.Request) {
 	kickAt := s.bot.GetMiniappInactivityRemovalDeadlineRFC3339(parsed.User.ID, packID)
 	w.Header().Set("Content-Type", "application/json; charset=utf-8")
 	out := map[string]any{
-		"ok":                       true,
-		"gender":                   g,
-		"display_name":             d,
-		"timezone_offset":          tz,
-		"xp":                       stats.XP,
-		"streak_days":              stats.StreakDays,
-		"max_streak_days":          stats.MaxStreakDays,
-		"achievement_count":        stats.AchievementCount,
-		"achievements_max":         stats.AchievementsMax,
-		"workouts_total":           stats.WorkoutsTotal,
-		"workouts_week":            stats.WorkoutsWeek,
-		"days_since_last_training": stats.DaysSinceLastTraining,
+		"ok":                          true,
+		"gender":                      g,
+		"display_name":                d,
+		"timezone_offset":             tz,
+		"xp":                          stats.XP,
+		"streak_days":                 stats.StreakDays,
+		"max_streak_days":             stats.MaxStreakDays,
+		"achievement_count":           stats.AchievementCount,
+		"achievements_max":            stats.AchievementsMax,
+		"workouts_total":              stats.WorkoutsTotal,
+		"workouts_week":               stats.WorkoutsWeek,
+		"days_since_last_training":    stats.DaysSinceLastTraining,
+		"streak_save_attempts_used":   stats.StreakSaveAttemptsUsed,
+		"streak_save_attempts_max":    stats.StreakSaveAttemptsMax,
+		"streak_save_attempts_avail":  stats.StreakSaveAttemptsAvail,
 	}
 	if kickAt != "" {
 		out["inactivity_removal_at"] = kickAt
@@ -1462,6 +1470,75 @@ func (s *Server) handlePostProfileSave(w http.ResponseWriter, r *http.Request) {
 		out["age"] = nil
 	}
 	_ = json.NewEncoder(w).Encode(out)
+}
+
+func (s *Server) handlePostStreakSaveUse(w http.ResponseWriter, r *http.Request) {
+	corsWriteHeaders(w, r)
+	if s.bot == nil || s.token == "" {
+		s.jsonErr(w, http.StatusServiceUnavailable, "server_unavailable")
+		return
+	}
+	var body struct {
+		InitData string `json:"init_data"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		s.jsonErr(w, http.StatusBadRequest, "invalid_json")
+		return
+	}
+	if body.InitData == "" {
+		s.jsonErr(w, http.StatusBadRequest, "missing_init_data")
+		return
+	}
+	if err := initdata.Validate(body.InitData, s.token, 24*time.Hour); err != nil {
+		s.jsonErr(w, http.StatusUnauthorized, "invalid_init_data")
+		return
+	}
+	parsed, err := initdata.Parse(body.InitData)
+	if err != nil {
+		s.jsonErr(w, http.StatusBadRequest, "parse_init_data")
+		return
+	}
+	if parsed.User.ID == 0 {
+		s.jsonErr(w, http.StatusBadRequest, "user_missing")
+		return
+	}
+	if err := s.bot.AssertMiniAppPackChatAligns(parsed); err != nil {
+		if errors.Is(err, bot.ErrMiniAppChatMismatch) {
+			s.jsonErr(w, http.StatusConflict, "chat_mismatch")
+			return
+		}
+		s.jsonErr(w, http.StatusInternalServerError, "assert_chat_error")
+		return
+	}
+	packID := s.bot.MonetizedChatID()
+	if packID == 0 {
+		s.jsonErr(w, http.StatusServiceUnavailable, "pack_not_configured")
+		return
+	}
+	used, max, avail, err := s.bot.UseStreakSaveAttemptForAPI(parsed.User.ID, packID)
+	if err != nil {
+		if err.Error() == "no_attempts" {
+			w.Header().Set("Content-Type", "application/json; charset=utf-8")
+			w.WriteHeader(http.StatusConflict)
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"error":                       "no_attempts",
+				"streak_save_attempts_used":   used,
+				"streak_save_attempts_max":    max,
+				"streak_save_attempts_avail":  avail,
+			})
+			return
+		}
+		s.logger.Errorf("streak save use user=%d pack=%d: %v", parsed.User.ID, packID, err)
+		s.jsonErr(w, http.StatusInternalServerError, "save_failed")
+		return
+	}
+	w.Header().Set("Content-Type", "application/json; charset=utf-8")
+	_ = json.NewEncoder(w).Encode(map[string]any{
+		"ok":                          true,
+		"streak_save_attempts_used":   used,
+		"streak_save_attempts_max":    max,
+		"streak_save_attempts_avail":  avail,
+	})
 }
 
 func (s *Server) jsonErr(w http.ResponseWriter, code int, err string) {

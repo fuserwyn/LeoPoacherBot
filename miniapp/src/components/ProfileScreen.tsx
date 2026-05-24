@@ -83,6 +83,11 @@ export function ProfileScreen({
   const [healthInputFocused, setHealthInputFocused] = useState(false);
   const healthTextareaRef = useRef<HTMLTextAreaElement | null>(null);
 
+  const [saveStreakUsed, setSaveStreakUsed] = useState(0);
+  const [saveStreakMax, setSaveStreakMax] = useState(1);
+  const [saveStreakBusy, setSaveStreakBusy] = useState(false);
+  const saveStreakAvail = Math.max(0, saveStreakMax - saveStreakUsed);
+
   const scrollHealthAboveKeyboard = useCallback(() => {
     const ta = healthTextareaRef.current;
     if (!ta) return;
@@ -122,6 +127,8 @@ export function ProfileScreen({
         gender?: string;
         display_name?: string;
         timezone_offset?: number;
+        streak_save_attempts_used?: number;
+        streak_save_attempts_max?: number;
       };
       if (!res.ok) {
         showAlert(j.error ?? `Профиль: ошибка ${res.status}`);
@@ -141,6 +148,12 @@ export function ProfileScreen({
       };
       setProfile(nextProfile);
       setSavedProfile(normalizeProfileData(nextProfile));
+      if (typeof j.streak_save_attempts_used === "number") {
+        setSaveStreakUsed(Math.max(0, j.streak_save_attempts_used));
+      }
+      if (typeof j.streak_save_attempts_max === "number") {
+        setSaveStreakMax(Math.max(1, j.streak_save_attempts_max));
+      }
     } catch (e) {
       showAlert(e instanceof Error ? e.message : "Сеть");
     } finally {

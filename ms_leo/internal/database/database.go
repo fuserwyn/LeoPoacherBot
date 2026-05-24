@@ -387,6 +387,40 @@ func (d *Database) UpdateStreak(userID, chatID int64, streakDays int, lastTraini
 	return err
 }
 
+// GetStreakSaveAttemptsUsed возвращает количество использованных попыток спасения стрика (lifetime).
+func (d *Database) GetStreakSaveAttemptsUsed(userID, chatID int64) (int, error) {
+	query := `
+		SELECT COALESCE(streak_save_attempts_used, 0)
+		FROM training_state
+		WHERE user_id = $1 AND chat_id = $2
+	`
+	var used int
+	err := d.db.QueryRow(query, userID, chatID).Scan(&used)
+	if err != nil {
+		return 0, err
+	}
+	return used, nil
+}
+
+// IncrementStreakSaveAttemptsUsed +1 к счётчику использованных попыток спасения стрика.
+// Возвращает новое значение счётчика.
+func (d *Database) IncrementStreakSaveAttemptsUsed(userID, chatID int64) (int, error) {
+	query := `
+		UPDATE training_state
+		SET streak_save_attempts_used = COALESCE(streak_save_attempts_used, 0) + 1,
+		    updated_at = $3
+		WHERE user_id = $1 AND chat_id = $2
+		RETURNING streak_save_attempts_used
+	`
+	moscowTime := utils.FormatMoscowTime(utils.GetMoscowTime())
+	var used int
+	err := d.db.QueryRow(query, userID, chatID, moscowTime).Scan(&used)
+	if err != nil {
+		return 0, err
+	}
+	return used, nil
+}
+
 // ResetStreakDays сбрасывает только стрик, не трогая last_training_date
 func (d *Database) ResetStreakDays(userID, chatID int64) error {
 	query := `

@@ -55,7 +55,7 @@ export function App() {
   const [profileDisplayName, setProfileDisplayName] = useState("");
   const [xp, setXP] = useState(0);
   const [achievementCount, setAchievementCount] = useState(0);
-  const [achievementsMax, setAchievementsMax] = useState(7);
+  const [achievementsMax, setAchievementsMax] = useState(8);
   const [workouts, setWorkouts] = useState(0);
   const [leoPending, setLeoPending] = useState(0);
   const [feedUnread, setFeedUnread] = useState(0);

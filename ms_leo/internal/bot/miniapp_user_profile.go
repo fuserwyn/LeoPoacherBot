@@ -172,14 +172,29 @@ func (b *Bot) GetMiniappUserProfileJSONForAPI(userID, packChatID int64) (gender,
 }
 
 type MiniappProfileStats struct {
-	XP                    int
-	StreakDays            int
-	MaxStreakDays         int
-	AchievementCount      int
-	AchievementsMax       int
-	WorkoutsTotal         int
-	WorkoutsWeek          int
-	DaysSinceLastTraining int // -1, если тренировок ещё не было
+	XP                       int
+	StreakDays               int
+	MaxStreakDays            int
+	AchievementCount         int
+	AchievementsMax          int
+	WorkoutsTotal            int
+	WorkoutsWeek             int
+	DaysSinceLastTraining    int // -1, если тренировок ещё не было
+	StreakSaveAttemptsUsed   int // сколько попыток спасения стрика использовано (lifetime)
+	StreakSaveAttemptsMax    int // кап = min(level, 7); +1 за каждый новый уровень
+	StreakSaveAttemptsAvail  int // = max - used (не меньше 0)
+}
+
+// StreakSaveAttemptsMaxForLevel возвращает кап попыток спасения для данного уровня (1-based).
+// Правило: на старте 1 попытка, +1 за каждый новый уровень, максимум 7.
+func StreakSaveAttemptsMaxForLevel(level int) int {
+	if level < 1 {
+		level = 1
+	}
+	if level > 7 {
+		return 7
+	}
+	return level
 }
 
 // GetMiniappProfileStatsForAPI — срез метрик профиля для мини-аппа (XP/стрик/рекорд/ачивки/тренировки).
@@ -244,7 +259,40 @@ func (b *Bot) GetMiniappProfileStatsForAPI(userID, packChatID int64) MiniappProf
 	}
 	countAndMerge(packChatID)
 	countAndMerge(userID)
+
+	// Streak save attempts: cap зависит от текущего уровня (по накопленным кубкам).
+	level := leopardmoney.LevelFromTotalCups(out.XP)
+	out.StreakSaveAttemptsMax = StreakSaveAttemptsMaxForLevel(level)
+	if used, err := b.db.GetStreakSaveAttemptsUsed(userID, packChatID); err == nil {
+		out.StreakSaveAttemptsUsed = used
+	}
+	avail := out.StreakSaveAttemptsMax - out.StreakSaveAttemptsUsed
+	if avail < 0 {
+		avail = 0
+	}
+	out.StreakSaveAttemptsAvail = avail
 	return out
+}
+
+// UseStreakSaveAttemptForAPI пытается использовать одну попытку спасения стрика.
+// Возвращает обновлённый used или ошибку (если попыток нет).
+func (b *Bot) UseStreakSaveAttemptForAPI(userID, packChatID int64) (used, max, avail int, err error) {
+	if b == nil || b.db == nil || userID == 0 || packChatID == 0 {
+		return 0, 0, 0, errors.New("not_configured")
+	}
+	stats := b.GetMiniappProfileStatsForAPI(userID, packChatID)
+	if stats.StreakSaveAttemptsAvail <= 0 {
+		return stats.StreakSaveAttemptsUsed, stats.StreakSaveAttemptsMax, 0, errors.New("no_attempts")
+	}
+	newUsed, err := b.db.IncrementStreakSaveAttemptsUsed(userID, packChatID)
+	if err != nil {
+		return stats.StreakSaveAttemptsUsed, stats.StreakSaveAttemptsMax, stats.StreakSaveAttemptsAvail, err
+	}
+	avail = stats.StreakSaveAttemptsMax - newUsed
+	if avail < 0 {
+		avail = 0
+	}
+	return newUsed, stats.StreakSaveAttemptsMax, avail, nil
 }
 
 // GetMiniappInactivityRemovalDeadlineRFC3339 — когда возможен кик за неактивность (если не будет отчёта), Europe/Moscow в RFC3339. Пусто — нет таймера, освобождён от кика или нет данных.

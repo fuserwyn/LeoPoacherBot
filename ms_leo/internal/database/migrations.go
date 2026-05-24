@@ -914,6 +914,18 @@ var Migrations = []Migration{
 			ADD COLUMN IF NOT EXISTS calorie_streak_days INTEGER DEFAULT 0;
 		`,
 	},
+	{
+		Version:     45,
+		Description: "Streak save attempts: lifetime counter for manual saves",
+		UpSQL: `
+			ALTER TABLE training_state
+			ADD COLUMN IF NOT EXISTS streak_save_attempts_used INTEGER NOT NULL DEFAULT 0;
+		`,
+		DownSQL: `
+			ALTER TABLE training_state
+			DROP COLUMN IF EXISTS streak_save_attempts_used;
+		`,
+	},
 }
 
 // MigrationRecord представляет запись о выполненной миграции
