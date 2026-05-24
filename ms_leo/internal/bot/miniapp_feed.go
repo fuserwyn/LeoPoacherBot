@@ -4,6 +4,8 @@ import (
 	"errors"
 
 	initdata "github.com/telegram-mini-apps/init-data-golang"
+
+	"leo-bot/internal/domain"
 )
 
 // ErrPackFeedForbidden — смотрящему нельзя видеть ленту (нет в стае / не оплачено).
@@ -67,11 +69,9 @@ type PackFeedItem struct {
 	Poll       *PackFeedPoll         `json:"poll,omitempty"`
 }
 
-// PackFeedForViewer — лента «стаи» из user_messages (отчёты) для участника/оплатившего.
-// Записи sick_leave в ленту мини-аппа не попадают (статус остаётся в профиле/боте).
-// initD сверяется с MONETIZED_CHAT_ID, если в подписи есть group/supergroup.
-// initDataRaw — строка WebApp initData для URL прокси аватаров (GET /api/miniapp/user-avatar).
-func (b *Bot) PackFeedForViewer(viewerUserID int64, initD initdata.InitData, initDataRaw string) ([]PackFeedItem, error) {
+// PackFeedForViewer — лента стаи из user_messages. sinceID > 0 — только id новее (polling).
+// initD сверяется с MONETIZED_CHAT_ID; initDataRaw — для прокси аватаров.
+func (b *Bot) PackFeedForViewer(viewerUserID int64, initD initdata.InitData, initDataRaw string, sinceID int64) ([]PackFeedItem, error) {
 	if err := b.PackFeedAssertViewerAccess(viewerUserID, initD); err != nil {
 		return nil, err
 	}
@@ -83,8 +83,14 @@ func (b *Bot) PackFeedForViewer(viewerUserID int64, initD initdata.InitData, ini
 	if initD.Chat.ID != 0 && (initD.Chat.Type == initdata.ChatTypeSupergroup || initD.Chat.Type == initdata.ChatTypeGroup) {
 		packTitle = initD.Chat.Title
 	}
-	// Показываем общую историю стаи для всех участников, без персональной отсечки "с момента входа".
-	rows, err := b.db.ListPackActivityFeed(chatID, 50, nil)
+	var rows []*domain.PackActivityRow
+	var err error
+	if sinceID > 0 {
+		rows, err = b.db.ListPackActivityFeedAfterID(chatID, sinceID, 30)
+	} else {
+		// Показываем общую историю стаи для всех участников, без персональной отсечки "с момента входа".
+		rows, err = b.db.ListPackActivityFeed(chatID, 50, nil)
+	}
 	if err != nil {
 		return nil, err
 	}

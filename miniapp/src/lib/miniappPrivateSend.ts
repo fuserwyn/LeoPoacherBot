@@ -2,7 +2,9 @@
 
 const apiBase = (import.meta.env.VITE_MINIAPP_API_URL as string | undefined)?.replace(/\/$/, "") ?? "";
 
-export type MiniappSendResult = { ok: true; replyParts: string[] } | { ok: false; error: string };
+export type MiniappSendResult =
+  | { ok: true; replyParts: string[]; trainingPhotoUrl?: string }
+  | { ok: false; error: string };
 
 export type MiniappSendOptions = {
   /**
@@ -135,6 +137,7 @@ export async function sendMiniappTrainingWithPhoto(
     ok?: boolean;
     pending?: boolean;
     reply_text?: string;
+    photo_url?: string;
   };
   if (!res.ok) {
     if (res.status === 400 && j.error === "media_not_configured") {
@@ -154,20 +157,25 @@ export async function sendMiniappTrainingWithPhoto(
     }
     return { ok: false, error: j.error ?? `Ошибка ${res.status}` };
   }
+  const photoURL = j.photo_url?.trim();
   const replyNow = j.reply_text?.trim();
   if (replyNow) {
-    return { ok: true, replyParts: [replyNow] };
+    return { ok: true, replyParts: [replyNow], trainingPhotoUrl: photoURL || undefined };
   }
   if (j.pending) {
     if (!awaitReply) {
-      return { ok: true, replyParts: [] };
+      return { ok: true, replyParts: [], trainingPhotoUrl: photoURL || undefined };
     }
     try {
       const parts = await pollPendingReplies(initData);
-      return { ok: true, replyParts: parts };
+      return { ok: true, replyParts: parts, trainingPhotoUrl: photoURL || undefined };
     } catch (e) {
       return { ok: false, error: e instanceof Error ? e.message : String(e) };
     }
   }
-  return { ok: true, replyParts: ["Сообщение ушло боту. Открой чат с ботом в Telegram, если ждёшь ответ там."] };
+  return {
+    ok: true,
+    replyParts: ["Сообщение ушло боту. Открой чат с ботом в Telegram, если ждёшь ответ там."],
+    trainingPhotoUrl: photoURL || undefined,
+  };
 }

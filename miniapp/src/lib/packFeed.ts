@@ -1,6 +1,10 @@
 import { LEO_AVATAR_URL } from "./leoAvatar";
 import { timeAgoFromISO } from "./timeAgo";
-import { trainingDoneCategoryDisplayLabel, trainingDoneCategoryEmoji } from "./workoutCategories";
+import {
+  stripLeadingCategoryFromTrainingReport,
+  trainingDoneCategoryDisplayLabel,
+  trainingDoneCategoryEmoji,
+} from "./workoutCategories";
 import type { ActivityCardProps } from "../components/ActivityCard";
 
 const viteMiniappApi = (import.meta.env.VITE_MINIAPP_API_URL as string | undefined)?.replace(/\/$/, "").trim() ?? "";
@@ -233,7 +237,7 @@ export function dtoToCard(d: PackFeedItemDTO): ActivityCardProps {
   } else if (d.type === "sick_leave") {
     commentRaw = stripLeadingFeedHashtag(commentRaw, "#sick_leave");
   } else if (d.type === "training_done") {
-    commentRaw = stripFirstLineTrainingDoneTag(commentRaw);
+    commentRaw = stripLeadingCategoryFromTrainingReport(stripFirstLineTrainingDoneTag(commentRaw));
   }
   const maxComment =
     d.type === "training_done" ||
@@ -301,4 +305,71 @@ export function dtoToCard(d: PackFeedItemDTO): ActivityCardProps {
     comment,
     trainingPhotoUrl: resolveTrainingPhotoUrl(d.training_photo_url),
   };
+}
+
+/** Сортировка ленты: новые сверху. */
+export function sortPackFeedItemsDesc(items: PackFeedItemDTO[]): PackFeedItemDTO[] {
+  return [...items].sort((a, b) => {
+    const tb = Date.parse(b.created_at) || 0;
+    const ta = Date.parse(a.created_at) || 0;
+    if (tb !== ta) return tb - ta;
+    return b.id - a.id;
+  });
+}
+
+function trainingReportFirstLineKey(text: string): string {
+  const line = text.trim().replace(/^#training_done\s*[—–-]\s*/i, "").split("\n")[0] ?? "";
+  const m = line.match(/^([^,]+),\s*\d+\s*мин/i);
+  return (m?.[1] ?? line).trim().toLowerCase();
+}
+
+/** Добавляет только новые id; снимает временную optimistic-карточку при совпадении отчёта. */
+export function mergePackFeedIncremental(prev: PackFeedItemDTO[], incoming: PackFeedItemDTO[]): PackFeedItemDTO[] {
+  if (incoming.length === 0) return prev;
+  const known = new Set(prev.map((i) => i.id));
+  const fresh = incoming.filter((i) => !known.has(i.id));
+  if (fresh.length === 0) return prev;
+  const withoutOptimistic = prev.filter((p) => {
+    if (p.id >= 0) return true;
+    return !fresh.some(
+      (f) =>
+        f.type === "training_done" &&
+        f.is_you &&
+        p.is_you &&
+        f.user_id === p.user_id &&
+        trainingReportFirstLineKey(f.text) === trainingReportFirstLineKey(p.text),
+    );
+  });
+  return sortPackFeedItemsDesc([...fresh, ...withoutOptimistic]);
+}
+
+/** Карточка сразу после отчёта, пока polling не подтянул строку из БД. */
+export function buildOptimisticTrainingFeedItem(params: {
+  userId: number;
+  username: string;
+  text: string;
+  streakDays: number;
+  trainingPhotoUrl?: string;
+  authorPhotoUrl?: string;
+}): PackFeedItemDTO {
+  const un = params.username.trim();
+  return {
+    id: -Date.now(),
+    user_id: params.userId,
+    username: un.startsWith("@") ? un : `@${un}`,
+    type: "training_done",
+    text: params.text.trim(),
+    created_at: new Date().toISOString(),
+    streak_days: Math.max(0, params.streakDays),
+    is_you: true,
+    training_photo_url: params.trainingPhotoUrl,
+    author_photo_url: params.authorPhotoUrl,
+  };
+}
+
+export function feedHasMatchingTrainingReport(items: PackFeedItemDTO[], text: string, userId: number): boolean {
+  const key = trainingReportFirstLineKey(text);
+  return items.some(
+    (i) => i.id > 0 && i.type === "training_done" && i.user_id === userId && trainingReportFirstLineKey(i.text) === key,
+  );
 }

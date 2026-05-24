@@ -4,10 +4,13 @@ import { ActivityCard, type ActivityCardProps } from "./ActivityCard";
 import { PackGroupChatPanel } from "./PackGroupChatPanel";
 import {
   dtoToCard,
+  feedHasMatchingTrainingReport,
   HEALTHY_FEED_EMOJIS,
+  mergePackFeedIncremental,
   mergePackFeedReactions,
   mergeTrainingFeedReactions,
   resolveFeedAvatarUrl,
+  sortPackFeedItemsDesc,
   type PackFeedItemDTO,
   type PackFeedThreadReplyDTO,
 } from "../lib/packFeed";
@@ -22,6 +25,21 @@ import {
 import "./FeedScreen.css";
 
 const apiBase = (import.meta.env.VITE_MINIAPP_API_URL as string | undefined)?.replace(/\/$/, "") ?? "";
+const FEED_POLL_MS = 8000;
+const FEED_FULL_EVERY_N_POLLS = 6;
+
+function applyOptimisticFeedItem(items: PackFeedItemDTO[], optimistic: PackFeedItemDTO | null | undefined): PackFeedItemDTO[] {
+  if (!optimistic) return items;
+  if (feedHasMatchingTrainingReport(items, optimistic.text, optimistic.user_id)) return items;
+  if (items.some((i) => i.id === optimistic.id)) return items;
+  return sortPackFeedItemsDesc([optimistic, ...items]);
+}
+
+function bumpMaxFeedId(maxRef: { current: number }, items: PackFeedItemDTO[]) {
+  for (const it of items) {
+    if (it.id > maxRef.current) maxRef.current = it.id;
+  }
+}
 
 type Props = {
   name: string;
@@ -31,6 +49,9 @@ type Props = {
   inTelegram: boolean;
   showAlert: (m: string) => void;
   refreshToken?: number;
+  /** Временная карточка сразу после отчёта (до ответа polling). */
+  optimisticFeedItem?: PackFeedItemDTO | null;
+  onOptimisticConsumed?: () => void;
   /** Перезагрузить общие данные (стрик, уровень, кубки) — вызывается при pull-to-refresh. */
   onRefreshAll?: () => Promise<void> | void;
   /** Вкладка «Стая» видима (keep-alive). */
@@ -67,6 +88,8 @@ export function FeedScreen({
   inTelegram,
   showAlert,
   refreshToken = 0,
+  optimisticFeedItem = null,
+  onOptimisticConsumed,
   onRefreshAll,
   active = true,
 }: Props) {
@@ -88,11 +111,19 @@ export function FeedScreen({
   const [feedCategoryIds, setFeedCategoryIds] = useState<WorkoutCategoryId[]>([]);
   const [viewportStyle, setViewportStyle] = useState<FeedViewportStyle>({});
   const feedHeaderRef = useRef<HTMLDivElement>(null);
+  const maxFeedIdRef = useRef(0);
+  const pollTickRef = useRef(0);
+  const loadedOnceRef = useRef(false);
 
   const categoryFilterSet = useMemo(() => new Set(feedCategoryIds), [feedCategoryIds]);
 
+  const feedWithOptimistic = useMemo(
+    () => applyOptimisticFeedItem(feedItems, optimisticFeedItem),
+    [feedItems, optimisticFeedItem],
+  );
+
   const visibleFeedItems = useMemo(() => {
-    return feedItems.filter((it) => {
+    return feedWithOptimistic.filter((it) => {
       if (it.type === "sick_leave") return false;
       if (feedOnlyMine && !it.is_you) return false;
       if (feedCategoryIds.length > 0) {
@@ -101,7 +132,7 @@ export function FeedScreen({
       }
       return true;
     });
-  }, [feedItems, feedOnlyMine, feedCategoryIds, categoryFilterSet]);
+  }, [feedWithOptimistic, feedOnlyMine, feedCategoryIds, categoryFilterSet]);
 
   const hapticLight = useCallback(() => {
     window.Telegram?.WebApp?.HapticFeedback?.impactOccurred?.("light");
@@ -125,42 +156,76 @@ export function FeedScreen({
     setFeedCategoryIds([]);
   }, [hapticLight]);
 
-  const load = useCallback(async () => {
-    if (!apiBase || !inTelegram || !initData) {
-      setLoading(false);
-      setUseMockFeed(true);
-      setFeedItems([]);
-      setErr(null);
-      return;
-    }
-    setErr(null);
-    setLoading(true);
-    setUseMockFeed(false);
-    try {
-      const res = await fetch(`${apiBase}/api/miniapp/feed`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ init_data: initData }),
-      });
-      const j = (await res.json().catch(() => ({}))) as { ok?: boolean; items?: PackFeedItemDTO[]; error?: string };
-      if (!res.ok) {
-        if (res.status === 403) {
-          setErr("Нет доступа к ленте стаи: нужна подписка/участие в группе, как в боте.");
-          setFeedItems([]);
-          return;
-        }
-        setErr(j.error ?? `Ошибка ${res.status}`);
+  const syncFeed = useCallback(
+    async (opts?: { full?: boolean; silent?: boolean }) => {
+      if (!apiBase || !inTelegram || !initData) {
+        setLoading(false);
+        setUseMockFeed(true);
         setFeedItems([]);
+        setErr(null);
+        maxFeedIdRef.current = 0;
         return;
       }
-      setFeedItems(j.items ?? []);
-    } catch (e) {
-      setErr(e instanceof Error ? e.message : "Сеть");
-      setFeedItems([]);
-    } finally {
-      setLoading(false);
-    }
-  }, [inTelegram, initData]);
+      const full = opts?.full === true || maxFeedIdRef.current === 0;
+      const sinceId = full ? 0 : maxFeedIdRef.current;
+      if (!opts?.silent) setErr(null);
+      if (!opts?.silent && !loadedOnceRef.current) setLoading(true);
+      setUseMockFeed(false);
+      try {
+        const res = await fetch(`${apiBase}/api/miniapp/feed`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ init_data: initData, since_id: sinceId }),
+        });
+        const j = (await res.json().catch(() => ({}))) as { ok?: boolean; items?: PackFeedItemDTO[]; error?: string };
+        if (!res.ok) {
+          if (res.status === 403) {
+            setErr("Нет доступа к ленте стаи: нужна подписка/участие в группе, как в боте.");
+            if (!opts?.silent) setFeedItems([]);
+            return;
+          }
+          if (!opts?.silent) {
+            setErr(j.error ?? `Ошибка ${res.status}`);
+            setFeedItems([]);
+          }
+          return;
+        }
+        const incoming = j.items ?? [];
+        if (full || sinceId === 0) {
+          setFeedItems(incoming);
+          maxFeedIdRef.current = 0;
+          bumpMaxFeedId(maxFeedIdRef, incoming);
+          if (
+            optimisticFeedItem &&
+            feedHasMatchingTrainingReport(incoming, optimisticFeedItem.text, optimisticFeedItem.user_id)
+          ) {
+            onOptimisticConsumed?.();
+          }
+        } else {
+          setFeedItems((prev) => {
+            const next = mergePackFeedIncremental(prev, incoming);
+            bumpMaxFeedId(maxFeedIdRef, incoming);
+            if (
+              optimisticFeedItem &&
+              feedHasMatchingTrainingReport(next, optimisticFeedItem.text, optimisticFeedItem.user_id)
+            ) {
+              onOptimisticConsumed?.();
+            }
+            return next;
+          });
+        }
+        loadedOnceRef.current = true;
+      } catch (e) {
+        if (!opts?.silent) {
+          setErr(e instanceof Error ? e.message : "Сеть");
+          setFeedItems([]);
+        }
+      } finally {
+        if (!opts?.silent) setLoading(false);
+      }
+    },
+    [inTelegram, initData, optimisticFeedItem, onOptimisticConsumed],
+  );
 
   const postTrainingReact = useCallback(
     async (userMessageId: number, emoji: string) => {
@@ -176,12 +241,12 @@ export function FeedScreen({
           showAlert(j.error === "invalid_emoji" ? "Такую реакцию нельзя" : j.error ?? `Ошибка ${res.status}`);
           return;
         }
-        await load();
+        await syncFeed({ full: true, silent: true });
       } catch (e) {
         showAlert(e instanceof Error ? e.message : "Сеть");
       }
     },
-    [apiBase, initData, load, showAlert],
+    [apiBase, initData, syncFeed, showAlert],
   );
 
   const voteFeedPoll = useCallback(
@@ -205,12 +270,12 @@ export function FeedScreen({
           showAlert(errMap[j.error ?? ""] ?? j.error ?? `Ошибка ${res.status}`);
           return;
         }
-        await load();
+        await syncFeed({ full: true, silent: true });
       } catch (e) {
         showAlert(e instanceof Error ? e.message : "Сеть");
       }
     },
-    [apiBase, initData, load, showAlert],
+    [apiBase, initData, syncFeed, showAlert],
   );
 
   const postTrainingThread = useCallback(
@@ -258,10 +323,10 @@ export function FeedScreen({
             prev.map((it) => (it.id === userMessageId ? { ...it, thread: postedThread } : it)),
           );
         } else {
-          await load();
+          await syncFeed({ full: true, silent: true });
         }
         if (replyToThreadId) {
-          window.setTimeout(() => void load(), 5000);
+          window.setTimeout(() => void syncFeed({ full: true, silent: true }), 5000);
         }
       } catch (e) {
         showAlert(e instanceof Error ? e.message : "Сеть");
@@ -269,7 +334,7 @@ export function FeedScreen({
         setThreadPosting((p) => ({ ...p, [userMessageId]: false }));
       }
     },
-    [apiBase, initData, load, showAlert],
+    [apiBase, initData, syncFeed, showAlert],
   );
 
   const deleteTrainingThreadReply = useCallback(
@@ -302,7 +367,7 @@ export function FeedScreen({
             prev.map((it) => (it.id === trainingUserMessageId ? { ...it, thread: updated } : it)),
           );
         } else {
-          await load();
+          await syncFeed({ full: true, silent: true });
         }
       } catch (e) {
         showAlert(e instanceof Error ? e.message : "Сеть");
@@ -310,7 +375,7 @@ export function FeedScreen({
         setThreadReplyDeleting((p) => ({ ...p, [threadReplyId]: false }));
       }
     },
-    [apiBase, initData, load, showAlert],
+    [apiBase, initData, syncFeed, showAlert],
   );
 
   const toggleTrainingThreadLike = useCallback(
@@ -333,19 +398,47 @@ export function FeedScreen({
             prev.map((it) => (it.id === trainingUserMessageId ? { ...it, thread: updated } : it)),
           );
         } else {
-          await load();
+          await syncFeed({ full: true, silent: true });
         }
       } catch (e) {
         showAlert(e instanceof Error ? e.message : "Сеть");
       }
     },
-    [apiBase, initData, load, showAlert],
+    [apiBase, initData, syncFeed, showAlert],
   );
 
   useEffect(() => {
-    if (!active) return;
-    void load();
-  }, [load, refreshToken, active]);
+    maxFeedIdRef.current = 0;
+    loadedOnceRef.current = false;
+    pollTickRef.current = 0;
+    if (active) void syncFeed({ full: true });
+  }, [refreshToken, syncFeed, active]);
+
+  useEffect(() => {
+    if (!active || loadedOnceRef.current) return;
+    void syncFeed({ full: true });
+  }, [active, syncFeed]);
+
+  useEffect(() => {
+    if (!active || !apiBase || !inTelegram || !initData.trim()) return;
+    let cancelled = false;
+    let timer: ReturnType<typeof setTimeout> | null = null;
+
+    const tick = async () => {
+      if (cancelled) return;
+      pollTickRef.current += 1;
+      const full = pollTickRef.current % FEED_FULL_EVERY_N_POLLS === 0;
+      await syncFeed({ full, silent: true });
+      if (cancelled) return;
+      timer = setTimeout(tick, FEED_POLL_MS);
+    };
+
+    timer = setTimeout(tick, FEED_POLL_MS);
+    return () => {
+      cancelled = true;
+      if (timer) clearTimeout(timer);
+    };
+  }, [active, inTelegram, initData, syncFeed]);
 
   useLayoutEffect(() => {
     const sticky = feedHeaderRef.current;
@@ -428,8 +521,9 @@ export function FeedScreen({
 
   const handlePullRefresh = useCallback(async () => {
     hapticLight();
-    await Promise.all([load(), Promise.resolve(onRefreshAll?.())]);
-  }, [load, onRefreshAll, hapticLight]);
+    maxFeedIdRef.current = 0;
+    await Promise.all([syncFeed({ full: true }), Promise.resolve(onRefreshAll?.())]);
+  }, [syncFeed, onRefreshAll, hapticLight]);
 
   const ptr = usePullToRefresh({
     onRefresh: handlePullRefresh,
@@ -562,7 +656,8 @@ export function FeedScreen({
                 disabled={loading}
                 onClick={() => {
                   window.scrollTo({ top: 0, behavior: "smooth" });
-                  void load();
+                  maxFeedIdRef.current = 0;
+                  void syncFeed({ full: true });
                 }}
                 aria-label="Обновить ленту"
                 title="Обновить"

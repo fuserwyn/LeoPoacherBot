@@ -10,6 +10,7 @@ import { RulesScreen } from "./components/RulesScreen";
 import { TabKeepAlive } from "./components/TabKeepAlive";
 import { MiniappRemovedScreen } from "./components/MiniappRemovedScreen";
 import { SupportScreen } from "./components/SupportScreen";
+import { buildOptimisticTrainingFeedItem, type PackFeedItemDTO } from "./lib/packFeed";
 import { sendMiniappPrivateText, sendMiniappTrainingWithPhoto } from "./lib/miniappPrivateSend";
 import { fetchLeoPendingCount } from "./lib/leoPersonalInbox";
 import { clearFeedThreadUnread, fetchFeedThreadUnreadCount } from "./lib/feedThreadUnread";
@@ -59,6 +60,7 @@ export function App() {
   const [leoPending, setLeoPending] = useState(0);
   const [feedUnread, setFeedUnread] = useState(0);
   const [feedRefreshToken, setFeedRefreshToken] = useState(0);
+  const [optimisticFeedItem, setOptimisticFeedItem] = useState<PackFeedItemDTO | null>(null);
   const [daysSinceLastTraining, setDaysSinceLastTraining] = useState<number>(-1);
   const [accessGateStatus, setAccessGateStatus] = useState<AccessGateStatus>("checking");
   const tzSyncedRef = useRef(false);
@@ -212,6 +214,8 @@ export function App() {
             inTelegram={inTelegram}
             showAlert={showAlert}
             refreshToken={feedRefreshToken}
+            optimisticFeedItem={optimisticFeedItem}
+            onOptimisticConsumed={() => setOptimisticFeedItem(null)}
             onRefreshAll={async () => {
               await Promise.all([refreshProfileStats(), refreshTabBadges()]);
             }}
@@ -332,13 +336,20 @@ export function App() {
               showAlert(result.error);
               return false;
             }
+            setOptimisticFeedItem(
+              buildOptimisticTrainingFeedItem({
+                userId: userId || 0,
+                username: effectiveName,
+                text: line,
+                streakDays: streak,
+                trainingPhotoUrl: result.trainingPhotoUrl,
+                authorPhotoUrl: photoUrl,
+              }),
+            );
             void refreshTabBadges();
             void refreshProfileStats();
             setTab("feed");
             setFeedRefreshToken((v) => v + 1);
-            window.setTimeout(() => setFeedRefreshToken((v) => v + 1), 4000);
-            window.setTimeout(() => setFeedRefreshToken((v) => v + 1), 10000);
-            window.setTimeout(() => setFeedRefreshToken((v) => v + 1), 20000);
             window.setTimeout(() => void refreshTabBadges(), 6000);
             const summary = formatTrainingDoneAlert(result.replyParts);
             const fallback =

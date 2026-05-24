@@ -369,6 +369,7 @@ func (s *Server) handlePostFeed(w http.ResponseWriter, r *http.Request) {
 	}
 	var body struct {
 		InitData string `json:"init_data"`
+		SinceID  int64  `json:"since_id"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
 		s.jsonErr(w, http.StatusBadRequest, "invalid_json")
@@ -392,7 +393,7 @@ func (s *Server) handlePostFeed(w http.ResponseWriter, r *http.Request) {
 		s.jsonErr(w, http.StatusBadRequest, "user_missing")
 		return
 	}
-	items, err := s.bot.PackFeedForViewer(parsed.User.ID, parsed, body.InitData)
+	items, err := s.bot.PackFeedForViewer(parsed.User.ID, parsed, body.InitData, body.SinceID)
 	if err != nil {
 		if errors.Is(err, bot.ErrMiniAppChatMismatch) {
 			s.jsonErr(w, http.StatusConflict, "chat_mismatch")

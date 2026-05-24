@@ -87,6 +87,28 @@ export function parseTrainingDoneCategory(text: string): WorkoutCategoryId | nul
   return "other";
 }
 
+/**
+ * Убирает ведущее «бег, » / «плавание, » из тела поста — тип уже в заголовке карточки.
+ * Формат: «вид, N мин, инт. …» (+ опциональный комментарий на следующих строках).
+ */
+export function stripLeadingCategoryFromTrainingReport(text: string): string {
+  const trimmed = text.trim();
+  if (!trimmed) return trimmed;
+
+  const withoutTag = trimmed.replace(/^#training_done\s*[—–-]\s*/i, "").trim();
+  const nl = withoutTag.indexOf("\n");
+  const firstLine = nl >= 0 ? withoutTag.slice(0, nl) : withoutTag;
+  const rest = nl >= 0 ? withoutTag.slice(nl + 1).trim() : "";
+
+  const m = firstLine.match(/^([^,]+),\s*(.+)$/);
+  if (!m) return trimmed;
+  const afterKind = m[2].trim();
+  if (!/\d+\s*мин/i.test(afterKind)) return trimmed;
+
+  const body = rest ? `${afterKind}\n${rest}` : afterKind;
+  return body.trim();
+}
+
 /** Совпадение с выбранным фильтром категории (для `training_done`). */
 export function trainingDoneMatchesCategory(text: string, filterId: WorkoutCategoryId): boolean {
   const cat = parseTrainingDoneCategory(text);
