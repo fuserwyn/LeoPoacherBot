@@ -234,14 +234,22 @@ func (b *Bot) paywallUnpaidInlineKeyboard() *tgbotapi.InlineKeyboardMarkup {
 	return &tgbotapi.InlineKeyboardMarkup{InlineKeyboard: rows}
 }
 
-// sendPaywallUnpaidPrivateScreen — текст paywall + inline-кнопки оплаты; «💬 Поддержка» отдельно внизу (reply-клавиатура, API не совмещает с inline).
+// sendPaywallUnpaidPrivateScreen — paywall + «💬 Поддержка» внизу; кнопки оплаты отдельным сообщением (API не совмещает reply и inline).
 func (b *Bot) sendPaywallUnpaidPrivateScreen(chatID int64) error {
 	m := tgbotapi.NewMessage(chatID, b.paywallPrivateUnpaidUserText())
-	m.ReplyMarkup = b.paywallUnpaidInlineKeyboard()
+	if kb := b.privateSupportReplyKeyboard(); kb != nil {
+		m.ReplyMarkup = kb
+	}
 	if _, err := b.api.Send(m); err != nil {
 		return err
 	}
-	b.sendPrivateSupportReplyKeyboard(chatID)
+	if ik := b.paywallUnpaidInlineKeyboard(); ik != nil {
+		methods := tgbotapi.NewMessage(chatID, "Способы оплаты:")
+		methods.ReplyMarkup = ik
+		if _, err := b.api.Send(methods); err != nil {
+			return err
+		}
+	}
 	return nil
 }
 

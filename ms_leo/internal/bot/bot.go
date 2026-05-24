@@ -987,9 +987,15 @@ func (b *Bot) handleRejoin(msg *tgbotapi.Message) {
 	}
 	if b.paywallPrivateNeedsPayFirst(msg.From.ID) {
 		reply := tgbotapi.NewMessage(msg.Chat.ID, "⚠️ Сначала оплати доступ. Нажми /start, чтобы получить счёт.")
-		reply.ReplyMarkup = b.paywallUnpaidInlineKeyboard()
+		if kb := b.privateSupportReplyKeyboard(); kb != nil {
+			reply.ReplyMarkup = kb
+		}
 		if _, err := b.api.Send(reply); err == nil {
-			b.sendPrivateSupportReplyKeyboard(msg.Chat.ID)
+			if ik := b.paywallUnpaidInlineKeyboard(); ik != nil {
+				methods := tgbotapi.NewMessage(msg.Chat.ID, "Способы оплаты:")
+				methods.ReplyMarkup = ik
+				_, _ = b.api.Send(methods)
+			}
 		}
 		return
 	}
