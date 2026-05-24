@@ -445,7 +445,12 @@ export function ProfileScreen({
 
       <section className="profile__achievements" aria-label="Достижения">
         <div className="profile__achievements-head">
-          <h2 className="section-title profile__achievements-title">Ачивки</h2>
+          <div>
+            <h2 className="section-title profile__achievements-title">Ачивки за стрик</h2>
+            <p className="profile__achievements-sub muted">
+              Открываются за дни подряд с тренировкой в мини-аппе — 7, 14, 30, 42…
+            </p>
+          </div>
           <span className="profile__achievements-count">
             {achievementCount}/{achievementsMax}
           </span>

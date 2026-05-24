@@ -272,7 +272,7 @@
 
 .profile__achievements-head {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: space-between;
   gap: 10px;
   margin-bottom: 8px;
@@ -280,6 +280,13 @@
 
 .profile__achievements-title {
   margin-bottom: 0;
+}
+
+.profile__achievements-sub {
+  margin: 3px 0 0;
+  font-size: 12px;
+  line-height: 1.35;
+  max-width: 16rem;
 }
 
 .profile__achievements-count {
@@ -378,10 +385,25 @@
 }
 
 .profile__achievement-days--heart {
-  top: 56%;
-  font-size: 11px;
+  inset: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  transform: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding-top: 7%;
+  padding-left: 1%;
+  font-size: 10px;
   color: #fff;
   text-shadow: 0 1px 2px rgba(0, 0, 0, 0.35);
+}
+
+.profile__achievement-days--heart.profile__achievement-days--double {
+  font-size: 9px;
+  padding-top: 8%;
+  letter-spacing: -0.04em;
 }
 
 .profile__achievement-label {
