@@ -361,7 +361,7 @@ export function ActivityCard({
             aria-label="Пожаловаться"
             title="Пожаловаться"
           >
-            {reportPosting ? "…" : "⚑"}
+            {reportPosting ? "…" : "🚩"}
           </button>
         )}
       </header>
@@ -477,16 +477,30 @@ export function ActivityCard({
                                     <span className="act-card__thread-author">{displayAuthor}</span>
                                     <span className="act-card__thread-time muted">{tr.timeAgo}</span>
                                   </div>
-                                  {tr.isYou && !leo && onThreadReplyDelete != null && (
-                                    <button
-                                      type="button"
-                                      className="act-card__thread-del"
-                                      disabled={Boolean(threadReplyDeleting[tr.id])}
-                                      onClick={() => onThreadReplyDelete(tr.id)}
-                                    >
-                                      {threadReplyDeleting[tr.id] ? "…" : "Удалить"}
-                                    </button>
-                                  )}
+                                  <div className="act-card__thread-head-actions">
+                                    {!tr.isYou && !leo && onThreadReplyReport != null && (
+                                      <button
+                                        type="button"
+                                        className="act-card__thread-report-head"
+                                        disabled={Boolean(threadReplyReporting[tr.id])}
+                                        onClick={() => onThreadReplyReport(tr.id)}
+                                        aria-label="Пожаловаться на комментарий"
+                                        title="Пожаловаться"
+                                      >
+                                        {threadReplyReporting[tr.id] ? "…" : "🚩"}
+                                      </button>
+                                    )}
+                                    {tr.isYou && !leo && onThreadReplyDelete != null && (
+                                      <button
+                                        type="button"
+                                        className="act-card__thread-del"
+                                        disabled={Boolean(threadReplyDeleting[tr.id])}
+                                        onClick={() => onThreadReplyDelete(tr.id)}
+                                      >
+                                        {threadReplyDeleting[tr.id] ? "…" : "Удалить"}
+                                      </button>
+                                    )}
+                                  </div>
                                 </div>
                                 {tr.replyTo != null &&
                                   ((tr.replyTo.text || "").trim() !== "" || (tr.replyTo.author || "").trim() !== "") && (
@@ -500,7 +514,9 @@ export function ActivityCard({
                                     </div>
                                   )}
                                 <p className="act-card__thread-text">{tr.text}</p>
-                                {(onThreadReplyIntent != null || onThreadReplyReport != null) && (
+                                {(onThreadReplyLike != null ||
+                                  onThreadReplyIntent != null ||
+                                  onThreadReplyReport != null) && (
                                   <div className="act-card__thread-actions">
                                     {onThreadReplyLike != null && (
                                       <button
@@ -537,7 +553,7 @@ export function ActivityCard({
                                         disabled={Boolean(threadReplyReporting[tr.id])}
                                         onClick={() => onThreadReplyReport(tr.id)}
                                       >
-                                        {threadReplyReporting[tr.id] ? "…" : "Пожаловаться"}
+                                        {threadReplyReporting[tr.id] ? "…" : "🚩 Пожаловаться"}
                                       </button>
                                     )}
                                   </div>

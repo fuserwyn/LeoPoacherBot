@@ -241,13 +241,7 @@ func (b *Bot) sendPaywallUnpaidPrivateScreen(chatID int64) error {
 	if _, err := b.api.Send(m); err != nil {
 		return err
 	}
-	if kb := b.privateSupportReplyKeyboard(); kb != nil {
-		support := tgbotapi.NewMessage(chatID, "\u200b")
-		support.DisableNotification = true
-		support.ReplyMarkup = kb
-		_, err := b.api.Send(support)
-		return err
-	}
+	b.sendPrivateSupportReplyKeyboard(chatID)
 	return nil
 }
 

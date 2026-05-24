@@ -411,7 +411,11 @@ export function FeedScreen({
           showAlert(errMap[j.error ?? ""] ?? j.error ?? `Ошибка ${res.status}`);
           return;
         }
-        showAlert("Жалоба отправлена. Админы увидят её в поддержке.");
+        showAlert(
+          threadReplyId > 0
+            ? "Жалоба на комментарий отправлена. Админы увидят её в поддержке."
+            : "Жалоба отправлена. Админы увидят её в поддержке.",
+        );
       } catch (e) {
         showAlert(e instanceof Error ? e.message : "Сеть");
       } finally {
@@ -732,6 +736,7 @@ export function FeedScreen({
                 const base = dtoToCard(it);
                 const supportsThread =
                   it.type === "training_done" ||
+                  it.type === "sick_leave" ||
                   it.type === "healthy" ||
                   it.type === "admin_post" ||
                   it.type === "admin_poll";

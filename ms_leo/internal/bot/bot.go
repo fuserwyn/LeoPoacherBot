@@ -989,12 +989,7 @@ func (b *Bot) handleRejoin(msg *tgbotapi.Message) {
 		reply := tgbotapi.NewMessage(msg.Chat.ID, "⚠️ Сначала оплати доступ. Нажми /start, чтобы получить счёт.")
 		reply.ReplyMarkup = b.paywallUnpaidInlineKeyboard()
 		if _, err := b.api.Send(reply); err == nil {
-			if kb := b.privateSupportReplyKeyboard(); kb != nil {
-				support := tgbotapi.NewMessage(msg.Chat.ID, "\u200b")
-				support.DisableNotification = true
-				support.ReplyMarkup = kb
-				_, _ = b.api.Send(support)
-			}
+			b.sendPrivateSupportReplyKeyboard(msg.Chat.ID)
 		}
 		return
 	}

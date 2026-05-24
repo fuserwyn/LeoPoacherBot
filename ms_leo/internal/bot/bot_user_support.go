@@ -48,6 +48,24 @@ func botSupportPromptText() string {
 Ответ придёт в этот же чат. Выйти — кнопка «Выйти из поддержки» ниже.`
 }
 
+// sendPrivateSupportReplyKeyboard — reply-кнопка «💬 Поддержка» под полем ввода (отдельно от inline-оплаты).
+func (b *Bot) sendPrivateSupportReplyKeyboard(chatID int64) {
+	kb := b.privateSupportReplyKeyboard()
+	if kb == nil || chatID == 0 {
+		return
+	}
+	// Telegram отклоняет пустой/ZWSP текст; braille blank почти не виден в чате.
+	m := tgbotapi.NewMessage(chatID, "\u2800")
+	m.DisableNotification = true
+	m.ReplyMarkup = kb
+	if _, err := b.api.Send(m); err != nil {
+		m.Text = "."
+		if _, err = b.api.Send(m); err != nil {
+			b.logger.Warnf("support reply keyboard chat=%d: %v", chatID, err)
+		}
+	}
+}
+
 func (b *Bot) startUserSupportSession(userID int64) {
 	if !b.botSupportAvailable() || userID == 0 {
 		return
