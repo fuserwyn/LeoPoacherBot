@@ -185,13 +185,14 @@ func (b *Bot) paywallPrivateUnpaidUserText() string {
 	}
 
 	return `
-Рык! Платный вход. Цена невысокая, но она позволит моим создателям развивать проект для вас.
+Рык! Платный вход. Цена невысокая, но она позволит моим создателям развивать проект для тебя.
 
-Выбери как оплатить - картой для РФ или звёздами телеграмма для любой страны.
+Что получаешь:
+🐆 чат со Стаей
+💬 комментарии Лео к тренировкам
+📈 возможность отследить свой прогресс.
 
-После оплаты ты получишь безлимитный доступ в стаю. Пока я тебя не съем....
-
-👇 Выбери способ оплаты.
+Выбери, как оплатить — картой для РФ или звёздами телеграма для любой страны. После оплаты ты получишь доступ в Стаю. Пока я тебя не съем....
 
 Вопросы по оплате — кнопка «💬 Поддержка» под полем ввода или в списке кнопок выше.`
 }
@@ -295,14 +296,22 @@ func starsWordRU(n int) string {
 	}
 }
 
+func starsChargeVerbRU(n int) string {
+	n = n % 100
+	if n == 1 || (n >= 21 && n%10 == 1) {
+		return "спишется"
+	}
+	return "спишутся"
+}
+
 func (b *Bot) paywallStarsMethodText() string {
 	stars := b.config.PaywallStarsInvoiceAmount()
 	if stars <= 0 {
 		stars = 1
 	}
 	return fmt.Sprintf(
-		"⭐ Оплата звёздами Telegram.\n\n%d %s спишется с твоего баланса.\nПосле успешной оплаты ты сразу получишь кнопку доступа в мини-апп приложение Леопарда в этом чате.\n\nЕсли с оплатой будет проблема — кнопка «💬 Поддержка».",
-		stars, starsWordRU(stars),
+		"Оплата звёздами Telegram.\n\n%d %s %s с твоего баланса. После успешной оплаты ты сразу получишь кнопку доступа в мини-апп приложение Леопарда в этом чате. Если с оплатой будет проблема, напиши запрос в нашу поддержку.\n\nНажимая кнопку «Оплатить», ты соглашаешься с офертой.",
+		stars, starsWordRU(stars), starsChargeVerbRU(stars),
 	)
 }
 
@@ -312,14 +321,23 @@ func (b *Bot) paywallCardMethodText() string {
 		price = "сумма по тарифу"
 	}
 	return fmt.Sprintf(
-		"💳 Оплата банковской картой. Доступна картами РФ.\n\n%s спишется и после успешной оплаты ты сразу получишь кнопку доступа в мини-апп приложение Леопарда в этом чате.\n\nЕсли с оплатой будет проблема — кнопка «💬 Поддержка».",
+		"Оплата банковской картой.\n\nДоступна картами РФ. %s спишется, и после успешной оплаты ты сразу получишь кнопку доступа в мини-апп приложение Леопарда в этом чате. Если с оплатой будет проблема, напиши запрос в нашу поддержку.\n\nНажимая кнопку «Оплатить», ты соглашаешься с офертой.",
 		price,
 	)
 }
 
-func (b *Bot) paywallStarsMethodInlineKeyboard() *tgbotapi.InlineKeyboardMarkup {
+// paywallStarsInvoiceReplyMarkup — Pay (свой текст) + «Назад»; первая кнопка обязана быть Pay (Telegram API).
+func (b *Bot) paywallStarsInvoiceReplyMarkup() *tgbotapi.InlineKeyboardMarkup {
+	stars := b.config.PaywallStarsInvoiceAmount()
+	if stars <= 0 {
+		stars = 1
+	}
 	return &tgbotapi.InlineKeyboardMarkup{
 		InlineKeyboard: [][]tgbotapi.InlineKeyboardButton{
+			{{
+				Text: fmt.Sprintf("Оплатить ⭐%d", stars),
+				Pay:  true,
+			}},
 			tgbotapi.NewInlineKeyboardRow(
 				tgbotapi.NewInlineKeyboardButtonData("⬅️ Назад", paywallCallbackBackToMethods),
 			),
@@ -330,7 +348,7 @@ func (b *Bot) paywallStarsMethodInlineKeyboard() *tgbotapi.InlineKeyboardMarkup 
 func (b *Bot) paywallCardMethodInlineKeyboard(confirmURL string) *tgbotapi.InlineKeyboardMarkup {
 	var rows [][]tgbotapi.InlineKeyboardButton
 	rows = append(rows, tgbotapi.NewInlineKeyboardRow(
-		tgbotapi.NewInlineKeyboardButtonURL("💳 Перейти к оплате (ЮKassa)", confirmURL),
+		tgbotapi.NewInlineKeyboardButtonURL("💳 Оплатить (ЮKassa)", confirmURL),
 	))
 	rows = append(rows, tgbotapi.NewInlineKeyboardRow(
 		tgbotapi.NewInlineKeyboardButtonData("⬅️ Назад", paywallCallbackBackToMethods),
@@ -437,6 +455,24 @@ func paywallInvoiceClipDescription(s string) string {
 	return s
 }
 
+// paywallStarsInvoiceTitleAndDesc — полный текст в счёте (title ≤32, description ≤255).
+func paywallStarsInvoiceTitleAndDesc(methodText string) (title, desc string) {
+	methodText = strings.TrimSpace(methodText)
+	if methodText == "" {
+		return paywallInvoiceClipTitle("Оплата звёздами"), paywallInvoiceClipDescription("Оплата доступа")
+	}
+	head, body, _ := strings.Cut(methodText, "\n\n")
+	head = strings.TrimSpace(head)
+	body = strings.TrimSpace(body)
+	if head == "" {
+		return paywallInvoiceClipTitle("Оплата звёздами"), paywallInvoiceClipDescription(body)
+	}
+	if body == "" {
+		return paywallInvoiceClipTitle(head), paywallInvoiceClipDescription("Оплата доступа")
+	}
+	return paywallInvoiceClipTitle(head), paywallInvoiceClipDescription(body)
+}
+
 func (b *Bot) SendPaywallStarsInvoice(userID, reqID int64) error {
 	if !b.config.PaywallUsesStars() {
 		return fmt.Errorf("stars payment not configured")
@@ -446,11 +482,12 @@ func (b *Bot) SendPaywallStarsInvoice(userID, reqID int64) error {
 		return fmt.Errorf("stars amount invalid")
 	}
 	payload := fmt.Sprintf("%s%d", paywallPayloadPrefix, reqID)
-	prices := []tgbotapi.LabeledPrice{{Label: "Доступ", Amount: amt}}
+	prices := []tgbotapi.LabeledPrice{{Label: "Доступ в Стаю", Amount: amt}}
+	title, desc := paywallStarsInvoiceTitleAndDesc(b.paywallStarsMethodText())
 	inv := tgbotapi.NewInvoice(
 		userID,
-		paywallInvoiceClipTitle(b.config.PaymentInvoiceTitle),
-		paywallInvoiceClipDescription(b.config.PaymentInvoiceDesc),
+		title,
+		desc,
 		payload,
 		"",
 		"",
@@ -460,6 +497,7 @@ func (b *Bot) SendPaywallStarsInvoice(userID, reqID int64) error {
 	// Workaround for Telegram API validation: library may encode nil as null.
 	// Telegram expects an array for suggested_tip_amounts when field is present.
 	inv.SuggestedTipAmounts = []int{}
+	inv.ReplyMarkup = b.paywallStarsInvoiceReplyMarkup()
 	_, err := b.api.Send(inv)
 	return err
 }
@@ -535,7 +573,7 @@ func (b *Bot) SendYookassaPaymentLink(userID, reqID int64) error {
 	msg := tgbotapi.NewMessage(userID, text)
 	msg.ReplyMarkup = &tgbotapi.InlineKeyboardMarkup{
 		InlineKeyboard: [][]tgbotapi.InlineKeyboardButton{
-			tgbotapi.NewInlineKeyboardRow(tgbotapi.NewInlineKeyboardButtonURL("Оплатить", confirmURL)),
+			tgbotapi.NewInlineKeyboardRow(tgbotapi.NewInlineKeyboardButtonURL("💳 Оплатить (ЮKassa)", confirmURL)),
 		},
 	}
 	_, err = b.api.Send(msg)
@@ -587,12 +625,7 @@ func (b *Bot) handlePaywallPayStarsCallback(callback *tgbotapi.CallbackQuery) {
 		_, _ = b.api.Request(tgbotapi.NewCallbackWithAlert(callback.ID, "Ошибка. Попробуй /start."))
 		return
 	}
-	// Сначала текст + только «Назад»; счёт Telegram со встроенной кнопкой «Заплатить» — следующим сообщением.
-	msg := tgbotapi.NewMessage(uid, b.paywallStarsMethodText())
-	msg.ReplyMarkup = b.paywallStarsMethodInlineKeyboard()
-	if _, err := b.api.Send(msg); err != nil {
-		b.logger.Warnf("paywall stars callback send step message: %v", err)
-	}
+	// Один счёт: полный текст + «Оплатить ⭐N» + «Назад» (Telegram Stars).
 	if err := b.SendPaywallStarsInvoice(uid, reqID); err != nil {
 		b.logger.Errorf("paywall stars invoice: %s", paywallInvoiceErrLog(err))
 		h := paywallInvoiceShortHintForUser(err)
@@ -602,7 +635,7 @@ func (b *Bot) handlePaywallPayStarsCallback(callback *tgbotapi.CallbackQuery) {
 		_, _ = b.api.Request(tgbotapi.NewCallbackWithAlert(callback.ID, h))
 		return
 	}
-	_, _ = b.api.Request(tgbotapi.NewCallback(callback.ID, "Счёт на звёзды отправлен — нажми «Заплатить» в сообщении ниже."))
+	_, _ = b.api.Request(tgbotapi.NewCallback(callback.ID, "Нажми «Оплатить» в счёте выше."))
 }
 
 func (b *Bot) handlePaywallPayYookassaCallback(callback *tgbotapi.CallbackQuery) {
