@@ -42,7 +42,7 @@ func (d *Database) ListMiniappPackGroupChat(packChatID int64, limit int, sinceUT
 		FROM miniapp_pack_group_chat
 		WHERE pack_chat_id = $1
 		` + whereSince + `
-		ORDER BY created_at DESC
+		ORDER BY created_at DESC, id DESC
 		LIMIT $2
 	`
 	rows, err := d.db.Query(q, args...)

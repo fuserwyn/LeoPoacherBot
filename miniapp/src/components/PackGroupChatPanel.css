@@ -21,6 +21,8 @@
   overflow-y: auto;
   -webkit-overflow-scrolling: touch;
   overscroll-behavior: contain;
+  /* Иначе при догрузке аватаров WebKit «якорит» на предпоследнее сообщение. */
+  overflow-anchor: none;
   padding: 4px 0 0;
 }
 
@@ -31,15 +33,18 @@
   flex-direction: column;
   justify-content: flex-end;
   gap: 8px;
-  padding-bottom: calc(52px + var(--bottom-nav-h, var(--feed-bottom-nav-h, 72px)));
+  /* Запас под fixed-форму: поле + отступы (без двойного таббара — он уже в padding формы). */
+  padding-bottom: calc(58px + var(--safe-bottom, 0px) + 12px);
   box-sizing: border-box;
+  overflow-anchor: none;
 }
 
 .packroom__log-end {
   flex-shrink: 0;
-  height: 0;
+  height: 8px;
   width: 100%;
   overflow: hidden;
+  pointer-events: none;
 }
 
 .packroom__row {
@@ -73,6 +78,7 @@
   object-fit: cover;
   display: block;
   border: 1px solid var(--border-subtle, #2a2a36);
+  overflow-anchor: none;
 }
 
 .packroom__avatar-ph {
@@ -191,7 +197,7 @@ html.app-keyboard-open .packroom__form {
 }
 
 html.app-keyboard-open .packroom__log-inner {
-  padding-bottom: 55px;
+  padding-bottom: calc(58px + var(--safe-bottom, 0px) + 8px);
 }
 
 .packroom__input {

@@ -37,16 +37,17 @@ export function PackGroupChatPanel({ initData, inTelegram, meId, showAlert, onHa
   const didInitialScrollRef = useRef(false);
   /** После отправки — всегда вниз, даже если читал историю выше */
   const forceScrollRef = useRef(false);
+  const wasActiveRef = useRef(false);
 
   const isNearBottom = useCallback((el: HTMLDivElement, threshold = 96) => {
     return el.scrollHeight - el.scrollTop - el.clientHeight < threshold;
   }, []);
 
-  const scrollToBottom = useCallback((behavior: ScrollBehavior = "auto") => {
+  const scrollToBottom = useCallback(() => {
     const el = logRef.current;
     if (!el) return;
     const run = () => {
-      el.scrollTo({ top: el.scrollHeight, behavior });
+      el.scrollTop = el.scrollHeight;
     };
     run();
     requestAnimationFrame(() => {
@@ -85,6 +86,21 @@ export function PackGroupChatPanel({ initData, inTelegram, meId, showAlert, onHa
     void load();
   }, [load, active]);
 
+  useEffect(() => {
+    if (!active) {
+      didInitialScrollRef.current = false;
+      userScrolledUpRef.current = false;
+      wasActiveRef.current = false;
+      return;
+    }
+    if (!wasActiveRef.current) {
+      didInitialScrollRef.current = false;
+      userScrolledUpRef.current = false;
+      forceScrollRef.current = true;
+      wasActiveRef.current = true;
+    }
+  }, [active]);
+
   // body--lock только пока открыта подвкладка «Чат» стаи.
   useEffect(() => {
     if (!active) {
@@ -112,7 +128,7 @@ export function PackGroupChatPanel({ initData, inTelegram, meId, showAlert, onHa
     return () => el.removeEventListener("scroll", onScroll);
   }, [isNearBottom]);
 
-  // Рост ленты (поллинг, картинки) — держим конец видимым, если пользователь внизу.
+  // Рост ленты (поллинг, аватары) — держим конец видимым, если пользователь внизу.
   useEffect(() => {
     const el = logRef.current;
     if (!el) return;
@@ -121,36 +137,57 @@ export function PackGroupChatPanel({ initData, inTelegram, meId, showAlert, onHa
 
     const ro = new ResizeObserver(() => {
       if (forceScrollRef.current || !userScrolledUpRef.current) {
-        scrollToBottom("auto");
+        scrollToBottom();
       }
     });
     ro.observe(inner);
-    return () => ro.disconnect();
+    const onImgLoad = (e: Event) => {
+      if (!(e.target instanceof HTMLImageElement)) return;
+      if (!e.target.classList.contains("packroom__avatar")) return;
+      if (forceScrollRef.current || !userScrolledUpRef.current) {
+        scrollToBottom();
+      }
+    };
+    inner.addEventListener("load", onImgLoad, true);
+    return () => {
+      ro.disconnect();
+      inner.removeEventListener("load", onImgLoad, true);
+    };
   }, [items.length, scrollToBottom]);
 
   useEffect(() => {
+    if (!active) return;
     const el = logRef.current;
     if (!el || items.length === 0) return;
 
     if (!didInitialScrollRef.current) {
       didInitialScrollRef.current = true;
       userScrolledUpRef.current = false;
-      scrollToBottom("auto");
-      return;
+      scrollToBottom();
+      const t1 = window.setTimeout(scrollToBottom, 0);
+      const t2 = window.setTimeout(scrollToBottom, 80);
+      const t3 = window.setTimeout(scrollToBottom, 280);
+      const t4 = window.setTimeout(scrollToBottom, 600);
+      return () => {
+        window.clearTimeout(t1);
+        window.clearTimeout(t2);
+        window.clearTimeout(t3);
+        window.clearTimeout(t4);
+      };
     }
 
     if (forceScrollRef.current) {
       forceScrollRef.current = false;
       userScrolledUpRef.current = false;
-      scrollToBottom("auto");
+      scrollToBottom();
       return;
     }
 
     if (!userScrolledUpRef.current || isNearBottom(el)) {
       userScrolledUpRef.current = false;
-      scrollToBottom("auto");
+      scrollToBottom();
     }
-  }, [items, isNearBottom, scrollToBottom]);
+  }, [active, items, isNearBottom, scrollToBottom]);
 
   const send = useCallback(async () => {
     const t = text.trim();
@@ -278,8 +315,8 @@ export function PackGroupChatPanel({ initData, inTelegram, meId, showAlert, onHa
           autoComplete="off"
           onFocus={() => {
             userScrolledUpRef.current = false;
-            window.setTimeout(() => scrollToBottom("smooth"), 80);
-            window.setTimeout(() => scrollToBottom("auto"), 320);
+            window.setTimeout(() => scrollToBottom(), 80);
+            window.setTimeout(() => scrollToBottom(), 320);
           }}
         />
         <button type="submit" className="packroom__send" disabled={sending || !text.trim()}>
