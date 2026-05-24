@@ -165,7 +165,11 @@ COMMIT;
 
 -- Qdrant: session_id = 'personal:<target_user_id>:<pack_chat_id>'
 --
--- leo_payments (отдельная БД PAYMENT_DATABASE_URL, если включена):
--- BEGIN;
--- DELETE FROM yookassa_payment_events WHERE user_telegram_id = <target_user_id>;
--- COMMIT;
+-- yookassa_payment_events — НЕ в этой БД (ms_leo / DATABASE_URL бота).
+-- Таблица только в опциональной PAYMENT_DATABASE_URL (леджер ms_payments).
+-- Если при DELETE получаешь «relation yookassa_payment_events does not exist» —
+-- пропусти этот шаг: у тебя леджер отключён, доступ бота живёт в paywall_access_requests.
+--
+-- Нужно чистить леджер только если в Railway у payment-webhook задан PAYMENT_DATABASE_URL
+-- (другая строка подключения, часто БД leo_payments). Подключись к НЕЙ и выполни:
+--   DELETE FROM yookassa_payment_events WHERE user_telegram_id = <target_user_id>;

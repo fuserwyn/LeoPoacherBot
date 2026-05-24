@@ -356,11 +356,9 @@ func (b *Bot) ensurePaywallInvoiceSent(userID int64) {
 	} else if ok {
 		return
 	}
-	if b.config.PaywallYookassaReady() {
-		if b.paywallTrySyncYookassaPayment(userID) {
-			return
-		}
-	}
+	// ЮKassa sync только по явной кнопке «Оплатить картой», не на /start:
+	// иначе после GDPR-удаления pending с yookassa_payment_id + succeeded в API снова
+	// закрывает заявку и юзер получает «Ура, ты в стае» без новой оплаты.
 	pending, err := b.db.GetLatestPendingPaywallAccessRequest(userID, b.config.MonetizedChatID)
 	if err != nil {
 		b.logger.Errorf("paywall ensure invoice get pending: %v", err)

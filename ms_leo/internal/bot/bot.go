@@ -944,6 +944,8 @@ func (b *Bot) handleStart(msg *tgbotapi.Message) {
 
 	welcomeText := welcomeStartText()
 	if msg.Chat.IsPrivate() && b.paywallActive() && msg.From != nil && !b.paywallPrivateNeedsPayFirst(msg.From.ID) {
+		b.logger.Infof("paywall /start paid welcome user=%d snapshot=%s",
+			msg.From.ID, b.db.PaywallAccessDebugSnapshot(msg.From.ID, b.config.MonetizedChatID))
 		welcomeText = b.paywallPostPaymentUserText()
 	}
 
