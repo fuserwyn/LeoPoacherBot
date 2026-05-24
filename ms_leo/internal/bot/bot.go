@@ -32,8 +32,10 @@ type Bot struct {
 	ragStore             rag.Store
 	sickApprovalWatchers map[int64]chan struct{}
 	sickApprovalMutex    sync.Mutex
-	adminSessions        map[int64]*adminSession
-	adminSessionsMutex   sync.Mutex
+	adminSessions            map[int64]*adminSession
+	adminSessionsMutex       sync.Mutex
+	userSupportSessions      map[int64]struct{}
+	userSupportSessionsMutex sync.Mutex
 	// Очередь ответов Лео для мини-аппа (личка): poll без БД. Несколько реплик бота — один процесс.
 	miniappPersonalMu    sync.Mutex
 	miniappPersonalQueue map[int64][]string
@@ -123,7 +125,8 @@ func New(cfg *config.Config, db *database.Database, log logger.Logger) (*Bot, er
 		aiClient:             aiClient,
 		ragStore:             ragStore,
 		sickApprovalWatchers: make(map[int64]chan struct{}),
-		adminSessions:        make(map[int64]*adminSession),
+		adminSessions:       make(map[int64]*adminSession),
+		userSupportSessions: make(map[int64]struct{}),
 		miniappPersonalQueue: make(map[int64][]string),
 	}, nil
 }
@@ -361,6 +364,11 @@ func (b *Bot) dispatchTextMessageFromUser(msg *tgbotapi.Message, personalReplyCh
 		return
 	}
 
+	// Поддержка в личке (оплата, доступ) — до мини-аппа, без Лео.
+	if b.handleUserSupportFlowMessage(msg) {
+		return
+	}
+
 	// Обрабатываем команды
 	if msg.IsCommand() {
 		// Сохраняем команду в БД для контекста
@@ -414,6 +422,10 @@ func (b *Bot) handleCommand(msg *tgbotapi.Message) {
 		b.handleStartTimer(msg)
 	case "help":
 		b.handleHelp(msg)
+	case "support":
+		b.handleSupportCommand(msg)
+	case "cancel":
+		b.handleSupportCancelCommand(msg)
 	case "db":
 		b.handleDB(msg)
 	case "top":
@@ -606,6 +618,14 @@ func (b *Bot) handleMessage(msg *tgbotapi.Message, personalReplyCh chan<- string
 			b.handleHealthy(msg)
 		}
 		return // Выходим, не обрабатывая через ИИ
+	}
+
+	// В режиме поддержки в личке — только в поддержку, не в Лео.
+	if msg.Chat != nil && msg.Chat.IsPrivate() && msg.From != nil && b.userInSupportSession(msg.From.ID) {
+		if text != "" || msg.Caption != "" {
+			_ = b.handleUserSupportFlowMessage(msg)
+			return
+		}
 	}
 
 	// Если нет команд — вопросы к ИИ: в личке с ботом — любой текст; в группах — @ или ответ на бота.
@@ -936,6 +956,10 @@ func (b *Bot) handleStart(msg *tgbotapi.Message) {
 			b.logger.Infof("Sending paywall-only /start to chat %d", msg.Chat.ID)
 			if _, err := b.api.Send(reply); err != nil {
 				b.logger.Errorf("Failed to send paywall /start: %v", err)
+			} else if b.botSupportAvailable() {
+				kb := tgbotapi.NewMessage(msg.Chat.ID, "💬 Вопросы по оплате — кнопка «Поддержка» под полем ввода или inline выше.")
+				kb.ReplyMarkup = b.privateSupportReplyKeyboard()
+				_, _ = b.api.Send(kb)
 			}
 			return
 		}
@@ -950,6 +974,9 @@ func (b *Bot) handleStart(msg *tgbotapi.Message) {
 	}
 
 	reply := tgbotapi.NewMessage(msg.Chat.ID, welcomeText)
+	if msg.Chat.IsPrivate() && b.botSupportAvailable() {
+		reply.ReplyMarkup = b.privateSupportReplyKeyboard()
+	}
 
 	b.logger.Infof("Sending start message to chat %d", msg.Chat.ID)
 	_, errSend := b.api.Send(reply)
@@ -2610,6 +2637,9 @@ func (b *Bot) handleCallbackQuery(callback *tgbotapi.CallbackQuery) {
 		return
 	case paywallCallbackBackToMethods:
 		b.handlePaywallBackToMethodsCallback(callback)
+		return
+	case botSupportCallbackStart, botSupportCallbackCancel:
+		b.handleBotSupportCallback(callback)
 		return
 	case "back_to_menu":
 		// Удаляем сообщение и возвращаемся в меню

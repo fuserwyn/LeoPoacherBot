@@ -238,10 +238,10 @@ export function ActivityCard({
   const threadBodyRef = useRef<HTMLDivElement>(null);
   const threadComposeRef = useRef<HTMLDivElement>(null);
   const threadInputRef = useRef<HTMLTextAreaElement>(null);
-  const composePinHeightRef = useRef(0);
   const feedScrollLockYRef = useRef<number | null>(null);
   const [threadOpen, setThreadOpen] = useState(false);
   const [composePinned, setComposePinned] = useState(false);
+  const [composeSpacerH, setComposeSpacerH] = useState(0);
   const [lightboxOpen, setLightboxOpen] = useState(false);
   const [photoFailed, setPhotoFailed] = useState(false);
   const prevThreadLen = useRef(threadReplies.length);
@@ -252,7 +252,8 @@ export function ActivityCard({
 
   const pinThreadComposer = useCallback(() => {
     const compose = threadComposeRef.current;
-    if (compose) composePinHeightRef.current = compose.offsetHeight;
+    const h = compose ? Math.max(compose.offsetHeight, 120) : 120;
+    setComposeSpacerH(h);
     feedScrollLockYRef.current = window.scrollY;
     setComposePinned(true);
     setFeedComposerOpenOnDocument(true);
@@ -261,14 +262,24 @@ export function ActivityCard({
   const unpinThreadComposer = useCallback(() => {
     feedScrollLockYRef.current = null;
     setComposePinned(false);
+    setComposeSpacerH(0);
     if (!document.querySelector(".act-card__thread-compose--pinned")) {
       setFeedComposerOpenOnDocument(false);
     }
   }, [setFeedComposerOpenOnDocument]);
 
   const onThreadComposeFocus = useCallback(() => {
+    if (!threadOpen) setThreadOpen(true);
     pinThreadComposer();
-  }, [pinThreadComposer]);
+  }, [pinThreadComposer, threadOpen]);
+
+  useLayoutEffect(() => {
+    if (!composePinned) return;
+    const compose = threadComposeRef.current;
+    if (!compose) return;
+    const h = Math.max(compose.offsetHeight, 120);
+    if (h !== composeSpacerH) setComposeSpacerH(h);
+  }, [composePinned, composeSpacerH, threadReplyIntent, threadComposer?.draft]);
 
   const onThreadComposeBlur = useCallback(() => {
     window.setTimeout(() => {
@@ -420,12 +431,12 @@ export function ActivityCard({
             <p className="act-card__ai-text">{aiText}</p>
           </div>
         )}
-        {showReact && (
-          <div className="act-card__react" role="group" aria-label="Реакции">
-            <TrainingReactionsBar reactions={reactions} onReactionClick={onReactionClick} />
-          </div>
-        )}
       </div>
+      {showReact && (
+        <div className="act-card__react" role="group" aria-label="Реакции">
+          <TrainingReactionsBar reactions={reactions} onReactionClick={onReactionClick} />
+        </div>
+      )}
       {hasThread && (
         <div className="act-card__thread">
             <button
@@ -541,10 +552,10 @@ export function ActivityCard({
                 </div>
                 {threadComposer && (
                   <>
-                    {composePinned && composePinHeightRef.current > 0 ? (
+                    {composePinned && composeSpacerH > 0 ? (
                       <div
                         className="act-card__thread-compose-spacer"
-                        style={{ height: composePinHeightRef.current }}
+                        style={{ height: composeSpacerH }}
                         aria-hidden
                       />
                     ) : null}

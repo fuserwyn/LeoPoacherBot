@@ -191,7 +191,9 @@ func (b *Bot) paywallPrivateUnpaidUserText() string {
 
 После оплаты ты получишь безлимитный доступ в стаю. Пока я тебя не съем....
 
-👇 Выбери способ оплаты:`
+👇 Выбери способ оплаты.
+
+Вопросы по оплате — кнопка «Поддержка» ниже или /support.`
 }
 
 // paywallUnpaidInlineKeyboard — отдельные кнопки под каждый способ оплаты.
@@ -227,6 +229,7 @@ func (b *Bot) paywallUnpaidInlineKeyboard() *tgbotapi.InlineKeyboardMarkup {
 			tgbotapi.NewInlineKeyboardButtonData(label, paywallCallbackPayStars),
 		))
 	}
+	rows = b.appendPaywallSupportRow(rows)
 	if len(rows) == 0 {
 		return nil
 	}
@@ -262,6 +265,7 @@ func (b *Bot) paywallReturnInlineKeyboard() *tgbotapi.InlineKeyboardMarkup {
 			tgbotapi.NewInlineKeyboardButtonData(label, paywallCallbackPayStars),
 		))
 	}
+	rows = b.appendPaywallSupportRow(rows)
 	if len(rows) == 0 {
 		return nil
 	}
@@ -297,7 +301,7 @@ func (b *Bot) paywallStarsMethodText() string {
 		stars = 1
 	}
 	return fmt.Sprintf(
-		"⭐ Оплата звёздами Telegram.\n\n%d %s спишется с твоего баланса.\nПосле успешной оплаты ты сразу получишь кнопку доступа в мини-апп приложение Леопарда в этом чате.\n\nЕсли с оплатой будет проблема, напиши запрос в нашу поддержку (почта).",
+		"⭐ Оплата звёздами Telegram.\n\n%d %s спишется с твоего баланса.\nПосле успешной оплаты ты сразу получишь кнопку доступа в мини-апп приложение Леопарда в этом чате.\n\nЕсли с оплатой будет проблема — кнопка «Поддержка» или /support.",
 		stars, starsWordRU(stars),
 	)
 }
@@ -308,7 +312,7 @@ func (b *Bot) paywallCardMethodText() string {
 		price = "сумма по тарифу"
 	}
 	return fmt.Sprintf(
-		"💳 Оплата банковской картой. Доступна картами РФ.\n\n%s спишется и после успешной оплаты ты сразу получишь кнопку доступа в мини-апп приложение Леопарда в этом чате.\n\nЕсли с оплатой будет проблема, напиши запрос в нашу поддержку (почта).",
+		"💳 Оплата банковской картой. Доступна картами РФ.\n\n%s спишется и после успешной оплаты ты сразу получишь кнопку доступа в мини-апп приложение Леопарда в этом чате.\n\nЕсли с оплатой будет проблема — кнопка «Поддержка» или /support.",
 		price,
 	)
 }
