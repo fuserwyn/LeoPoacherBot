@@ -556,6 +556,29 @@
   cursor: not-allowed;
 }
 
+.profile__streak-save {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 18px;
+}
+
+.profile__streak-save-btn {
+  flex: 1;
+  margin-top: 0;
+  padding: 10px 14px;
+  font-size: 14px;
+  line-height: 1.2;
+}
+
+.profile__streak-save-counter {
+  flex-shrink: 0;
+  color: var(--text-muted);
+  font-size: 13px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
 .profile__health {
   display: flex;
   flex-direction: column;

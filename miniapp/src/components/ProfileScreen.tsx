@@ -251,6 +251,48 @@ export function ProfileScreen({
     }
   }, [sendHealthMessage, loadHealth, load, showAlert]);
 
+  const useSaveStreak = useCallback(async () => {
+    if (!api || !inTelegram || !initData?.trim()) {
+      showAlert("Открой мини-апп из Telegram (нужен initData).");
+      return;
+    }
+    if (saveStreakAvail <= 0 || saveStreakBusy) return;
+    setSaveStreakBusy(true);
+    try {
+      const res = await fetch(`${api}/api/miniapp/streak/save-use`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ init_data: initData }),
+      });
+      const j = (await res.json().catch(() => ({}))) as {
+        ok?: boolean;
+        error?: string;
+        streak_save_attempts_used?: number;
+        streak_save_attempts_max?: number;
+      };
+      if (typeof j.streak_save_attempts_used === "number") {
+        setSaveStreakUsed(Math.max(0, j.streak_save_attempts_used));
+      }
+      if (typeof j.streak_save_attempts_max === "number") {
+        setSaveStreakMax(Math.max(1, j.streak_save_attempts_max));
+      }
+      if (!res.ok || !j.ok) {
+        if (j.error === "no_attempts") {
+          showAlert("Попыток не осталось — расти по уровням, чтобы получить ещё.");
+        } else {
+          showAlert(j.error ?? `Ошибка ${res.status}`);
+        }
+        return;
+      }
+      void window.Telegram?.WebApp?.HapticFeedback?.notificationOccurred?.("success");
+      showAlert("Попытка использована — стрик защищён.");
+    } catch (e) {
+      showAlert(e instanceof Error ? e.message : "Сеть");
+    } finally {
+      setSaveStreakBusy(false);
+    }
+  }, [inTelegram, initData, saveStreakAvail, saveStreakBusy, showAlert]);
+
   const saveProfile = useCallback(async () => {
     if (!api || !inTelegram || !initData?.trim()) {
       showAlert("Открой мини-апп из Telegram (нужен initData).");
@@ -465,6 +507,24 @@ export function ProfileScreen({
         ))}
         </div>
       </section>
+
+      <h2 className="section-title">Спасение стрика</h2>
+      <div className="profile__streak-save">
+        <button
+          type="button"
+          className="profile__save profile__streak-save-btn"
+          onClick={() => void useSaveStreak()}
+          disabled={saveStreakBusy || saveStreakAvail <= 0}
+        >
+          {saveStreakBusy ? "Отправляю…" : "Спасти стрик 🛡️"}
+        </button>
+        <span
+          className="profile__streak-save-counter"
+          title={`Доступно попыток: ${saveStreakAvail} из ${saveStreakMax}`}
+        >
+          осталось {saveStreakAvail}/{saveStreakMax}
+        </span>
+      </div>
 
       <h2 className="section-title">Здоровье</h2>
       {onSick === null ? (
