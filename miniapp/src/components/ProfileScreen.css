@@ -359,7 +359,7 @@
 .profile__achievement-days {
   position: absolute;
   left: 50%;
-  top: 70%;
+  top: 78%;
   transform: translate(-50%, -50%);
   font-size: 11px;
   font-weight: 900;
@@ -375,6 +375,13 @@
 
 .profile__achievement-days--triple {
   font-size: 8px;
+}
+
+.profile__achievement-days--heart {
+  top: 56%;
+  font-size: 11px;
+  color: #fff;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.35);
 }
 
 .profile__achievement-label {
@@ -429,14 +436,6 @@
   --achievement-day-color: #a76e5f;
 }
 
-.profile__achievement--21 {
-  --achievement-outline: #ec6b43;
-  --achievement-shell: #fff9ec;
-  --achievement-bean: #f6c7c3;
-  --achievement-claw: #d37b66;
-  --achievement-day-color: #c55b3f;
-}
-
 .profile__achievement--30 {
   --achievement-outline: #e8b84c;
   --achievement-shell: #fff0c5;
@@ -446,14 +445,25 @@
 }
 
 .profile__achievement--42 {
-  --achievement-outline: #ff991b;
-  --achievement-shell: #ffd38f;
-  --achievement-bean: #6a4027;
-  --achievement-claw: #d7dde6;
-  --achievement-day-color: #6d432b;
+  --achievement-outline: #c41e3a;
+  --achievement-shell: #ff5a7a;
+  --achievement-bean: #e2334f;
+  --achievement-claw: #ffd1da;
+  --achievement-day-color: #fff;
 }
 
-.profile__achievement--50 {
+.profile__achievement-heart-shell {
+  fill: var(--achievement-shell);
+  stroke: var(--achievement-outline);
+  stroke-width: 2;
+  stroke-linejoin: round;
+}
+
+.profile__achievement-heart-bean {
+  fill: var(--achievement-bean);
+}
+
+.profile__achievement--60 {
   --achievement-outline: #555a63;
   --achievement-shell: #fff7f0;
   --achievement-bean: #ff8c7b;
@@ -461,12 +471,28 @@
   --achievement-day-color: #8d5550;
 }
 
-.profile__achievement--100 {
+.profile__achievement--90 {
   --achievement-outline: #5a473d;
   --achievement-shell: #f2e8ee;
   --achievement-bean: #bbb0bc;
   --achievement-claw: #d5dae2;
   --achievement-day-color: #6e5e67;
+}
+
+.profile__achievement--180 {
+  --achievement-outline: #3b5998;
+  --achievement-shell: #e6f0ff;
+  --achievement-bean: #94b4e6;
+  --achievement-claw: #cdd9ec;
+  --achievement-day-color: #324e85;
+}
+
+.profile__achievement--365 {
+  --achievement-outline: #8a6d1c;
+  --achievement-shell: #fff4c2;
+  --achievement-bean: #f4c83a;
+  --achievement-claw: #e0d2a0;
+  --achievement-day-color: #7a5c10;
 }
 
 .profile__hint {

@@ -128,17 +128,19 @@
 .feed__streak {
   display: flex;
   align-items: center;
+  justify-content: center;
   background: var(--card);
   border: 1px solid var(--border-subtle);
-  padding: 5px 8px;
+  padding: 7px 10px 5px;
   border-radius: 999px;
   flex-shrink: 0;
 }
 
 .feed__streak-row {
   display: inline-flex;
-  align-items: baseline;
-  gap: 5px;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
   line-height: 1;
   min-width: 0;
 }
@@ -149,6 +151,8 @@
   letter-spacing: 0.04em;
   text-transform: uppercase;
   color: var(--muted, #8b8b9a);
+  position: relative;
+  top: 2px;
 }
 
 .feed__streak-num {
@@ -156,6 +160,8 @@
   font-weight: 800;
   color: var(--accent);
   font-variant-numeric: tabular-nums;
+  position: relative;
+  top: 2px;
 }
 
 .feed__subtabs {

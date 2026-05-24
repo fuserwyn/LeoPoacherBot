@@ -22,14 +22,6 @@ function normalizeProfileData(profile: ProfileData): ProfileData {
   };
 }
 
-const TZ_OPTIONS: number[] = Array.from({ length: 25 }, (_, i) => i - 12);
-
-const formatTzLabel = (offset: number): string => {
-  if (offset === 0) return "МСК (Москва, +0)";
-  const sign = offset > 0 ? "+" : "−";
-  return `МСК ${sign}${Math.abs(offset)} ч`;
-};
-
 type Props = {
   name: string;
   streak: number;
@@ -54,11 +46,12 @@ type Props = {
 const ACHIEVEMENTS = [
   { days: 7, colorClass: "profile__achievement--7" },
   { days: 14, colorClass: "profile__achievement--14" },
-  { days: 21, colorClass: "profile__achievement--21" },
   { days: 30, colorClass: "profile__achievement--30" },
   { days: 42, colorClass: "profile__achievement--42" },
-  { days: 50, colorClass: "profile__achievement--50" },
-  { days: 100, colorClass: "profile__achievement--100" },
+  { days: 60, colorClass: "profile__achievement--60" },
+  { days: 90, colorClass: "profile__achievement--90" },
+  { days: 180, colorClass: "profile__achievement--180" },
+  { days: 365, colorClass: "profile__achievement--365" },
 ] as const;
 
 export function ProfileScreen({
@@ -406,34 +399,48 @@ export function ProfileScreen({
         {ACHIEVEMENTS.map(({ days, colorClass }, i) => (
           <div key={days} className={`profile__achievement ${colorClass}${i < achievementCount ? " is-earned" : ""}`}>
             <div className="profile__achievement-badge" aria-hidden>
-              <svg className="profile__achievement-paw" viewBox="0 0 64 64">
-                <circle className="profile__achievement-bg" cx="32" cy="32" r="28" />
-                <path className="profile__achievement-claw" d="M15 14 L18 6 L21 14 Z" />
-                <path className="profile__achievement-claw" d="M27 10 L30 2 L33 10 Z" />
-                <path className="profile__achievement-claw" d="M39 10 L42 2 L45 10 Z" />
-                <path className="profile__achievement-claw" d="M51 14 L54 6 L57 14 Z" />
+              {days === 42 ? (
+                <svg className="profile__achievement-paw profile__achievement-heart" viewBox="0 0 64 64">
+                  <circle className="profile__achievement-bg" cx="32" cy="32" r="28" />
+                  <path
+                    className="profile__achievement-heart-shell"
+                    d="M32 56 C18 46 8 38 8 26 C8 18 14 12 22 12 C26 12 30 14 32 18 C34 14 38 12 42 12 C50 12 56 18 56 26 C56 38 46 46 32 56 Z"
+                  />
+                  <path
+                    className="profile__achievement-heart-bean"
+                    d="M32 49 C22 41 14 35 14 26 C14 21 18 17 23 17 C27 17 30 19 32 23 C34 19 37 17 41 17 C46 17 50 21 50 26 C50 35 42 41 32 49 Z"
+                  />
+                </svg>
+              ) : (
+                <svg className="profile__achievement-paw" viewBox="0 0 64 64">
+                  <circle className="profile__achievement-bg" cx="32" cy="32" r="28" />
+                  <path className="profile__achievement-claw" d="M15 14 L18 6 L21 14 Z" />
+                  <path className="profile__achievement-claw" d="M27 10 L30 2 L33 10 Z" />
+                  <path className="profile__achievement-claw" d="M39 10 L42 2 L45 10 Z" />
+                  <path className="profile__achievement-claw" d="M51 14 L54 6 L57 14 Z" />
 
-                <ellipse className="profile__achievement-toe-shell" cx="15.5" cy="26" rx="8" ry="9.5" transform="rotate(-16 15.5 26)" />
-                <ellipse className="profile__achievement-toe-shell" cx="27.5" cy="19.5" rx="8.6" ry="10.5" transform="rotate(-6 27.5 19.5)" />
-                <ellipse className="profile__achievement-toe-shell" cx="40.5" cy="19.5" rx="8.6" ry="10.5" transform="rotate(6 40.5 19.5)" />
-                <ellipse className="profile__achievement-toe-shell" cx="52.5" cy="26" rx="8" ry="9.5" transform="rotate(16 52.5 26)" />
+                  <ellipse className="profile__achievement-toe-shell" cx="15.5" cy="26" rx="8" ry="9.5" transform="rotate(-16 15.5 26)" />
+                  <ellipse className="profile__achievement-toe-shell" cx="27.5" cy="19.5" rx="8.6" ry="10.5" transform="rotate(-6 27.5 19.5)" />
+                  <ellipse className="profile__achievement-toe-shell" cx="40.5" cy="19.5" rx="8.6" ry="10.5" transform="rotate(6 40.5 19.5)" />
+                  <ellipse className="profile__achievement-toe-shell" cx="52.5" cy="26" rx="8" ry="9.5" transform="rotate(16 52.5 26)" />
 
-                <ellipse className="profile__achievement-toe-bean" cx="15.5" cy="27" rx="4.7" ry="5.9" transform="rotate(-16 15.5 27)" />
-                <ellipse className="profile__achievement-toe-bean" cx="27.5" cy="20.5" rx="4.9" ry="6.3" transform="rotate(-6 27.5 20.5)" />
-                <ellipse className="profile__achievement-toe-bean" cx="40.5" cy="20.5" rx="4.9" ry="6.3" transform="rotate(6 40.5 20.5)" />
-                <ellipse className="profile__achievement-toe-bean" cx="52.5" cy="27" rx="4.7" ry="5.9" transform="rotate(16 52.5 27)" />
+                  <ellipse className="profile__achievement-toe-bean" cx="15.5" cy="27" rx="4.7" ry="5.9" transform="rotate(-16 15.5 27)" />
+                  <ellipse className="profile__achievement-toe-bean" cx="27.5" cy="20.5" rx="4.9" ry="6.3" transform="rotate(-6 27.5 20.5)" />
+                  <ellipse className="profile__achievement-toe-bean" cx="40.5" cy="20.5" rx="4.9" ry="6.3" transform="rotate(6 40.5 20.5)" />
+                  <ellipse className="profile__achievement-toe-bean" cx="52.5" cy="27" rx="4.7" ry="5.9" transform="rotate(16 52.5 27)" />
 
-                <path
-                  className="profile__achievement-pad-shell"
-                  d="M32 34 C22 34 16 41 16 50 C16 57 22 61 32 61 C42 61 48 57 48 50 C48 41 42 34 32 34 Z"
-                />
-                <path
-                  className="profile__achievement-pad-bean"
-                  d="M32 39 C25 39 21 44 21 50 C21 55 25 58 32 58 C39 58 43 55 43 50 C43 44 39 39 32 39 Z"
-                />
-              </svg>
+                  <path
+                    className="profile__achievement-pad-shell"
+                    d="M32 34 C22 34 16 41 16 50 C16 57 22 61 32 61 C42 61 48 57 48 50 C48 41 42 34 32 34 Z"
+                  />
+                  <path
+                    className="profile__achievement-pad-bean"
+                    d="M32 39 C25 39 21 44 21 50 C21 55 25 58 32 58 C39 58 43 55 43 50 C43 44 39 39 32 39 Z"
+                  />
+                </svg>
+              )}
               <span
-                className={`profile__achievement-days${days >= 100 ? " profile__achievement-days--triple" : days >= 10 ? " profile__achievement-days--double" : ""}`}
+                className={`profile__achievement-days${days >= 100 ? " profile__achievement-days--triple" : days >= 10 ? " profile__achievement-days--double" : ""}${days === 42 ? " profile__achievement-days--heart" : ""}`}
               >
                 {days}
               </span>
@@ -556,29 +563,6 @@ export function ProfileScreen({
             <option value="f">Женский</option>
           </select>
         </label>
-        <label className="profile__field">
-          <span>Часовой пояс</span>
-          <select
-            className="profile__input"
-            value={String(profile.timezoneOffset)}
-            onChange={(e) =>
-              setProfile((p) => ({
-                ...p,
-                timezoneOffset: Math.max(-12, Math.min(12, parseInt(e.target.value, 10) || 0)),
-              }))
-            }
-            disabled={profileLoading}
-          >
-            {TZ_OPTIONS.map((o) => (
-              <option key={o} value={String(o)}>
-                {formatTzLabel(o)}
-              </option>
-            ))}
-          </select>
-        </label>
-        <p className="profile__form-hint muted">
-          По нему считаются «сегодня/вчера» для тренировок и дней подряд. Если живёшь в Москве — оставь «МСК (+0)».
-        </p>
         {(profileDirty || profileSaving) && (
           <button
             type="button"
