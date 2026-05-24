@@ -517,8 +517,6 @@ export function FeedScreen({
     };
   }, []);
 
-  const displayName = name.trim() || "друг";
-
   const handlePullRefresh = useCallback(async () => {
     hapticLight();
     maxFeedIdRef.current = 0;
@@ -546,7 +544,6 @@ export function FeedScreen({
         <header className="feed__header">
           <div className="feed__brand">Fat Leopard</div>
           <div className="feed__hero">
-            <h1 className="feed__welcome">Привет, {displayName}</h1>
             <div className="feed__streak" aria-label={streakStreakAriaLabel(streak)} title={streakStreakAriaLabel(streak)}>
               <span className="feed__streak-row">
                 <span className="feed__streak-word">Стрик</span>

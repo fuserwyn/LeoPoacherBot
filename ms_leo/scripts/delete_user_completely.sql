@@ -173,3 +173,4 @@ COMMIT;
 -- Нужно чистить леджер только если в Railway у payment-webhook задан PAYMENT_DATABASE_URL
 -- (другая строка подключения, часто БД leo_payments). Подключись к НЕЙ и выполни:
 --   DELETE FROM yookassa_payment_events WHERE user_telegram_id = <target_user_id>;
+-- DELETE FROM yookassa_payment_events WHERE user_telegram_id =202498592

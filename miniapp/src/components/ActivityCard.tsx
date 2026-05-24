@@ -1,4 +1,4 @@
-import { useRef, useState, useEffect, useLayoutEffect } from "react";
+import { useRef, useState, useEffect, useLayoutEffect, useCallback } from "react";
 import { LEO_AVATAR_URL } from "../lib/leoAvatar";
 import { streakStreakAriaLabel } from "../lib/streakLabel";
 import "./ActivityCard.css";
@@ -236,11 +236,33 @@ export function ActivityCard({
   trainingPhotoUrl,
 }: ActivityCardProps) {
   const threadBodyRef = useRef<HTMLDivElement>(null);
+  const threadComposeRef = useRef<HTMLDivElement>(null);
   const threadInputRef = useRef<HTMLTextAreaElement>(null);
   const [threadOpen, setThreadOpen] = useState(false);
   const [lightboxOpen, setLightboxOpen] = useState(false);
   const [photoFailed, setPhotoFailed] = useState(false);
   const prevThreadLen = useRef(threadReplies.length);
+
+  /** Минимальный сдвиг окна, чтобы поле не ушло под клавиатуру (без scrollBy на всю высоту клавиатуры — иначе лента прыгает к следующей карточке). */
+  const nudgeThreadComposerIntoView = useCallback(() => {
+    const compose = threadComposeRef.current;
+    const vv = window.visualViewport;
+    if (!compose || !vv) return;
+    const rect = compose.getBoundingClientRect();
+    const visibleTop = vv.offsetTop;
+    const visibleBottom = vv.offsetTop + vv.height;
+    const pad = 14;
+    let delta = 0;
+    if (rect.bottom > visibleBottom - pad) {
+      delta = rect.bottom - (visibleBottom - pad);
+    } else if (rect.top < visibleTop + pad) {
+      delta = rect.top - (visibleTop + pad);
+    }
+    if (Math.abs(delta) <= 4) return;
+    const cap = Math.max(72, Math.round(vv.height * 0.2));
+    const step = Math.sign(delta) * Math.min(Math.abs(delta), cap);
+    window.scrollBy({ top: step, behavior: "auto" });
+  }, []);
 
   useEffect(() => {
     setPhotoFailed(false);
@@ -475,7 +497,7 @@ export function ActivityCard({
                   )}
                 </div>
                 {threadComposer && (
-                  <div className="act-card__thread-compose">
+                  <div className="act-card__thread-compose" ref={threadComposeRef}>
                     {threadReplyIntent != null && (
                       <div className="act-card__reply-intent">
                         <div className="act-card__reply-intent-row">
@@ -511,24 +533,9 @@ export function ActivityCard({
                       onChange={(e) => threadComposer.onDraftChange(e.target.value)}
                       maxLength={2000}
                       onFocus={() => {
-                        // Страховка для iOS Telegram WebView: иногда нативный
-                        // scroll-into-view не докручивает поле над клавиатурой
-                        // (вложенные overflow-контейнеры + динамический layout).
-                        // Ждём, пока visualViewport стабилизируется, и докручиваем
-                        // окно ровно на дельту — без scrollIntoView и без smooth,
-                        // чтобы не было повторного скачка.
-                        window.setTimeout(() => {
-                          const ta = threadInputRef.current;
-                          const vv = window.visualViewport;
-                          if (!ta || !vv) return;
-                          const rect = ta.getBoundingClientRect();
-                          const visibleBottom = vv.offsetTop + vv.height;
-                          const PADDING = 14;
-                          const overflow = rect.bottom + PADDING - visibleBottom;
-                          if (overflow > 4) {
-                            window.scrollBy({ top: overflow, behavior: "auto" });
-                          }
-                        }, 320);
+                        requestAnimationFrame(nudgeThreadComposerIntoView);
+                        window.setTimeout(nudgeThreadComposerIntoView, 120);
+                        window.setTimeout(nudgeThreadComposerIntoView, 280);
                       }}
                       onKeyDown={(e) => {
                         if (e.key !== "Enter" || (!e.ctrlKey && !e.metaKey)) return;
