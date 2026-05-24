@@ -133,16 +133,14 @@ func (d *Database) ListPackActivityFeedAfterID(chatID int64, sinceID int64, limi
 	return out, nil
 }
 
-// UserInPackOrPaid — участник стаи (training_state) или оплаченный доступ.
+// UserInPackOrPaid — доступ к мини-аппу.
+// При включённом paywall — только активная (не истёкшая) оплата в paywall_access_requests;
+// training_state без оплаты не даёт вход (иначе после GDPR-удаления outbox мог оставить строку
+// в training_state, и мини-апп открывался бы без новой оплаты).
+// Без paywall — как раньше: живая запись training_state в чате стаи.
 func (d *Database) UserInPackOrPaid(userID, chatID int64, paywallEnabled bool) (bool, error) {
 	if paywallEnabled {
-		ok, err := d.UserHasActivePaywallAccess(userID, chatID)
-		if err != nil {
-			return false, err
-		}
-		if ok {
-			return true, nil
-		}
+		return d.UserHasActivePaywallAccess(userID, chatID)
 	}
 	return d.UserHasActiveMessageLogInChat(userID, chatID)
 }

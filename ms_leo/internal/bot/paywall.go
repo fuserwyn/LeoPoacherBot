@@ -990,6 +990,29 @@ func (b *Bot) resolveUsernameForPaywallDeliver(userID int64, payer *tgbotapi.Use
 func (b *Bot) paywallDeliverAccessAfterPayment(userID int64, paywallRequestID int64, payer *tgbotapi.User) error {
 	chatID := b.config.MonetizedChatID
 
+	if paywallRequestID > 0 {
+		rec, err := b.db.GetPaywallAccessRequestByID(paywallRequestID)
+		if err != nil {
+			return fmt.Errorf("paywall deliver load request %d: %w", paywallRequestID, err)
+		}
+		if rec == nil {
+			return fmt.Errorf("paywall deliver: request %d not found (user deleted or stale outbox?)", paywallRequestID)
+		}
+		if rec.Status != "completed" {
+			return fmt.Errorf("paywall deliver: request %d status=%q, want completed", paywallRequestID, rec.Status)
+		}
+		if rec.UserID != userID || rec.MonetizedChatID != chatID {
+			return fmt.Errorf("paywall deliver: request %d user/chat mismatch", paywallRequestID)
+		}
+		ok, err := b.db.UserHasActivePaywallAccess(userID, chatID)
+		if err != nil {
+			return fmt.Errorf("paywall deliver active access check: %w", err)
+		}
+		if !ok {
+			return fmt.Errorf("paywall deliver: no active paywall access for user=%d chat=%d", userID, chatID)
+		}
+	}
+
 	// Сначала текст в ЛС — чтобы юзер не «пропал» после оплаты даже если ниже БД займёт время или ошибётся.
 	// По paywallRequestID не шлём второй раз (ретрай Telegram / outbox), чтобы не дублировать «Ура, ты в стае…».
 	welcomePending := true

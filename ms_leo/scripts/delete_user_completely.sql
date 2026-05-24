@@ -3,7 +3,15 @@
 --
 -- Поставь Telegram user_id в объявление target_user_id ниже и выполни весь файл.
 --
--- НЕ трогает: Qdrant/RAG, Telegram, БД leo_payments — см. комментарии в конце.
+-- После скрипта /start должен снова требовать оплату (экран paywall), а не «Ура, ты в стае».
+-- Важно:
+--   1) Выполняй на той же БД, что DATABASE_URL у ms_leo (и ms_payments, если он пишет в неё).
+--   2) Сначала чистим outbox (иначе воркер ms_leo между DELETE paywall и DELETE outbox
+--      может снова выдать доступ по paywall_access_restore_requested).
+--   3) Отдельно очисти leo_payments (см. блок в конце) — иначе повторный вебхук ЮKassa
+--      может закрыть новую pending-заявку после /start.
+--
+-- НЕ трогает: Qdrant/RAG, Telegram.
 
 BEGIN;
 
@@ -11,6 +19,9 @@ DO $delete_user$
 DECLARE
   -- ═══ Telegram user_id (единственное место для правки) ═══
   target_user_id bigint := 123456789;
+  n_paywall_active bigint;
+  n_training bigint;
+  n_outbox bigint;
 BEGIN
   IF target_user_id IS NULL OR target_user_id <= 0 THEN
     RAISE EXCEPTION 'target_user_id должен быть положительным bigint, сейчас: %', target_user_id;
@@ -28,6 +39,11 @@ BEGIN
   FROM miniapp_training_feed_thread t
   WHERE t.from_user_id = target_user_id
      OR t.user_message_id IN (SELECT id FROM _del_user_msg_ids);
+
+  CREATE TEMP TABLE _del_paywall_req_ids ON COMMIT DROP AS
+  SELECT p.id
+  FROM paywall_access_requests p
+  WHERE p.user_id = target_user_id;
 
   DELETE FROM miniapp_training_thread_unread u
   WHERE u.recipient_user_id = target_user_id
@@ -62,12 +78,47 @@ BEGIN
   DELETE FROM miniapp_pack_group_chat WHERE from_user_id = target_user_id;
 
   DELETE FROM miniapp_user_profile WHERE user_id = target_user_id;
-  DELETE FROM paywall_access_requests WHERE user_id = target_user_id;
   DELETE FROM deletion_events WHERE user_id = target_user_id;
 
+  -- Outbox до paywall: иначе воркер успевает «восстановить» доступ по старому событию.
   DELETE FROM outbox_events o
-  WHERE NULLIF(o.payload->>'UserID', '')::bigint = target_user_id
-     OR NULLIF(o.payload->>'user_id', '')::bigint = target_user_id;
+  WHERE o.event_type IN ('paywall_access_restore_requested', 'refund_requested')
+    AND (
+          (
+            NULLIF(o.payload->>'UserID', '') ~ '^[0-9]+$'
+            AND (o.payload->>'UserID')::bigint = target_user_id
+          )
+       OR (
+            NULLIF(o.payload->>'user_id', '') ~ '^[0-9]+$'
+            AND (o.payload->>'user_id')::bigint = target_user_id
+          )
+       OR (
+            NULLIF(o.payload->>'request_id', '') ~ '^[0-9]+$'
+            AND (o.payload->>'request_id')::bigint IN (SELECT id FROM _del_paywall_req_ids)
+          )
+        );
+
+  DELETE FROM outbox_events o
+  WHERE (
+          NULLIF(o.payload->>'UserID', '') ~ '^[0-9]+$'
+          AND (o.payload->>'UserID')::bigint = target_user_id
+        )
+     OR (
+          NULLIF(o.payload->>'user_id', '') ~ '^[0-9]+$'
+          AND (o.payload->>'user_id')::bigint = target_user_id
+        )
+     OR o.aggregate_key IN (
+          SELECT 'paywall_request:' || p.id::text
+          FROM _del_paywall_req_ids p
+        )
+     OR o.aggregate_key IN (
+          SELECT 'refund_request:' || p.id::text
+          FROM _del_paywall_req_ids p
+        );
+
+  DELETE FROM paywall_access_requests
+  WHERE id IN (SELECT id FROM _del_paywall_req_ids)
+     OR user_id = target_user_id;
 
   DELETE FROM training_state WHERE user_id = target_user_id;
 
@@ -75,11 +126,46 @@ BEGIN
     DELETE FROM training_log WHERE user_id = target_user_id;
   END IF;
 
-  RAISE NOTICE 'OK: удалён user_id = %', target_user_id;
+  SELECT COUNT(*) INTO n_paywall_active
+  FROM paywall_access_requests
+  WHERE user_id = target_user_id
+    AND status = 'completed'
+    AND access_expires_at IS NOT NULL
+    AND access_expires_at > NOW();
+
+  SELECT COUNT(*) INTO n_training
+  FROM training_state
+  WHERE user_id = target_user_id;
+
+  SELECT COUNT(*) INTO n_outbox
+  FROM outbox_events o
+  WHERE o.event_type IN ('paywall_access_restore_requested', 'refund_requested')
+    AND (
+          (
+            NULLIF(o.payload->>'user_id', '') ~ '^[0-9]+$'
+            AND (o.payload->>'user_id')::bigint = target_user_id
+          )
+       OR (
+            NULLIF(o.payload->>'UserID', '') ~ '^[0-9]+$'
+            AND (o.payload->>'UserID')::bigint = target_user_id
+          )
+        );
+
+  IF n_paywall_active > 0 OR n_training > 0 OR n_outbox > 0 THEN
+    RAISE EXCEPTION
+      'Не всё удалено для user_id=%: active_paywall=%, training_state=%, outbox_paywall=%',
+      target_user_id, n_paywall_active, n_training, n_outbox;
+  END IF;
+
+  RAISE NOTICE 'OK: user_id=% сброшен (paywall/training/outbox=0). /start снова потребует оплату.', target_user_id;
 END;
 $delete_user$;
 
 COMMIT;
 
 -- Qdrant: session_id = 'personal:<target_user_id>:<pack_chat_id>'
--- leo_payments: DELETE FROM yookassa_payment_events WHERE user_telegram_id = <target_user_id>;
+--
+-- leo_payments (отдельная БД PAYMENT_DATABASE_URL, если включена):
+-- BEGIN;
+-- DELETE FROM yookassa_payment_events WHERE user_telegram_id = <target_user_id>;
+-- COMMIT;
