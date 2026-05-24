@@ -1,5 +1,9 @@
 import { useEffect } from "react";
 
+function isFeedThreadInput(el: Element | null): boolean {
+  return el instanceof HTMLTextAreaElement && el.classList.contains("act-card__thread-input");
+}
+
 function isTextEntry(el: Element | null): boolean {
   if (!el || !(el instanceof HTMLElement)) return false;
   const tag = el.tagName;
@@ -61,6 +65,9 @@ export function useAppKeyboardInset() {
 
     const onFocusIn = (e: FocusEvent) => {
       if (!isTextEntry(e.target as Element)) return;
+      if (isFeedThreadInput(e.target as Element)) {
+        root.classList.add("feed-thread-composer-open");
+      }
       textFocused = true;
       syncOpenClass();
       readKeyboard();
@@ -71,7 +78,11 @@ export function useAppKeyboardInset() {
 
     const onFocusOut = () => {
       window.setTimeout(() => {
-        if (isTextEntry(document.activeElement)) return;
+        const active = document.activeElement;
+        if (isTextEntry(active)) return;
+        if (!document.querySelector(".act-card__thread-compose--pinned")) {
+          root.classList.remove("feed-thread-composer-open");
+        }
         textFocused = false;
         syncOpenClass();
       }, 80);
@@ -101,6 +112,7 @@ export function useAppKeyboardInset() {
       const tgOff = window.Telegram?.WebApp as { offEvent?: (e: string, fn: () => void) => void } | undefined;
       tgOff?.offEvent?.("viewportChanged", scheduleRead);
       root.classList.remove("app-keyboard-open");
+      root.classList.remove("feed-thread-composer-open");
       root.style.removeProperty("--app-keyboard-bottom");
       root.style.removeProperty("--feed-keyboard-bottom");
     };

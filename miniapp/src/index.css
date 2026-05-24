@@ -68,6 +68,15 @@ html.app-keyboard-open #root {
   padding-bottom: var(--safe-bottom);
 }
 
+/* Комментарий в ленте: не схлопывать padding — иначе вся лента скачет при фокусе. */
+html.app-keyboard-open.feed-thread-composer-open #root {
+  padding-bottom: calc(88px + var(--safe-bottom));
+}
+
+html.feed-thread-composer-open .feed__list {
+  overflow-anchor: none;
+}
+
 /* iOS WebKit: rubber-band на документе утаскивает каретку position:fixed инпута.
    Когда чат с Лео активен — фиксируем body, скроллится только .chat__log внутри. */
 body.body--lock {

@@ -238,31 +238,74 @@ export function ActivityCard({
   const threadBodyRef = useRef<HTMLDivElement>(null);
   const threadComposeRef = useRef<HTMLDivElement>(null);
   const threadInputRef = useRef<HTMLTextAreaElement>(null);
+  const composePinHeightRef = useRef(0);
+  const feedScrollLockYRef = useRef<number | null>(null);
   const [threadOpen, setThreadOpen] = useState(false);
+  const [composePinned, setComposePinned] = useState(false);
   const [lightboxOpen, setLightboxOpen] = useState(false);
   const [photoFailed, setPhotoFailed] = useState(false);
   const prevThreadLen = useRef(threadReplies.length);
 
-  /** Минимальный сдвиг окна, чтобы поле не ушло под клавиатуру (без scrollBy на всю высоту клавиатуры — иначе лента прыгает к следующей карточке). */
-  const nudgeThreadComposerIntoView = useCallback(() => {
-    const compose = threadComposeRef.current;
-    const vv = window.visualViewport;
-    if (!compose || !vv) return;
-    const rect = compose.getBoundingClientRect();
-    const visibleTop = vv.offsetTop;
-    const visibleBottom = vv.offsetTop + vv.height;
-    const pad = 14;
-    let delta = 0;
-    if (rect.bottom > visibleBottom - pad) {
-      delta = rect.bottom - (visibleBottom - pad);
-    } else if (rect.top < visibleTop + pad) {
-      delta = rect.top - (visibleTop + pad);
-    }
-    if (Math.abs(delta) <= 4) return;
-    const cap = Math.max(72, Math.round(vv.height * 0.2));
-    const step = Math.sign(delta) * Math.min(Math.abs(delta), cap);
-    window.scrollBy({ top: step, behavior: "auto" });
+  const setFeedComposerOpenOnDocument = useCallback((open: boolean) => {
+    document.documentElement.classList.toggle("feed-thread-composer-open", open);
   }, []);
+
+  const pinThreadComposer = useCallback(() => {
+    const compose = threadComposeRef.current;
+    if (compose) composePinHeightRef.current = compose.offsetHeight;
+    feedScrollLockYRef.current = window.scrollY;
+    setComposePinned(true);
+    setFeedComposerOpenOnDocument(true);
+  }, [setFeedComposerOpenOnDocument]);
+
+  const unpinThreadComposer = useCallback(() => {
+    feedScrollLockYRef.current = null;
+    setComposePinned(false);
+    if (!document.querySelector(".act-card__thread-compose--pinned")) {
+      setFeedComposerOpenOnDocument(false);
+    }
+  }, [setFeedComposerOpenOnDocument]);
+
+  const onThreadComposeFocus = useCallback(() => {
+    pinThreadComposer();
+  }, [pinThreadComposer]);
+
+  const onThreadComposeBlur = useCallback(() => {
+    window.setTimeout(() => {
+      const active = document.activeElement;
+      if (active === threadInputRef.current || threadComposeRef.current?.contains(active)) return;
+      unpinThreadComposer();
+    }, 120);
+  }, [unpinThreadComposer]);
+
+  /** Пока пишем комментарий в ленте — не даём WebView сдвинуть window.scroll (перескок к следующей карточке). */
+  useLayoutEffect(() => {
+    if (!composePinned || feedScrollLockYRef.current == null) return;
+    const lockY = feedScrollLockYRef.current;
+    const restore = () => {
+      if (feedScrollLockYRef.current == null) return;
+      if (Math.abs(window.scrollY - lockY) > 2) {
+        window.scrollTo(0, lockY);
+      }
+    };
+    restore();
+    window.addEventListener("scroll", restore, { passive: true });
+    const vv = window.visualViewport;
+    vv?.addEventListener("resize", restore);
+    vv?.addEventListener("scroll", restore);
+    return () => {
+      window.removeEventListener("scroll", restore);
+      vv?.removeEventListener("resize", restore);
+      vv?.removeEventListener("scroll", restore);
+    };
+  }, [composePinned]);
+
+  useEffect(
+    () => () => {
+      setFeedComposerOpenOnDocument(false);
+    },
+    [setFeedComposerOpenOnDocument],
+  );
 
   useEffect(() => {
     setPhotoFailed(false);
@@ -298,7 +341,7 @@ export function ActivityCard({
   const showStreak = !hideStreak && name.trim() !== "Админ";
   return (
     <article
-      className={`act-card${hideStreak ? " act-card--leo" : ""}${lightTone ? " act-card--light" : ""}${threadOpen && hasThread ? " act-card--thread-open" : ""}${trainingPhotoUrl ? " act-card--has-photo" : ""}`}
+      className={`act-card${hideStreak ? " act-card--leo" : ""}${lightTone ? " act-card--light" : ""}${threadOpen && hasThread ? " act-card--thread-open" : ""}${trainingPhotoUrl ? " act-card--has-photo" : ""}${composePinned ? " act-card--compose-pinned" : ""}`}
     >
       <header className="act-card__head">
         <div className="act-card__avatar" aria-hidden>
@@ -497,7 +540,18 @@ export function ActivityCard({
                   )}
                 </div>
                 {threadComposer && (
-                  <div className="act-card__thread-compose" ref={threadComposeRef}>
+                  <>
+                    {composePinned && composePinHeightRef.current > 0 ? (
+                      <div
+                        className="act-card__thread-compose-spacer"
+                        style={{ height: composePinHeightRef.current }}
+                        aria-hidden
+                      />
+                    ) : null}
+                    <div
+                      className={`act-card__thread-compose${composePinned ? " act-card__thread-compose--pinned" : ""}`}
+                      ref={threadComposeRef}
+                    >
                     {threadReplyIntent != null && (
                       <div className="act-card__reply-intent">
                         <div className="act-card__reply-intent-row">
@@ -532,11 +586,8 @@ export function ActivityCard({
                       value={threadComposer.draft}
                       onChange={(e) => threadComposer.onDraftChange(e.target.value)}
                       maxLength={2000}
-                      onFocus={() => {
-                        requestAnimationFrame(nudgeThreadComposerIntoView);
-                        window.setTimeout(nudgeThreadComposerIntoView, 120);
-                        window.setTimeout(nudgeThreadComposerIntoView, 280);
-                      }}
+                      onFocus={onThreadComposeFocus}
+                      onBlur={onThreadComposeBlur}
                       onKeyDown={(e) => {
                         if (e.key !== "Enter" || (!e.ctrlKey && !e.metaKey)) return;
                         e.preventDefault();
@@ -557,6 +608,7 @@ export function ActivityCard({
                       {threadComposer.posting ? "…" : "Отправить"}
                     </button>
                   </div>
+                  </>
                 )}
               </>
             )}

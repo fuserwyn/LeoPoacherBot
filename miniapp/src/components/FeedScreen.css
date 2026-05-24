@@ -270,8 +270,7 @@
   min-width: 0;
   max-width: 100%;
   overflow-x: clip;
-  /* Без --app-keyboard-bottom: при открытии клавиатуры padding внизу ленты сдвигал весь скролл,
-     и казалось, что лента «перепрыгнула» к следующей карточке. Поле комментария — scroll-margin. */
+  overflow-anchor: none;
   padding-bottom: calc(var(--feed-bottom-nav-h, 88px) + var(--safe-bottom, 0px) + 14px);
 }
 
