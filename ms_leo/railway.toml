@@ -5,3 +5,7 @@
 [build]
 builder = "DOCKERFILE"
 dockerfilePath = "Dockerfile"
+
+# Миграции на Railway Postgres перед каждым деплоем (DATABASE_URL из Variables сервиса).
+[deploy]
+preDeployCommand = "./migrate"

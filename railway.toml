@@ -5,3 +5,6 @@
 [build]
 builder = "DOCKERFILE"
 dockerfilePath = "Dockerfile.bot"
+
+[deploy]
+preDeployCommand = "./migrate"

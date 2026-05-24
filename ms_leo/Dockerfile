@@ -13,6 +13,7 @@ COPY . .
 RUN go mod tidy
 
 RUN CGO_ENABLED=0 GOOS=linux go build -o main ./cmd/bot
+RUN CGO_ENABLED=0 GOOS=linux go build -o migrate ./cmd/migrate
 
 EXPOSE 8080
 
