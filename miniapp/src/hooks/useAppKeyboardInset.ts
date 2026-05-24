@@ -80,9 +80,7 @@ export function useAppKeyboardInset() {
       window.setTimeout(() => {
         const active = document.activeElement;
         if (isTextEntry(active)) return;
-        if (!document.querySelector(".act-card__thread-compose--pinned")) {
-          root.classList.remove("feed-thread-composer-open");
-        }
+        root.classList.remove("feed-thread-composer-open");
         textFocused = false;
         syncOpenClass();
       }, 80);

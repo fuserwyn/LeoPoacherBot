@@ -15,22 +15,6 @@ func (b *Bot) botSupportAvailable() bool {
 	return b != nil && b.config != nil && b.config.MonetizedChatID != 0 && b.db != nil
 }
 
-func (b *Bot) paywallSupportButtonRow() []tgbotapi.InlineKeyboardButton {
-	if !b.botSupportAvailable() {
-		return nil
-	}
-	return tgbotapi.NewInlineKeyboardRow(
-		tgbotapi.NewInlineKeyboardButtonData(botSupportReplyButtonText, botSupportCallbackStart),
-	)
-}
-
-func (b *Bot) appendPaywallSupportRow(rows [][]tgbotapi.InlineKeyboardButton) [][]tgbotapi.InlineKeyboardButton {
-	if row := b.paywallSupportButtonRow(); row != nil {
-		rows = append(rows, row)
-	}
-	return rows
-}
-
 // privateSupportReplyKeyboard — постоянная кнопка внизу лички (для оплативших и после /start).
 func (b *Bot) privateSupportReplyKeyboard() *tgbotapi.ReplyKeyboardMarkup {
 	if !b.botSupportAvailable() {
@@ -62,17 +46,6 @@ func botSupportPromptText() string {
 Опиши вопрос об оплате, доступе после оплаты, возврате или ошибке в боте — одним или несколькими сообщениями.
 
 Ответ придёт в этот же чат. Выйти — кнопка «Выйти из поддержки» ниже.`
-}
-
-// sendPrivateSupportReplyKeyboard — показывает постоянную кнопку «💬 Поддержка» под полем ввода.
-func (b *Bot) sendPrivateSupportReplyKeyboard(chatID int64) {
-	kb := b.privateSupportReplyKeyboard()
-	if kb == nil {
-		return
-	}
-	m := tgbotapi.NewMessage(chatID, "💬 Вопросы по оплате и доступу — нажми кнопку «💬 Поддержка» под полем ввода.")
-	m.ReplyMarkup = kb
-	_, _ = b.api.Send(m)
 }
 
 func (b *Bot) startUserSupportSession(userID int64) {

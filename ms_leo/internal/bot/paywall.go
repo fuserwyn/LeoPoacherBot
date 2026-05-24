@@ -192,9 +192,7 @@ func (b *Bot) paywallPrivateUnpaidUserText() string {
 💬 комментарии Лео к тренировкам
 📈 возможность отследить свой прогресс.
 
-Выбери, как оплатить — картой для РФ или звёздами телеграма для любой страны. После оплаты ты получишь доступ в Стаю. Пока я тебя не съем....
-
-Вопросы по оплате — кнопка «💬 Поддержка» под полем ввода или в списке кнопок выше.`
+Выбери, как оплатить — картой для РФ или звёздами телеграма для любой страны. После оплаты ты получишь доступ в Стаю. Пока я тебя не съем....`
 }
 
 // paywallUnpaidInlineKeyboard — отдельные кнопки под каждый способ оплаты.
@@ -230,11 +228,29 @@ func (b *Bot) paywallUnpaidInlineKeyboard() *tgbotapi.InlineKeyboardMarkup {
 			tgbotapi.NewInlineKeyboardButtonData(label, paywallCallbackPayStars),
 		))
 	}
-	rows = b.appendPaywallSupportRow(rows)
 	if len(rows) == 0 {
 		return nil
 	}
 	return &tgbotapi.InlineKeyboardMarkup{InlineKeyboard: rows}
+}
+
+// sendPaywallUnpaidPrivateScreen — экран оплаты в личке: текст + «💬 Поддержка» внизу; inline-способы оплаты отдельным сообщением (API не совмещает оба типа клавиатур).
+func (b *Bot) sendPaywallUnpaidPrivateScreen(chatID int64) error {
+	m := tgbotapi.NewMessage(chatID, b.paywallPrivateUnpaidUserText())
+	if kb := b.privateSupportReplyKeyboard(); kb != nil {
+		m.ReplyMarkup = kb
+	}
+	if _, err := b.api.Send(m); err != nil {
+		return err
+	}
+	if ik := b.paywallUnpaidInlineKeyboard(); ik != nil {
+		btn := tgbotapi.NewMessage(chatID, "\u200b")
+		btn.DisableNotification = true
+		btn.ReplyMarkup = ik
+		_, err := b.api.Send(btn)
+		return err
+	}
+	return nil
 }
 
 func (b *Bot) paywallReturnInlineKeyboard() *tgbotapi.InlineKeyboardMarkup {
@@ -266,7 +282,6 @@ func (b *Bot) paywallReturnInlineKeyboard() *tgbotapi.InlineKeyboardMarkup {
 			tgbotapi.NewInlineKeyboardButtonData(label, paywallCallbackPayStars),
 		))
 	}
-	rows = b.appendPaywallSupportRow(rows)
 	if len(rows) == 0 {
 		return nil
 	}
@@ -692,9 +707,7 @@ func (b *Bot) handlePaywallBackToMethodsCallback(callback *tgbotapi.CallbackQuer
 		_, _ = b.api.Request(tgbotapi.NewCallbackWithAlert(callback.ID, "Оплата сейчас недоступна."))
 		return
 	}
-	msg := tgbotapi.NewMessage(callback.From.ID, b.paywallPrivateUnpaidUserText())
-	msg.ReplyMarkup = b.paywallUnpaidInlineKeyboard()
-	if _, err := b.api.Send(msg); err != nil {
+	if err := b.sendPaywallUnpaidPrivateScreen(callback.From.ID); err != nil {
 		b.logger.Errorf("paywall back to methods send: %v", err)
 		_, _ = b.api.Request(tgbotapi.NewCallbackWithAlert(callback.ID, "Не удалось вернуть экран оплаты. Напиши /start."))
 		return

@@ -926,6 +926,31 @@ var Migrations = []Migration{
 			DROP COLUMN IF EXISTS streak_save_attempts_used;
 		`,
 	},
+	{
+		Version:     46,
+		Description: "Miniapp feed content reports for admin moderation",
+		UpSQL: `
+			CREATE TABLE IF NOT EXISTS miniapp_feed_reports (
+				id BIGSERIAL PRIMARY KEY,
+				pack_chat_id BIGINT NOT NULL,
+				reporter_user_id BIGINT NOT NULL,
+				target_type TEXT NOT NULL CHECK (target_type IN ('feed_post', 'thread_reply')),
+				user_message_id BIGINT NOT NULL,
+				thread_reply_id BIGINT NOT NULL DEFAULT 0,
+				target_user_id BIGINT NOT NULL,
+				target_text TEXT NOT NULL,
+				status TEXT NOT NULL DEFAULT 'open' CHECK (status IN ('open', 'dismissed')),
+				created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
+				UNIQUE (reporter_user_id, user_message_id, thread_reply_id)
+			);
+			CREATE INDEX IF NOT EXISTS idx_miniapp_feed_reports_pack_status_created
+				ON miniapp_feed_reports (pack_chat_id, status, created_at DESC);
+		`,
+		DownSQL: `
+			DROP INDEX IF EXISTS idx_miniapp_feed_reports_pack_status_created;
+			DROP TABLE IF EXISTS miniapp_feed_reports;
+		`,
+	},
 }
 
 // MigrationRecord представляет запись о выполненной миграции

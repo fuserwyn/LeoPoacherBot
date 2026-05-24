@@ -869,12 +869,8 @@ func (b *Bot) handleHelp(msg *tgbotapi.Message) {
 		if !b.paywallPrivateNeedsPayFirst(msg.From.ID) {
 			return
 		}
-		reply := tgbotapi.NewMessage(msg.Chat.ID, b.paywallPrivateUnpaidUserText())
-		reply.ReplyMarkup = b.paywallUnpaidInlineKeyboard()
-		if _, err := b.api.Send(reply); err != nil {
+		if err := b.sendPaywallUnpaidPrivateScreen(msg.Chat.ID); err != nil {
 			b.logger.Errorf("Failed to send paywall-only help: %v", err)
-		} else {
-			b.sendPrivateSupportReplyKeyboard(msg.Chat.ID)
 		}
 		return
 	}
@@ -949,13 +945,9 @@ func (b *Bot) handleStart(msg *tgbotapi.Message) {
 	if msg.From != nil && msg.Chat.IsPrivate() && b.paywallActive() && b.paywallPrivateNeedsPayFirst(msg.From.ID) {
 		b.ensurePaywallInvoiceSent(msg.From.ID)
 		if b.paywallPrivateNeedsPayFirst(msg.From.ID) {
-			reply := tgbotapi.NewMessage(msg.Chat.ID, b.paywallPrivateUnpaidUserText())
-			reply.ReplyMarkup = b.paywallUnpaidInlineKeyboard()
 			b.logger.Infof("Sending paywall-only /start to chat %d", msg.Chat.ID)
-			if _, err := b.api.Send(reply); err != nil {
+			if err := b.sendPaywallUnpaidPrivateScreen(msg.Chat.ID); err != nil {
 				b.logger.Errorf("Failed to send paywall /start: %v", err)
-			} else {
-				b.sendPrivateSupportReplyKeyboard(msg.Chat.ID)
 			}
 			return
 		}
@@ -995,9 +987,16 @@ func (b *Bot) handleRejoin(msg *tgbotapi.Message) {
 	}
 	if b.paywallPrivateNeedsPayFirst(msg.From.ID) {
 		reply := tgbotapi.NewMessage(msg.Chat.ID, "⚠️ Сначала оплати доступ. Нажми /start, чтобы получить счёт.")
-		reply.ReplyMarkup = b.paywallUnpaidInlineKeyboard()
+		if kb := b.privateSupportReplyKeyboard(); kb != nil {
+			reply.ReplyMarkup = kb
+		}
 		if _, err := b.api.Send(reply); err == nil {
-			b.sendPrivateSupportReplyKeyboard(msg.Chat.ID)
+			if ik := b.paywallUnpaidInlineKeyboard(); ik != nil {
+				btn := tgbotapi.NewMessage(msg.Chat.ID, "\u200b")
+				btn.DisableNotification = true
+				btn.ReplyMarkup = ik
+				_, _ = b.api.Send(btn)
+			}
 		}
 		return
 	}

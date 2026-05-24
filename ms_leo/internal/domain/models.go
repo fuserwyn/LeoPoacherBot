@@ -123,6 +123,21 @@ type MiniappSupportChatMessage struct {
 	CreatedAt string `json:"created_at"`
 }
 
+// MiniappFeedReport — жалоба на пост или комментарий в ленте стаи.
+type MiniappFeedReport struct {
+	ID              int64  `json:"id"`
+	ReporterUserID  int64  `json:"reporter_user_id"`
+	ReporterName    string `json:"reporter_name,omitempty"`
+	TargetType      string `json:"target_type"`
+	UserMessageID   int64  `json:"user_message_id"`
+	ThreadReplyID   int64  `json:"thread_reply_id,omitempty"`
+	TargetUserID    int64  `json:"target_user_id"`
+	TargetName      string `json:"target_name,omitempty"`
+	TargetText      string `json:"target_text"`
+	Status          string `json:"status"`
+	CreatedAt       string `json:"created_at"`
+}
+
 // TrainingSession представляет одну зафиксированную тренировочную сессию.
 type TrainingSession struct {
 	ID             int64     `json:"id" db:"id"`

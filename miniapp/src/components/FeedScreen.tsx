@@ -102,6 +102,8 @@ export function FeedScreen({
   const [threadDrafts, setThreadDrafts] = useState<Record<number, string>>({});
   const [threadPosting, setThreadPosting] = useState<Record<number, boolean>>({});
   const [threadReplyDeleting, setThreadReplyDeleting] = useState<Record<number, boolean>>({});
+  const [feedReportPosting, setFeedReportPosting] = useState<Record<number, boolean>>({});
+  const [threadReplyReporting, setThreadReplyReporting] = useState<Record<number, boolean>>({});
   /** Ответ на конкретное сообщение треда (reply_to_id) — ключ id отчёта user_messages. */
   const [threadReplyTargets, setThreadReplyTargets] = useState<
     Record<number, { replyToThreadId: number; authorLabel: string; excerpt: string } | undefined>
@@ -376,6 +378,47 @@ export function FeedScreen({
       }
     },
     [apiBase, initData, syncFeed, showAlert],
+  );
+
+  const reportFeedContent = useCallback(
+    async (userMessageId: number, threadReplyId = 0) => {
+      if (!apiBase || !initData) return;
+      const postingKey = threadReplyId > 0 ? threadReplyId : userMessageId;
+      const setPosting =
+        threadReplyId > 0 ? setThreadReplyReporting : setFeedReportPosting;
+      setPosting((p) => ({ ...p, [postingKey]: true }));
+      try {
+        const res = await fetch(`${apiBase}/api/miniapp/feed/report`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            init_data: initData,
+            user_message_id: userMessageId,
+            thread_reply_id: threadReplyId,
+          }),
+        });
+        const j = (await res.json().catch(() => ({}))) as { error?: string };
+        if (!res.ok) {
+          const errMap: Record<string, string> = {
+            not_found: "Запись не найдена (обнови ленту)",
+            forbidden: "Нет доступа",
+            chat_mismatch: "Открой мини-апп из чата стаи",
+            cannot_report_self: "Нельзя пожаловаться на своё сообщение",
+            cannot_report_leo: "На это сообщение пожаловаться нельзя",
+            already_reported: "Ты уже отправлял жалобу на это",
+            report_error: "Не удалось отправить жалобу",
+          };
+          showAlert(errMap[j.error ?? ""] ?? j.error ?? `Ошибка ${res.status}`);
+          return;
+        }
+        showAlert("Жалоба отправлена. Админы увидят её в поддержке.");
+      } catch (e) {
+        showAlert(e instanceof Error ? e.message : "Сеть");
+      } finally {
+        setPosting((p) => ({ ...p, [postingKey]: false }));
+      }
+    },
+    [apiBase, initData, showAlert],
   );
 
   const toggleTrainingThreadLike = useCallback(
@@ -729,11 +772,14 @@ export function FeedScreen({
                     likeMe: Boolean(tr.like_me),
                   };
                 });
+                const canReportCard = !it.is_you && !isLeoSystemFeed;
                 if (!supportsThread) {
                   return (
                     <div key={it.id} className={slotClass}>
                       <ActivityCard
                         {...base}
+                        onReport={canReportCard ? () => void reportFeedContent(it.id) : undefined}
+                        reportPosting={feedReportPosting[it.id] ?? false}
                         poll={
                           it.poll
                             ? {
@@ -799,6 +845,10 @@ export function FeedScreen({
                           void postTrainingThread(it.id, text, threadReplyTargets[it.id]?.replyToThreadId),
                         posting: threadPosting[it.id] ?? false,
                       }}
+                      onReport={canReportCard ? () => void reportFeedContent(it.id) : undefined}
+                      reportPosting={feedReportPosting[it.id] ?? false}
+                      onThreadReplyReport={(replyId) => void reportFeedContent(it.id, replyId)}
+                      threadReplyReporting={threadReplyReporting}
                     />
                   </div>
                 );

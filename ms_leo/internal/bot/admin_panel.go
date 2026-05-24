@@ -76,6 +76,25 @@ func (b *Bot) handleAdminCallbackQuery(callback *tgbotapi.CallbackQuery) {
 		b.api.Request(callbackConfig)
 		return
 	}
+	if strings.HasPrefix(callback.Data, "admin_feed_report_dismiss_") {
+		reportID, err := strconv.ParseInt(strings.TrimPrefix(callback.Data, "admin_feed_report_dismiss_"), 10, 64)
+		if err == nil && reportID > 0 {
+			b.dismissAdminFeedReport(callback.Message.Chat.ID, reportID)
+		}
+		callbackConfig := tgbotapi.NewCallback(callback.ID, "")
+		b.api.Request(callbackConfig)
+		return
+	}
+	if strings.HasPrefix(callback.Data, "admin_feed_report_") {
+		suffix := strings.TrimPrefix(callback.Data, "admin_feed_report_")
+		reportID, err := strconv.ParseInt(suffix, 10, 64)
+		if err == nil && reportID > 0 {
+			b.showAdminFeedReport(callback.Message.Chat.ID, reportID)
+			callbackConfig := tgbotapi.NewCallback(callback.ID, "")
+			b.api.Request(callbackConfig)
+			return
+		}
+	}
 
 	switch callback.Data {
 	case "admin_open":
@@ -84,6 +103,10 @@ func (b *Bot) handleAdminCallbackQuery(callback *tgbotapi.CallbackQuery) {
 		b.showAdminSupportInbox(callback.Message.Chat.ID)
 	case "admin_support_back":
 		b.showAdminSupportInbox(callback.Message.Chat.ID)
+	case "admin_feed_reports":
+		b.showAdminFeedReportsInbox(callback.Message.Chat.ID)
+	case "admin_feed_reports_back":
+		b.showAdminFeedReportsInbox(callback.Message.Chat.ID)
 	case "admin_mode_feed_text":
 		b.startAdminFlow(callback.From.ID, "feed_text")
 		b.api.Send(tgbotapi.NewMessage(callback.Message.Chat.ID, "📝 Напиши кастомный текст для ленты стаи. Он появится как отдельный админский пост."))
@@ -266,20 +289,40 @@ func (b *Bot) showAdminSupportInbox(chatID int64) {
 
 	var text strings.Builder
 	text.WriteString("💬 Поддержка\n\n")
+	openReports := 0
+	if n, err := b.db.CountOpenMiniappFeedReports(b.config.MonetizedChatID); err == nil {
+		openReports = n
+	}
 	if len(items) == 0 {
 		text.WriteString("Диалогов пока нет.")
+		rows := make([][]tgbotapi.InlineKeyboardButton, 0, 2)
+		if openReports > 0 {
+			rows = append(rows, tgbotapi.NewInlineKeyboardRow(
+				tgbotapi.NewInlineKeyboardButtonData(
+					fmt.Sprintf("🚨 Жалобы на ленту (%d)", openReports),
+					"admin_feed_reports",
+				),
+			))
+		}
+		rows = append(rows, tgbotapi.NewInlineKeyboardRow(
+			tgbotapi.NewInlineKeyboardButtonData("⬅️ К админке", "admin_open"),
+		))
 		msg := tgbotapi.NewMessage(chatID, text.String())
-		msg.ReplyMarkup = tgbotapi.NewInlineKeyboardMarkup(
-			tgbotapi.NewInlineKeyboardRow(
-				tgbotapi.NewInlineKeyboardButtonData("⬅️ К админке", "admin_open"),
-			),
-		)
+		msg.ReplyMarkup = &tgbotapi.InlineKeyboardMarkup{InlineKeyboard: rows}
 		b.api.Send(msg)
 		return
 	}
 
 	text.WriteString("Последние диалоги:\n\n")
-	rows := make([][]tgbotapi.InlineKeyboardButton, 0, len(items)+1)
+	rows := make([][]tgbotapi.InlineKeyboardButton, 0, len(items)+2)
+	if openReports > 0 {
+		rows = append(rows, tgbotapi.NewInlineKeyboardRow(
+			tgbotapi.NewInlineKeyboardButtonData(
+				fmt.Sprintf("🚨 Жалобы на ленту (%d)", openReports),
+				"admin_feed_reports",
+			),
+		))
+	}
 	for i, item := range items {
 		prefix := "•"
 		if item.NeedsReply {
@@ -361,6 +404,121 @@ func adminSupportButtonLabel(displayName string, userID int64, needsReply bool) 
 		prefix = "🆕 "
 	}
 	return clipAdminSupportText(prefix+adminSupportTitle(displayName, userID), 56)
+}
+
+func (b *Bot) showAdminFeedReportsInbox(chatID int64) {
+	if b == nil || b.db == nil || b.config == nil || b.config.MonetizedChatID == 0 {
+		b.api.Send(tgbotapi.NewMessage(chatID, "❌ Жалобы недоступны: не настроен pack chat."))
+		return
+	}
+	items, err := b.db.ListOpenMiniappFeedReports(b.config.MonetizedChatID, 20)
+	if err != nil {
+		b.api.Send(tgbotapi.NewMessage(chatID, "❌ Не удалось загрузить жалобы."))
+		return
+	}
+	var text strings.Builder
+	text.WriteString("🚨 Жалобы на ленту\n\n")
+	if len(items) == 0 {
+		text.WriteString("Открытых жалоб нет.")
+	} else {
+		text.WriteString("Открытые жалобы:\n\n")
+		for i, item := range items {
+			if item == nil {
+				continue
+			}
+			text.WriteString(fmt.Sprintf("%d. %s · %s\n", i+1, feedReportTargetLabel(item), feedReportPersonLabel(item.TargetName, item.TargetUserID)))
+			text.WriteString(fmt.Sprintf("   От %s\n", feedReportPersonLabel(item.ReporterName, item.ReporterUserID)))
+			text.WriteString(fmt.Sprintf("   «%s»\n\n", clipAdminSupportText(item.TargetText, 72)))
+		}
+	}
+	rows := make([][]tgbotapi.InlineKeyboardButton, 0, len(items)+1)
+	for _, item := range items {
+		if item == nil {
+			continue
+		}
+		rows = append(rows, tgbotapi.NewInlineKeyboardRow(
+			tgbotapi.NewInlineKeyboardButtonData(
+				fmt.Sprintf("#%d · %s", item.ID, clipAdminSupportText(feedReportTargetLabel(item), 12)),
+				"admin_feed_report_"+strconv.FormatInt(item.ID, 10),
+			),
+		))
+	}
+	rows = append(rows, tgbotapi.NewInlineKeyboardRow(
+		tgbotapi.NewInlineKeyboardButtonData("⬅️ К поддержке", "admin_support_back"),
+	))
+	msg := tgbotapi.NewMessage(chatID, clipAdminSupportText(text.String(), 3500))
+	msg.ReplyMarkup = &tgbotapi.InlineKeyboardMarkup{InlineKeyboard: rows}
+	b.api.Send(msg)
+}
+
+func (b *Bot) showAdminFeedReport(chatID, reportID int64) {
+	if b == nil || b.db == nil || b.config == nil || b.config.MonetizedChatID == 0 || reportID == 0 {
+		return
+	}
+	item, err := b.db.GetMiniappFeedReport(b.config.MonetizedChatID, reportID)
+	if err != nil || item == nil {
+		b.api.Send(tgbotapi.NewMessage(chatID, "❌ Жалоба не найдена."))
+		return
+	}
+	var text strings.Builder
+	text.WriteString("🚨 Жалоба #")
+	text.WriteString(strconv.FormatInt(item.ID, 10))
+	text.WriteString("\n\n")
+	text.WriteString("Тип: ")
+	text.WriteString(feedReportTargetLabel(item))
+	text.WriteString("\n")
+	text.WriteString("Кто пожаловался: ")
+	text.WriteString(feedReportPersonLabel(item.ReporterName, item.ReporterUserID))
+	text.WriteString("\n")
+	text.WriteString("На кого: ")
+	text.WriteString(feedReportPersonLabel(item.TargetName, item.TargetUserID))
+	text.WriteString("\n")
+	text.WriteString("Отчёт в ленте: #")
+	text.WriteString(strconv.FormatInt(item.UserMessageID, 10))
+	text.WriteString("\n")
+	if item.ThreadReplyID > 0 {
+		text.WriteString("Комментарий: #")
+		text.WriteString(strconv.FormatInt(item.ThreadReplyID, 10))
+		text.WriteString("\n")
+	}
+	text.WriteString("\nТекст:\n«")
+	text.WriteString(clipAdminSupportText(item.TargetText, 900))
+	text.WriteString("»")
+	msg := tgbotapi.NewMessage(chatID, clipAdminSupportText(text.String(), 3500))
+	if item.Status == "open" {
+		msg.ReplyMarkup = tgbotapi.NewInlineKeyboardMarkup(
+			tgbotapi.NewInlineKeyboardRow(
+				tgbotapi.NewInlineKeyboardButtonData("✅ Обработано", "admin_feed_report_dismiss_"+strconv.FormatInt(item.ID, 10)),
+			),
+			tgbotapi.NewInlineKeyboardRow(
+				tgbotapi.NewInlineKeyboardButtonData("⬅️ К жалобам", "admin_feed_reports_back"),
+			),
+		)
+	} else {
+		msg.ReplyMarkup = tgbotapi.NewInlineKeyboardMarkup(
+			tgbotapi.NewInlineKeyboardRow(
+				tgbotapi.NewInlineKeyboardButtonData("⬅️ К жалобам", "admin_feed_reports_back"),
+			),
+		)
+	}
+	b.api.Send(msg)
+}
+
+func (b *Bot) dismissAdminFeedReport(chatID, reportID int64) {
+	if b == nil || b.db == nil || b.config == nil || b.config.MonetizedChatID == 0 {
+		return
+	}
+	ok, err := b.db.DismissMiniappFeedReport(b.config.MonetizedChatID, reportID)
+	if err != nil {
+		b.api.Send(tgbotapi.NewMessage(chatID, "❌ Не удалось закрыть жалобу."))
+		return
+	}
+	if !ok {
+		b.api.Send(tgbotapi.NewMessage(chatID, "Жалоба уже обработана или не найдена."))
+		return
+	}
+	b.api.Send(tgbotapi.NewMessage(chatID, "✅ Жалоба отмечена обработанной."))
+	b.showAdminFeedReportsInbox(chatID)
 }
 
 func clipAdminSupportText(s string, limit int) string {

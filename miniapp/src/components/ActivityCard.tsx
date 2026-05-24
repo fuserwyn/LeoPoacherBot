@@ -208,6 +208,12 @@ export type ActivityCardProps = {
   trainingPhotoUrl?: string;
   /** Состояние удаления строк треда (id → отправка). */
   threadReplyDeleting?: Record<number, boolean>;
+  /** Пожаловаться на пост (не свой). */
+  onReport?: () => void;
+  reportPosting?: boolean;
+  /** Пожаловаться на комментарий в треде. */
+  onThreadReplyReport?: (threadReplyId: number) => void;
+  threadReplyReporting?: Record<number, boolean>;
 };
 
 export function ActivityCard({
@@ -234,89 +240,57 @@ export function ActivityCard({
   onCancelThreadReplyIntent,
   threadReplyDeleting = {},
   trainingPhotoUrl,
+  onReport,
+  reportPosting = false,
+  onThreadReplyReport,
+  threadReplyReporting = {},
 }: ActivityCardProps) {
   const threadBodyRef = useRef<HTMLDivElement>(null);
   const threadComposeRef = useRef<HTMLDivElement>(null);
   const threadInputRef = useRef<HTMLTextAreaElement>(null);
-  const feedScrollLockYRef = useRef<number | null>(null);
   const [threadOpen, setThreadOpen] = useState(false);
-  const [composePinned, setComposePinned] = useState(false);
-  const [composeSpacerH, setComposeSpacerH] = useState(0);
+  const [threadInputFocused, setThreadInputFocused] = useState(false);
   const [lightboxOpen, setLightboxOpen] = useState(false);
   const [photoFailed, setPhotoFailed] = useState(false);
   const prevThreadLen = useRef(threadReplies.length);
 
-  const setFeedComposerOpenOnDocument = useCallback((open: boolean) => {
-    document.documentElement.classList.toggle("feed-thread-composer-open", open);
+  const scrollThreadComposeIntoView = useCallback(() => {
+    const target = threadComposeRef.current ?? threadInputRef.current;
+    if (!target) return;
+    const scroll = () => {
+      target.scrollIntoView({ block: "end", inline: "nearest" });
+    };
+    scroll();
+    window.setTimeout(scroll, 80);
+    window.setTimeout(scroll, 280);
   }, []);
-
-  const pinThreadComposer = useCallback(() => {
-    const compose = threadComposeRef.current;
-    const h = compose ? Math.max(compose.offsetHeight, 120) : 120;
-    setComposeSpacerH(h);
-    feedScrollLockYRef.current = window.scrollY;
-    setComposePinned(true);
-    setFeedComposerOpenOnDocument(true);
-  }, [setFeedComposerOpenOnDocument]);
-
-  const unpinThreadComposer = useCallback(() => {
-    feedScrollLockYRef.current = null;
-    setComposePinned(false);
-    setComposeSpacerH(0);
-    if (!document.querySelector(".act-card__thread-compose--pinned")) {
-      setFeedComposerOpenOnDocument(false);
-    }
-  }, [setFeedComposerOpenOnDocument]);
 
   const onThreadComposeFocus = useCallback(() => {
     if (!threadOpen) setThreadOpen(true);
-    pinThreadComposer();
-  }, [pinThreadComposer, threadOpen]);
-
-  useLayoutEffect(() => {
-    if (!composePinned) return;
-    const compose = threadComposeRef.current;
-    if (!compose) return;
-    const h = Math.max(compose.offsetHeight, 120);
-    if (h !== composeSpacerH) setComposeSpacerH(h);
-  }, [composePinned, composeSpacerH, threadReplyIntent, threadComposer?.draft]);
+    setThreadInputFocused(true);
+    scrollThreadComposeIntoView();
+  }, [scrollThreadComposeIntoView, threadOpen]);
 
   const onThreadComposeBlur = useCallback(() => {
     window.setTimeout(() => {
       const active = document.activeElement;
       if (active === threadInputRef.current || threadComposeRef.current?.contains(active)) return;
-      unpinThreadComposer();
+      setThreadInputFocused(false);
     }, 120);
-  }, [unpinThreadComposer]);
+  }, []);
 
-  /** Пока пишем комментарий в ленте — не даём WebView сдвинуть window.scroll (перескок к следующей карточке). */
-  useLayoutEffect(() => {
-    if (!composePinned || feedScrollLockYRef.current == null) return;
-    const lockY = feedScrollLockYRef.current;
-    const restore = () => {
-      if (feedScrollLockYRef.current == null) return;
-      if (Math.abs(window.scrollY - lockY) > 2) {
-        window.scrollTo(0, lockY);
-      }
-    };
-    restore();
-    window.addEventListener("scroll", restore, { passive: true });
+  useEffect(() => {
+    if (!threadInputFocused) return;
     const vv = window.visualViewport;
-    vv?.addEventListener("resize", restore);
-    vv?.addEventListener("scroll", restore);
+    if (!vv) return;
+    const onViewportChange = () => scrollThreadComposeIntoView();
+    vv.addEventListener("resize", onViewportChange);
+    vv.addEventListener("scroll", onViewportChange);
     return () => {
-      window.removeEventListener("scroll", restore);
-      vv?.removeEventListener("resize", restore);
-      vv?.removeEventListener("scroll", restore);
+      vv.removeEventListener("resize", onViewportChange);
+      vv.removeEventListener("scroll", onViewportChange);
     };
-  }, [composePinned]);
-
-  useEffect(
-    () => () => {
-      setFeedComposerOpenOnDocument(false);
-    },
-    [setFeedComposerOpenOnDocument],
-  );
+  }, [threadInputFocused, scrollThreadComposeIntoView]);
 
   useEffect(() => {
     setPhotoFailed(false);
@@ -352,7 +326,7 @@ export function ActivityCard({
   const showStreak = !hideStreak && name.trim() !== "Админ";
   return (
     <article
-      className={`act-card${hideStreak ? " act-card--leo" : ""}${lightTone ? " act-card--light" : ""}${threadOpen && hasThread ? " act-card--thread-open" : ""}${trainingPhotoUrl ? " act-card--has-photo" : ""}${composePinned ? " act-card--compose-pinned" : ""}`}
+      className={`act-card${hideStreak ? " act-card--leo" : ""}${lightTone ? " act-card--light" : ""}${threadOpen && hasThread ? " act-card--thread-open" : ""}${trainingPhotoUrl ? " act-card--has-photo" : ""}`}
     >
       <header className="act-card__head">
         <div className="act-card__avatar" aria-hidden>
@@ -378,6 +352,18 @@ export function ActivityCard({
           </div>
           <p className="act-card__time">{timeAgo}</p>
         </div>
+        {onReport != null && (
+          <button
+            type="button"
+            className="act-card__report"
+            disabled={reportPosting}
+            onClick={() => onReport()}
+            aria-label="Пожаловаться"
+            title="Пожаловаться"
+          >
+            {reportPosting ? "…" : "⚑"}
+          </button>
+        )}
       </header>
       <div className="act-card__body">
         <p className="act-card__type">
@@ -514,32 +500,46 @@ export function ActivityCard({
                                     </div>
                                   )}
                                 <p className="act-card__thread-text">{tr.text}</p>
-                                {onThreadReplyIntent != null && (
+                                {(onThreadReplyIntent != null || onThreadReplyReport != null) && (
                                   <div className="act-card__thread-actions">
-                                    <button
-                                      type="button"
-                                      className={`act-card__thread-like${tr.likeMe ? " act-card__thread-like--mine" : ""}`}
-                                      onClick={() => onThreadReplyLike?.(tr.id)}
-                                    >
-                                      ❤️ {tr.likeCount ?? 0}
-                                    </button>
-                                    <button
-                                      type="button"
-                                      className="act-card__thread-answer"
-                                      onClick={() => {
-                                        onThreadReplyIntent({
-                                          replyToThreadId: tr.id,
-                                          authorLabel: displayAuthor,
-                                          excerpt:
-                                            tr.text.length > 100 ? `${tr.text.slice(0, 99).trim()}…` : tr.text.trim(),
-                                        });
-                                        window.setTimeout(() => {
-                                          threadInputRef.current?.focus();
-                                        }, 80);
-                                      }}
-                                    >
-                                      Ответить
-                                    </button>
+                                    {onThreadReplyLike != null && (
+                                      <button
+                                        type="button"
+                                        className={`act-card__thread-like${tr.likeMe ? " act-card__thread-like--mine" : ""}`}
+                                        onClick={() => onThreadReplyLike(tr.id)}
+                                      >
+                                        ❤️ {tr.likeCount ?? 0}
+                                      </button>
+                                    )}
+                                    {onThreadReplyIntent != null && (
+                                      <button
+                                        type="button"
+                                        className="act-card__thread-answer"
+                                        onClick={() => {
+                                          onThreadReplyIntent({
+                                            replyToThreadId: tr.id,
+                                            authorLabel: displayAuthor,
+                                            excerpt:
+                                              tr.text.length > 100 ? `${tr.text.slice(0, 99).trim()}…` : tr.text.trim(),
+                                          });
+                                          window.setTimeout(() => {
+                                            threadInputRef.current?.focus();
+                                          }, 80);
+                                        }}
+                                      >
+                                        Ответить
+                                      </button>
+                                    )}
+                                    {onThreadReplyReport != null && !tr.isYou && !leo && (
+                                      <button
+                                        type="button"
+                                        className="act-card__thread-report"
+                                        disabled={Boolean(threadReplyReporting[tr.id])}
+                                        onClick={() => onThreadReplyReport(tr.id)}
+                                      >
+                                        {threadReplyReporting[tr.id] ? "…" : "Пожаловаться"}
+                                      </button>
+                                    )}
                                   </div>
                                 )}
                               </div>
@@ -551,18 +551,7 @@ export function ActivityCard({
                   )}
                 </div>
                 {threadComposer && (
-                  <>
-                    {composePinned && composeSpacerH > 0 ? (
-                      <div
-                        className="act-card__thread-compose-spacer"
-                        style={{ height: composeSpacerH }}
-                        aria-hidden
-                      />
-                    ) : null}
-                    <div
-                      className={`act-card__thread-compose${composePinned ? " act-card__thread-compose--pinned" : ""}`}
-                      ref={threadComposeRef}
-                    >
+                    <div className="act-card__thread-compose" ref={threadComposeRef}>
                     {threadReplyIntent != null && (
                       <div className="act-card__reply-intent">
                         <div className="act-card__reply-intent-row">
@@ -619,7 +608,6 @@ export function ActivityCard({
                       {threadComposer.posting ? "…" : "Отправить"}
                     </button>
                   </div>
-                  </>
                 )}
               </>
             )}

@@ -30,8 +30,8 @@ func main() {
 
 	fmt.Println("🚀 Starting database migrations...")
 
-	// Запускаем миграции
-	if err := db.RunMigrations(); err != nil {
+	// Как при старте бота: базовые таблицы + все версии миграций.
+	if err := db.CreateTables(); err != nil {
 		log.Fatalf("Failed to run migrations: %v", err)
 	}
 
