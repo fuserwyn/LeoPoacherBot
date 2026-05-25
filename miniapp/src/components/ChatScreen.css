@@ -169,8 +169,8 @@
 .chat__log {
   flex: 1;
   min-height: 0;
-  /* --chat-composer-h: ResizeObserver на .chat__form */
-  padding: 16px 16px calc(20px + var(--chat-composer-h, 72px));
+  /* --chat-composer-h: ResizeObserver на .chat__form; min 96px — время/лайк не под полем */
+  padding: 16px 16px max(96px, calc(28px + var(--chat-composer-h, 72px)));
   display: flex;
   flex-direction: column;
   gap: 12px;
@@ -185,7 +185,7 @@
   flex-shrink: 0;
   width: 100%;
   height: 1px;
-  scroll-margin-bottom: calc(20px + var(--chat-composer-h, 72px));
+  scroll-margin-bottom: max(96px, calc(28px + var(--chat-composer-h, 72px)));
 }
 
 /* Клавиатура: весь чат (шапка + лента) сжимается до видимой зоны над клавиатурой. */
