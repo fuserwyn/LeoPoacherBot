@@ -391,11 +391,13 @@ func (b *Bot) ensurePaywallInvoiceSent(userID int64) {
 	if ok, err := b.db.UserHasActivePaywallAccess(userID, b.config.MonetizedChatID); err != nil {
 		b.logger.Errorf("paywall ensure invoice access check: %v", err)
 	} else if ok {
+		b.paywallTryFinishPaidAccessDelivery(userID)
 		return
 	}
-	// ЮKassa sync только по явной кнопке «Оплатить картой», не на /start:
-	// иначе после GDPR-удаления pending с yookassa_payment_id + succeeded в API снова
-	// закрывает заявку и юзер получает «Ура, ты в стае» без новой оплаты.
+	// Оплата по ссылке ЮKassa: вебхук может не дойти — подтягиваем succeeded по payment id в pending-заявке.
+	if b.config.PaywallYookassaReady() && b.paywallTrySyncYookassaPayment(userID) {
+		return
+	}
 	pending, err := b.db.GetLatestPendingPaywallAccessRequest(userID, b.config.MonetizedChatID)
 	if err != nil {
 		b.logger.Errorf("paywall ensure invoice get pending: %v", err)
@@ -887,11 +889,63 @@ func (b *Bot) paywallTrySyncYookassaPayment(userID int64) bool {
 		paid, err := b.db.UserHasActivePaywallAccess(userID, b.config.MonetizedChatID)
 		if err == nil && paid {
 			b.logger.Infof("paywall yookassa sync: заявка %d уже completed (вебхук)", pending.ID)
+			b.paywallTryFinishPaidAccessDelivery(userID)
 		}
 		return false
 	}
-	b.logger.Infof("paywall yookassa sync: заявка %d закрыта по API ЮKassa, событие восстановления отправлено в outbox", pending.ID)
+	b.logger.Infof("paywall yookassa sync: заявка %d закрыта по API ЮKassa", pending.ID)
+	if derr := b.paywallDeliverAccessAfterPayment(userID, pending.ID, nil); derr != nil {
+		b.logger.Errorf("paywall yookassa sync deliver user=%d req=%d: %v", userID, pending.ID, derr)
+	}
+	b.paywallAfterPaywallAccessGranted(userID, pending.ID)
 	return true
+}
+
+// paywallTryFinishPaidAccessDelivery — доступ в БД есть, но welcome/таймер/кнопка мини-аппа не доехали (сбой outbox или вебхука).
+func (b *Bot) paywallTryFinishPaidAccessDelivery(userID int64) {
+	if !b.paywallActive() || userID == 0 || b.config.IsAdminTelegramUser(userID) {
+		return
+	}
+	ok, err := b.db.UserHasActivePaywallAccess(userID, b.config.MonetizedChatID)
+	if err != nil || !ok {
+		return
+	}
+	rec, err := b.db.GetLatestCompletedPaywallAccessRequest(userID, b.config.MonetizedChatID)
+	if err != nil || rec == nil {
+		return
+	}
+	needDeliver := false
+	welcomeSent, err := b.db.PaywallPostPaymentWelcomeSent(rec.ID)
+	if err != nil {
+		b.logger.Warnf("paywall finish deliver welcome check req=%d: %v", rec.ID, err)
+	}
+	if !welcomeSent {
+		needDeliver = true
+	}
+	ml, mlErr := b.db.GetMessageLog(userID, b.config.MonetizedChatID)
+	if mlErr != nil || ml == nil || ml.TimerStartTime == nil || strings.TrimSpace(*ml.TimerStartTime) == "" {
+		needDeliver = true
+	}
+	if !needDeliver {
+		invalidateMiniappMenuButtonCache(userID)
+		b.applyMiniappMenuButtonForUser(userID)
+		return
+	}
+	if derr := b.paywallDeliverAccessAfterPayment(userID, rec.ID, nil); derr != nil {
+		b.logger.Errorf("paywall finish deliver user=%d req=%d: %v", userID, rec.ID, derr)
+		if enqErr := b.db.EnqueuePaywallAccessRestoreEvent(rec.ID, userID, b.config.MonetizedChatID); enqErr != nil {
+			b.logger.Errorf("paywall finish enqueue restore req=%d: %v", rec.ID, enqErr)
+		}
+	}
+	b.paywallAfterPaywallAccessGranted(userID, rec.ID)
+}
+
+func (b *Bot) paywallAfterPaywallAccessGranted(userID, requestID int64) {
+	invalidateMiniappMenuButtonCache(userID)
+	b.applyMiniappMenuButtonForUser(userID)
+	if requestID > 0 {
+		b.logger.Infof("paywall access granted user=%d req=%d", userID, requestID)
+	}
 }
 
 func (b *Bot) handlePaywallPreCheckout(q *tgbotapi.PreCheckoutQuery) {

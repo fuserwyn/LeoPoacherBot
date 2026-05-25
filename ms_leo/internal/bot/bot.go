@@ -935,9 +935,14 @@ func (b *Bot) handleHelp(msg *tgbotapi.Message) {
 }
 
 func (b *Bot) handleStart(msg *tgbotapi.Message) {
-	// Меню-кнопка LeopardMiniApp в ЛС: показываем только paid+не кикнутым.
-	// /start — самое подходящее место, чтобы ленивого синхронизировать состояние
-	// для уже существующих юзеров без отдельной миграции через API.
+	// После оплаты ЮKassa вебхук может опоздать — подтягиваем succeeded и выдаём доступ до проверки paywall.
+	if msg.From != nil && msg.Chat.IsPrivate() && b.paywallActive() {
+		if b.config.PaywallYookassaReady() {
+			b.paywallTrySyncYookassaPayment(msg.From.ID)
+		}
+		b.paywallTryFinishPaidAccessDelivery(msg.From.ID)
+	}
+	// Меню-кнопка LeopardMiniApp в ЛС: только paid+не кикнутым (после sync выше).
 	if msg.From != nil && msg.Chat.IsPrivate() {
 		b.applyMiniappMenuButtonForUser(msg.From.ID)
 	}

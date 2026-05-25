@@ -61,6 +61,31 @@ func (d *Database) GetLatestPendingPaywallAccessRequest(userID, monetizedChatID 
 	return &r, nil
 }
 
+// GetLatestCompletedPaywallAccessRequest — последняя успешная оплата (для доставки доступа после вебхука/sync).
+func (d *Database) GetLatestCompletedPaywallAccessRequest(userID, monetizedChatID int64) (*PaywallAccessRequest, error) {
+	const q = `
+		SELECT id, user_id, monetized_chat_id, status, created_at, completed_at, access_expires_at,
+		       telegram_payment_charge_id, total_amount_minor, currency, yookassa_payment_id,
+		       post_payment_welcome_sent_at
+		FROM paywall_access_requests
+		WHERE user_id = $1 AND monetized_chat_id = $2 AND status = 'completed'
+		ORDER BY id DESC
+		LIMIT 1`
+	var r PaywallAccessRequest
+	err := d.db.QueryRow(q, userID, monetizedChatID).Scan(
+		&r.ID, &r.UserID, &r.MonetizedChatID, &r.Status, &r.CreatedAt, &r.CompletedAt, &r.AccessExpiresAt,
+		&r.TelegramPaymentChargeID, &r.TotalAmountMinor, &r.Currency, &r.YookassaPaymentID,
+		&r.PostPaymentWelcomeSentAt,
+	)
+	if err == sql.ErrNoRows {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	return &r, nil
+}
+
 func (d *Database) GetPaywallAccessRequestByID(id int64) (*PaywallAccessRequest, error) {
 	const q = `
 		SELECT id, user_id, monetized_chat_id, status, created_at, completed_at, access_expires_at,
