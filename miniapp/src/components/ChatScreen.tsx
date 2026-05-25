@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { drainLeoPersonalInbox } from "../lib/leoPersonalInbox";
 import { formatChatTime } from "../lib/timeAgo";
 import { LEO_AVATAR_URL } from "../lib/leoAvatar";
@@ -111,7 +111,9 @@ export function ChatScreen({ name, initData, inTelegram, showAlert, onInboxDrain
   const [leoTyping, setLeoTyping] = useState(false);
   const [items, setItems] = useState<ChatMsg[]>([]);
   const [loaded, setLoaded] = useState(false);
+  const chatRef = useRef<HTMLDivElement | null>(null);
   const logRef = useRef<HTMLDivElement | null>(null);
+  const formRef = useRef<HTMLFormElement | null>(null);
   const endRef = useRef<HTMLDivElement | null>(null);
   const didInitialScrollRef = useRef(false);
   /** true — после отправки сообщения пользователем: всегда скроллим вниз, даже если был наверху */
@@ -131,6 +133,22 @@ export function ChatScreen({ name, initData, inTelegram, showAlert, onInboxDrain
       document.body.classList.remove("body--lock");
     };
   }, [active]);
+
+  useLayoutEffect(() => {
+    const form = formRef.current;
+    const host = chatRef.current;
+    if (!form || !host) return;
+    const write = () => {
+      host.style.setProperty("--chat-composer-h", `${Math.ceil(form.getBoundingClientRect().height)}px`);
+    };
+    write();
+    const ro = new ResizeObserver(write);
+    ro.observe(form);
+    return () => {
+      ro.disconnect();
+      host.style.removeProperty("--chat-composer-h");
+    };
+  }, []);
 
   const isNearLogBottom = useCallback(() => {
     const el = logRef.current;
@@ -391,7 +409,7 @@ export function ChatScreen({ name, initData, inTelegram, showAlert, onInboxDrain
   const showTypingCue = sending || leoTyping;
 
   return (
-    <div className="chat">
+    <div className="chat" ref={chatRef}>
       {!import.meta.env.VITE_MINIAPP_API_URL && (
         <div className="chat__configwarn" role="status">
           Нет <code className="chat__code">VITE_MINIAPP_API_URL</code> при сборке. В Railway → сервис
@@ -480,6 +498,7 @@ export function ChatScreen({ name, initData, inTelegram, showAlert, onInboxDrain
         <div ref={endRef} className="chat__log-end" aria-hidden="true" />
       </div>
       <form
+        ref={formRef}
         className="chat__form"
         onSubmit={(e) => {
           e.preventDefault();

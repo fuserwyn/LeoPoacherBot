@@ -169,7 +169,8 @@
 .chat__log {
   flex: 1;
   min-height: 0;
-  padding: 16px;
+  /* --chat-composer-h: ResizeObserver на .chat__form */
+  padding: 16px 16px calc(20px + var(--chat-composer-h, 72px));
   display: flex;
   flex-direction: column;
   gap: 12px;
@@ -183,7 +184,8 @@
 .chat__log-end {
   flex-shrink: 0;
   width: 100%;
-  height: 8px;
+  height: 1px;
+  scroll-margin-bottom: calc(20px + var(--chat-composer-h, 72px));
 }
 
 /* Клавиатура: весь чат (шапка + лента) сжимается до видимой зоны над клавиатурой. */
@@ -291,23 +293,32 @@ html.app-keyboard-open .chat {
   border-bottom-left-radius: 4px;
 }
 
-/* В потоке flex-чата: лента и поле ввода двигаются вместе, без перекрытия. */
 .chat__form {
-  flex-shrink: 0;
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: var(--bottom-nav-h, 72px);
+  z-index: 90;
+  max-width: 480px;
+  margin: 0 auto;
   display: flex;
   gap: 8px;
-  padding: 6px 12px calc(4px + var(--safe-bottom, 0px));
+  padding: 6px 12px 4px;
   background: var(--bg, #0d0d12);
   box-sizing: border-box;
-  border-top: 1px solid var(--line, #24242c);
 }
 
 html.app-keyboard-open .chat__form {
+  bottom: var(--app-keyboard-bottom, 0px);
   padding: 6px 12px 3px;
+  background: var(--bg, #0d0d12);
 }
 
 @media (min-width: 600px) {
   .chat {
+    max-width: none;
+  }
+  .chat__form {
     max-width: none;
   }
 }
