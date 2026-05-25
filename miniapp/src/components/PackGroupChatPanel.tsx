@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { formatChatTime, timeAgoFromISO } from "../lib/timeAgo";
 import { LEO_AVATAR_URL } from "../lib/leoAvatar";
 import "./PackGroupChatPanel.css";
@@ -32,6 +32,8 @@ export function PackGroupChatPanel({ initData, inTelegram, meId, showAlert, onHa
   const [err, setErr] = useState<string | null>(null);
   const endRef = useRef<HTMLDivElement | null>(null);
   const logRef = useRef<HTMLDivElement | null>(null);
+  const roomRef = useRef<HTMLDivElement | null>(null);
+  const formRef = useRef<HTMLFormElement | null>(null);
   /** true когда пользователь прокрутил вверх — не перебиваем позицию при поллинге */
   const userScrolledUpRef = useRef(false);
   const didInitialScrollRef = useRef(false);
@@ -48,6 +50,7 @@ export function PackGroupChatPanel({ initData, inTelegram, meId, showAlert, onHa
     if (!el) return;
     const run = () => {
       el.scrollTop = el.scrollHeight;
+      endRef.current?.scrollIntoView({ block: "end" });
     };
     run();
     requestAnimationFrame(() => {
@@ -55,6 +58,69 @@ export function PackGroupChatPanel({ initData, inTelegram, meId, showAlert, onHa
       requestAnimationFrame(run);
     });
   }, []);
+
+  const scrollToBottomIfNear = useCallback(() => {
+    const el = logRef.current;
+    if (!el) return;
+    if (!userScrolledUpRef.current || isNearBottom(el, 160)) {
+      userScrolledUpRef.current = false;
+      scrollToBottom();
+    }
+  }, [isNearBottom, scrollToBottom]);
+
+  useLayoutEffect(() => {
+    const form = formRef.current;
+    const host = roomRef.current;
+    if (!form || !host) return;
+    const write = () => {
+      host.style.setProperty("--pack-composer-h", `${Math.ceil(form.getBoundingClientRect().height)}px`);
+    };
+    write();
+    const ro = new ResizeObserver(write);
+    ro.observe(form);
+    return () => {
+      ro.disconnect();
+      host.style.removeProperty("--pack-composer-h");
+    };
+  }, []);
+
+  /** Пока клавиатура анимируется — держим низ ленты у поля ввода. */
+  useEffect(() => {
+    if (!active) return;
+    const vv = window.visualViewport;
+    const onViewportChange = () => {
+      const input = document.activeElement;
+      if (!(input instanceof HTMLInputElement) || !input.classList.contains("packroom__input")) return;
+      userScrolledUpRef.current = false;
+      scrollToBottom();
+    };
+    vv?.addEventListener("resize", onViewportChange);
+    vv?.addEventListener("scroll", onViewportChange);
+    return () => {
+      vv?.removeEventListener("resize", onViewportChange);
+      vv?.removeEventListener("scroll", onViewportChange);
+    };
+  }, [active, scrollToBottom]);
+
+  /** После закрытия клавиатуры (тап по ленте) — не оставлять низ под полем ввода. */
+  useEffect(() => {
+    if (!active) return;
+    const root = document.documentElement;
+    let wasOpen = root.classList.contains("app-keyboard-open");
+    const mo = new MutationObserver(() => {
+      const open = root.classList.contains("app-keyboard-open");
+      if (wasOpen && !open) {
+        requestAnimationFrame(() => {
+          requestAnimationFrame(scrollToBottomIfNear);
+        });
+        window.setTimeout(scrollToBottomIfNear, 120);
+        window.setTimeout(scrollToBottomIfNear, 320);
+      }
+      wasOpen = open;
+    });
+    mo.observe(root, { attributes: true, attributeFilter: ["class"] });
+    return () => mo.disconnect();
+  }, [active, scrollToBottomIfNear]);
 
   const load = useCallback(async () => {
     if (!apiBase || !inTelegram || !initData) return;
@@ -251,9 +317,18 @@ export function PackGroupChatPanel({ initData, inTelegram, meId, showAlert, onHa
   }
 
   return (
-    <div className="packroom">
+    <div className="packroom" ref={roomRef}>
       {err && <p className="packroom__err">{err}</p>}
-      <div className="packroom__log" role="log" aria-label="Чат стаи" ref={logRef}>
+      <div
+        className="packroom__log"
+        role="log"
+        aria-label="Чат стаи"
+        ref={logRef}
+        onPointerDown={() => {
+          window.setTimeout(scrollToBottomIfNear, 120);
+          window.setTimeout(scrollToBottomIfNear, 320);
+        }}
+      >
         <div className="packroom__log-inner">
         {items.map((m) => {
           const mine = !m.is_leo && m.user_id === meId;
@@ -300,6 +375,7 @@ export function PackGroupChatPanel({ initData, inTelegram, meId, showAlert, onHa
         </div>
       </div>
       <form
+        ref={formRef}
         className="packroom__form"
         onSubmit={(e) => {
           e.preventDefault();
@@ -313,10 +389,16 @@ export function PackGroupChatPanel({ initData, inTelegram, meId, showAlert, onHa
           placeholder="Сообщение… @leo — чтобы ответил бот"
           maxLength={4000}
           autoComplete="off"
+          enterKeyHint="send"
           onFocus={() => {
             userScrolledUpRef.current = false;
-            window.setTimeout(() => scrollToBottom(), 80);
-            window.setTimeout(() => scrollToBottom(), 320);
+            scrollToBottom();
+            window.setTimeout(scrollToBottom, 100);
+            window.setTimeout(scrollToBottom, 320);
+          }}
+          onBlur={() => {
+            window.setTimeout(scrollToBottomIfNear, 80);
+            window.setTimeout(scrollToBottomIfNear, 280);
           }}
         />
         <button type="submit" className="packroom__send" disabled={sending || !text.trim()}>

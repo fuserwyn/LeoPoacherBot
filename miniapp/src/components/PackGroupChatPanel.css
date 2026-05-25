@@ -33,18 +33,25 @@
   flex-direction: column;
   justify-content: flex-end;
   gap: 8px;
-  /* Запас под fixed-форму: поле + отступы (без двойного таббара — он уже в padding формы). */
-  padding-bottom: calc(58px + var(--safe-bottom, 0px) + 12px);
+  /* --pack-composer-h: ResizeObserver на .packroom__form; min 96px — «Удалить» не под полем */
+  padding-bottom: max(96px, calc(28px + var(--pack-composer-h, 72px)));
   box-sizing: border-box;
   overflow-anchor: none;
 }
 
 .packroom__log-end {
   flex-shrink: 0;
-  height: 8px;
+  height: 1px;
   width: 100%;
   overflow: hidden;
   pointer-events: none;
+  scroll-margin-bottom: max(96px, calc(28px + var(--pack-composer-h, 72px)));
+}
+
+/* Клавиатура: чат стаи сжимается до видимой зоны над клавиатурой. */
+html.app-keyboard-open .packroom {
+  min-height: calc(100dvh - var(--feed-header-h, 220px) - var(--app-keyboard-bottom, 0px));
+  max-height: calc(100dvh - var(--feed-header-h, 220px) - var(--app-keyboard-bottom, 0px));
 }
 
 .packroom__row {
@@ -173,18 +180,18 @@
   text-underline-offset: 2px;
 }
 
-/* Вплотную к таббару (высота уже включает safe-area); при клавиатуре — над ней. */
+/* Над таббаром; при клавиатуре — над ней (как в чате с Лео). */
 .packroom__form {
   position: fixed;
   left: 0;
   right: 0;
-  bottom: 0;
+  bottom: var(--bottom-nav-h, var(--feed-bottom-nav-h, 72px));
   z-index: 90;
   max-width: 520px;
   margin: 0 auto;
   display: flex;
   gap: 8px;
-  padding: 6px 8px calc(2px + var(--bottom-nav-h, var(--feed-bottom-nav-h, 72px)));
+  padding: 6px 8px 4px;
   background: var(--bg, #0d0d12);
   box-sizing: border-box;
 }
@@ -194,10 +201,6 @@ html.app-keyboard-open .packroom__form {
   /* 3px снизу — чтобы синий контур фокуса инпута не обрезался клавиатурой */
   padding: 6px 8px 3px;
   background: var(--bg, #0d0d12);
-}
-
-html.app-keyboard-open .packroom__log-inner {
-  padding-bottom: calc(58px + var(--safe-bottom, 0px) + 8px);
 }
 
 .packroom__input {
