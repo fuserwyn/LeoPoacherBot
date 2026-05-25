@@ -53,6 +53,42 @@ class PaymentWebhookService:
         self._telegram = telegram
         self._settings = app_settings
 
+    async def _notify_ops(self, msg: str) -> None:
+        logger.error(msg)
+        if self._settings.owner_id:
+            try:
+                await self._telegram.notify_owner(self._settings.owner_id, msg)
+            except Exception as e:
+                logger.warning("yookassa webhook: notify owner failed: %s", e)
+
+    async def _fail_paid_without_access(
+        self,
+        req_id: int,
+        user_tid: int,
+        payment_id: str,
+        reason: str,
+    ) -> None:
+        """Оплата в ЮKassa прошла, доступ не выдали — refund через outbox (ms_leo) + алерт владельцу."""
+        try:
+            await self._paywall.enqueue_refund_requested(req_id, user_tid, reason)
+            logger.info(
+                "yookassa webhook: refund_requested enqueued req=%s user=%s payment=%s",
+                req_id,
+                user_tid,
+                payment_id,
+            )
+        except Exception as e:
+            logger.error(
+                "yookassa webhook: refund enqueue failed req=%s payment=%s: %s",
+                req_id,
+                payment_id,
+                e,
+            )
+        await self._notify_ops(
+            f"YooKassa webhook: оплата {payment_id}, доступ не выдан. "
+            f"req={req_id} user={user_tid}. {reason}. refund_requested в outbox."
+        )
+
     async def _ensure_miniapp_menu_button(self, user_tid: int) -> None:
         """Best-effort: сразу включаем web_app кнопку после успешной оплаты по webhook."""
         try:
@@ -121,16 +157,24 @@ class PaymentWebhookService:
                 rec["user_id"],
                 user_tid,
             )
+            await self._fail_paid_without_access(
+                req_id,
+                user_tid,
+                payment_id,
+                f"user mismatch meta={user_tid} db={rec['user_id']}",
+            )
             return WebhookOutcome(403, {"status": "user mismatch"})
 
-        if int(rec["monetized_chat_id"]) != self._settings.monetized_chat_id:
+        env_chat = self._settings.monetized_chat_id
+        db_chat = int(rec["monetized_chat_id"])
+        if db_chat != env_chat:
             logger.warning(
-                "yookassa webhook: chat mismatch req=%s db_chat=%s env_chat=%s",
+                "yookassa webhook: chat id устарел в заявке req=%s db_chat=%s env_chat=%s — "
+                "закрываем с env_chat (pack id)",
                 req_id,
-                rec["monetized_chat_id"],
-                self._settings.monetized_chat_id,
+                db_chat,
+                env_chat,
             )
-            return WebhookOutcome(403, {"status": "chat mismatch"})
 
         amount_minor, currency = minor_units_from_yookassa_amount(obj.get("amount"))
         if amount_minor <= 0 or not currency:
@@ -140,7 +184,7 @@ class PaymentWebhookService:
             if amount_minor <= 0:
                 amount_minor = 1
 
-        chat_id = int(rec["monetized_chat_id"])
+        chat_id = env_chat
 
         if self._ledger:
             await self._ledger.upsert_webhook(

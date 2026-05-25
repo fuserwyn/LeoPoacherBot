@@ -18,7 +18,7 @@ BEGIN;
 DO $delete_user$
 DECLARE
   -- ═══ Telegram user_id (единственное место для правки) ═══
-  target_user_id bigint := 123456789;
+  target_user_id bigint := 7738691355;
   n_paywall_active bigint;
   n_training bigint;
   n_outbox bigint;

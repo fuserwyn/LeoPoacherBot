@@ -78,6 +78,8 @@ class Settings:
     paywall_invite_creates_join_request: bool = _bool_env(
         "MONETIZED_INVITE_CREATES_JOIN_REQUEST", True
     )
+    # Уведомления владельцу при сбое вебхука после успешной оплаты (как notifyOps в ms_leo).
+    owner_id: int = _int("OWNER_ID", 0)
 
 
 settings = Settings()

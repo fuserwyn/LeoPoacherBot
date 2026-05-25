@@ -134,3 +134,8 @@ class TelegramGateway:
             logger.warning("setChatMenuButton(default) failed: %s", data)
             return False
         return True
+
+    async def notify_owner(self, owner_id: int, text: str) -> None:
+        if owner_id == 0 or not self._token:
+            return
+        await self.send_message(owner_id, "⚠️ " + text[:3900])

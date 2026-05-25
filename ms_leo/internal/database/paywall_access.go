@@ -36,18 +36,29 @@ func (d *Database) InsertPaywallAccessRequest(userID, monetizedChatID int64) (in
 	return id, nil
 }
 
-// GetLatestPendingPaywallAccessRequest — последняя неоплаченная заявка пользователя на этот чат (для повторной отправки счёта).
+// GetLatestPendingPaywallAccessRequest — последняя pending-заявка: сначала с текущим pack id, иначе любая pending (устаревший monetized_chat_id в строке).
 func (d *Database) GetLatestPendingPaywallAccessRequest(userID, monetizedChatID int64) (*PaywallAccessRequest, error) {
-	const q = `
+	if r, err := d.getLatestPendingPaywallAccessRequestWhere(userID, monetizedChatID, true); err != nil || r != nil {
+		return r, err
+	}
+	return d.getLatestPendingPaywallAccessRequestWhere(userID, monetizedChatID, false)
+}
+
+func (d *Database) getLatestPendingPaywallAccessRequestWhere(userID, monetizedChatID int64, matchChat bool) (*PaywallAccessRequest, error) {
+	q := `
 		SELECT id, user_id, monetized_chat_id, status, created_at, completed_at, access_expires_at,
 		       telegram_payment_charge_id, total_amount_minor, currency, yookassa_payment_id,
 		       post_payment_welcome_sent_at
 		FROM paywall_access_requests
-		WHERE user_id = $1 AND monetized_chat_id = $2 AND status = 'pending'
-		ORDER BY id DESC
-		LIMIT 1`
+		WHERE user_id = $1 AND status = 'pending'`
+	args := []any{userID}
+	if matchChat {
+		q += ` AND monetized_chat_id = $2`
+		args = append(args, monetizedChatID)
+	}
+	q += ` ORDER BY id DESC LIMIT 1`
 	var r PaywallAccessRequest
-	err := d.db.QueryRow(q, userID, monetizedChatID).Scan(
+	err := d.db.QueryRow(q, args...).Scan(
 		&r.ID, &r.UserID, &r.MonetizedChatID, &r.Status, &r.CreatedAt, &r.CompletedAt, &r.AccessExpiresAt,
 		&r.TelegramPaymentChargeID, &r.TotalAmountMinor, &r.Currency, &r.YookassaPaymentID,
 		&r.PostPaymentWelcomeSentAt,
@@ -213,10 +224,11 @@ func (d *Database) CompletePaywallAccessRequest(id int64, userID, monetizedChatI
 		SET status = 'completed',
 		    completed_at = NOW(),
 		    access_expires_at = 'infinity'::timestamptz,
+		    monetized_chat_id = $3,
 		    telegram_payment_charge_id = $4,
 		    total_amount_minor = $5,
 		    currency = $6
-		WHERE id = $1 AND user_id = $2 AND monetized_chat_id = $3 AND status = 'pending'`
+		WHERE id = $1 AND user_id = $2 AND status = 'pending'`
 	res, err := tx.Exec(q, id, userID, monetizedChatID, telegramChargeID, amountMinor, currency)
 	if err != nil {
 		return false, err

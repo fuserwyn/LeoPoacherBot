@@ -55,10 +55,11 @@ class PaywallRepository:
                 SET status = 'completed',
                     completed_at = NOW(),
                     access_expires_at = 'infinity'::timestamptz,
+                    monetized_chat_id = $3,
                     telegram_payment_charge_id = $4,
                     total_amount_minor = $5,
                     currency = $6
-                WHERE id = $1 AND user_id = $2 AND monetized_chat_id = $3 AND status = 'pending'
+                WHERE id = $1 AND user_id = $2 AND status = 'pending'
                 RETURNING id
                 """,
                 req_id,
@@ -85,6 +86,30 @@ class PaywallRepository:
                 payload_json,
             )
             return True
+
+    async def enqueue_refund_requested(
+        self,
+        req_id: int,
+        user_id: int,
+        reason: str,
+    ) -> None:
+        """Ставит refund_requested в outbox (обрабатывает ms_leo outbox_worker → ЮKassa refund)."""
+        import json as _json
+
+        payload_json = _json.dumps(
+            {"request_id": int(req_id), "user_id": int(user_id), "reason": reason[:500]},
+            ensure_ascii=False,
+        )
+        async with self._pool.acquire() as conn:
+            await conn.execute(
+                """
+                INSERT INTO outbox_events (event_type, aggregate_key, payload, status, next_attempt_at)
+                VALUES ($1, $2, $3::jsonb, 'pending', NOW())
+                """,
+                "refund_requested",
+                f"refund_request:{int(req_id)}",
+                payload_json,
+            )
 
 # reactivate_returned_user удалён: после переключения Yookassa-вебхука на outbox-event
 # `paywall_access_restore_requested` это делает ms_leo через outbox_worker, вызывая
