@@ -171,6 +171,72 @@ function TrainingReactionsBar({
   );
 }
 
+function ReportActionMenu({
+  menuItemLabel,
+  onReport,
+  posting = false,
+  className = "",
+}: {
+  menuItemLabel: string;
+  onReport: () => void;
+  posting?: boolean;
+  className?: string;
+}) {
+  const wrapRef = useRef<HTMLDivElement>(null);
+  const [open, setOpen] = useState(false);
+
+  useEffect(() => {
+    if (!open) return;
+    const close = (e: MouseEvent | TouchEvent) => {
+      const t = e.target as Node;
+      if (wrapRef.current?.contains(t)) return;
+      setOpen(false);
+    };
+    const esc = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setOpen(false);
+    };
+    document.addEventListener("mousedown", close);
+    document.addEventListener("touchstart", close);
+    document.addEventListener("keydown", esc);
+    return () => {
+      document.removeEventListener("mousedown", close);
+      document.removeEventListener("touchstart", close);
+      document.removeEventListener("keydown", esc);
+    };
+  }, [open]);
+
+  return (
+    <div className={`act-card__menu${className ? ` ${className}` : ""}`} ref={wrapRef}>
+      <button
+        type="button"
+        className={`act-card__menu-toggle${open ? " act-card__menu-toggle--open" : ""}`}
+        aria-expanded={open}
+        aria-haspopup="menu"
+        aria-label="Ещё"
+        disabled={posting}
+        onClick={() => setOpen((v) => !v)}
+      >
+        {posting ? "…" : "⋯"}
+      </button>
+      {open && !posting && (
+        <div className="act-card__menu-popover" role="menu">
+          <button
+            type="button"
+            className="act-card__menu-item"
+            role="menuitem"
+            onClick={() => {
+              setOpen(false);
+              onReport();
+            }}
+          >
+            {menuItemLabel}
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
 export type ActivityCardProps = {
   avatar: string;
   name: string;
@@ -353,16 +419,12 @@ export function ActivityCard({
           <p className="act-card__time">{timeAgo}</p>
         </div>
         {onReport != null && (
-          <button
-            type="button"
-            className="act-card__report"
-            disabled={reportPosting}
-            onClick={() => onReport()}
-            aria-label="Пожаловаться"
-            title="Пожаловаться"
-          >
-            {reportPosting ? "…" : "🚩"}
-          </button>
+          <ReportActionMenu
+            className="act-card__menu--head"
+            menuItemLabel="Пожаловаться на публикацию"
+            onReport={onReport}
+            posting={reportPosting}
+          />
         )}
       </header>
       <div className="act-card__body">
@@ -479,16 +541,12 @@ export function ActivityCard({
                                   </div>
                                   <div className="act-card__thread-head-actions">
                                     {!tr.isYou && !leo && onThreadReplyReport != null && (
-                                      <button
-                                        type="button"
-                                        className="act-card__thread-report-head"
-                                        disabled={Boolean(threadReplyReporting[tr.id])}
-                                        onClick={() => onThreadReplyReport(tr.id)}
-                                        aria-label="Пожаловаться на комментарий"
-                                        title="Пожаловаться"
-                                      >
-                                        {threadReplyReporting[tr.id] ? "…" : "🚩"}
-                                      </button>
+                                      <ReportActionMenu
+                                        className="act-card__menu--thread"
+                                        menuItemLabel="Пожаловаться на комментарий"
+                                        onReport={() => onThreadReplyReport(tr.id)}
+                                        posting={Boolean(threadReplyReporting[tr.id])}
+                                      />
                                     )}
                                     {tr.isYou && !leo && onThreadReplyDelete != null && (
                                       <button
@@ -514,9 +572,7 @@ export function ActivityCard({
                                     </div>
                                   )}
                                 <p className="act-card__thread-text">{tr.text}</p>
-                                {(onThreadReplyLike != null ||
-                                  onThreadReplyIntent != null ||
-                                  onThreadReplyReport != null) && (
+                                {(onThreadReplyLike != null || onThreadReplyIntent != null) && (
                                   <div className="act-card__thread-actions">
                                     {onThreadReplyLike != null && (
                                       <button
@@ -544,16 +600,6 @@ export function ActivityCard({
                                         }}
                                       >
                                         Ответить
-                                      </button>
-                                    )}
-                                    {onThreadReplyReport != null && !tr.isYou && !leo && (
-                                      <button
-                                        type="button"
-                                        className="act-card__thread-report"
-                                        disabled={Boolean(threadReplyReporting[tr.id])}
-                                        onClick={() => onThreadReplyReport(tr.id)}
-                                      >
-                                        {threadReplyReporting[tr.id] ? "…" : "🚩 Пожаловаться"}
                                       </button>
                                     )}
                                   </div>
