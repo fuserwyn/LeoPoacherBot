@@ -178,8 +178,15 @@
   overscroll-behavior: contain;
 }
 
+/* Клавиатура: весь чат (шапка + лента) сжимается до видимой зоны над клавиатурой. */
+html.app-keyboard-open .chat {
+  height: calc(100dvh - var(--app-keyboard-bottom, 0px));
+  max-height: calc(100dvh - var(--app-keyboard-bottom, 0px));
+}
+
 html.app-keyboard-open .chat__log {
-  padding-bottom: calc(26px + 70px);
+  /* Таббар скрыт; запас только под fixed-форму (~58px). */
+  padding-bottom: calc(26px + 58px);
 }
 
 .chat__row {

@@ -132,6 +132,29 @@ export function ChatScreen({ name, initData, inTelegram, showAlert, onInboxDrain
     };
   }, [active]);
 
+  const scrollLogToEnd = useCallback(() => {
+    const el = logRef.current;
+    if (!el) return;
+    el.scrollTop = el.scrollHeight;
+  }, []);
+
+  /** Пока клавиатура анимируется — держим низ ленты у поля ввода. */
+  useEffect(() => {
+    if (!active) return;
+    const vv = window.visualViewport;
+    const onViewportChange = () => {
+      const input = document.activeElement;
+      if (!(input instanceof HTMLInputElement) || !input.classList.contains("chat__input")) return;
+      scrollLogToEnd();
+    };
+    vv?.addEventListener("resize", onViewportChange);
+    vv?.addEventListener("scroll", onViewportChange);
+    return () => {
+      vv?.removeEventListener("resize", onViewportChange);
+      vv?.removeEventListener("scroll", onViewportChange);
+    };
+  }, [active, scrollLogToEnd]);
+
   useEffect(() => {
     const el = logRef.current;
     if (!el || !loaded) return;
@@ -427,6 +450,11 @@ export function ChatScreen({ name, initData, inTelegram, showAlert, onInboxDrain
           className="chat__input"
           value={text}
           onChange={(e) => setText(e.target.value)}
+          onFocus={() => {
+            scrollLogToEnd();
+            window.setTimeout(scrollLogToEnd, 100);
+            window.setTimeout(scrollLogToEnd, 320);
+          }}
           placeholder="Сообщение…"
           maxLength={4000}
           autoComplete="off"
