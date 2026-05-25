@@ -169,8 +169,9 @@ class PaymentWebhookService:
         db_chat = int(rec["monetized_chat_id"])
         if db_chat != env_chat:
             logger.warning(
-                "yookassa webhook: chat id устарел в заявке req=%s db_chat=%s env_chat=%s — "
-                "закрываем с env_chat (pack id)",
+                "yookassa webhook: MONETIZED_CHAT_ID на ms_payments не совпадает с заявкой "
+                "req=%s db_chat=%s env_chat=%s — закрываем по db_chat (заявку создал ms_leo). "
+                "Выровняй MONETIZED_CHAT_ID на ms_payments с ms_leo.",
                 req_id,
                 db_chat,
                 env_chat,
@@ -184,7 +185,8 @@ class PaymentWebhookService:
             if amount_minor <= 0:
                 amount_minor = 1
 
-        chat_id = env_chat
+        # Pack id из строки заявки — источник истины для этого платежа (pw_<id>).
+        chat_id = db_chat
 
         if self._ledger:
             await self._ledger.upsert_webhook(

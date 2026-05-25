@@ -10,7 +10,7 @@
 
 \set req_id 8
 \set user_id 0   -- подставь user_telegram_id из metadata вебхука
-\set env_chat -1003743863056
+\set pack_chat_id -1001234567890
 
 -- Диагностика
 SELECT id, user_id, monetized_chat_id, status, yookassa_payment_id, created_at, completed_at
@@ -19,7 +19,7 @@ WHERE id = :req_id;
 
 -- A: выровнять pack id (после деплоя вебхук больше не отдаёт 403 на chat)
 -- UPDATE paywall_access_requests
--- SET monetized_chat_id = :env_chat
+-- SET monetized_chat_id = :pack_chat_id
 -- WHERE id = :req_id AND status = 'pending';
 
 -- B: поставить возврат в очередь (замени :user_id)

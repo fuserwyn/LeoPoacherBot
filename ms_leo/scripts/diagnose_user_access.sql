@@ -1,5 +1,5 @@
 -- Диагностика: почему у пользователя есть доступ после delete_user_completely.sql
--- Подставь telegram user_id и MONETIZED_CHAT_ID (как в Railway env у ms_leo) в двух местах ниже.
+-- Подставь telegram user_id ниже. MONETIZED_CHAT_ID — pack id стаи (прод: -1001234567890), как в Railway у ms_leo и ms_payments.
 
 DO $diag$
 DECLARE
