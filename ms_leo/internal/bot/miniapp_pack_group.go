@@ -1,16 +1,21 @@
 package bot
 
 import (
+	"errors"
 	"fmt"
 	"regexp"
 	"strings"
 	"time"
+	"unicode/utf8"
 
+	"leo-bot/internal/database"
 	"leo-bot/internal/domain"
 
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 	initdata "github.com/telegram-mini-apps/init-data-golang"
 )
+
+var ErrPackGroupInvalidReply = errors.New("pack group invalid reply reference")
 
 // @leo или @<username_бота> (как в группе).
 var reMentionLeo = regexp.MustCompile(`(?i)@leo\b`)
@@ -67,16 +72,78 @@ func (b *Bot) PackGroupChatForViewer(viewerUserID int64, initD initdata.InitData
 			return nil, ErrPackFeedForbidden
 		}
 	}
-	// Показываем общий чат стаи целиком (с лимитом), без персональной отсечки истории.
-	msgs, err := b.db.ListMiniappPackGroupChat(chatID, 100, nil)
+	rows, err := b.db.ListMiniappPackGroupChatRows(chatID, 100, nil)
 	if err != nil {
 		return nil, err
 	}
+	msgs := b.packGroupRowsToMessages(rows)
 	return b.enrichPackGroupChatAuthorPhotos(msgs, chatID), nil
 }
 
+func (b *Bot) packGroupRowsToMessages(rows []database.PackGroupChatRow) []*domain.PackGroupChatMessage {
+	out := make([]*domain.PackGroupChatMessage, 0, len(rows))
+	if len(rows) == 0 {
+		return out
+	}
+	var refIDs []int64
+	seen := map[int64]struct{}{}
+	for _, r := range rows {
+		m := packGroupRowToMessage(r)
+		if r.ReplyToID.Valid && r.ReplyToID.Int64 > 0 {
+			rid := r.ReplyToID.Int64
+			if _, ok := seen[rid]; !ok {
+				seen[rid] = struct{}{}
+				refIDs = append(refIDs, rid)
+			}
+		}
+		out = append(out, &m)
+	}
+	parentByID := map[int64]database.PackGroupChatRow{}
+	if len(refIDs) > 0 && b.db != nil && b.config.MonetizedChatID != 0 {
+		m, err := b.db.ListMiniappPackGroupMessagesByIDs(b.config.MonetizedChatID, refIDs)
+		if err != nil {
+			b.logger.Warnf("pack group reply parents: %v", err)
+		} else {
+			parentByID = m
+		}
+	}
+	for _, m := range out {
+		if m == nil || m.ReplyToID == 0 {
+			continue
+		}
+		if p, ok := parentByID[m.ReplyToID]; ok {
+			m.ReplyToIsLeo = p.IsLeo
+			if p.IsLeo {
+				m.ReplyToUsername = "Лео"
+			} else {
+				m.ReplyToUsername = strings.TrimSpace(p.Username)
+				if m.ReplyToUsername == "" {
+					m.ReplyToUsername = fmt.Sprintf("Участник %d", p.FromUserID)
+				}
+			}
+			m.ReplyToText = truncateForDM(p.MessageText, 100)
+		}
+	}
+	return out
+}
+
+func packGroupRowToMessage(r database.PackGroupChatRow) domain.PackGroupChatMessage {
+	m := domain.PackGroupChatMessage{
+		ID:        r.ID,
+		UserID:    r.FromUserID,
+		Username:  r.Username,
+		Text:      r.MessageText,
+		CreatedAt: r.CreatedAt.UTC().Format("2006-01-02T15:04:05Z07:00"),
+		IsLeo:     r.IsLeo,
+	}
+	if r.ReplyToID.Valid && r.ReplyToID.Int64 > 0 {
+		m.ReplyToID = r.ReplyToID.Int64
+	}
+	return m
+}
+
 // ProcessMiniAppPackGroupMessage — сохраняет реплику; при @leo / @бот вызывает ИИ, без отправки в Telegram.
-func (b *Bot) ProcessMiniAppPackGroupMessage(d initdata.InitData, text string) (MiniAppTextProcessResult, error) {
+func (b *Bot) ProcessMiniAppPackGroupMessage(d initdata.InitData, text string, replyToID int64) (MiniAppTextProcessResult, error) {
 	out := MiniAppTextProcessResult{}
 	if b == nil || strings.TrimSpace(text) == "" {
 		return out, nil
@@ -102,12 +169,31 @@ func (b *Bot) ProcessMiniAppPackGroupMessage(d initdata.InitData, text string) (
 			return out, ErrPackFeedForbidden
 		}
 	}
+	text = strings.TrimSpace(text)
+	if utf8.RuneCountInString(text) > 4000 {
+		return out, errors.New("text too long")
+	}
+	if replyToID > 0 {
+		parent, ok, err := b.db.GetMiniappPackGroupMessageInPack(chatID, replyToID)
+		if err != nil {
+			return out, err
+		}
+		if !ok {
+			return out, ErrPackGroupInvalidReply
+		}
+		_ = parent
+	}
 	uname := displayNameFromInitData(d)
 
-	if id, err := b.db.InsertMiniappPackGroupMessage(chatID, d.User.ID, uname, false, text); err != nil {
+	var userMsgID int64
+	if id, err := b.db.InsertMiniappPackGroupMessage(chatID, d.User.ID, uname, false, text, replyToID); err != nil {
 		b.logger.Warnf("pack miniapp insert user row: %v", err)
 	} else {
+		userMsgID = id
 		b.indexPackGroupChatRAG(chatID, d.User.ID, "user", text, id)
+		if replyToID > 0 && userMsgID > 0 {
+			b.afterPackGroupReplyInserted(chatID, d.User.ID, uname, text, userMsgID, replyToID)
+		}
 	}
 
 	botName := ""
@@ -147,13 +233,86 @@ func (b *Bot) ProcessMiniAppPackGroupMessage(d initdata.InitData, text string) (
 	if b.api != nil && b.api.Self.ID != 0 && b.api.Self.UserName != "" {
 		leoName = "@" + b.api.Self.UserName
 	}
-	if id, err := b.db.InsertMiniappPackGroupMessage(chatID, 0, leoName, true, reply); err != nil {
+	if id, err := b.db.InsertMiniappPackGroupMessage(chatID, 0, leoName, true, reply, 0); err != nil {
 		b.logger.Warnf("pack miniapp insert Leo row: %v", err)
 	} else {
 		b.indexPackGroupChatRAG(chatID, 0, "leo", reply, id)
 	}
 	out.ReplyText = reply
 	return out, nil
+}
+
+func (b *Bot) afterPackGroupReplyInserted(packChatID, commenterUserID int64, commenterName, commentText string, messageID, replyToID int64) {
+	if b == nil || b.db == nil || replyToID == 0 || messageID == 0 {
+		return
+	}
+	parent, ok, err := b.db.GetMiniappPackGroupMessageInPack(packChatID, replyToID)
+	if err != nil {
+		b.logger.Warnf("pack group reply parent lookup: %v", err)
+		return
+	}
+	if !ok {
+		return
+	}
+	var notifyUserID int64
+	if parent.IsLeo {
+		return
+	}
+	if parent.FromUserID == 0 || parent.FromUserID == commenterUserID {
+		return
+	}
+	notifyUserID = parent.FromUserID
+	if notifyUserID == 0 {
+		return
+	}
+	if err := b.db.InsertPackGroupUnread(notifyUserID, packChatID, messageID); err != nil {
+		b.logger.Warnf("pack group unread insert: %v", err)
+	}
+	preview := truncateForDM(commentText, 160)
+	cn := strings.TrimSpace(commenterName)
+	if cn == "" {
+		cn = "Участник стаи"
+	}
+	commenterGender, _, _ := b.GetMiniappUserProfileJSONForAPI(commenterUserID, packChatID)
+	commenterGender = strings.TrimSpace(strings.ToLower(commenterGender))
+	var body string
+	verb := ""
+	switch commenterGender {
+	case "m":
+		verb = "ответил"
+	case "f":
+		verb = "ответила"
+	}
+	if verb == "" {
+		body = "↩️ Ответ от " + cn + " на твоё сообщение в чате стаи.\n\n«" + preview + "»\n\nОткрой мини-апп → «Стая» → «Чат»."
+	} else {
+		body = "↩️ " + cn + " " + verb + " на твоё сообщение в чате стаи.\n\n«" + preview + "»\n\nОткрой мини-апп → «Стая» → «Чат»."
+	}
+	b.sendTrainingThreadCommentDM(notifyUserID, body)
+}
+
+// MiniappPackGroupUnreadCount — для бейджа на вкладке «Стая».
+func (b *Bot) MiniappPackGroupUnreadCount(initD initdata.InitData, viewerUserID int64) (int64, error) {
+	if err := b.AssertMiniAppPackChatAligns(initD); err != nil {
+		return 0, err
+	}
+	chatID := b.config.MonetizedChatID
+	if chatID == 0 || b.db == nil {
+		return 0, nil
+	}
+	return b.db.CountPackGroupUnread(viewerUserID, chatID)
+}
+
+// MiniappPackGroupUnreadClear — сброс бейджа при открытии общего чата.
+func (b *Bot) MiniappPackGroupUnreadClear(initD initdata.InitData, viewerUserID int64) error {
+	if err := b.AssertMiniAppPackChatAligns(initD); err != nil {
+		return err
+	}
+	chatID := b.config.MonetizedChatID
+	if chatID == 0 || b.db == nil {
+		return nil
+	}
+	return b.db.ClearPackGroupUnread(viewerUserID, chatID)
 }
 
 // DeleteMiniAppPackGroupMessage — удалить своё сообщение в общем чате мини-аппа.
@@ -176,7 +335,14 @@ func (b *Bot) DeleteMiniAppPackGroupMessage(viewerUserID int64, initD initdata.I
 			return false, ErrPackFeedForbidden
 		}
 	}
-	return b.db.DeleteMiniappPackGroupMessageByAuthor(chatID, messageID, viewerUserID)
+	deleted, err := b.db.DeleteMiniappPackGroupMessageByAuthor(chatID, messageID, viewerUserID)
+	if err != nil {
+		return false, err
+	}
+	if deleted {
+		_ = b.db.DeletePackGroupUnreadByMessageID(messageID)
+	}
+	return deleted, nil
 }
 
 func (b *Bot) enrichPackGroupChatAuthorPhotos(msgs []*domain.PackGroupChatMessage, chatID int64) []*domain.PackGroupChatMessage {

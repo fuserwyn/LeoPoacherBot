@@ -180,6 +180,90 @@ html.app-keyboard-open .packroom {
   text-underline-offset: 2px;
 }
 
+.packroom__bubble-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  margin-top: 4px;
+}
+
+.packroom__reply {
+  padding: 2px 0;
+  border: none;
+  background: none;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  color: rgba(90, 140, 255, 0.95);
+  cursor: pointer;
+  text-align: left;
+}
+
+.packroom__quote {
+  margin: 0 0 6px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  border-left: 3px solid rgba(90, 140, 255, 0.55);
+  background: rgba(0, 0, 0, 0.18);
+  font-size: 13px;
+  max-width: 100%;
+}
+
+.packroom__quote-author {
+  display: block;
+  font-weight: 600;
+  margin-bottom: 4px;
+}
+
+.packroom__quote-text {
+  margin: 0;
+  line-height: 1.35;
+  color: var(--text-muted);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+.packroom__reply-intent {
+  width: 100%;
+  padding: 8px 10px;
+  border-radius: 10px;
+  border: 1px solid rgba(90, 140, 255, 0.35);
+  background: rgba(90, 140, 255, 0.08);
+  box-sizing: border-box;
+}
+
+.packroom__reply-intent-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.packroom__reply-intent-label {
+  font-size: 13px;
+}
+
+.packroom__reply-intent-cancel {
+  border: none;
+  background: transparent;
+  color: var(--text-muted);
+  font-size: 16px;
+  line-height: 1;
+  padding: 2px 4px;
+  cursor: pointer;
+}
+
+.packroom__reply-intent-excerpt {
+  margin: 6px 0 0;
+  font-size: 12px;
+  line-height: 1.35;
+  color: var(--text-muted);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
 /* Над таббаром; при клавиатуре — над ней (как в чате с Лео). */
 .packroom__form {
   position: fixed;
@@ -190,10 +274,17 @@ html.app-keyboard-open .packroom {
   max-width: 520px;
   margin: 0 auto;
   display: flex;
-  gap: 8px;
+  flex-direction: column;
+  gap: 6px;
   padding: 6px 8px 4px;
   background: var(--bg, #0d0d12);
   box-sizing: border-box;
+}
+
+.packroom__form-row {
+  display: flex;
+  gap: 8px;
+  width: 100%;
 }
 
 html.app-keyboard-open .packroom__form {

@@ -49,6 +49,10 @@ BEGIN
   WHERE u.recipient_user_id = target_user_id
      OR u.thread_reply_id IN (SELECT id FROM _del_thread_ids);
 
+  DELETE FROM miniapp_pack_group_unread u
+  WHERE u.recipient_user_id = target_user_id
+     OR u.pack_message_id IN (SELECT id FROM miniapp_pack_group_chat WHERE from_user_id = target_user_id);
+
   DELETE FROM miniapp_training_feed_thread_likes l
   WHERE l.user_id = target_user_id
      OR l.thread_reply_id IN (SELECT id FROM _del_thread_ids);

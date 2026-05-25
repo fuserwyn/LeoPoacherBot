@@ -85,13 +85,17 @@ type PackActivityRow struct {
 
 // PackGroupChatMessage — общий чат мини-апpa «Стая» (все участники; Лео — при @leo / @бот).
 type PackGroupChatMessage struct {
-	ID             int64  `json:"id"`
-	UserID         int64  `json:"user_id"`
-	Username       string `json:"username"`
-	Text           string `json:"text"`
-	CreatedAt      string `json:"created_at"`
-	IsLeo          bool   `json:"is_leo"`
-	AuthorPhotoURL string `json:"author_photo_url,omitempty"`
+	ID              int64  `json:"id"`
+	UserID          int64  `json:"user_id"`
+	Username        string `json:"username"`
+	Text            string `json:"text"`
+	CreatedAt       string `json:"created_at"`
+	IsLeo           bool   `json:"is_leo"`
+	AuthorPhotoURL  string `json:"author_photo_url,omitempty"`
+	ReplyToID       int64  `json:"reply_to_id,omitempty"`
+	ReplyToUsername string `json:"reply_to_username,omitempty"`
+	ReplyToText     string `json:"reply_to_text,omitempty"`
+	ReplyToIsLeo    bool   `json:"reply_to_is_leo,omitempty"`
 }
 
 // MiniappPersonalChatMessage — личный чат юзера с Лео (источник правды живёт в БД,

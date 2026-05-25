@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { formatChatTime, timeAgoFromISO } from "../lib/timeAgo";
 import { LEO_AVATAR_URL } from "../lib/leoAvatar";
+import { clearPackGroupUnread } from "../lib/packGroupUnread";
 import "./PackGroupChatPanel.css";
 
 const apiBase = (import.meta.env.VITE_MINIAPP_API_URL as string | undefined)?.replace(/\/$/, "") ?? "";
@@ -13,6 +14,16 @@ export type PackGroupMessage = {
   created_at: string;
   is_leo: boolean;
   author_photo_url?: string;
+  reply_to_id?: number;
+  reply_to_username?: string;
+  reply_to_text?: string;
+  reply_to_is_leo?: boolean;
+};
+
+type ReplyIntent = {
+  replyToMessageId: number;
+  authorLabel: string;
+  excerpt: string;
 };
 
 type Props = {
@@ -23,17 +34,28 @@ type Props = {
   onHaptic?: () => void;
   /** Подвкладка «Чат» в ленте видима (keep-alive). */
   active?: boolean;
+  onRefreshTabBadges?: () => void;
 };
 
-export function PackGroupChatPanel({ initData, inTelegram, meId, showAlert, onHaptic, active = true }: Props) {
+export function PackGroupChatPanel({
+  initData,
+  inTelegram,
+  meId,
+  showAlert,
+  onHaptic,
+  active = true,
+  onRefreshTabBadges,
+}: Props) {
   const [items, setItems] = useState<PackGroupMessage[]>([]);
   const [text, setText] = useState("");
+  const [replyIntent, setReplyIntent] = useState<ReplyIntent | null>(null);
   const [sending, setSending] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const endRef = useRef<HTMLDivElement | null>(null);
   const logRef = useRef<HTMLDivElement | null>(null);
   const roomRef = useRef<HTMLDivElement | null>(null);
   const formRef = useRef<HTMLFormElement | null>(null);
+  const inputRef = useRef<HTMLInputElement | null>(null);
   /** true когда пользователь прокрутил вверх — не перебиваем позицию при поллинге */
   const userScrolledUpRef = useRef(false);
   const didInitialScrollRef = useRef(false);
@@ -178,6 +200,18 @@ export function PackGroupChatPanel({ initData, inTelegram, meId, showAlert, onHa
   }, [active]);
 
   useEffect(() => {
+    if (!active || !inTelegram || !initData.trim()) return;
+    let cancelled = false;
+    void (async () => {
+      await clearPackGroupUnread(initData);
+      if (!cancelled) onRefreshTabBadges?.();
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [active, inTelegram, initData, onRefreshTabBadges]);
+
+  useEffect(() => {
     if (!active || !apiBase || !inTelegram || !initData) return;
     const t = setInterval(() => void load(), 5000);
     return () => clearInterval(t);
@@ -268,14 +302,21 @@ export function PackGroupChatPanel({ initData, inTelegram, meId, showAlert, onHa
     }
     setSending(true);
     onHaptic?.();
+    const replyToId = replyIntent?.replyToMessageId ?? 0;
     setText("");
+    setReplyIntent(null);
     forceScrollRef.current = true;
     userScrolledUpRef.current = false;
     try {
+      const body: { init_data: string; text: string; reply_to_id?: number } = {
+        init_data: initData,
+        text: t,
+      };
+      if (replyToId > 0) body.reply_to_id = replyToId;
       const res = await fetch(`${apiBase}/api/miniapp/pack-group/messages`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ init_data: initData, text: t }),
+        body: JSON.stringify(body),
       });
       const j = (await res.json().catch(() => ({}))) as { error?: string; ok?: boolean; reply_text?: string };
       if (!res.ok) {
@@ -288,7 +329,14 @@ export function PackGroupChatPanel({ initData, inTelegram, meId, showAlert, onHa
     } finally {
       setSending(false);
     }
-  }, [text, sending, inTelegram, initData, showAlert, load, onHaptic]);
+  }, [text, sending, inTelegram, initData, showAlert, load, onHaptic, replyIntent]);
+
+  const startReply = useCallback((m: PackGroupMessage) => {
+    const authorLabel = m.is_leo ? "Лео" : m.username;
+    const excerpt = m.text.length > 100 ? `${m.text.slice(0, 99).trim()}…` : m.text.trim();
+    setReplyIntent({ replyToMessageId: m.id, authorLabel, excerpt });
+    window.setTimeout(() => inputRef.current?.focus(), 80);
+  }, []);
 
   const removeMine = useCallback(
     async (messageID: number) => {
@@ -352,19 +400,36 @@ export function PackGroupChatPanel({ initData, inTelegram, meId, showAlert, onHa
                     {m.is_leo ? "Лео" : m.username} · {formatChatTime(m.created_at)} · {timeAgoFromISO(m.created_at)}
                   </div>
                   <div className="packroom__bubble-wrap">
+                    {m.reply_to_id != null &&
+                      m.reply_to_id > 0 &&
+                      ((m.reply_to_text || "").trim() !== "" || (m.reply_to_username || "").trim() !== "") && (
+                        <div className="packroom__quote" aria-label="Ответ на сообщение">
+                          <span className="packroom__quote-author muted">
+                            {m.reply_to_is_leo ? "Лео" : m.reply_to_username}
+                          </span>
+                          {(m.reply_to_text || "").trim() !== "" && (
+                            <p className="packroom__quote-text">{(m.reply_to_text || "").trim()}</p>
+                          )}
+                        </div>
+                      )}
                     <div className="packroom__bubble">{m.text}</div>
-                    {mine && (
-                      <button
-                        type="button"
-                        className="packroom__del"
-                        onClick={() => {
-                          if (!window.confirm("Удалить сообщение?")) return;
-                          void removeMine(m.id);
-                        }}
-                      >
-                        Удалить
+                    <div className="packroom__bubble-actions">
+                      <button type="button" className="packroom__reply" onClick={() => startReply(m)}>
+                        Ответить
                       </button>
-                    )}
+                      {mine && (
+                        <button
+                          type="button"
+                          className="packroom__del"
+                          onClick={() => {
+                            if (!window.confirm("Удалить сообщение?")) return;
+                            void removeMine(m.id);
+                          }}
+                        >
+                          Удалить
+                        </button>
+                      )}
+                    </div>
                   </div>
                 </div>
               </div>
@@ -382,11 +447,32 @@ export function PackGroupChatPanel({ initData, inTelegram, meId, showAlert, onHa
           void send();
         }}
       >
+        {replyIntent != null && (
+          <div className="packroom__reply-intent">
+            <div className="packroom__reply-intent-row">
+              <span className="packroom__reply-intent-label">
+                Ответ <strong>{replyIntent.authorLabel}</strong>
+              </span>
+              <button type="button" className="packroom__reply-intent-cancel" onClick={() => setReplyIntent(null)}>
+                ✕
+              </button>
+            </div>
+            {replyIntent.excerpt.trim() !== "" && (
+              <p className="packroom__reply-intent-excerpt">{replyIntent.excerpt}</p>
+            )}
+          </div>
+        )}
+        <div className="packroom__form-row">
         <input
+          ref={inputRef}
           className="packroom__input"
           value={text}
           onChange={(e) => setText(e.target.value)}
-          placeholder="Сообщение… @leo — чтобы ответил бот"
+          placeholder={
+            replyIntent != null
+              ? `Ответ ${replyIntent.authorLabel}… @leo — чтобы ответил бот`
+              : "Сообщение… @leo — чтобы ответил бот"
+          }
           maxLength={4000}
           autoComplete="off"
           enterKeyHint="send"
@@ -404,6 +490,7 @@ export function PackGroupChatPanel({ initData, inTelegram, meId, showAlert, onHa
         <button type="submit" className="packroom__send" disabled={sending || !text.trim()}>
           {sending ? "…" : "➤"}
         </button>
+        </div>
       </form>
     </div>
   );

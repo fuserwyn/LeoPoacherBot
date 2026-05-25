@@ -14,6 +14,7 @@ import { buildOptimisticTrainingFeedItem, type PackFeedItemDTO } from "./lib/pac
 import { sendMiniappPrivateText, sendMiniappTrainingWithPhoto } from "./lib/miniappPrivateSend";
 import { fetchLeoPendingCount } from "./lib/leoPersonalInbox";
 import { clearFeedThreadUnread, fetchFeedThreadUnreadCount } from "./lib/feedThreadUnread";
+import { fetchPackGroupUnreadCount } from "./lib/packGroupUnread";
 import { ensureMiniappOnboarding } from "./lib/miniappOnboarding";
 import { syncTimezoneIfNeeded } from "./lib/timezoneSync";
 import "./App.css";
@@ -80,9 +81,13 @@ export function App() {
       setFeedUnread(0);
       return;
     }
-    const [leo, feed] = await Promise.all([fetchLeoPendingCount(initData), fetchFeedThreadUnreadCount(initData)]);
+    const [leo, feedThread, packGroup] = await Promise.all([
+      fetchLeoPendingCount(initData),
+      fetchFeedThreadUnreadCount(initData),
+      fetchPackGroupUnreadCount(initData),
+    ]);
     setLeoPending(leo);
-    setFeedUnread(feed);
+    setFeedUnread(feedThread + packGroup);
   }, [accessGateStatus, inTelegram, initData]);
 
   const refreshProfileStats = useCallback(async () => {
@@ -219,6 +224,7 @@ export function App() {
             onRefreshAll={async () => {
               await Promise.all([refreshProfileStats(), refreshTabBadges()]);
             }}
+            onRefreshTabBadges={refreshTabBadges}
           />
         </TabKeepAlive>
         <TabKeepAlive active={tab === "chat"} hidden={!tabsVisible}>

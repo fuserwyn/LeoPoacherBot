@@ -56,6 +56,8 @@ type Props = {
   onRefreshAll?: () => Promise<void> | void;
   /** Вкладка «Стая» видима (keep-alive). */
   active?: boolean;
+  /** Обновить бейджи таббара (после открытия общего чата). */
+  onRefreshTabBadges?: () => void;
 };
 
 type Sub = "activity" | "room";
@@ -92,6 +94,7 @@ export function FeedScreen({
   onOptimisticConsumed,
   onRefreshAll,
   active = true,
+  onRefreshTabBadges,
 }: Props) {
   const [sub, setSub] = useState<Sub>("activity");
 
@@ -684,6 +687,7 @@ export function FeedScreen({
           inTelegram={inTelegram}
           meId={userId}
           showAlert={showAlert}
+          onRefreshTabBadges={onRefreshTabBadges}
           onHaptic={() => {
             const w = window.Telegram?.WebApp;
             w?.HapticFeedback?.impactOccurred?.("light");

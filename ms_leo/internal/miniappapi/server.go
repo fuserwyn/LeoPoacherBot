@@ -83,6 +83,10 @@ func (s *Server) serve(w http.ResponseWriter, r *http.Request) {
 		s.handlePostPackGroupMessage(w, r)
 	case path == "/api/miniapp/pack-group/messages/delete" && r.Method == http.MethodPost:
 		s.handlePostPackGroupMessageDelete(w, r)
+	case path == "/api/miniapp/pack-group/unread-count" && r.Method == http.MethodPost:
+		s.handlePostPackGroupUnreadCount(w, r)
+	case path == "/api/miniapp/pack-group/unread-clear" && r.Method == http.MethodPost:
+		s.handlePostPackGroupUnreadClear(w, r)
 	case path == "/api/miniapp/profile/load" && r.Method == http.MethodPost:
 		s.handlePostProfileLoad(w, r)
 	case path == "/api/miniapp/profile/save" && r.Method == http.MethodPost:
@@ -923,8 +927,9 @@ func (s *Server) handlePostPackGroupMessage(w http.ResponseWriter, r *http.Reque
 		return
 	}
 	var body struct {
-		InitData string `json:"init_data"`
-		Text     string `json:"text"`
+		InitData  string `json:"init_data"`
+		Text      string `json:"text"`
+		ReplyToID int64  `json:"reply_to_id"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
 		s.jsonErr(w, http.StatusBadRequest, "invalid_json")
@@ -965,7 +970,7 @@ func (s *Server) handlePostPackGroupMessage(w http.ResponseWriter, r *http.Reque
 		s.jsonErr(w, http.StatusInternalServerError, "assert_chat_error")
 		return
 	}
-	miniRes, perr := s.bot.ProcessMiniAppPackGroupMessage(parsed, text)
+	miniRes, perr := s.bot.ProcessMiniAppPackGroupMessage(parsed, text, body.ReplyToID)
 	if perr != nil {
 		if errors.Is(perr, bot.ErrMiniAppChatMismatch) {
 			s.jsonErr(w, http.StatusConflict, "chat_mismatch")
@@ -973,6 +978,10 @@ func (s *Server) handlePostPackGroupMessage(w http.ResponseWriter, r *http.Reque
 		}
 		if errors.Is(perr, bot.ErrPackFeedForbidden) {
 			s.jsonErr(w, http.StatusForbidden, "forbidden")
+			return
+		}
+		if errors.Is(perr, bot.ErrPackGroupInvalidReply) {
+			s.jsonErr(w, http.StatusBadRequest, "invalid_reply")
 			return
 		}
 		s.logger.Errorf("pack group message: %v", perr)
@@ -1039,6 +1048,95 @@ func (s *Server) handlePostPackGroupMessageDelete(w http.ResponseWriter, r *http
 	}
 	if !deleted {
 		s.jsonErr(w, http.StatusNotFound, "not_found")
+		return
+	}
+	w.Header().Set("Content-Type", "application/json; charset=utf-8")
+	_ = json.NewEncoder(w).Encode(map[string]any{"ok": true})
+}
+
+func (s *Server) handlePostPackGroupUnreadCount(w http.ResponseWriter, r *http.Request) {
+	corsWriteHeaders(w, r)
+	if s.bot == nil || s.token == "" {
+		s.jsonErr(w, http.StatusServiceUnavailable, "server_unavailable")
+		return
+	}
+	var body struct {
+		InitData string `json:"init_data"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		s.jsonErr(w, http.StatusBadRequest, "invalid_json")
+		return
+	}
+	if body.InitData == "" {
+		s.jsonErr(w, http.StatusBadRequest, "missing_init_data")
+		return
+	}
+	if err := initdata.Validate(body.InitData, s.token, 24*time.Hour); err != nil {
+		s.logger.Warnf("miniapp pack group unread count: invalid init: %v", err)
+		s.jsonErr(w, http.StatusUnauthorized, "invalid_init_data")
+		return
+	}
+	parsed, err := initdata.Parse(body.InitData)
+	if err != nil {
+		s.jsonErr(w, http.StatusBadRequest, "parse_init_data")
+		return
+	}
+	if parsed.User.ID == 0 {
+		s.jsonErr(w, http.StatusBadRequest, "user_missing")
+		return
+	}
+	n, err := s.bot.MiniappPackGroupUnreadCount(parsed, parsed.User.ID)
+	if err != nil {
+		if errors.Is(err, bot.ErrMiniAppChatMismatch) {
+			s.jsonErr(w, http.StatusConflict, "chat_mismatch")
+			return
+		}
+		s.logger.Errorf("pack group unread count: %v", err)
+		s.jsonErr(w, http.StatusInternalServerError, "unread_error")
+		return
+	}
+	w.Header().Set("Content-Type", "application/json; charset=utf-8")
+	_ = json.NewEncoder(w).Encode(map[string]any{"ok": true, "count": n})
+}
+
+func (s *Server) handlePostPackGroupUnreadClear(w http.ResponseWriter, r *http.Request) {
+	corsWriteHeaders(w, r)
+	if s.bot == nil || s.token == "" {
+		s.jsonErr(w, http.StatusServiceUnavailable, "server_unavailable")
+		return
+	}
+	var body struct {
+		InitData string `json:"init_data"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		s.jsonErr(w, http.StatusBadRequest, "invalid_json")
+		return
+	}
+	if body.InitData == "" {
+		s.jsonErr(w, http.StatusBadRequest, "missing_init_data")
+		return
+	}
+	if err := initdata.Validate(body.InitData, s.token, 24*time.Hour); err != nil {
+		s.logger.Warnf("miniapp pack group unread clear: invalid init: %v", err)
+		s.jsonErr(w, http.StatusUnauthorized, "invalid_init_data")
+		return
+	}
+	parsed, err := initdata.Parse(body.InitData)
+	if err != nil {
+		s.jsonErr(w, http.StatusBadRequest, "parse_init_data")
+		return
+	}
+	if parsed.User.ID == 0 {
+		s.jsonErr(w, http.StatusBadRequest, "user_missing")
+		return
+	}
+	if err := s.bot.MiniappPackGroupUnreadClear(parsed, parsed.User.ID); err != nil {
+		if errors.Is(err, bot.ErrMiniAppChatMismatch) {
+			s.jsonErr(w, http.StatusConflict, "chat_mismatch")
+			return
+		}
+		s.logger.Errorf("pack group unread clear: %v", err)
+		s.jsonErr(w, http.StatusInternalServerError, "unread_error")
 		return
 	}
 	w.Header().Set("Content-Type", "application/json; charset=utf-8")

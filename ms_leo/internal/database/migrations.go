@@ -951,6 +951,32 @@ var Migrations = []Migration{
 			DROP TABLE IF EXISTS miniapp_feed_reports;
 		`,
 	},
+	{
+		Version:     47,
+		Description: "Pack group chat replies and unread markers for reply notifications",
+		UpSQL: `
+			ALTER TABLE miniapp_pack_group_chat ADD COLUMN IF NOT EXISTS reply_to_id BIGINT NULL
+				REFERENCES miniapp_pack_group_chat(id) ON DELETE SET NULL;
+			CREATE INDEX IF NOT EXISTS idx_miniapp_pack_group_reply_to ON miniapp_pack_group_chat (reply_to_id)
+				WHERE reply_to_id IS NOT NULL;
+
+			CREATE TABLE IF NOT EXISTS miniapp_pack_group_unread (
+				id BIGSERIAL PRIMARY KEY,
+				recipient_user_id BIGINT NOT NULL,
+				pack_chat_id BIGINT NOT NULL,
+				pack_message_id BIGINT NOT NULL UNIQUE,
+				created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW()
+			);
+			CREATE INDEX IF NOT EXISTS idx_miniapp_pack_group_unread_recipient
+				ON miniapp_pack_group_unread (recipient_user_id, pack_chat_id);
+		`,
+		DownSQL: `
+			DROP INDEX IF EXISTS idx_miniapp_pack_group_unread_recipient;
+			DROP TABLE IF EXISTS miniapp_pack_group_unread;
+			DROP INDEX IF EXISTS idx_miniapp_pack_group_reply_to;
+			ALTER TABLE miniapp_pack_group_chat DROP COLUMN IF EXISTS reply_to_id;
+		`,
+	},
 }
 
 // MigrationRecord представляет запись о выполненной миграции
