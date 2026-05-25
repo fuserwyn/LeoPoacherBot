@@ -132,11 +132,22 @@ export function ChatScreen({ name, initData, inTelegram, showAlert, onInboxDrain
     };
   }, [active]);
 
+  const isNearLogBottom = useCallback(() => {
+    const el = logRef.current;
+    if (!el) return true;
+    return el.scrollHeight - el.scrollTop - el.clientHeight < 160;
+  }, []);
+
   const scrollLogToEnd = useCallback(() => {
     const el = logRef.current;
     if (!el) return;
     el.scrollTop = el.scrollHeight;
+    endRef.current?.scrollIntoView({ block: "end" });
   }, []);
+
+  const scrollLogToEndIfNear = useCallback(() => {
+    if (isNearLogBottom()) scrollLogToEnd();
+  }, [isNearLogBottom, scrollLogToEnd]);
 
   /** Пока клавиатура анимируется — держим низ ленты у поля ввода. */
   useEffect(() => {
@@ -154,6 +165,26 @@ export function ChatScreen({ name, initData, inTelegram, showAlert, onInboxDrain
       vv?.removeEventListener("scroll", onViewportChange);
     };
   }, [active, scrollLogToEnd]);
+
+  /** После закрытия клавиатуры (тап по ленте) — не оставлять низ под полем ввода. */
+  useEffect(() => {
+    if (!active) return;
+    const root = document.documentElement;
+    let wasOpen = root.classList.contains("app-keyboard-open");
+    const mo = new MutationObserver(() => {
+      const open = root.classList.contains("app-keyboard-open");
+      if (wasOpen && !open) {
+        requestAnimationFrame(() => {
+          requestAnimationFrame(scrollLogToEndIfNear);
+        });
+        window.setTimeout(scrollLogToEndIfNear, 120);
+        window.setTimeout(scrollLogToEndIfNear, 320);
+      }
+      wasOpen = open;
+    });
+    mo.observe(root, { attributes: true, attributeFilter: ["class"] });
+    return () => mo.disconnect();
+  }, [active, scrollLogToEndIfNear]);
 
   useEffect(() => {
     const el = logRef.current;
@@ -386,7 +417,16 @@ export function ChatScreen({ name, initData, inTelegram, showAlert, onInboxDrain
           <p className="chat__sub">{showTypingCue ? "печатает…" : name}</p>
         </div>
       </header>
-      <div className="chat__log" role="log" aria-label="Сообщения с ботом" ref={logRef}>
+      <div
+        className="chat__log"
+        role="log"
+        aria-label="Сообщения с ботом"
+        ref={logRef}
+        onPointerDown={() => {
+          window.setTimeout(scrollLogToEndIfNear, 120);
+          window.setTimeout(scrollLogToEndIfNear, 320);
+        }}
+      >
         {loaded && items.length === 0 && (
           <div className="chat__row chat__row--sys">
             <img className="chat__bubble-avatar" src={LEO_AVATAR_URL} width={36} height={36} alt="" aria-hidden="true" />
@@ -437,7 +477,7 @@ export function ChatScreen({ name, initData, inTelegram, showAlert, onInboxDrain
             </div>
           </div>
         )}
-        <div ref={endRef} />
+        <div ref={endRef} className="chat__log-end" aria-hidden="true" />
       </div>
       <form
         className="chat__form"
@@ -454,6 +494,10 @@ export function ChatScreen({ name, initData, inTelegram, showAlert, onInboxDrain
             scrollLogToEnd();
             window.setTimeout(scrollLogToEnd, 100);
             window.setTimeout(scrollLogToEnd, 320);
+          }}
+          onBlur={() => {
+            window.setTimeout(scrollLogToEndIfNear, 80);
+            window.setTimeout(scrollLogToEndIfNear, 280);
           }}
           placeholder="Сообщение…"
           maxLength={4000}
