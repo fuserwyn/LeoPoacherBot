@@ -19,13 +19,13 @@ type AIQuestionUserPayload struct {
 
 const emptyBlock = "— нет —"
 
-// GameRulesBlock — краткие правила для секции «Правила / политики» (wolf_pack_rules v1.0 + prompts v1.3).
+// GameRulesBlock — краткие правила для секции «Правила / политики».
 func GameRulesBlock() string {
-	return strings.TrimSpace(embeddedSharedGlossary + `
-
-Кратко для ответов:
-• Лео-чат: до 20 сообщений/день; при сомнении в правилах — страница «Правила Стаи» в мини-аппе приоритетнее
-• Хэштеги не используются — только кнопки интерфейса`)
+	return strings.TrimSpace(`Fat Leopard / стая:
+• Отчёт о тренировке — только через мини-апп (форма «+»), не хэштег в чате
+• #sick_leave — пауза таймера; #healthy — возврат с тем же остатком дедлайна
+• Таймер неактивности ~7 дней; предупреждения перед удалением из чата
+• Кубки за отчёты по формуле; стрик — дни подряд с тренировкой; ачивки на порогах стрика`)
 }
 
 // FormatAIQuestionUserMessage — user-role prompt с секциями structured knowledge.
