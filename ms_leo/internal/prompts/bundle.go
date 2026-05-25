@@ -5,19 +5,20 @@ import (
 	"strings"
 )
 
-// Bundle — промпты персонажа Fat Leopard для OpenRouter и бота (встроенные через //go:embed в data/).
+// Bundle — промпты персонажа Лео для OpenRouter и бота (canonical fat_leopard_prompts v1.3).
 type Bundle struct {
 	DailySummary            string
 	MonthlySummary          string
-	AnswerUserQuestion      string
+	AnswerUserQuestion      string // Промт 3: личка
 	DailyWisdomTraining     string
 	DailyWisdomLangRule     string
 	DailyWisdomUserTemplate string
 	TrainingChatSuffix      string
-	CriticalTimerQuestion   string
-	WarningTimerQuestion    string // предупреждение день 5/6/7 до кика за неактивность (stage-aware)
-	AchievementMilestone    string // milestone-ачивка: in_app_text + leo_message (Промт 5)
-	// PackFeedParticipantRemoved — карточка в ленте мини‑аппа, когда человек уже не видит её: текст для стаи.
+	CriticalTimerQuestion   string // legacy alias day_7 burn
+	WarningTimerQuestion    string // Промт 4: burn alert
+	AchievementMilestone    string // Промт 5
+	TrainingEvaluation      string // Промт 1: оценка тренировки (JSON)
+	TrainingFeedEncouragement string // комментарий Лео в тред ленты
 	PackFeedParticipantRemoved string
 }
 
@@ -27,8 +28,8 @@ var embeddedDailySummary string
 //go:embed data/monthly_summary.txt
 var embeddedMonthlySummary string
 
-//go:embed data/answer_user_question.txt
-var embeddedAnswerUserQuestion string
+//go:embed data/answer_user_question_body.txt
+var embeddedAnswerUserQuestionBody string
 
 //go:embed data/daily_wisdom_training.txt
 var embeddedDailyWisdomTraining string
@@ -46,27 +47,35 @@ var embeddedTrainingChatSuffix string
 var embeddedCriticalTimerQuestion string
 
 //go:embed data/warning_timer_question.txt
-var embeddedWarningTimerQuestion string
+var embeddedWarningTimerQuestionBody string
 
 //go:embed data/achievement_milestone.txt
-var embeddedAchievementMilestone string
+var embeddedAchievementMilestoneBody string
+
+//go:embed data/training_evaluation.txt
+var embeddedTrainingEvaluationBody string
+
+//go:embed data/training_feed_encouragement.txt
+var embeddedTrainingFeedEncouragementBody string
 
 //go:embed data/pack_feed_removed.txt
 var embeddedPackFeedParticipantRemoved string
 
-// DefaultBundle возвращает встроенные тексты из каталога data/.
+// DefaultBundle возвращает встроенные тексты из каталога data/ (v1.3).
 func DefaultBundle() Bundle {
 	return Bundle{
 		DailySummary:               embeddedDailySummary,
 		MonthlySummary:             embeddedMonthlySummary,
-		AnswerUserQuestion:         embeddedAnswerUserQuestion,
+		AnswerUserQuestion:         ComposeSystemPrompt(embeddedAnswerUserQuestionBody, true),
 		DailyWisdomTraining:        embeddedDailyWisdomTraining,
 		DailyWisdomLangRule:        embeddedDailyWisdomLangRule,
 		DailyWisdomUserTemplate:    embeddedDailyWisdomUserTemplate,
 		TrainingChatSuffix:         embeddedTrainingChatSuffix,
-		CriticalTimerQuestion:      embeddedCriticalTimerQuestion,
-		WarningTimerQuestion:       embeddedWarningTimerQuestion,
-		AchievementMilestone:       embeddedAchievementMilestone,
+		CriticalTimerQuestion:      ComposeSystemPrompt(embeddedCriticalTimerQuestion, false),
+		WarningTimerQuestion:       ComposeSystemPrompt(embeddedWarningTimerQuestionBody, false),
+		AchievementMilestone:       ComposeSystemPrompt(embeddedAchievementMilestoneBody, false),
+		TrainingEvaluation:         ComposeSystemPrompt(embeddedTrainingEvaluationBody, false),
+		TrainingFeedEncouragement:  ComposeSystemPrompt(embeddedTrainingFeedEncouragementBody, false),
 		PackFeedParticipantRemoved: embeddedPackFeedParticipantRemoved,
 	}
 }
