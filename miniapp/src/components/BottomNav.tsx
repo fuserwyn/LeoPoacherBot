@@ -1,4 +1,5 @@
 import { useLayoutEffect, useRef } from "react";
+import { measureBottomNavOffset } from "../lib/bottomNavOffset";
 import "./BottomNav.css";
 
 type Tab = "chat" | "feed" | "rules" | "profile";
@@ -35,13 +36,17 @@ export function BottomNav({
     const el = navRef.current;
     if (!el) return;
     const root = document.documentElement;
-    const write = () => root.style.setProperty("--bottom-nav-h", `${el.getBoundingClientRect().height}px`);
+    const write = () => {
+      root.style.setProperty("--bottom-nav-h", `${Math.ceil(el.getBoundingClientRect().height)}px`);
+      root.style.setProperty("--bottom-nav-stack", `${measureBottomNavOffset(el)}px`);
+    };
     write();
     const ro = new ResizeObserver(write);
     ro.observe(el);
     return () => {
       ro.disconnect();
       root.style.removeProperty("--bottom-nav-h");
+      root.style.removeProperty("--bottom-nav-stack");
     };
   }, []);
 

@@ -269,7 +269,7 @@ html.app-keyboard-open .packroom {
   position: fixed;
   left: 0;
   right: 0;
-  bottom: var(--bottom-nav-h, var(--feed-bottom-nav-h, 72px));
+  bottom: var(--bottom-nav-stack, var(--bottom-nav-h, var(--feed-bottom-nav-h, 72px)));
   z-index: 90;
   max-width: 520px;
   margin: 0 auto;

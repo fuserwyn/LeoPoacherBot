@@ -297,7 +297,7 @@ html.app-keyboard-open .chat {
   position: fixed;
   left: 0;
   right: 0;
-  bottom: var(--bottom-nav-h, 72px);
+  bottom: var(--bottom-nav-stack, var(--bottom-nav-h, 72px));
   z-index: 90;
   max-width: 480px;
   margin: 0 auto;
