@@ -129,8 +129,8 @@ func (b *Bot) Start(ctx context.Context) error {
 	// Ежемесячная сводка (1-го числа 16:20)
 	go b.startDailySummaryScheduler(ctx)
 
-	// Мудрость дня (ежедневно 04:20 МСК)
-	go b.startDailyWisdomScheduler(ctx)
+	// «Мудрость дня» в 04:20 МСК отключена (раньше: startDailyWisdomScheduler).
+	b.logger.Info("Daily wisdom scheduler: disabled (no 04:20 MSK broadcasts)")
 
 	if b.memoryEnabled() && b.config.QdrantBackfillOnStart {
 		go func() {
@@ -313,9 +313,6 @@ func (b *Bot) handleCommand(msg *tgbotapi.Message) {
 		b.handleSendToChat(msg)
 	case "announce_ai":
 		b.handleAnnounceAI(msg)
-	case "send_wisdom":
-		// Ручной запуск рассылки мудрости дня
-		b.generateAndSendDailyWisdom()
 	case "admin":
 		b.handleAdmin(msg)
 	case "audit_last24":
@@ -2733,126 +2730,6 @@ func (b *Bot) startDailySummaryScheduler(ctx context.Context) {
 	}
 }
 
-// startDailyWisdomScheduler отправляет «мудрость дня» ежедневно в 04:20 (МСК)
-func (b *Bot) startDailyWisdomScheduler(ctx context.Context) {
-	if b.aiClient == nil {
-		b.logger.Warn("AI client not available, daily wisdom scheduler disabled")
-		return
-	}
-
-	loc, _ := time.LoadLocation("Europe/Moscow")
-	lastSentDate := ""
-	ticker := time.NewTicker(1 * time.Minute)
-	defer ticker.Stop()
-
-	for {
-		select {
-		case <-ctx.Done():
-			return
-		case <-ticker.C:
-			now := time.Now().In(loc)
-			hour := now.Hour()
-			minute := now.Minute()
-			if hour == 4 && minute == 20 {
-				today := now.Format("2006-01-02")
-				if lastSentDate != today {
-					b.logger.Infof("Generating daily wisdom for %s 04:20 MSK", today)
-					b.generateAndSendDailyWisdom()
-					lastSentDate = today
-				}
-			}
-		}
-	}
-}
-
-func (b *Bot) generateAndSendDailyWisdom() {
-	// Получаем все чаты
-	chatIDs, err := b.db.GetAllChatIDs()
-	if err != nil {
-		b.logger.Errorf("Failed to get chat IDs for daily wisdom: %v", err)
-		return
-	}
-	if len(chatIDs) == 0 {
-		return
-	}
-
-	// Группируем чаты по типу для генерации разных мудростей
-	writingChats := []int64{}
-	trainingChats := []int64{}
-
-	for _, chatID := range chatIDs {
-		chatType, err := b.db.GetChatType(chatID)
-		if err != nil {
-			chatType = "training" // По умолчанию
-		}
-		if chatType == "writing" {
-			writingChats = append(writingChats, chatID)
-		} else {
-			trainingChats = append(trainingChats, chatID)
-		}
-	}
-
-	// Генерируем мудрость для чатов тренировок
-	if len(trainingChats) > 0 {
-		wisdom, err := b.aiClient.GenerateDailyWisdom("training")
-		if err != nil {
-			b.logger.Errorf("Failed to generate daily wisdom for training: %v", err)
-			// Фолбэк на статическую мудрость
-			candidates := []string{
-				"Тишина внутри сильнее шума вокруг. Дисциплина — это форма заботы о себе. Начни с малого и будь верен пути.",
-				"Сила духа рождается в простых шагах. Выбери одно действие сегодня — и сделай его спокойно.",
-				"Тело слушает разум. Разум слушает дыхание. Ровное дыхание — ровный прогресс.",
-				"Пусть тренировка будет краткой, но честной. Постоянство сильнее порывов.",
-				"Не ищи идеального момента. Сделай его. Терпение и движение — союзники."}
-			idx := int(time.Now().Unix() % int64(len(candidates)))
-			wisdom = candidates[idx]
-		} else {
-			wisdom = sanitizeDailyWisdom(wisdom)
-			if wisdom == "" {
-				wisdom = "Сила духа рождается в простых шагах. Дисциплина — форма заботы о себе. День начинается с одного спокойного действия."
-			}
-		}
-
-		for _, chatID := range trainingChats {
-			msg := tgbotapi.NewMessage(chatID, wisdom)
-			b.logger.Infof("Sending daily wisdom to training chat %d", chatID)
-			if _, err := b.api.Send(msg); err != nil {
-				b.logger.Errorf("Failed to send daily wisdom to chat %d: %v", chatID, err)
-			}
-		}
-	}
-
-	// Генерируем мудрость для чатов писательства
-	if len(writingChats) > 0 {
-		wisdom, err := b.aiClient.GenerateDailyWisdom("writing")
-		if err != nil {
-			b.logger.Errorf("Failed to generate daily wisdom for writing: %v", err)
-			// Фолбэк на статическую мудрость для писательства
-			candidates := []string{
-				"Тишина внутри сильнее шума вокруг. Дисциплина письма — это форма заботы о творчестве. Начни с малого и будь верен тексту.",
-				"Сила слова рождается в простых предложениях. Выбери одну мысль сегодня — и вырази её спокойно.",
-				"Перо слушает разум. Разум слушает вдохновение. Ровное дыхание — ровный текст.",
-				"Пусть писательская сессия будет краткой, но честной. Постоянство сильнее порывов.",
-				"Не ищи идеального момента. Создай его. Терпение и слово — союзники."}
-			idx := int(time.Now().Unix() % int64(len(candidates)))
-			wisdom = candidates[idx]
-		} else {
-			wisdom = sanitizeDailyWisdom(wisdom)
-			if wisdom == "" {
-				wisdom = "Сила слова рождается в простых предложениях. Дисциплина письма — форма заботы о творчестве. День начинается с одной ясной мысли."
-			}
-		}
-
-		for _, chatID := range writingChats {
-			msg := tgbotapi.NewMessage(chatID, wisdom)
-			b.logger.Infof("Sending daily wisdom to writing chat %d", chatID)
-			if _, err := b.api.Send(msg); err != nil {
-				b.logger.Errorf("Failed to send daily wisdom to chat %d: %v", chatID, err)
-			}
-		}
-	}
-}
-
 // auditLast24h проверяет сообщения за последние 24 часа и отправляет пропущенные подтверждения (без повторных начислений)
 func (b *Bot) auditLast24h() {
 	loc, _ := time.LoadLocation("Europe/Moscow")
@@ -4301,37 +4178,6 @@ func (b *Bot) getVariedTrainingPrompt(streakDays, totalCalories, totalCups int, 
 
 	if totalCups >= 1000 {
 		prompts = append(prompts, "Сделай короткую (1–2 предложения) приписку: пользователь накопил много кубков — это опытный участник. Обратись к нему как к ветерану, но не снижай требований. Используй упражнения из сообщения. Без Markdown.")
-	}
-
-	// Выбираем случайный промпт
-	selectedPrompt := prompts[now.Unix()%int64(len(prompts))]
-	return selectedPrompt
-}
-
-// getVariedWisdomPrompt генерирует разнообразные промпты для мудрости
-func (b *Bot) getVariedWisdomPrompt(streakDays, totalCalories, totalCups int) string {
-	now := utils.GetMoscowTime()
-
-	// Базовые стили мудрости
-	prompts := []string{
-		"Дай одну очень короткую мудрую мысль (1 предложение) для участника после успешной тренировки: спокойно, уважительно, как наставник; без пафоса и без повторения чисел. КРИТИЧЕСКИ ВАЖНО: используй ТОЛЬКО те упражнения и детали, которые указаны в сообщении пользователя. НЕ выдумывай детали, которых нет. Без Markdown.",
-
-		"Напиши одну короткую философскую мысль (1 предложение) о тренировке: глубоко, но просто. Используй ТОЛЬКО упражнения из сообщения пользователя. Без Markdown.",
-
-		"Дай одну короткую мотивирующую мысль (1 предложение) в стиле мудрого тренера после тренировки. Используй упражнения из сообщения, не упоминай цифры. Без Markdown.",
-
-		"Напиши одну короткую вдохновляющую мысль (1 предложение) о важности дисциплины в тренировках. Будь конкретным про упражнения из сообщения. Без Markdown.",
-
-		"Дай одну короткую мудрую мысль (1 предложение) о том, как каждая тренировка приближает к цели. Используй ТОЛЬКО упражнения из сообщения пользователя. Без Markdown.",
-	}
-
-	// Специальные промпты
-	if streakDays >= 30 {
-		prompts = append(prompts, "Напиши одну короткую мысль (1 предложение) о том, как длинная серия тренировок меняет человека. Используй упражнения из сообщения. Без Markdown.")
-	}
-
-	if totalCups >= 500 {
-		prompts = append(prompts, "Дай одну короткую мудрую мысль (1 предложение) о накопленном опыте и дисциплине. Используй упражнения из сообщения. Без Markdown.")
 	}
 
 	// Выбираем случайный промпт

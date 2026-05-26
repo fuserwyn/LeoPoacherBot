@@ -102,3 +102,27 @@ func paragraphLooksLikeLoop(p string) bool {
 	}
 	return false
 }
+
+func splitWisdomSentences(text string) []string {
+	text = strings.TrimSpace(text)
+	if text == "" {
+		return nil
+	}
+	var sents []string
+	var b strings.Builder
+	flush := func() {
+		s := strings.TrimSpace(b.String())
+		b.Reset()
+		if s != "" {
+			sents = append(sents, s)
+		}
+	}
+	for _, r := range text {
+		b.WriteRune(r)
+		if r == '.' || r == '!' || r == '?' || r == '…' {
+			flush()
+		}
+	}
+	flush()
+	return sents
+}
