@@ -146,6 +146,53 @@ export function mergeTrainingFeedReactions(fromServer?: PackFeedReactionDTO[]): 
   return mergePackFeedReactions(TRAINING_FEED_EMOJIS, fromServer);
 }
 
+/** Локальный toggle реакции (одна на пользователя; повтор той же эмодзи снимает). */
+export function optimisticTogglePackFeedReaction(
+  fromServer: PackFeedReactionDTO[] | undefined,
+  emoji: string,
+): PackFeedReactionDTO[] {
+  const list = [...(fromServer ?? [])];
+  const mineIdx = list.findIndex((r) => r.me);
+
+  if (mineIdx >= 0 && list[mineIdx]!.emoji === emoji) {
+    const r = list[mineIdx]!;
+    if (r.count <= 1) list.splice(mineIdx, 1);
+    else list[mineIdx] = { ...r, count: r.count - 1, me: false, voters: undefined };
+    return list;
+  }
+
+  if (mineIdx >= 0) {
+    const old = list[mineIdx]!;
+    if (old.count <= 1) list.splice(mineIdx, 1);
+    else list[mineIdx] = { ...old, count: old.count - 1, me: false, voters: undefined };
+  }
+
+  const idx = list.findIndex((r) => r.emoji === emoji);
+  if (idx >= 0) {
+    const r = list[idx]!;
+    list[idx] = { ...r, count: r.count + 1, me: true, voters: undefined };
+  } else {
+    list.push({ emoji, count: 1, me: true });
+  }
+  return list;
+}
+
+/** Локальный toggle ❤️ в треде под отчётом. */
+export function optimisticToggleThreadReplyLike(
+  thread: PackFeedThreadReplyDTO[],
+  threadReplyId: number,
+): PackFeedThreadReplyDTO[] {
+  return thread.map((tr) => {
+    if (tr.id !== threadReplyId) return tr;
+    const was = Boolean(tr.like_me);
+    return {
+      ...tr,
+      like_me: !was,
+      like_count: Math.max(0, (tr.like_count ?? 0) + (was ? -1 : 1)),
+    };
+  });
+}
+
 export function mergePackFeedReactions(
   allowedEmojis: readonly string[],
   fromServer?: PackFeedReactionDTO[],

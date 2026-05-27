@@ -379,29 +379,35 @@ export function ChatScreen({ name, initData, inTelegram, showAlert, onInboxDrain
   }, [text, sending, inTelegram, initData, showAlert]);
 
   const toggleLike = useCallback(
-    async (messageID?: number) => {
+    (messageID?: number) => {
       if (!messageID || !envApi || !inTelegram || !initData) return;
-      try {
-        const res = await fetch(`${envApi}/api/miniapp/personal-chat/like`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ init_data: initData, message_id: messageID }),
+
+      let snapshot: ChatMsg[] | null = null;
+      setItems((prev) => {
+        snapshot = prev;
+        return prev.map((m) => {
+          if (m.serverID !== messageID) return m;
+          const was = Boolean(m.likeMe);
+          return {
+            ...m,
+            likeMe: !was,
+            likeCount: Math.max(0, (m.likeCount ?? 0) + (was ? -1 : 1)),
+          };
         });
-        if (!res.ok) return;
-      } catch {
-        return;
-      }
-      setItems((prev) =>
-        prev.map((m) =>
-          m.serverID === messageID
-            ? {
-                ...m,
-                likeMe: !m.likeMe,
-                likeCount: Math.max(0, (m.likeCount ?? 0) + (m.likeMe ? -1 : 1)),
-              }
-            : m,
-        ),
-      );
+      });
+
+      void (async () => {
+        try {
+          const res = await fetch(`${envApi}/api/miniapp/personal-chat/like`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ init_data: initData, message_id: messageID }),
+          });
+          if (!res.ok && snapshot) setItems(snapshot);
+        } catch {
+          if (snapshot) setItems(snapshot);
+        }
+      })();
     },
     [inTelegram, initData],
   );

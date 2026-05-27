@@ -9,6 +9,8 @@ import {
   mergePackFeedIncremental,
   mergePackFeedReactions,
   mergeTrainingFeedReactions,
+  optimisticTogglePackFeedReaction,
+  optimisticToggleThreadReplyLike,
   resolveFeedAvatarUrl,
   sortPackFeedItemsDesc,
   type PackFeedItemDTO,
@@ -233,23 +235,38 @@ export function FeedScreen({
   );
 
   const postTrainingReact = useCallback(
-    async (userMessageId: number, emoji: string) => {
+    (userMessageId: number, emoji: string) => {
       if (!apiBase || !initData) return;
-      try {
-        const res = await fetch(`${apiBase}/api/miniapp/feed/training/react`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ init_data: initData, user_message_id: userMessageId, emoji }),
-        });
-        const j = (await res.json().catch(() => ({}))) as { error?: string };
-        if (!res.ok) {
-          showAlert(j.error === "invalid_emoji" ? "Такую реакцию нельзя" : j.error ?? `Ошибка ${res.status}`);
-          return;
+
+      let snapshot: PackFeedItemDTO[] | null = null;
+      setFeedItems((prev) => {
+        snapshot = prev;
+        return prev.map((it) =>
+          it.id === userMessageId
+            ? { ...it, reactions: optimisticTogglePackFeedReaction(it.reactions, emoji) }
+            : it,
+        );
+      });
+
+      void (async () => {
+        try {
+          const res = await fetch(`${apiBase}/api/miniapp/feed/training/react`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ init_data: initData, user_message_id: userMessageId, emoji }),
+          });
+          const j = (await res.json().catch(() => ({}))) as { error?: string };
+          if (!res.ok) {
+            if (snapshot) setFeedItems(snapshot);
+            showAlert(j.error === "invalid_emoji" ? "Такую реакцию нельзя" : j.error ?? `Ошибка ${res.status}`);
+            return;
+          }
+          void syncFeed({ full: true, silent: true });
+        } catch (e) {
+          if (snapshot) setFeedItems(snapshot);
+          showAlert(e instanceof Error ? e.message : "Сеть");
         }
-        await syncFeed({ full: true, silent: true });
-      } catch (e) {
-        showAlert(e instanceof Error ? e.message : "Сеть");
-      }
+      })();
     },
     [apiBase, initData, syncFeed, showAlert],
   );
@@ -429,30 +446,45 @@ export function FeedScreen({
   );
 
   const toggleTrainingThreadLike = useCallback(
-    async (trainingUserMessageId: number, threadReplyId: number) => {
+    (trainingUserMessageId: number, threadReplyId: number) => {
       if (!apiBase || !initData) return;
-      try {
-        const res = await fetch(`${apiBase}/api/miniapp/feed/training/thread/like`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ init_data: initData, thread_reply_id: threadReplyId }),
-        });
-        const j = (await res.json().catch(() => ({}))) as { error?: string; thread?: PackFeedThreadReplyDTO[] };
-        if (!res.ok) {
-          showAlert(j.error ?? `Ошибка ${res.status}`);
-          return;
+
+      let snapshot: PackFeedItemDTO[] | null = null;
+      setFeedItems((prev) => {
+        snapshot = prev;
+        return prev.map((it) =>
+          it.id === trainingUserMessageId && it.thread
+            ? { ...it, thread: optimisticToggleThreadReplyLike(it.thread, threadReplyId) }
+            : it,
+        );
+      });
+
+      void (async () => {
+        try {
+          const res = await fetch(`${apiBase}/api/miniapp/feed/training/thread/like`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ init_data: initData, thread_reply_id: threadReplyId }),
+          });
+          const j = (await res.json().catch(() => ({}))) as { error?: string; thread?: PackFeedThreadReplyDTO[] };
+          if (!res.ok) {
+            if (snapshot) setFeedItems(snapshot);
+            showAlert(j.error ?? `Ошибка ${res.status}`);
+            return;
+          }
+          const updated = j.thread;
+          if (Array.isArray(updated)) {
+            setFeedItems((prev) =>
+              prev.map((it) => (it.id === trainingUserMessageId ? { ...it, thread: updated } : it)),
+            );
+          } else {
+            void syncFeed({ full: true, silent: true });
+          }
+        } catch (e) {
+          if (snapshot) setFeedItems(snapshot);
+          showAlert(e instanceof Error ? e.message : "Сеть");
         }
-        const updated = j.thread;
-        if (Array.isArray(updated)) {
-          setFeedItems((prev) =>
-            prev.map((it) => (it.id === trainingUserMessageId ? { ...it, thread: updated } : it)),
-          );
-        } else {
-          await syncFeed({ full: true, silent: true });
-        }
-      } catch (e) {
-        showAlert(e instanceof Error ? e.message : "Сеть");
-      }
+      })();
     },
     [apiBase, initData, syncFeed, showAlert],
   );
