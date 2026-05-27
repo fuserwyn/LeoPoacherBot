@@ -968,7 +968,7 @@ func (b *Bot) handleStart(msg *tgbotapi.Message) {
 
 	reply := tgbotapi.NewMessage(msg.Chat.ID, welcomeText)
 	if msg.Chat.IsPrivate() && b.botSupportAvailable() {
-		reply.ReplyMarkup = b.privateSupportReplyKeyboard()
+		reply.ReplyMarkup = b.privateSupportReplyKeyboard(msg.From.ID)
 	}
 
 	b.logger.Infof("Sending start message to chat %d", msg.Chat.ID)
@@ -992,7 +992,7 @@ func (b *Bot) handleRejoin(msg *tgbotapi.Message) {
 	}
 	if b.paywallPrivateNeedsPayFirst(msg.From.ID) {
 		reply := tgbotapi.NewMessage(msg.Chat.ID, "⚠️ Сначала оплати доступ. Нажми /start, чтобы получить счёт.")
-		if kb := b.privateSupportReplyKeyboard(); kb != nil {
+		if kb := b.privateSupportReplyKeyboard(msg.From.ID); kb != nil {
 			reply.ReplyMarkup = kb
 		}
 		if _, err := b.api.Send(reply); err == nil {

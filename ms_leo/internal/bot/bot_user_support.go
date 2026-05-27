@@ -10,19 +10,24 @@ const botSupportCallbackStart = "bot_support_start"
 const botSupportCallbackCancel = "bot_support_cancel"
 
 const botSupportReplyButtonText = "💬 Поддержка"
+const botAdminReplyButtonText = "⚙️ Админка"
 
 func (b *Bot) botSupportAvailable() bool {
 	return b != nil && b.config != nil && b.config.MonetizedChatID != 0 && b.db != nil
 }
 
 // privateSupportReplyKeyboard — постоянная кнопка внизу лички (для оплативших и после /start).
-func (b *Bot) privateSupportReplyKeyboard() *tgbotapi.ReplyKeyboardMarkup {
+func (b *Bot) privateSupportReplyKeyboard(userID int64) *tgbotapi.ReplyKeyboardMarkup {
 	if !b.botSupportAvailable() {
 		return nil
 	}
+	buttonText := botSupportReplyButtonText
+	if userID > 0 && b.config != nil && b.config.IsAdminTelegramUser(userID) {
+		buttonText = botAdminReplyButtonText
+	}
 	kb := tgbotapi.NewReplyKeyboard(
 		tgbotapi.NewKeyboardButtonRow(
-			tgbotapi.NewKeyboardButton(botSupportReplyButtonText),
+			tgbotapi.NewKeyboardButton(buttonText),
 		),
 	)
 	kb.ResizeKeyboard = true
@@ -113,7 +118,7 @@ func (b *Bot) handleBotSupportCallback(callback *tgbotapi.CallbackQuery) {
 		if b.clearUserSupportSession(callback.From.ID) {
 			answer.Text = "Вышли из поддержки"
 			m := tgbotapi.NewMessage(callback.Message.Chat.ID, "❎ Режим поддержки выключен.")
-			m.ReplyMarkup = b.privateSupportReplyKeyboard()
+			m.ReplyMarkup = b.privateSupportReplyKeyboard(callback.From.ID)
 			_, _ = b.api.Send(m)
 		} else {
 			answer.Text = "Режим поддержки не был активен"
@@ -127,6 +132,11 @@ func (b *Bot) handleBotSupportCallback(callback *tgbotapi.CallbackQuery) {
 func isSupportReplyButtonText(text string) bool {
 	t := strings.TrimSpace(text)
 	return t == botSupportReplyButtonText || strings.EqualFold(t, "Поддержка")
+}
+
+func isAdminReplyButtonText(text string) bool {
+	t := strings.TrimSpace(text)
+	return t == botAdminReplyButtonText || strings.EqualFold(t, "Админка")
 }
 
 // handleUserSupportFlowMessage — личка: режим поддержки (до мини-аппа), без ответа Лео.
@@ -147,6 +157,10 @@ func (b *Bot) handleUserSupportFlowMessage(msg *tgbotapi.Message) bool {
 	if isSupportReplyButtonText(text) {
 		b.startUserSupportSession(msg.From.ID)
 		b.sendUserSupportPrompt(msg.Chat.ID)
+		return true
+	}
+	if b.config != nil && b.config.IsAdminTelegramUser(msg.From.ID) && isAdminReplyButtonText(text) {
+		b.showAdminMenu(msg.Chat.ID)
 		return true
 	}
 
