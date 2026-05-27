@@ -33,7 +33,11 @@ func (b *Bot) showAdminMenu(chatID int64) {
 	keyboard := tgbotapi.NewInlineKeyboardMarkup(
 		tgbotapi.NewInlineKeyboardRow(
 			tgbotapi.NewInlineKeyboardButtonData("💬 Поддержка", "admin_support_inbox"),
-			tgbotapi.NewInlineKeyboardButtonData("👤 Юзеры", "admin_users"),
+			tgbotapi.NewInlineKeyboardButtonData("📋 Список юзеров", "admin_users_list_0"),
+		),
+		tgbotapi.NewInlineKeyboardRow(
+			tgbotapi.NewInlineKeyboardButtonData("💳 Оплаты", "admin_payments_0"),
+			tgbotapi.NewInlineKeyboardButtonData("🔍 Найти юзера", "admin_users"),
 		),
 		tgbotapi.NewInlineKeyboardRow(
 			tgbotapi.NewInlineKeyboardButtonData("📝 Текст", "admin_mode_feed_text"),
@@ -85,6 +89,14 @@ func (b *Bot) handleAdminCallbackQuery(callback *tgbotapi.CallbackQuery) {
 		callbackConfig := tgbotapi.NewCallback(callback.ID, "")
 		b.api.Request(callbackConfig)
 		return
+	}
+	if strings.HasPrefix(callback.Data, "admin_users_list_") ||
+		strings.HasPrefix(callback.Data, "admin_payments_") {
+		if b.handleAdminDirectoryCallback(callback) {
+			callbackConfig := tgbotapi.NewCallback(callback.ID, "")
+			b.api.Request(callbackConfig)
+			return
+		}
 	}
 	if strings.HasPrefix(callback.Data, "admin_feed_report_del_") ||
 		strings.HasPrefix(callback.Data, "admin_user_") ||

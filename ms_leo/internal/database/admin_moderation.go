@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
+	"time"
 )
 
 // AdminPackUserSearchHit — результат поиска пользователя в админке.
@@ -67,6 +68,184 @@ func (d *Database) SearchPackUsersForAdmin(packChatID int64, rawQuery string, li
 			return nil, err
 		}
 		out = append(out, hit)
+	}
+	return out, rows.Err()
+}
+
+// AdminPackUserListRow — строка списка пользователей в админке.
+type AdminPackUserListRow struct {
+	UserID           int64
+	Username         string
+	DisplayName      string
+	Cups             int
+	StreakDays       int
+	IsDeleted        bool
+	HasActivePaywall bool
+}
+
+// AdminPaywallPaymentRow — строка оплаты для админки.
+type AdminPaywallPaymentRow struct {
+	ID            int64
+	UserID        int64
+	Username      string
+	DisplayName   string
+	Status        string
+	CreatedAt     time.Time
+	CompletedAt   sql.NullTime
+	AmountMinor   sql.NullInt64
+	Currency      sql.NullString
+	AccessActive  bool
+}
+
+func (d *Database) CountPackUsersForAdmin(packChatID int64) (int, error) {
+	if packChatID == 0 {
+		return 0, nil
+	}
+	var n int
+	err := d.db.QueryRow(`SELECT COUNT(*) FROM training_state WHERE chat_id = $1`, packChatID).Scan(&n)
+	return n, err
+}
+
+func (d *Database) ListPackUsersForAdmin(packChatID int64, offset, limit int) ([]AdminPackUserListRow, error) {
+	if packChatID == 0 {
+		return nil, nil
+	}
+	if limit <= 0 {
+		limit = 8
+	}
+	if offset < 0 {
+		offset = 0
+	}
+	const query = `
+		SELECT ts.user_id,
+		       COALESCE(NULLIF(BTRIM(ts.username), ''), ''),
+		       COALESCE(NULLIF(BTRIM(p.display_name), ''), ''),
+		       COALESCE(ts.cups_earned, 0),
+		       COALESCE(ts.streak_days, 0),
+		       ts.is_deleted,
+		       EXISTS (
+		           SELECT 1 FROM paywall_access_requests par
+		           WHERE par.user_id = ts.user_id
+		             AND par.monetized_chat_id = ts.chat_id
+		             AND par.status = 'completed'
+		             AND par.access_expires_at IS NOT NULL
+		             AND par.access_expires_at > NOW()
+		       )
+		FROM training_state ts
+		LEFT JOIN miniapp_user_profile p
+			ON p.user_id = ts.user_id AND p.pack_chat_id = ts.chat_id
+		WHERE ts.chat_id = $1
+		ORDER BY ts.is_deleted ASC, ts.cups_earned DESC, ts.user_id ASC
+		OFFSET $2 LIMIT $3
+	`
+	rows, err := d.db.Query(query, packChatID, offset, limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []AdminPackUserListRow
+	for rows.Next() {
+		var r AdminPackUserListRow
+		if err := rows.Scan(&r.UserID, &r.Username, &r.DisplayName, &r.Cups, &r.StreakDays, &r.IsDeleted, &r.HasActivePaywall); err != nil {
+			return nil, err
+		}
+		out = append(out, r)
+	}
+	return out, rows.Err()
+}
+
+func (d *Database) CountPaywallPaymentsForAdmin(packChatID int64) (int, error) {
+	if packChatID == 0 {
+		return 0, nil
+	}
+	var n int
+	err := d.db.QueryRow(`SELECT COUNT(*) FROM paywall_access_requests WHERE monetized_chat_id = $1`, packChatID).Scan(&n)
+	return n, err
+}
+
+func (d *Database) ListPaywallPaymentsForAdmin(packChatID int64, offset, limit int) ([]AdminPaywallPaymentRow, error) {
+	if packChatID == 0 {
+		return nil, nil
+	}
+	if limit <= 0 {
+		limit = 6
+	}
+	if offset < 0 {
+		offset = 0
+	}
+	const query = `
+		SELECT par.id, par.user_id,
+		       COALESCE(NULLIF(BTRIM(ts.username), ''), ''),
+		       COALESCE(NULLIF(BTRIM(p.display_name), ''), ''),
+		       par.status, par.created_at, par.completed_at,
+		       par.total_amount_minor, par.currency,
+		       (par.status = 'completed' AND par.access_expires_at IS NOT NULL AND par.access_expires_at > NOW())
+		FROM paywall_access_requests par
+		LEFT JOIN training_state ts
+			ON ts.user_id = par.user_id AND ts.chat_id = par.monetized_chat_id
+		LEFT JOIN miniapp_user_profile p
+			ON p.user_id = par.user_id AND p.pack_chat_id = par.monetized_chat_id
+		WHERE par.monetized_chat_id = $1
+		ORDER BY par.id DESC
+		OFFSET $2 LIMIT $3
+	`
+	rows, err := d.db.Query(query, packChatID, offset, limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []AdminPaywallPaymentRow
+	for rows.Next() {
+		var r AdminPaywallPaymentRow
+		if err := rows.Scan(
+			&r.ID, &r.UserID, &r.Username, &r.DisplayName, &r.Status, &r.CreatedAt, &r.CompletedAt,
+			&r.AmountMinor, &r.Currency, &r.AccessActive,
+		); err != nil {
+			return nil, err
+		}
+		out = append(out, r)
+	}
+	return out, rows.Err()
+}
+
+func (d *Database) ListPaywallPaymentsForUserAdmin(userID, packChatID int64, limit int) ([]AdminPaywallPaymentRow, error) {
+	if userID == 0 || packChatID == 0 {
+		return nil, nil
+	}
+	if limit <= 0 {
+		limit = 5
+	}
+	const query = `
+		SELECT par.id, par.user_id,
+		       COALESCE(NULLIF(BTRIM(ts.username), ''), ''),
+		       COALESCE(NULLIF(BTRIM(p.display_name), ''), ''),
+		       par.status, par.created_at, par.completed_at,
+		       par.total_amount_minor, par.currency,
+		       (par.status = 'completed' AND par.access_expires_at IS NOT NULL AND par.access_expires_at > NOW())
+		FROM paywall_access_requests par
+		LEFT JOIN training_state ts
+			ON ts.user_id = par.user_id AND ts.chat_id = par.monetized_chat_id
+		LEFT JOIN miniapp_user_profile p
+			ON p.user_id = par.user_id AND p.pack_chat_id = par.monetized_chat_id
+		WHERE par.user_id = $1 AND par.monetized_chat_id = $2
+		ORDER BY par.id DESC
+		LIMIT $3
+	`
+	rows, err := d.db.Query(query, userID, packChatID, limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []AdminPaywallPaymentRow
+	for rows.Next() {
+		var r AdminPaywallPaymentRow
+		if err := rows.Scan(
+			&r.ID, &r.UserID, &r.Username, &r.DisplayName, &r.Status, &r.CreatedAt, &r.CompletedAt,
+			&r.AmountMinor, &r.Currency, &r.AccessActive,
+		); err != nil {
+			return nil, err
+		}
+		out = append(out, r)
 	}
 	return out, rows.Err()
 }

@@ -59,6 +59,10 @@ func (b *Bot) showAdminUserCard(chatID, targetUserID int64) {
 	if ml.IsDeleted {
 		deleted = "да"
 	}
+	paywall := "нет активного доступа"
+	if active, err := b.db.UserHasActivePaywallAccess(targetUserID, packChatID); err == nil && active {
+		paywall = "оплачен ✅"
+	}
 
 	text := fmt.Sprintf(
 		"👤 Пользователь\n\n"+
@@ -68,7 +72,8 @@ func (b *Bot) showAdminUserCard(chatID, targetUserID int64) {
 			"Стрик: %d (рекорд %d)\n"+
 			"Попытки спасти стрик: %d/%d (доступно %d)\n"+
 			"Больничный: %s\n"+
-			"Удалён из стаи: %s",
+			"Удалён из стаи: %s\n"+
+			"Доступ: %s",
 		targetUserID,
 		adminSupportTitle(ml.Username, targetUserID),
 		stats.XP,
@@ -79,7 +84,9 @@ func (b *Bot) showAdminUserCard(chatID, targetUserID int64) {
 		stats.StreakSaveAttemptsAvail,
 		sick,
 		deleted,
+		paywall,
 	)
+	text += b.formatAdminUserPaymentsBlock(targetUserID, packChatID)
 
 	rows := [][]tgbotapi.InlineKeyboardButton{
 		tgbotapi.NewInlineKeyboardRow(
@@ -100,10 +107,11 @@ func (b *Bot) showAdminUserCard(chatID, targetUserID int64) {
 		))
 	}
 	rows = append(rows, tgbotapi.NewInlineKeyboardRow(
-		tgbotapi.NewInlineKeyboardButtonData("⬅️ К админке", "admin_open"),
+		tgbotapi.NewInlineKeyboardButtonData("📋 К списку", "admin_users_list_0"),
+		tgbotapi.NewInlineKeyboardButtonData("⬅️ Админка", "admin_open"),
 	))
 
-	msg := tgbotapi.NewMessage(chatID, text)
+	msg := tgbotapi.NewMessage(chatID, clipAdminSupportText(text, 3500))
 	msg.ReplyMarkup = &tgbotapi.InlineKeyboardMarkup{InlineKeyboard: rows}
 	b.api.Send(msg)
 }
