@@ -6,6 +6,7 @@ import (
 	"strings"
 	"time"
 
+	"leo-bot/internal/database"
 	"leo-bot/internal/utils"
 
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
@@ -123,7 +124,15 @@ func (b *Bot) handleAdminUserMgmtCallback(callback *tgbotapi.CallbackQuery) bool
 	switch {
 	case data == "admin_users":
 		b.startAdminUserMgmt(adminID)
-		b.api.Send(tgbotapi.NewMessage(chatID, "👤 Отправь Telegram user_id пользователя (число)."))
+		b.api.Send(tgbotapi.NewMessage(chatID, "👤 Отправь Telegram user_id, @ник или имя из профиля."))
+		return true
+
+	case strings.HasPrefix(data, "admin_user_pick_"):
+		targetID, ok := parseTarget("admin_user_pick_")
+		if ok {
+			b.clearAdminFlow(adminID)
+			b.showAdminUserCard(chatID, targetID)
+		}
 		return true
 
 	case strings.HasPrefix(data, "admin_user_open_"):
@@ -215,13 +224,8 @@ func (b *Bot) handleAdminUserMgmtMessage(msg *tgbotapi.Message, session *adminSe
 
 	switch session.Step {
 	case "await_user_id":
-		targetID, err := strconv.ParseInt(text, 10, 64)
-		if err != nil || targetID <= 0 {
-			b.api.Send(tgbotapi.NewMessage(msg.Chat.ID, "⚠️ Нужен числовой Telegram user_id."))
-			return true
-		}
 		b.clearAdminFlow(msg.From.ID)
-		b.showAdminUserCard(msg.Chat.ID, targetID)
+		b.resolveAdminUserSearch(msg.Chat.ID, text)
 		return true
 
 	case "await_amount":
@@ -277,6 +281,69 @@ func (b *Bot) handleAdminUserMgmtMessage(msg *tgbotapi.Message, session *adminSe
 		return true
 	}
 	return false
+}
+
+func (b *Bot) resolveAdminUserSearch(chatID int64, query string) {
+	packChatID := b.adminPackChatID()
+	if packChatID == 0 {
+		b.api.Send(tgbotapi.NewMessage(chatID, "❌ Не настроен MonetizedChatID."))
+		return
+	}
+	query = strings.TrimSpace(query)
+	if query == "" {
+		b.api.Send(tgbotapi.NewMessage(chatID, "⚠️ Введи user_id, @ник или имя."))
+		return
+	}
+
+	hits, err := b.db.SearchPackUsersForAdmin(packChatID, query, 10)
+	if err != nil {
+		b.api.Send(tgbotapi.NewMessage(chatID, "❌ Ошибка поиска: "+err.Error()))
+		return
+	}
+	if len(hits) == 0 {
+		b.api.Send(tgbotapi.NewMessage(chatID, fmt.Sprintf("❌ Пользователь «%s» не найден.", query)))
+		return
+	}
+	if len(hits) == 1 {
+		b.showAdminUserCard(chatID, hits[0].UserID)
+		return
+	}
+
+	var text strings.Builder
+	text.WriteString(fmt.Sprintf("Найдено %d пользователей по «%s»:\n\n", len(hits), query))
+	rows := make([][]tgbotapi.InlineKeyboardButton, 0, len(hits)+1)
+	for i, hit := range hits {
+		label := adminUserSearchButtonLabel(hit)
+		text.WriteString(fmt.Sprintf("%d. %s\n", i+1, label))
+		rows = append(rows, tgbotapi.NewInlineKeyboardRow(
+			tgbotapi.NewInlineKeyboardButtonData(label, "admin_user_pick_"+strconv.FormatInt(hit.UserID, 10)),
+		))
+	}
+	rows = append(rows, tgbotapi.NewInlineKeyboardRow(
+		tgbotapi.NewInlineKeyboardButtonData("⬅️ К админке", "admin_open"),
+	))
+	msg := tgbotapi.NewMessage(chatID, clipAdminSupportText(text.String(), 3500))
+	msg.ReplyMarkup = &tgbotapi.InlineKeyboardMarkup{InlineKeyboard: rows}
+	b.api.Send(msg)
+}
+
+func adminUserSearchButtonLabel(hit database.AdminPackUserSearchHit) string {
+	parts := make([]string, 0, 3)
+	if name := strings.TrimSpace(hit.DisplayName); name != "" {
+		parts = append(parts, name)
+	}
+	if u := strings.TrimSpace(hit.Username); u != "" {
+		parts = append(parts, u)
+	}
+	label := strings.Join(parts, " · ")
+	if label == "" {
+		label = "user" + strconv.FormatInt(hit.UserID, 10)
+	}
+	label += " · " + strconv.FormatInt(hit.UserID, 10)
+	if hit.IsDeleted {
+		label += " (удалён)"
+	}
+	return clipAdminSupportText(label, 56)
 }
 
 func (b *Bot) adminGrantStreakSaveAttempt(chatID, targetUserID int64) {

@@ -91,7 +91,7 @@ func (b *Bot) notifyAdminsAboutSupportMessage(userID int64, text string) {
 	title := fmt.Sprintf("Новый запрос в поддержку от %s", b.supportDisplayName(userID))
 	body := clipAdminSupportText(text, 500)
 	for _, adminID := range adminIDs {
-		msg := tgbotapi.NewMessage(adminID, title+"\n\n"+body+"\n\nОткрой /admin → Поддержка.")
+		msg := tgbotapi.NewMessage(adminID, title+"\n\n"+body+"\n\nНажми «⚙️ Админка» внизу → Поддержка.")
 		msg.ReplyMarkup = tgbotapi.NewInlineKeyboardMarkup(
 			tgbotapi.NewInlineKeyboardRow(
 				tgbotapi.NewInlineKeyboardButtonData("✍️ Ответить", fmt.Sprintf("admin_support_reply_%d", userID)),

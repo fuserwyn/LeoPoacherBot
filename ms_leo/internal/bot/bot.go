@@ -34,6 +34,8 @@ type Bot struct {
 	sickApprovalMutex    sync.Mutex
 	adminSessions            map[int64]*adminSession
 	adminSessionsMutex       sync.Mutex
+	// privateBottomKeyboardKind — последняя reply-клавиатура внизу лички: "admin" | "support".
+	privateBottomKeyboardKind sync.Map
 	userSupportSessions      map[int64]struct{}
 	userSupportSessionsMutex sync.Mutex
 	// Очередь ответов Лео для мини-аппа (личка): poll без БД. Несколько реплик бота — один процесс.
@@ -358,6 +360,10 @@ func (b *Bot) handleUpdate(update tgbotapi.Update) {
 // trainingPhotoURLOverride — непустой при POST /api/miniapp/workout с фото (без sync.Map).
 func (b *Bot) dispatchTextMessageFromUser(msg *tgbotapi.Message, personalReplyCh chan<- string, trainingPhotoURLOverride string) {
 	b.logger.Infof("Received message from %d: %s", msg.From.ID, msg.Text)
+
+	if msg.Chat != nil && msg.Chat.IsPrivate() && msg.From != nil && b.isAdminTelegramUser(msg.From.ID) {
+		b.syncPrivateBottomKeyboard(msg.Chat.ID, msg.From.ID)
+	}
 
 	// Админ-мастер перехватывает сообщения владельца в личке при активной сессии.
 	if b.handleAdminFlowMessage(msg) {
@@ -968,7 +974,7 @@ func (b *Bot) handleStart(msg *tgbotapi.Message) {
 
 	reply := tgbotapi.NewMessage(msg.Chat.ID, welcomeText)
 	if msg.Chat.IsPrivate() && b.botSupportAvailable() {
-		reply.ReplyMarkup = b.privateSupportReplyKeyboard(msg.From.ID)
+		reply.ReplyMarkup = b.privateBottomReplyKeyboard(msg.From.ID)
 	}
 
 	b.logger.Infof("Sending start message to chat %d", msg.Chat.ID)
@@ -992,7 +998,7 @@ func (b *Bot) handleRejoin(msg *tgbotapi.Message) {
 	}
 	if b.paywallPrivateNeedsPayFirst(msg.From.ID) {
 		reply := tgbotapi.NewMessage(msg.Chat.ID, "⚠️ Сначала оплати доступ. Нажми /start, чтобы получить счёт.")
-		if kb := b.privateSupportReplyKeyboard(msg.From.ID); kb != nil {
+		if kb := b.privateBottomReplyKeyboard(msg.From.ID); kb != nil {
 			reply.ReplyMarkup = kb
 		}
 		if _, err := b.api.Send(reply); err == nil {

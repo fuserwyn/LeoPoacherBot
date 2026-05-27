@@ -16,14 +16,23 @@ func (b *Bot) botSupportAvailable() bool {
 	return b != nil && b.config != nil && b.config.MonetizedChatID != 0 && b.db != nil
 }
 
-// privateSupportReplyKeyboard — постоянная кнопка внизу лички (для оплативших и после /start).
-func (b *Bot) privateSupportReplyKeyboard(userID int64) *tgbotapi.ReplyKeyboardMarkup {
-	if !b.botSupportAvailable() {
+func (b *Bot) isAdminTelegramUser(userID int64) bool {
+	return b != nil && b.config != nil && b.config.IsAdminTelegramUser(userID)
+}
+
+// privateBottomReplyKeyboard — постоянная кнопка внизу лички с ботом.
+func (b *Bot) privateBottomReplyKeyboard(userID int64) *tgbotapi.ReplyKeyboardMarkup {
+	if userID <= 0 {
 		return nil
 	}
-	buttonText := botSupportReplyButtonText
-	if userID > 0 && b.config != nil && b.config.IsAdminTelegramUser(userID) {
+	var buttonText string
+	switch {
+	case b.isAdminTelegramUser(userID):
 		buttonText = botAdminReplyButtonText
+	case b.botSupportAvailable():
+		buttonText = botSupportReplyButtonText
+	default:
+		return nil
 	}
 	kb := tgbotapi.NewReplyKeyboard(
 		tgbotapi.NewKeyboardButtonRow(
@@ -33,6 +42,34 @@ func (b *Bot) privateSupportReplyKeyboard(userID int64) *tgbotapi.ReplyKeyboardM
 	kb.ResizeKeyboard = true
 	kb.OneTimeKeyboard = false
 	return &kb
+}
+
+// syncPrivateBottomKeyboard обновляет reply-клавиатуру внизу (без лишних сообщений при повторе).
+func (b *Bot) syncPrivateBottomKeyboard(chatID, userID int64) {
+	if chatID == 0 || userID == 0 {
+		return
+	}
+	kb := b.privateBottomReplyKeyboard(userID)
+	if kb == nil {
+		return
+	}
+	kind := "support"
+	if b.isAdminTelegramUser(userID) {
+		kind = "admin"
+	}
+	if prev, ok := b.privateBottomKeyboardKind.Load(userID); ok && prev == kind {
+		return
+	}
+	b.privateBottomKeyboardKind.Store(userID, kind)
+	msg := tgbotapi.NewMessage(chatID, " ")
+	msg.ReplyMarkup = kb
+	_, _ = b.api.Send(msg)
+}
+
+// openAdminPanelForUser — админ-панель + гарантированная кнопка «Админка» внизу.
+func (b *Bot) openAdminPanelForUser(chatID, userID int64) {
+	b.syncPrivateBottomKeyboard(chatID, userID)
+	b.showAdminMenu(chatID)
 }
 
 func (b *Bot) botSupportPromptInlineKeyboard() *tgbotapi.InlineKeyboardMarkup {
@@ -118,7 +155,7 @@ func (b *Bot) handleBotSupportCallback(callback *tgbotapi.CallbackQuery) {
 		if b.clearUserSupportSession(callback.From.ID) {
 			answer.Text = "Вышли из поддержки"
 			m := tgbotapi.NewMessage(callback.Message.Chat.ID, "❎ Режим поддержки выключен.")
-			m.ReplyMarkup = b.privateSupportReplyKeyboard(callback.From.ID)
+			b.syncPrivateBottomKeyboard(callback.Message.Chat.ID, callback.From.ID)
 			_, _ = b.api.Send(m)
 		} else {
 			answer.Text = "Режим поддержки не был активен"
@@ -141,7 +178,7 @@ func isAdminReplyButtonText(text string) bool {
 
 // handleUserSupportFlowMessage — личка: режим поддержки (до мини-аппа), без ответа Лео.
 func (b *Bot) handleUserSupportFlowMessage(msg *tgbotapi.Message) bool {
-	if msg == nil || msg.From == nil || msg.Chat == nil || !msg.Chat.IsPrivate() || !b.botSupportAvailable() {
+	if msg == nil || msg.From == nil || msg.Chat == nil || !msg.Chat.IsPrivate() {
 		return false
 	}
 
@@ -154,17 +191,22 @@ func (b *Bot) handleUserSupportFlowMessage(msg *tgbotapi.Message) bool {
 		return false
 	}
 
+	if b.isAdminTelegramUser(msg.From.ID) && isAdminReplyButtonText(text) {
+		b.openAdminPanelForUser(msg.Chat.ID, msg.From.ID)
+		return true
+	}
+
 	if isSupportReplyButtonText(text) {
+		if !b.botSupportAvailable() {
+			_, _ = b.api.Send(tgbotapi.NewMessage(msg.Chat.ID, "⚠️ Поддержка временно недоступна. Попробуй позже."))
+			return true
+		}
 		b.startUserSupportSession(msg.From.ID)
 		b.sendUserSupportPrompt(msg.Chat.ID)
 		return true
 	}
-	if b.config != nil && b.config.IsAdminTelegramUser(msg.From.ID) && isAdminReplyButtonText(text) {
-		b.showAdminMenu(msg.Chat.ID)
-		return true
-	}
 
-	if !b.userInSupportSession(msg.From.ID) {
+	if !b.botSupportAvailable() || !b.userInSupportSession(msg.From.ID) {
 		return false
 	}
 

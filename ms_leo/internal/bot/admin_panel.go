@@ -21,11 +21,11 @@ func (b *Bot) isOwnerPrivateChat(msg *tgbotapi.Message) bool {
 
 func (b *Bot) handleAdmin(msg *tgbotapi.Message) {
 	if !b.isOwnerPrivateChat(msg) {
-		reply := tgbotapi.NewMessage(msg.Chat.ID, "❌ Админ-панель доступна только владельцу в личном чате с ботом.")
+		reply := tgbotapi.NewMessage(msg.Chat.ID, "❌ Админ-панель доступна только админам в личном чате с ботом.")
 		b.api.Send(reply)
 		return
 	}
-	b.showAdminMenu(msg.Chat.ID)
+	b.openAdminPanelForUser(msg.Chat.ID, msg.From.ID)
 }
 
 func (b *Bot) showAdminMenu(chatID int64) {
@@ -108,7 +108,7 @@ func (b *Bot) handleAdminCallbackQuery(callback *tgbotapi.CallbackQuery) {
 
 	switch callback.Data {
 	case "admin_open":
-		b.showAdminMenu(callback.Message.Chat.ID)
+		b.openAdminPanelForUser(callback.Message.Chat.ID, callback.From.ID)
 	case "admin_support_inbox":
 		b.showAdminSupportInbox(callback.Message.Chat.ID)
 	case "admin_support_back":
@@ -187,7 +187,7 @@ func (b *Bot) handleAdminFlowMessage(msg *tgbotapi.Message) bool {
 			b.clearAdminFlow(msg.From.ID)
 			b.api.Send(tgbotapi.NewMessage(msg.Chat.ID, "❎ Админ-действие отменено."))
 		case "admin":
-			b.showAdminMenu(msg.Chat.ID)
+			b.openAdminPanelForUser(msg.Chat.ID, msg.From.ID)
 		default:
 			b.api.Send(tgbotapi.NewMessage(msg.Chat.ID, "⚠️ Сначала заверши текущий мастер или отправь /cancel"))
 		}

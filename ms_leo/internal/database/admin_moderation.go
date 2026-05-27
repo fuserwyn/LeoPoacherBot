@@ -3,7 +3,73 @@ package database
 import (
 	"database/sql"
 	"fmt"
+	"strconv"
+	"strings"
 )
+
+// AdminPackUserSearchHit — результат поиска пользователя в админке.
+type AdminPackUserSearchHit struct {
+	UserID      int64
+	Username    string
+	DisplayName string
+	IsDeleted   bool
+}
+
+// SearchPackUsersForAdmin ищет пользователей стаи по ID, @нику или display_name из мини-аппа.
+func (d *Database) SearchPackUsersForAdmin(packChatID int64, rawQuery string, limit int) ([]AdminPackUserSearchHit, error) {
+	if d == nil || packChatID == 0 {
+		return nil, nil
+	}
+	q := strings.TrimSpace(rawQuery)
+	if q == "" {
+		return nil, nil
+	}
+	if limit <= 0 {
+		limit = 10
+	}
+	if limit > 20 {
+		limit = 20
+	}
+
+	pattern := "%" + strings.TrimPrefix(q, "@") + "%"
+	var exactID int64
+	if id, err := strconv.ParseInt(q, 10, 64); err == nil && id > 0 {
+		exactID = id
+	}
+
+	const query = `
+		SELECT ts.user_id,
+		       COALESCE(NULLIF(BTRIM(ts.username), ''), ''),
+		       COALESCE(NULLIF(BTRIM(p.display_name), ''), ''),
+		       ts.is_deleted
+		FROM training_state ts
+		LEFT JOIN miniapp_user_profile p
+			ON p.user_id = ts.user_id AND p.pack_chat_id = ts.chat_id
+		WHERE ts.chat_id = $1
+		  AND (
+		        ($2 > 0 AND ts.user_id = $2)
+		     OR ts.username ILIKE $3
+		     OR COALESCE(p.display_name, '') ILIKE $3
+		  )
+		ORDER BY ts.is_deleted ASC, ts.cups_earned DESC, ts.user_id ASC
+		LIMIT $4
+	`
+	rows, err := d.db.Query(query, packChatID, exactID, pattern, limit)
+	if err != nil {
+		return nil, fmt.Errorf("search pack users: %w", err)
+	}
+	defer rows.Close()
+
+	var out []AdminPackUserSearchHit
+	for rows.Next() {
+		var hit AdminPackUserSearchHit
+		if err := rows.Scan(&hit.UserID, &hit.Username, &hit.DisplayName, &hit.IsDeleted); err != nil {
+			return nil, err
+		}
+		out = append(out, hit)
+	}
+	return out, rows.Err()
+}
 
 // DecrementStreakSaveAttemptsUsed уменьшает счётчик использованных попыток (мин. 0) — даёт +1 доступную попытку.
 func (d *Database) DecrementStreakSaveAttemptsUsed(userID, chatID int64, count int) (int, error) {

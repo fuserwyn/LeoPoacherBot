@@ -123,7 +123,7 @@ func (b *Bot) notifyAdminsAboutFeedReport(
 	body += "\n\n«" + clipAdminSupportText(targetText, 400) + "»"
 
 	for _, adminID := range adminIDs {
-		msg := tgbotapi.NewMessage(adminID, title+"\n\n"+body+"\n\n/admin → Поддержка → Жалобы.")
+		msg := tgbotapi.NewMessage(adminID, title+"\n\n"+body+"\n\n«⚙️ Админка» внизу → Поддержка → Жалобы.")
 		msg.ReplyMarkup = tgbotapi.NewInlineKeyboardMarkup(
 			tgbotapi.NewInlineKeyboardRow(
 				tgbotapi.NewInlineKeyboardButtonData("🚨 Открыть", "admin_feed_report_"+strconv.FormatInt(reportID, 10)),
