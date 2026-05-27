@@ -9,8 +9,8 @@ import (
 )
 
 type adminSession struct {
-	Mode         string // feed_text | poll | support
-	Step         string // await_text | await_support_text | await_poll_question | await_poll_options
+	Mode         string // feed_text | poll | support | user_mgmt | user_add_cups | user_add_streak | user_delete_msg
+	Step         string // await_text | await_support_text | await_poll_question | await_poll_options | await_user_id | await_amount | await_message_id
 	TargetUserID int64
 	PollQuestion string
 }
@@ -33,6 +33,7 @@ func (b *Bot) showAdminMenu(chatID int64) {
 	keyboard := tgbotapi.NewInlineKeyboardMarkup(
 		tgbotapi.NewInlineKeyboardRow(
 			tgbotapi.NewInlineKeyboardButtonData("💬 Поддержка", "admin_support_inbox"),
+			tgbotapi.NewInlineKeyboardButtonData("👤 Юзеры", "admin_users"),
 		),
 		tgbotapi.NewInlineKeyboardRow(
 			tgbotapi.NewInlineKeyboardButtonData("📝 Текст", "admin_mode_feed_text"),
@@ -84,6 +85,15 @@ func (b *Bot) handleAdminCallbackQuery(callback *tgbotapi.CallbackQuery) {
 		callbackConfig := tgbotapi.NewCallback(callback.ID, "")
 		b.api.Request(callbackConfig)
 		return
+	}
+	if strings.HasPrefix(callback.Data, "admin_feed_report_del_") ||
+		strings.HasPrefix(callback.Data, "admin_user_") ||
+		callback.Data == "admin_users" {
+		if b.handleAdminUserMgmtCallback(callback) {
+			callbackConfig := tgbotapi.NewCallback(callback.ID, "")
+			b.api.Request(callbackConfig)
+			return
+		}
 	}
 	if strings.HasPrefix(callback.Data, "admin_feed_report_") {
 		suffix := strings.TrimPrefix(callback.Data, "admin_feed_report_")
@@ -181,6 +191,10 @@ func (b *Bot) handleAdminFlowMessage(msg *tgbotapi.Message) bool {
 		default:
 			b.api.Send(tgbotapi.NewMessage(msg.Chat.ID, "⚠️ Сначала заверши текущий мастер или отправь /cancel"))
 		}
+		return true
+	}
+
+	if b.handleAdminUserMgmtMessage(msg, session) {
 		return true
 	}
 
@@ -488,6 +502,7 @@ func (b *Bot) showAdminFeedReport(chatID, reportID int64) {
 	if item.Status == "open" {
 		msg.ReplyMarkup = tgbotapi.NewInlineKeyboardMarkup(
 			tgbotapi.NewInlineKeyboardRow(
+				tgbotapi.NewInlineKeyboardButtonData("🗑 Удалить контент", "admin_feed_report_del_"+strconv.FormatInt(item.ID, 10)),
 				tgbotapi.NewInlineKeyboardButtonData("✅ Обработано", "admin_feed_report_dismiss_"+strconv.FormatInt(item.ID, 10)),
 			),
 			tgbotapi.NewInlineKeyboardRow(
