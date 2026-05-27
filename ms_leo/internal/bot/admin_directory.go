@@ -13,8 +13,8 @@ import (
 )
 
 const (
-	adminUsersListPageSize    = 8
-	adminPaymentsListPageSize = 6
+	adminUsersListPageSize    = 10
+	adminPaymentsListPageSize = 8
 )
 
 func (b *Bot) showAdminUsersListPage(chatID int64, offset int) {
@@ -31,33 +31,48 @@ func (b *Bot) showAdminUsersListPage(chatID int64, offset int) {
 		b.api.Send(tgbotapi.NewMessage(chatID, "❌ Не удалось загрузить список."))
 		return
 	}
-	rows, err := b.db.ListPackUsersForAdmin(packChatID, offset, adminUsersListPageSize)
+	users, err := b.db.ListPackUsersForAdmin(packChatID, offset, adminUsersListPageSize)
 	if err != nil {
 		b.api.Send(tgbotapi.NewMessage(chatID, "❌ Ошибка списка: "+err.Error()))
 		return
 	}
 
-	var text strings.Builder
-	text.WriteString("📋 Пользователи стаи\n")
-	if total == 0 {
-		text.WriteString("\nПока никого нет.")
-	} else {
+	subtitle := "Пока никого нет."
+	tableText := ""
+	if total > 0 {
 		from := offset + 1
-		to := offset + len(rows)
-		text.WriteString(fmt.Sprintf("\n%d–%d из %d\n\n", from, to, total))
-		for i, u := range rows {
-			text.WriteString(fmt.Sprintf("%d. %s\n", offset+i+1, adminPackUserListLine(u)))
+		to := offset + len(users)
+		subtitle = fmt.Sprintf("Строки %d–%d из %d · нажми № под таблицей", from, to, total)
+
+		tbl := newAdminTable(
+			[]string{"№", "ID", "Имя", "Куб", "Стр", "Опл", "Стат"},
+			[]int{2, 11, 16, 5, 4, 4, 6},
+		)
+		for i, u := range users {
+			pay := "—"
+			if u.HasActivePaywall {
+				pay = "да"
+			}
+			stat := "актив"
+			if u.IsDeleted {
+				stat = "удал"
+			}
+			tbl.addRow(
+				strconv.Itoa(offset+i+1),
+				strconv.FormatInt(u.UserID, 10),
+				adminPaywallPersonLabel(u.Username, u.DisplayName, u.UserID),
+				strconv.Itoa(u.Cups),
+				strconv.Itoa(u.StreakDays),
+				pay,
+				stat,
+			)
 		}
+		tableText = tbl.render()
 	}
 
-	keyboardRows := make([][]tgbotapi.InlineKeyboardButton, 0, len(rows)+2)
-	for _, u := range rows {
-		keyboardRows = append(keyboardRows, tgbotapi.NewInlineKeyboardRow(
-			tgbotapi.NewInlineKeyboardButtonData(
-				adminPackUserListButtonLabel(u),
-				"admin_user_open_"+strconv.FormatInt(u.UserID, 10),
-			),
-		))
+	keyboardRows := make([][]tgbotapi.InlineKeyboardButton, 0, 4)
+	if len(users) > 0 {
+		keyboardRows = appendAdminPickButtonRows(keyboardRows, users, offset)
 	}
 	nav := make([]tgbotapi.InlineKeyboardButton, 0, 2)
 	if offset > 0 {
@@ -67,7 +82,7 @@ func (b *Bot) showAdminUsersListPage(chatID int64, offset int) {
 		}
 		nav = append(nav, tgbotapi.NewInlineKeyboardButtonData("◀️ Назад", "admin_users_list_"+strconv.Itoa(prev)))
 	}
-	if offset+len(rows) < total {
+	if offset+len(users) < total {
 		nav = append(nav, tgbotapi.NewInlineKeyboardButtonData("▶️ Далее", "admin_users_list_"+strconv.Itoa(offset+adminUsersListPageSize)))
 	}
 	if len(nav) > 0 {
@@ -78,9 +93,8 @@ func (b *Bot) showAdminUsersListPage(chatID int64, offset int) {
 		tgbotapi.NewInlineKeyboardButtonData("⬅️ Админка", "admin_open"),
 	))
 
-	msg := tgbotapi.NewMessage(chatID, clipAdminSupportText(text.String(), 3500))
-	msg.ReplyMarkup = &tgbotapi.InlineKeyboardMarkup{InlineKeyboard: keyboardRows}
-	b.api.Send(msg)
+	kb := &tgbotapi.InlineKeyboardMarkup{InlineKeyboard: keyboardRows}
+	b.sendAdminHTMLPreTable(chatID, "📋 Пользователи стаи", subtitle, tableText, kb)
 }
 
 func (b *Bot) showAdminPaymentsPage(chatID int64, offset int) {
@@ -103,28 +117,48 @@ func (b *Bot) showAdminPaymentsPage(chatID int64, offset int) {
 		return
 	}
 
-	var text strings.Builder
-	text.WriteString("💳 Оплаты\n")
-	if total == 0 {
-		text.WriteString("\nЗаявок пока нет.")
-	} else {
+	subtitle := "Заявок пока нет."
+	tableText := ""
+	if total > 0 {
 		from := offset + 1
 		to := offset + len(payments)
-		text.WriteString(fmt.Sprintf("\n%d–%d из %d\n\n", from, to, total))
-		for _, p := range payments {
-			text.WriteString(adminPaywallPaymentLine(p))
-			text.WriteString("\n")
+		subtitle = fmt.Sprintf("Строки %d–%d из %d · нажми № под таблицей", from, to, total)
+
+		tbl := newAdminTable(
+			[]string{"№", "Заявка", "ID", "Имя", "Статус", "Сумма", "Дата", "Дост"},
+			[]int{2, 7, 11, 12, 9, 8, 11, 4},
+		)
+		for i, p := range payments {
+			access := "—"
+			if p.Status == "completed" {
+				if p.AccessActive {
+					access = "да"
+				} else {
+					access = "нет"
+				}
+			}
+			when := p.CreatedAt.In(time.FixedZone("MSK", 3*3600)).Format("02.01 15:04")
+			tbl.addRow(
+				strconv.Itoa(offset+i+1),
+				strconv.FormatInt(p.ID, 10),
+				strconv.FormatInt(p.UserID, 10),
+				adminPaywallPersonLabel(p.Username, p.DisplayName, p.UserID),
+				p.Status,
+				adminFormatPaymentAmount(p.AmountMinor, p.Currency),
+				when,
+				access,
+			)
 		}
+		tableText = tbl.render()
 	}
 
-	keyboardRows := make([][]tgbotapi.InlineKeyboardButton, 0, len(payments)+2)
-	for _, p := range payments {
-		keyboardRows = append(keyboardRows, tgbotapi.NewInlineKeyboardRow(
-			tgbotapi.NewInlineKeyboardButtonData(
-				fmt.Sprintf("#%d · %s", p.ID, clipAdminSupportText(adminPaywallPersonLabel(p.Username, p.DisplayName, p.UserID), 24)),
-				"admin_user_open_"+strconv.FormatInt(p.UserID, 10),
-			),
-		))
+	keyboardRows := make([][]tgbotapi.InlineKeyboardButton, 0, 4)
+	if len(payments) > 0 {
+		pickUsers := make([]database.AdminPackUserListRow, len(payments))
+		for i, p := range payments {
+			pickUsers[i] = database.AdminPackUserListRow{UserID: p.UserID}
+		}
+		keyboardRows = appendAdminPickButtonRows(keyboardRows, pickUsers, offset)
 	}
 	nav := make([]tgbotapi.InlineKeyboardButton, 0, 2)
 	if offset > 0 {
@@ -145,28 +179,27 @@ func (b *Bot) showAdminPaymentsPage(chatID int64, offset int) {
 		tgbotapi.NewInlineKeyboardButtonData("⬅️ Админка", "admin_open"),
 	))
 
-	msg := tgbotapi.NewMessage(chatID, clipAdminSupportText(text.String(), 3500))
-	msg.ReplyMarkup = &tgbotapi.InlineKeyboardMarkup{InlineKeyboard: keyboardRows}
-	b.api.Send(msg)
+	kb := &tgbotapi.InlineKeyboardMarkup{InlineKeyboard: keyboardRows}
+	b.sendAdminHTMLPreTable(chatID, "💳 Оплаты", subtitle, tableText, kb)
 }
 
-func adminPackUserListLine(u database.AdminPackUserListRow) string {
-	pay := "💳—"
-	if u.HasActivePaywall {
-		pay = "💳✅"
+func appendAdminPickButtonRows(rows [][]tgbotapi.InlineKeyboardButton, users []database.AdminPackUserListRow, offset int) [][]tgbotapi.InlineKeyboardButton {
+	const perRow = 5
+	btnRow := make([]tgbotapi.InlineKeyboardButton, 0, perRow)
+	for i, u := range users {
+		btnRow = append(btnRow, tgbotapi.NewInlineKeyboardButtonData(
+			strconv.Itoa(offset+i+1),
+			"admin_user_open_"+strconv.FormatInt(u.UserID, 10),
+		))
+		if len(btnRow) >= perRow {
+			rows = append(rows, btnRow)
+			btnRow = make([]tgbotapi.InlineKeyboardButton, 0, perRow)
+		}
 	}
-	del := ""
-	if u.IsDeleted {
-		del = " · 🚫удалён"
+	if len(btnRow) > 0 {
+		rows = append(rows, btnRow)
 	}
-	return fmt.Sprintf("%s · 🏆%d · ⚡%d · %s%s",
-		adminPaywallPersonLabel(u.Username, u.DisplayName, u.UserID),
-		u.Cups, u.StreakDays, pay, del,
-	)
-}
-
-func adminPackUserListButtonLabel(u database.AdminPackUserListRow) string {
-	return clipAdminSupportText(adminPackUserListLine(u), 56)
+	return rows
 }
 
 func adminPaywallPersonLabel(username, displayName string, userID int64) string {
@@ -180,28 +213,7 @@ func adminPaywallPersonLabel(username, displayName string, userID int64) string 
 	if len(parts) == 0 {
 		return strconv.FormatInt(userID, 10)
 	}
-	return strings.Join(parts, " · ")
-}
-
-func adminPaywallPaymentLine(p database.AdminPaywallPaymentRow) string {
-	when := p.CreatedAt.In(time.FixedZone("MSK", 3*3600)).Format("02.01 15:04")
-	amount := adminFormatPaymentAmount(p.AmountMinor, p.Currency)
-	access := ""
-	if p.Status == "completed" {
-		if p.AccessActive {
-			access = " · доступ ✅"
-		} else {
-			access = " · доступ ⛔️"
-		}
-	}
-	return fmt.Sprintf("#%d · %s · %s · %s · %s%s",
-		p.ID,
-		adminPaywallPersonLabel(p.Username, p.DisplayName, p.UserID),
-		p.Status,
-		amount,
-		when,
-		access,
-	)
+	return strings.Join(parts, " ")
 }
 
 func adminFormatPaymentAmount(amountMinor sql.NullInt64, currency sql.NullString) string {
@@ -214,9 +226,9 @@ func adminFormatPaymentAmount(amountMinor sql.NullInt64, currency sql.NullString
 	}
 	major := float64(amountMinor.Int64) / 100.0
 	if cur == "XTR" || strings.EqualFold(cur, "STARS") {
-		return fmt.Sprintf("%d ⭐", amountMinor.Int64)
+		return fmt.Sprintf("%d⭐", amountMinor.Int64)
 	}
-	return fmt.Sprintf("%.0f %s", major, cur)
+	return fmt.Sprintf("%.0f%s", major, cur)
 }
 
 func (b *Bot) formatAdminUserPaymentsBlock(userID, packChatID int64) string {
@@ -224,14 +236,29 @@ func (b *Bot) formatAdminUserPaymentsBlock(userID, packChatID int64) string {
 	if err != nil || len(payments) == 0 {
 		return "\n\n💳 Оплаты: нет заявок"
 	}
-	var sb strings.Builder
-	sb.WriteString("\n\n💳 Оплаты (последние):\n")
+	tbl := newAdminTable(
+		[]string{"Заявка", "Статус", "Сумма", "Дата", "Дост"},
+		[]int{7, 9, 8, 11, 4},
+	)
 	for _, p := range payments {
-		sb.WriteString("• ")
-		sb.WriteString(adminPaywallPaymentLine(p))
-		sb.WriteString("\n")
+		access := "—"
+		if p.Status == "completed" {
+			if p.AccessActive {
+				access = "да"
+			} else {
+				access = "нет"
+			}
+		}
+		when := p.CreatedAt.In(time.FixedZone("MSK", 3*3600)).Format("02.01 15:04")
+		tbl.addRow(
+			strconv.FormatInt(p.ID, 10),
+			p.Status,
+			adminFormatPaymentAmount(p.AmountMinor, p.Currency),
+			when,
+			access,
+		)
 	}
-	return sb.String()
+	return "\n\n💳 Оплаты (последние):\n<pre>" + adminEscapeHTML(tbl.render()) + "</pre>"
 }
 
 func (b *Bot) handleAdminDirectoryCallback(callback *tgbotapi.CallbackQuery) bool {

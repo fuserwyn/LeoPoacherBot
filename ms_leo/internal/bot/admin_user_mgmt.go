@@ -6,7 +6,6 @@ import (
 	"strings"
 	"time"
 
-	"leo-bot/internal/database"
 	"leo-bot/internal/game/leopardmoney"
 	"leo-bot/internal/utils"
 
@@ -83,32 +82,18 @@ func (b *Bot) showAdminUserCard(chatID, targetUserID int64) {
 		paywall = "оплачен ✅"
 	}
 
-	text := fmt.Sprintf(
-		"👤 Пользователь\n\n"+
-			"ID: %d\n"+
-			"Имя: %s\n"+
-			"Кубки: %d\n"+
-			"Стрик: %d (рекорд %d)\n"+
-			"Попытки спасти стрик: %d/%d (доступно %d)\n"+
-			"Больничный: %s\n"+
-			"Удалён из стаи: %s\n"+
-			"Доступ: %s\n"+
-			"Ачивки: %d/%d",
-		targetUserID,
-		adminSupportTitle(ml.Username, targetUserID),
-		stats.XP,
-		stats.StreakDays,
-		stats.MaxStreakDays,
-		stats.StreakSaveAttemptsUsed,
-		stats.StreakSaveAttemptsMax,
-		stats.StreakSaveAttemptsAvail,
-		sick,
-		deleted,
-		paywall,
-		stats.AchievementCount,
-		stats.AchievementsMax,
-	)
-	text += b.formatAdminUserPaymentsBlock(targetUserID, packChatID)
+	var body strings.Builder
+	body.WriteString("<b>👤 Пользователь</b>\n\n")
+	body.WriteString(fmt.Sprintf("ID: <code>%d</code>\n", targetUserID))
+	body.WriteString(fmt.Sprintf("Имя: %s\n", adminEscapeHTML(adminSupportTitle(ml.Username, targetUserID))))
+	body.WriteString(fmt.Sprintf("Кубки: %d\n", stats.XP))
+	body.WriteString(fmt.Sprintf("Стрик: %d (рекорд %d)\n", stats.StreakDays, stats.MaxStreakDays))
+	body.WriteString(fmt.Sprintf("Попытки спасти стрик: %d/%d (доступно %d)\n", stats.StreakSaveAttemptsUsed, stats.StreakSaveAttemptsMax, stats.StreakSaveAttemptsAvail))
+	body.WriteString(fmt.Sprintf("Больничный: %s\n", adminEscapeHTML(sick)))
+	body.WriteString(fmt.Sprintf("Удалён из стаи: %s\n", adminEscapeHTML(deleted)))
+	body.WriteString(fmt.Sprintf("Доступ: %s\n", adminEscapeHTML(paywall)))
+	body.WriteString(fmt.Sprintf("Ачивки: %d/%d", stats.AchievementCount, stats.AchievementsMax))
+	body.WriteString(b.formatAdminUserPaymentsBlock(targetUserID, packChatID))
 
 	rows := [][]tgbotapi.InlineKeyboardButton{
 		tgbotapi.NewInlineKeyboardRow(
@@ -133,7 +118,9 @@ func (b *Bot) showAdminUserCard(chatID, targetUserID int64) {
 		tgbotapi.NewInlineKeyboardButtonData("⬅️ Админка", "admin_open"),
 	))
 
-	msg := tgbotapi.NewMessage(chatID, clipAdminSupportText(text, 3500))
+	msg := tgbotapi.NewMessage(chatID, body.String())
+	msg.ParseMode = "HTML"
+	msg.DisableWebPagePreview = true
 	msg.ReplyMarkup = &tgbotapi.InlineKeyboardMarkup{InlineKeyboard: rows}
 	b.api.Send(msg)
 }
@@ -345,41 +332,45 @@ func (b *Bot) resolveAdminUserSearch(chatID int64, query string) {
 		return
 	}
 
-	var text strings.Builder
-	text.WriteString(fmt.Sprintf("Найдено %d пользователей по «%s»:\n\n", len(hits), query))
-	rows := make([][]tgbotapi.InlineKeyboardButton, 0, len(hits)+1)
+	tbl := newAdminTable(
+		[]string{"№", "ID", "Имя", "Стат"},
+		[]int{2, 11, 22, 6},
+	)
+	rows := make([][]tgbotapi.InlineKeyboardButton, 0, 3)
 	for i, hit := range hits {
-		label := adminUserSearchButtonLabel(hit)
-		text.WriteString(fmt.Sprintf("%d. %s\n", i+1, label))
-		rows = append(rows, tgbotapi.NewInlineKeyboardRow(
-			tgbotapi.NewInlineKeyboardButtonData(label, "admin_user_pick_"+strconv.FormatInt(hit.UserID, 10)),
+		stat := "актив"
+		if hit.IsDeleted {
+			stat = "удал"
+		}
+		tbl.addRow(
+			strconv.Itoa(i+1),
+			strconv.FormatInt(hit.UserID, 10),
+			adminPaywallPersonLabel(hit.Username, hit.DisplayName, hit.UserID),
+			stat,
+		)
+	}
+	// Кнопки pick используют admin_user_pick_ вместо admin_user_open_
+	const perRow = 5
+	btnRow := make([]tgbotapi.InlineKeyboardButton, 0, perRow)
+	for i, hit := range hits {
+		btnRow = append(btnRow, tgbotapi.NewInlineKeyboardButtonData(
+			strconv.Itoa(i+1),
+			"admin_user_pick_"+strconv.FormatInt(hit.UserID, 10),
 		))
+		if len(btnRow) >= perRow {
+			rows = append(rows, btnRow)
+			btnRow = make([]tgbotapi.InlineKeyboardButton, 0, perRow)
+		}
+	}
+	if len(btnRow) > 0 {
+		rows = append(rows, btnRow)
 	}
 	rows = append(rows, tgbotapi.NewInlineKeyboardRow(
-		tgbotapi.NewInlineKeyboardButtonData("⬅️ К админке", "admin_open"),
+		tgbotapi.NewInlineKeyboardButtonData("⬅️ Админка", "admin_open"),
 	))
-	msg := tgbotapi.NewMessage(chatID, clipAdminSupportText(text.String(), 3500))
-	msg.ReplyMarkup = &tgbotapi.InlineKeyboardMarkup{InlineKeyboard: rows}
-	b.api.Send(msg)
-}
-
-func adminUserSearchButtonLabel(hit database.AdminPackUserSearchHit) string {
-	parts := make([]string, 0, 3)
-	if name := strings.TrimSpace(hit.DisplayName); name != "" {
-		parts = append(parts, name)
-	}
-	if u := strings.TrimSpace(hit.Username); u != "" {
-		parts = append(parts, u)
-	}
-	label := strings.Join(parts, " · ")
-	if label == "" {
-		label = "user" + strconv.FormatInt(hit.UserID, 10)
-	}
-	label += " · " + strconv.FormatInt(hit.UserID, 10)
-	if hit.IsDeleted {
-		label += " (удалён)"
-	}
-	return clipAdminSupportText(label, 56)
+	subtitle := fmt.Sprintf("Найдено %d по «%s» · нажми №", len(hits), query)
+	kb := &tgbotapi.InlineKeyboardMarkup{InlineKeyboard: rows}
+	b.sendAdminHTMLPreTable(chatID, "🔍 Поиск пользователя", subtitle, tbl.render(), kb)
 }
 
 func (b *Bot) adminGrantStreakSaveAttempt(chatID, targetUserID int64) {
