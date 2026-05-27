@@ -25,15 +25,28 @@ export function useTelegramWebApp() {
     }
     w.ready();
     w.expand();
-    // Bot API 8.0+: полноэкранный режим без зазора сверху. На старых клиентах метод отсутствует — фоллбэк на expand().
+    // Bot API 8.0+: у части iOS-клиентов первый вызов может не сработать.
+    // Повторяем мягко, пока viewport не станет fullscreen.
     const isV8 = typeof w.isVersionAtLeast === "function" ? w.isVersionAtLeast("8.0") : false;
-    if (isV8) {
+    const requestFullscreenSafe = () => {
+      if (!isV8 || w.isFullscreen) return;
       try {
         w.requestFullscreen?.();
       } catch {
-        /* ignore — не все клиенты (TG Desktop) поддерживают fullscreen */
+        /* ignore — не все клиенты (TG Desktop/старые iOS) поддерживают fullscreen */
       }
-    }
+    };
+    requestFullscreenSafe();
+    const t1 = window.setTimeout(requestFullscreenSafe, 120);
+    const t2 = window.setTimeout(requestFullscreenSafe, 420);
+    const onViewportChanged = () => {
+      requestFullscreenSafe();
+      w.expand();
+    };
+    (w as { onEvent?: (eventType: string, eventHandler: () => void) => void }).onEvent?.(
+      "viewportChanged",
+      onViewportChanged,
+    );
     // Чтобы случайный свайп вниз не сворачивал аппу. Доступно с 7.7.
     try {
       w.disableVerticalSwipes?.();
@@ -50,6 +63,14 @@ export function useTelegramWebApp() {
       const p = (u as { photo_url?: string }).photo_url;
       if (p && typeof p === "string") setPhotoUrl(p);
     }
+    return () => {
+      window.clearTimeout(t1);
+      window.clearTimeout(t2);
+      (w as { offEvent?: (eventType: string, eventHandler: () => void) => void }).offEvent?.(
+        "viewportChanged",
+        onViewportChanged,
+      );
+    };
   }, []);
 
   return {
