@@ -7,10 +7,30 @@ import (
 	"time"
 
 	"leo-bot/internal/database"
+	"leo-bot/internal/domain"
+	"leo-bot/internal/game/leopardmoney"
 	"leo-bot/internal/utils"
 
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 )
+
+// syncAchievementsFromStreak выставляет achievement_count по порогам стрика (7, 14, 30, …).
+func (b *Bot) syncAchievementsFromStreak(ml *domain.MessageLog) (int, error) {
+	if b == nil || b.db == nil || ml == nil {
+		return 0, nil
+	}
+	want := leopardmoney.AchievementsCountForStreak(ml.StreakDays)
+	last := leopardmoney.LastAchievementMilestoneForStreak(ml.StreakDays)
+	if ml.AchievementCount == want && ml.LastAchievementStreakLevel == last {
+		return want, nil
+	}
+	ml.AchievementCount = want
+	ml.LastAchievementStreakLevel = last
+	if err := b.db.SaveMessageLog(ml); err != nil {
+		return 0, err
+	}
+	return want, nil
+}
 
 func (b *Bot) adminPackChatID() int64 {
 	if b != nil && b.config != nil && b.config.MonetizedChatID != 0 {
@@ -46,6 +66,11 @@ func (b *Bot) showAdminUserCard(chatID, targetUserID int64) {
 	if err != nil || ml == nil {
 		b.api.Send(tgbotapi.NewMessage(chatID, fmt.Sprintf("❌ Пользователь %d не найден в стае.", targetUserID)))
 		return
+	}
+	if _, syncErr := b.syncAchievementsFromStreak(ml); syncErr != nil {
+		b.logger.Warnf("admin sync achievements user=%d: %v", targetUserID, syncErr)
+	} else {
+		ml, _ = b.db.GetMessageLogAnyState(targetUserID, packChatID)
 	}
 
 	stats := b.GetMiniappProfileStatsForAPI(targetUserID, packChatID)
@@ -259,7 +284,8 @@ func (b *Bot) handleAdminUserMgmtMessage(msg *tgbotapi.Message, session *adminSe
 				b.api.Send(tgbotapi.NewMessage(msg.Chat.ID, "❌ Пользователь не найден."))
 				return true
 			}
-			newStreak := ml.StreakDays + amount
+			oldStreak := ml.StreakDays
+			newStreak := oldStreak + amount
 			lastDate := ""
 			if ml.LastTrainingDate != nil {
 				lastDate = strings.TrimSpace(*ml.LastTrainingDate)
@@ -271,7 +297,13 @@ func (b *Bot) handleAdminUserMgmtMessage(msg *tgbotapi.Message, session *adminSe
 				b.api.Send(tgbotapi.NewMessage(msg.Chat.ID, "❌ Ошибка: "+err.Error()))
 				return true
 			}
-			b.api.Send(tgbotapi.NewMessage(msg.Chat.ID, fmt.Sprintf("✅ Стрик пользователя %d: %d → %d дней.", targetID, ml.StreakDays, newStreak)))
+			ml.StreakDays = newStreak
+			achCount, achErr := b.syncAchievementsFromStreak(ml)
+			achNote := ""
+			if achErr == nil {
+				achNote = fmt.Sprintf(" Ачивки: %d/%d.", achCount, leopardmoney.MaxAchievements)
+			}
+			b.api.Send(tgbotapi.NewMessage(msg.Chat.ID, fmt.Sprintf("✅ Стрик пользователя %d: %d → %d дней.%s", targetID, oldStreak, newStreak, achNote)))
 		}
 		b.showAdminUserCard(msg.Chat.ID, targetID)
 		return true

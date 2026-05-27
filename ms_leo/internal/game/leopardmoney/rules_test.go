@@ -2,6 +2,21 @@ package leopardmoney
 
 import "testing"
 
+func TestAchievementsCountForStreak(t *testing.T) {
+	if AchievementsCountForStreak(0) != 0 {
+		t.Fatalf("0 streak")
+	}
+	if AchievementsCountForStreak(7) != 1 {
+		t.Fatalf("7 days = 1 ach")
+	}
+	if AchievementsCountForStreak(43) != 4 {
+		t.Fatalf("43 days = 4 ach (7,14,30,42)")
+	}
+	if AchievementsCountForStreak(365) != 8 {
+		t.Fatalf("365 days = all ach")
+	}
+}
+
 func TestStreakAchievementIndex(t *testing.T) {
 	cases := []struct {
 		streak int

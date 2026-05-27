@@ -23,6 +23,34 @@ func StreakAchievementIndex(streak int) int {
 	return -1
 }
 
+// AchievementsCountForStreak — сколько ачивок должно быть открыто при данном стрике (все пороги ≤ streak).
+func AchievementsCountForStreak(streak int) int {
+	if streak < 0 {
+		streak = 0
+	}
+	n := 0
+	for _, m := range StreakAchievementMilestones {
+		if streak >= m {
+			n++
+		}
+	}
+	if n > MaxAchievements {
+		n = MaxAchievements
+	}
+	return n
+}
+
+// LastAchievementMilestoneForStreak — последний порог стрика, достигнутый при данном стрике (0 если ни один).
+func LastAchievementMilestoneForStreak(streak int) int {
+	last := 0
+	for _, m := range StreakAchievementMilestones {
+		if streak >= m && m > last {
+			last = m
+		}
+	}
+	return last
+}
+
 // LevelName — имя уровня по его номеру (1-based). Возвращает пустую строку для неизвестного уровня.
 func LevelName(level int) string {
 	if level < 1 || level >= len(LevelNames) {
