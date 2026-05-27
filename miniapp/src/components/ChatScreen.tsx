@@ -524,7 +524,7 @@ export function ChatScreen({ name, initData, inTelegram, showAlert, onInboxDrain
             window.setTimeout(scrollLogToEndIfNear, 80);
             window.setTimeout(scrollLogToEndIfNear, 280);
           }}
-          placeholder="Сообщение…"
+          placeholder="Лео, подскажи…"
           maxLength={4000}
           autoComplete="off"
           enterKeyHint="send"
