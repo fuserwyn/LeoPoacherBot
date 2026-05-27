@@ -1225,6 +1225,7 @@ func (b *Bot) handleTrainingDone(msg *tgbotapi.Message) {
 			}
 			now := utils.GetMoscowTime()
 			question := doubleTrainingPrompts[now.Unix()%int64(len(doubleTrainingPrompts))]
+			question += " КРИТИЧЕСКИ ВАЖНО: пиши от первого лица (я/мне/мой), не используй формулировки от третьего лица про Fat Leopard. Не добавляй пояснений о своём стиле, характере, тоне или 'духе'. Не пиши никаких фраз в скобках и никаких мета-комментариев."
 			if b.hasVisualAttachment(msg) {
 				question += trainingPromptPhotoSuffix(true, chatType)
 			}
@@ -4133,7 +4134,8 @@ func (b *Bot) getUnifiedTrainingPrompt(streakDays, totalCalories, totalCups int,
 
 	// Выбираем случайный промпт
 	selectedPrompt := prompts[now.Unix()%int64(len(prompts))]
-	return selectedPrompt + trainingPromptPhotoSuffix(hasPhoto, chatType)
+	styleGuard := " КРИТИЧЕСКИ ВАЖНО: пиши от первого лица (я/мне/мой), не используй формулировки от третьего лица про Fat Leopard. Не добавляй пояснений о своём стиле, характере, тоне или 'духе'. Не пиши никаких фраз в скобках и никаких мета-комментариев."
+	return selectedPrompt + styleGuard + trainingPromptPhotoSuffix(hasPhoto, chatType)
 }
 
 // getVariedTrainingPrompt генерирует разнообразные промпты для AI в зависимости от контекста (оставлено для совместимости)
