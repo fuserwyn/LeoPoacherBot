@@ -271,7 +271,24 @@ func (b *Bot) GetMiniappProfileStatsForAPI(userID, packChatID int64) MiniappProf
 		avail = 0
 	}
 	out.StreakSaveAttemptsAvail = avail
+	b.reconcileAchievementsWithStreak(&out, userID, packChatID)
 	return out
+}
+
+// reconcileAchievementsWithStreak — в профиле ачивки должны соответствовать текущему стрику (пороги 7, 14, 30…).
+func (b *Bot) reconcileAchievementsWithStreak(out *MiniappProfileStats, userID, packChatID int64) {
+	if b == nil || b.db == nil || out == nil || userID == 0 || packChatID == 0 {
+		return
+	}
+	want := leopardmoney.AchievementsCountForStreak(out.StreakDays)
+	if want <= out.AchievementCount {
+		return
+	}
+	out.AchievementCount = want
+	last := leopardmoney.LastAchievementMilestoneForStreak(out.StreakDays)
+	if err := b.db.SetAchievementsForUserScope(userID, packChatID, want, last); err != nil {
+		b.logger.Warnf("reconcile achievements user=%d pack=%d streak=%d: %v", userID, packChatID, out.StreakDays, err)
+	}
 }
 
 // UseStreakSaveAttemptForAPI пытается использовать одну попытку спасения стрика.

@@ -7,26 +7,20 @@ import (
 	"time"
 
 	"leo-bot/internal/database"
-	"leo-bot/internal/domain"
 	"leo-bot/internal/game/leopardmoney"
 	"leo-bot/internal/utils"
 
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 )
 
-// syncAchievementsFromStreak выставляет achievement_count по порогам стрика (7, 14, 30, …).
-func (b *Bot) syncAchievementsFromStreak(ml *domain.MessageLog) (int, error) {
-	if b == nil || b.db == nil || ml == nil {
+// syncAchievementsFromStreak выставляет achievement_count по порогам стрика на pack-row и private-row.
+func (b *Bot) syncAchievementsFromStreak(userID, packChatID int64, streakDays int) (int, error) {
+	if b == nil || b.db == nil || userID == 0 || packChatID == 0 {
 		return 0, nil
 	}
-	want := leopardmoney.AchievementsCountForStreak(ml.StreakDays)
-	last := leopardmoney.LastAchievementMilestoneForStreak(ml.StreakDays)
-	if ml.AchievementCount == want && ml.LastAchievementStreakLevel == last {
-		return want, nil
-	}
-	ml.AchievementCount = want
-	ml.LastAchievementStreakLevel = last
-	if err := b.db.SaveMessageLog(ml); err != nil {
+	want := leopardmoney.AchievementsCountForStreak(streakDays)
+	last := leopardmoney.LastAchievementMilestoneForStreak(streakDays)
+	if err := b.db.SetAchievementsForUserScope(userID, packChatID, want, last); err != nil {
 		return 0, err
 	}
 	return want, nil
@@ -67,7 +61,7 @@ func (b *Bot) showAdminUserCard(chatID, targetUserID int64) {
 		b.api.Send(tgbotapi.NewMessage(chatID, fmt.Sprintf("❌ Пользователь %d не найден в стае.", targetUserID)))
 		return
 	}
-	if _, syncErr := b.syncAchievementsFromStreak(ml); syncErr != nil {
+	if _, syncErr := b.syncAchievementsFromStreak(targetUserID, packChatID, ml.StreakDays); syncErr != nil {
 		b.logger.Warnf("admin sync achievements user=%d: %v", targetUserID, syncErr)
 	} else {
 		ml, _ = b.db.GetMessageLogAnyState(targetUserID, packChatID)
@@ -98,7 +92,8 @@ func (b *Bot) showAdminUserCard(chatID, targetUserID int64) {
 			"Попытки спасти стрик: %d/%d (доступно %d)\n"+
 			"Больничный: %s\n"+
 			"Удалён из стаи: %s\n"+
-			"Доступ: %s",
+			"Доступ: %s\n"+
+			"Ачивки: %d/%d",
 		targetUserID,
 		adminSupportTitle(ml.Username, targetUserID),
 		stats.XP,
@@ -110,6 +105,8 @@ func (b *Bot) showAdminUserCard(chatID, targetUserID int64) {
 		sick,
 		deleted,
 		paywall,
+		stats.AchievementCount,
+		stats.AchievementsMax,
 	)
 	text += b.formatAdminUserPaymentsBlock(targetUserID, packChatID)
 
@@ -297,8 +294,7 @@ func (b *Bot) handleAdminUserMgmtMessage(msg *tgbotapi.Message, session *adminSe
 				b.api.Send(tgbotapi.NewMessage(msg.Chat.ID, "❌ Ошибка: "+err.Error()))
 				return true
 			}
-			ml.StreakDays = newStreak
-			achCount, achErr := b.syncAchievementsFromStreak(ml)
+			achCount, achErr := b.syncAchievementsFromStreak(targetID, packChatID, newStreak)
 			achNote := ""
 			if achErr == nil {
 				achNote = fmt.Sprintf(" Ачивки: %d/%d.", achCount, leopardmoney.MaxAchievements)

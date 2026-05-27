@@ -6,6 +6,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"leo-bot/internal/utils"
 )
 
 // AdminPackUserSearchHit — результат поиска пользователя в админке.
@@ -248,6 +250,34 @@ func (d *Database) ListPaywallPaymentsForUserAdmin(userID, packChatID int64, lim
 		out = append(out, r)
 	}
 	return out, rows.Err()
+}
+
+// SetAchievementsForUserScope выставляет ачивки на pack-row и private-row (chat_id = user_id).
+func (d *Database) SetAchievementsForUserScope(userID, packChatID int64, achievementCount, lastAchievementStreakLevel int) error {
+	if userID == 0 || packChatID == 0 {
+		return nil
+	}
+	if achievementCount < 0 {
+		achievementCount = 0
+	}
+	if achievementCount > 8 {
+		achievementCount = 8
+	}
+	if lastAchievementStreakLevel < 0 {
+		lastAchievementStreakLevel = 0
+	}
+	moscowTime := utils.FormatMoscowTime(utils.GetMoscowTime())
+	_, err := d.db.Exec(`
+		UPDATE training_state
+		SET achievement_count = $3,
+		    last_achievement_streak_level = $4,
+		    updated_at = $5
+		WHERE user_id = $1 AND (chat_id = $2 OR chat_id = $1)
+	`, userID, packChatID, achievementCount, lastAchievementStreakLevel, moscowTime)
+	if err != nil {
+		return fmt.Errorf("set achievements for user scope: %w", err)
+	}
+	return nil
 }
 
 // DecrementStreakSaveAttemptsUsed уменьшает счётчик использованных попыток (мин. 0) — даёт +1 доступную попытку.
