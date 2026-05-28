@@ -18,6 +18,29 @@ func NewGate(limiter *Limiter) *Gate {
 }
 
 func (g *Gate) Check(text string, surface Surface, userID int64, now time.Time) Result {
+	res := g.checkContent(text, surface)
+	if !res.Allowed {
+		return res
+	}
+	if g.limiter != nil && !g.limiter.Allow(surface, userID, now) {
+		max := MaxRunes(surface)
+		return blocked(
+			ReasonRateLimited,
+			warningFor(ReasonRateLimited, max),
+			apiCodeFor(ReasonRateLimited),
+			false,
+		)
+	}
+	return allowed()
+}
+
+// CheckContent — PRE без rate-limit (админ-публикации).
+func (g *Gate) CheckContent(text string, surface Surface, now time.Time) Result {
+	_ = now
+	return g.checkContent(text, surface)
+}
+
+func (g *Gate) checkContent(text string, surface Surface) Result {
 	text = strings.TrimSpace(text)
 	max := MaxRunes(surface)
 	if text == "" {
@@ -28,14 +51,6 @@ func (g *Gate) Check(text string, surface Surface, userID int64, now time.Time) 
 			ReasonTooLong,
 			warningFor(ReasonTooLong, max),
 			apiCodeFor(ReasonTooLong),
-			false,
-		)
-	}
-	if g.limiter != nil && !g.limiter.Allow(surface, userID, now) {
-		return blocked(
-			ReasonRateLimited,
-			warningFor(ReasonRateLimited, max),
-			apiCodeFor(ReasonRateLimited),
 			false,
 		)
 	}

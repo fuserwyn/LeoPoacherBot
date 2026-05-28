@@ -7,6 +7,10 @@ const (
 	SurfaceTrainingNote Surface = iota
 	SurfaceFeedComment
 	SurfacePackGroupChat
+	SurfaceAdminPost
+	SurfaceAdminPollQuestion
+	SurfaceAdminPollOption
+	SurfaceLeoChat
 )
 
 // Reason — причина блокировки PRE-слоя.
@@ -20,6 +24,7 @@ const (
 	ReasonTooLong     Reason = "too_long"
 	ReasonRateLimited Reason = "rate_limited"
 	ReasonMuted       Reason = "muted"
+	ReasonLeoDaily    Reason = "leo_daily_limited"
 )
 
 // Result — итог синхронной PRE-проверки.
@@ -43,4 +48,14 @@ func blocked(reason Reason, msg, apiCode string, alertAdmin bool) Result {
 
 func allowed() Result {
 	return Result{Allowed: true, Reason: ReasonOK}
+}
+
+// Allowed — публичный helper для внешних пакетов.
+func Allowed() Result {
+	return allowed()
+}
+
+// APICodeFor — публичный helper для кодов API.
+func APICodeFor(reason Reason) string {
+	return apiCodeFor(reason)
 }

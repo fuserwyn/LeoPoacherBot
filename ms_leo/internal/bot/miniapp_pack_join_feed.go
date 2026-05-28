@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"leo-bot/internal/domain"
+	"leo-bot/internal/moderation"
 
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 )
@@ -143,6 +144,9 @@ func (b *Bot) saveAdminCustomPackFeed(adminUserID int64, text string) error {
 	t := strings.TrimSpace(text)
 	if t == "" {
 		return fmt.Errorf("empty text")
+	}
+	if err := b.enforceAdminBroadcast(t, moderation.SurfaceAdminPost); err != nil {
+		return err
 	}
 	um := &domain.UserMessage{
 		UserID:      0,

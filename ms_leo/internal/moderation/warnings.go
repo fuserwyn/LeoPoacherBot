@@ -9,6 +9,7 @@ var UserWarnings = map[Reason]string{
 	ReasonCriticalRU:  "Не опубликовал — такой текст нельзя публиковать.",
 	ReasonRateLimited: "Подожди немного перед следующим сообщением.",
 	ReasonMuted:       "Публикация в Стае временно ограничена. Если это ошибка — напиши в поддержку.",
+	ReasonLeoDaily:    "Достигнут лимит — 20 сообщений Лео в день. Завтра можно продолжить.",
 }
 
 func warningFor(reason Reason, maxRunes int) string {
@@ -33,6 +34,8 @@ func apiCodeFor(reason Reason) string {
 		return "moderation_too_long"
 	case ReasonRateLimited:
 		return "moderation_rate_limited"
+	case ReasonLeoDaily:
+		return "leo_daily_limited"
 	case ReasonMuted:
 		return "user_muted"
 	default:

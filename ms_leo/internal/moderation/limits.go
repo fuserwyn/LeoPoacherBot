@@ -3,9 +3,14 @@ package moderation
 import "unicode/utf8"
 
 const (
-	MaxTrainingNoteRunes = 1500
-	MaxFeedCommentRunes  = 500
-	MaxPackGroupRunes    = 4000
+	MaxTrainingNoteRunes      = 1500
+	MaxFeedCommentRunes       = 500
+	MaxPackGroupRunes         = 4000
+	MaxAdminPostRunes         = 4000
+	MaxAdminPollQuestionRunes = 300
+	MaxAdminPollOptionRunes   = 100
+	MaxLeoChatRunes           = 4000
+	MaxLeoChatMessagesPerDay  = 20
 )
 
 func MaxRunes(surface Surface) int {
@@ -16,6 +21,14 @@ func MaxRunes(surface Surface) int {
 		return MaxFeedCommentRunes
 	case SurfacePackGroupChat:
 		return MaxPackGroupRunes
+	case SurfaceAdminPost:
+		return MaxAdminPostRunes
+	case SurfaceAdminPollQuestion:
+		return MaxAdminPollQuestionRunes
+	case SurfaceAdminPollOption:
+		return MaxAdminPollOptionRunes
+	case SurfaceLeoChat:
+		return MaxLeoChatRunes
 	default:
 		return MaxPackGroupRunes
 	}

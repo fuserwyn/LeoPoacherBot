@@ -511,11 +511,15 @@ export function ProfileScreen({
               ) : variant === "cups" ? (
                 <svg className="profile__achievement-paw profile__achievement-paw--cups" viewBox="0 0 64 64">
                   <circle className="profile__achievement-bg" cx="32" cy="32" r="28" />
-                  <AchievementMiniCup x={15.5} y={27} rotate={-18} scale={0.76} />
-                  <AchievementMiniCup x={27.5} y={20.5} rotate={-8} scale={0.82} />
-                  <AchievementMiniCup x={40.5} y={20.5} rotate={8} scale={0.82} />
-                  <AchievementMiniCup x={52.5} y={27} rotate={18} scale={0.76} />
-                  <AchievementMiniCup x={32} y={46} rotate={0} scale={1.08} featured />
+                  <path
+                    className="profile__achievement-crown"
+                    d="M14 18 L18 8 L24 14 L32 5 L40 14 L46 8 L50 18 L50 22 L14 22 Z"
+                  />
+                  <rect className="profile__achievement-crown-band" x="14" y="20" width="36" height="4" rx="1.2" />
+                  <circle className="profile__achievement-crown-gem" cx="18" cy="13" r="1.6" />
+                  <circle className="profile__achievement-crown-gem profile__achievement-crown-gem--main" cx="32" cy="9" r="2.2" />
+                  <circle className="profile__achievement-crown-gem" cx="46" cy="13" r="1.6" />
+                  <AchievementMiniCup x={32} y={46} rotate={0} scale={1.12} featured />
                 </svg>
               ) : (
                 <svg className="profile__achievement-paw" viewBox="0 0 64 64">

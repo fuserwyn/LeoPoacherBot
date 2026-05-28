@@ -71,6 +71,61 @@ func (b *Bot) enforceUGC(text string, surface moderation.Surface, userID int64) 
 	return res, &ModerationBlockedError{APICode: res.APICode, Message: res.UserMessage}
 }
 
+// enforceAdminBroadcast — PRE для админ-постов/опросов (без rate-limit и mute).
+func (b *Bot) enforceAdminBroadcast(text string, surface moderation.Surface) error {
+	res := b.ugcGate().CheckContent(text, surface, time.Now())
+	if res.Allowed {
+		return nil
+	}
+	if res.AlertAdmin && b.config != nil {
+		b.notifyAdminsModerationAlert(0, surface, text, res)
+	}
+	return fmt.Errorf("%s", res.UserMessage)
+}
+
+func (b *Bot) userTimezoneOffset(userID int64) int {
+	if b == nil || b.db == nil || b.config == nil || b.config.MonetizedChatID == 0 {
+		return 0
+	}
+	log, err := b.db.GetMessageLog(userID, b.config.MonetizedChatID)
+	if err != nil || log == nil {
+		return 0
+	}
+	return log.TimezoneOffsetFromMoscow
+}
+
+// enforceLeoChat — PRE + дневной лимит 20 сообщений в личку с Лео.
+func (b *Bot) enforceLeoChat(text string, userID int64) (moderation.Result, error) {
+	if b == nil || userID == 0 {
+		return moderation.Allowed(), nil
+	}
+	res := b.ugcGate().Check(text, moderation.SurfaceLeoChat, userID, time.Now())
+	if !res.Allowed {
+		b.deliverModerationWarning(userID, moderation.SurfaceLeoChat, text, res)
+		if res.AlertAdmin {
+			b.notifyAdminsModerationAlert(userID, moderation.SurfaceLeoChat, text, res)
+		}
+		return res, &ModerationBlockedError{APICode: res.APICode, Message: res.UserMessage}
+	}
+	if b.db != nil && b.config != nil && b.config.MonetizedChatID != 0 {
+		localDate := b.getUserLocalDate(b.userTimezoneOffset(userID))
+		count, err := b.db.CountMiniappPersonalChatUserMessagesOnDate(userID, b.config.MonetizedChatID, localDate, b.userTimezoneOffset(userID))
+		if err != nil {
+			b.logger.Warnf("leo daily limit count user=%d: %v", userID, err)
+		} else if count >= moderation.MaxLeoChatMessagesPerDay {
+			res = moderation.Result{
+				Allowed:     false,
+				Reason:      moderation.ReasonLeoDaily,
+				UserMessage: moderation.UserWarnings[moderation.ReasonLeoDaily],
+				APICode:     moderation.APICodeFor(moderation.ReasonLeoDaily),
+			}
+			b.deliverModerationWarning(userID, moderation.SurfaceLeoChat, text, res)
+			return res, &ModerationBlockedError{APICode: res.APICode, Message: res.UserMessage}
+		}
+	}
+	return moderation.Allowed(), nil
+}
+
 const ugcAutoMuteViolationThreshold = 3
 const ugcMuteDuration = 24 * time.Hour
 
@@ -142,6 +197,10 @@ func (b *Bot) notifyAdminsModerationAlert(userID int64, surface moderation.Surfa
 		surfaceLabel = "комментарий в ленте"
 	case moderation.SurfacePackGroupChat:
 		surfaceLabel = "общий чат стаи"
+	case moderation.SurfaceAdminPost, moderation.SurfaceAdminPollQuestion, moderation.SurfaceAdminPollOption:
+		surfaceLabel = "админ-публикация"
+	case moderation.SurfaceLeoChat:
+		surfaceLabel = "личный чат с Лео"
 	}
 	preview := truncateForDM(rawText, 200)
 	body := fmt.Sprintf(
@@ -162,7 +221,7 @@ func (b *Bot) notifyAdminsModerationAlert(userID int64, surface moderation.Surfa
 // ModerationHTTPStatus — HTTP-код для miniapp API при PRE-блоке.
 func ModerationHTTPStatus(code string) int {
 	switch code {
-	case "moderation_rate_limited":
+	case "moderation_rate_limited", "leo_daily_limited":
 		return 429
 	case "user_muted":
 		return 403

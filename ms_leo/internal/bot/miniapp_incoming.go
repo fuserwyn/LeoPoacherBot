@@ -104,6 +104,19 @@ func (b *Bot) processMiniAppPrivateCore(d initdata.InitData, text string, traini
 			}
 			return out
 		}
+	} else {
+		if _, err := b.enforceLeoChat(text, d.User.ID); err != nil {
+			var mod *ModerationBlockedError
+			out.Blocked = true
+			if errors.As(err, &mod) && mod != nil {
+				out.ReplyText = mod.Message
+				out.BlockCode = mod.APICode
+			} else {
+				out.ReplyText = moderation.UserWarnings[moderation.ReasonProfanity]
+				out.BlockCode = "moderation_blocked"
+			}
+			return out
+		}
 	}
 
 	_ = PrivateTextMessageFromInitUser(d, text)

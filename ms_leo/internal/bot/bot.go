@@ -2,6 +2,7 @@ package bot
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strconv"
 	"strings"
@@ -687,8 +688,33 @@ func (b *Bot) handleMessage(msg *tgbotapi.Message, personalReplyCh chan<- string
 	}
 
 	// Если обращение к боту обнаружено и есть текст вопроса
-	// НО сначала сохраняем сообщение в БД для контекста
 	if shouldHandleAI && text != "" {
+		isPrivateLeo := msg.Chat != nil && msg.From != nil &&
+			(msg.Chat.IsPrivate() || msg.Chat.ID == msg.From.ID)
+		if isPrivateLeo {
+			if _, err := b.enforceLeoChat(text, msg.From.ID); err != nil {
+				var mod *ModerationBlockedError
+				reply := "⚠️ Сообщение не отправлено."
+				if errors.As(err, &mod) && mod != nil && strings.TrimSpace(mod.Message) != "" {
+					reply = "⚠️ " + mod.Message
+				}
+				miniReply := func(s string) {
+					if personalReplyCh == nil || s == "" {
+						return
+					}
+					select {
+					case personalReplyCh <- s:
+					default:
+					}
+				}
+				miniReply(reply)
+				if personalReplyCh == nil && b.api != nil {
+					b.api.Send(tgbotapi.NewMessage(msg.Chat.ID, reply))
+				}
+				return
+			}
+		}
+
 		// Сохраняем вопрос в БД перед обработкой
 		username := ""
 		if msg.From.UserName != "" {

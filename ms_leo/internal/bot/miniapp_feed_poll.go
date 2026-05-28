@@ -8,6 +8,7 @@ import (
 
 	"leo-bot/internal/database"
 	"leo-bot/internal/domain"
+	"leo-bot/internal/moderation"
 
 	initdata "github.com/telegram-mini-apps/init-data-golang"
 )
@@ -63,6 +64,14 @@ func parseAdminFeedPollPayload(raw string) (*adminFeedPollPayload, error) {
 func (b *Bot) saveAdminPollPackFeed(adminUserID int64, question string, options []string) error {
 	if b == nil || b.db == nil || b.config == nil || b.config.MonetizedChatID == 0 {
 		return fmt.Errorf("pack feed unavailable")
+	}
+	if err := b.enforceAdminBroadcast(strings.TrimSpace(question), moderation.SurfaceAdminPollQuestion); err != nil {
+		return err
+	}
+	for _, opt := range options {
+		if err := b.enforceAdminBroadcast(strings.TrimSpace(opt), moderation.SurfaceAdminPollOption); err != nil {
+			return err
+		}
 	}
 	payload, err := marshalAdminFeedPollPayload(question, options)
 	if err != nil {

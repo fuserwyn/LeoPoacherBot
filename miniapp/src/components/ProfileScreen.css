@@ -516,7 +516,33 @@
   --achievement-bean: #f0b429;
   --achievement-claw: #d4a017;
   --achievement-cup-shine: #fff6bf;
+  --achievement-crown: #ffd84d;
+  --achievement-crown-band: #e8b923;
+  --achievement-crown-gem: #fff8dc;
   --achievement-day-color: #6b4f05;
+}
+
+.profile__achievement-crown {
+  fill: var(--achievement-crown, #ffd84d);
+  stroke: var(--achievement-outline);
+  stroke-width: 1.4;
+  stroke-linejoin: round;
+}
+
+.profile__achievement-crown-band {
+  fill: var(--achievement-crown-band, #e8b923);
+  stroke: var(--achievement-outline);
+  stroke-width: 1.1;
+}
+
+.profile__achievement-crown-gem {
+  fill: var(--achievement-crown-gem, #fff8dc);
+  stroke: var(--achievement-outline);
+  stroke-width: 0.8;
+}
+
+.profile__achievement-crown-gem--main {
+  fill: #fff;
 }
 
 .profile__achievement-cup-bowl {
