@@ -175,15 +175,15 @@
 .chat__log {
   flex: 1;
   min-height: 0;
-  /* --chat-composer-h: ResizeObserver на .chat__form; min 96px — время/лайк не под полем */
-  padding: 16px 16px max(96px, calc(28px + var(--chat-composer-h, 72px)));
+  /* Композер in-flow под лентой — без резерва под fixed-форму. */
+  padding: 16px 16px 8px;
   display: flex;
   flex-direction: column;
   gap: 12px;
   overflow-y: auto;
   -webkit-overflow-scrolling: touch;
   overscroll-behavior: contain;
-  /* iOS: при закрытии клавиатуры не «якорить» низ ленты под fixed-форму. */
+  /* iOS: при закрытии клавиатуры не «якорить» низ ленты под композером. */
   overflow-anchor: none;
 }
 
@@ -191,7 +191,7 @@
   flex-shrink: 0;
   width: 100%;
   height: 1px;
-  scroll-margin-bottom: max(96px, calc(28px + var(--chat-composer-h, 72px)));
+  scroll-margin-bottom: 8px;
 }
 
 /* Клавиатура: низ чата поднимается над клавиатурой (как и поле ввода). */
@@ -298,14 +298,9 @@ html.app-keyboard-open .chat {
   border-bottom-left-radius: 4px;
 }
 
+/* In-flow внизу .chat — не fixed: над таббаром, последнее сообщение рядом. */
 .chat__form {
-  position: fixed;
-  left: 0;
-  right: 0;
-  bottom: var(--bottom-nav-stack, var(--bottom-nav-h, 72px));
-  z-index: 90;
-  max-width: 480px;
-  margin: 0 auto;
+  flex-shrink: 0;
   display: flex;
   gap: 8px;
   padding: 6px 12px 4px;
@@ -314,11 +309,7 @@ html.app-keyboard-open .chat {
 }
 
 html.app-keyboard-open .chat__form {
-  /* Клавиатура открыта — над ней; инсет ещё 0 (фокус есть, но клавиатура не
-     поднята) — над скруглениями экрана, чтобы поле не уезжало под низ. */
-  bottom: max(var(--safe-bottom, 0px), var(--app-keyboard-bottom, 0px));
   padding: 6px 12px 3px;
-  background: var(--bg, #0d0d12);
 }
 
 @media (min-width: 600px) {

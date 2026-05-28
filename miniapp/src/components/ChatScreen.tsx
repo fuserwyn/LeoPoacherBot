@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { clearLeoPersonalInbox } from "../lib/leoPersonalInbox";
 import { formatChatTime } from "../lib/timeAgo";
 import { LEO_AVATAR_URL } from "../lib/leoAvatar";
@@ -135,22 +135,6 @@ export function ChatScreen({ name, initData, inTelegram, showAlert, onInboxOpene
       document.body.classList.remove("body--lock");
     };
   }, [active]);
-
-  useLayoutEffect(() => {
-    const form = formRef.current;
-    const host = chatRef.current;
-    if (!form || !host) return;
-    const write = () => {
-      host.style.setProperty("--chat-composer-h", `${Math.ceil(form.getBoundingClientRect().height)}px`);
-    };
-    write();
-    const ro = new ResizeObserver(write);
-    ro.observe(form);
-    return () => {
-      ro.disconnect();
-      host.style.removeProperty("--chat-composer-h");
-    };
-  }, []);
 
   const isNearLogBottom = useCallback(() => {
     const el = logRef.current;

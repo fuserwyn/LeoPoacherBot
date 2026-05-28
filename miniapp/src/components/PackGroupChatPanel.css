@@ -4,7 +4,7 @@
      уезжал под поле ввода и просвечивал в зазоре. Те же опоры, что у композера и
      таббара → одинаково на iOS и Android. */
   position: fixed;
-  top: calc(var(--safe-top, 0px) + var(--feed-header-h, 220px));
+  top: calc(var(--safe-top, 0px) + var(--feed-header-h, 220px) + 6px);
   bottom: var(--bottom-nav-stack, var(--bottom-nav-h, var(--feed-bottom-nav-h, 72px)));
   left: 0;
   right: 0;
@@ -14,7 +14,7 @@
   padding: 0 8px;
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 0;
   overflow: hidden;
   box-sizing: border-box;
 }
@@ -29,6 +29,7 @@
 .packroom__search {
   position: relative;
   flex-shrink: 0;
+  margin-bottom: 8px;
 }
 
 .packroom__search-bar {
@@ -183,10 +184,8 @@
   flex-direction: column;
   justify-content: flex-end;
   gap: 8px;
-  /* --pack-composer-h: ResizeObserver на .packroom__form. Запас больше, чем у чата
-     с Лео: под пузырём ещё строка «Ответить · ⋯ · Изменить · Удалить», которую на
-     Android иначе перекрывает поле ввода. */
-  padding-bottom: max(128px, calc(56px + var(--pack-composer-h, 72px)));
+  /* Композер in-flow под лентой — достаточно небольшого зазора. */
+  padding-bottom: 8px;
   box-sizing: border-box;
   overflow-anchor: none;
 }
@@ -197,7 +196,7 @@
   width: 100%;
   overflow: hidden;
   pointer-events: none;
-  scroll-margin-bottom: max(128px, calc(56px + var(--pack-composer-h, 72px)));
+  scroll-margin-bottom: 8px;
 }
 
 /* Клавиатура: низ чата стаи поднимается над клавиатурой (как и поле ввода). */
@@ -667,24 +666,13 @@ html.app-keyboard-open .packroom {
   overflow-wrap: anywhere;
 }
 
-/* Над таббаром; при клавиатуре — над ней (как в чате с Лео). */
+/* In-flow внизу .packroom — не fixed: всегда над таббаром, последнее сообщение рядом. */
 .packroom__form {
-  position: fixed;
-  left: 0;
-  right: 0;
-  /* Safe-area-флор: поле ввода не уезжает под скругления экрана, даже если
-     таббар скрыт, а инсет клавиатуры ещё не посчитан (=0). */
-  bottom: max(
-    var(--safe-bottom, 0px),
-    var(--bottom-nav-stack, var(--bottom-nav-h, var(--feed-bottom-nav-h, 72px)))
-  );
-  z-index: 90;
-  max-width: 520px;
-  margin: 0 auto;
+  flex-shrink: 0;
   display: flex;
   flex-direction: column;
   gap: 6px;
-  padding: 6px 8px 4px;
+  padding: 6px 0 4px;
   background: var(--bg, #0d0d12);
   box-sizing: border-box;
 }
@@ -696,12 +684,8 @@ html.app-keyboard-open .packroom {
 }
 
 html.app-keyboard-open .packroom__form {
-  /* Если клавиатура реально открыта — над ней; если инсет ещё 0
-     (фокус есть, но клавиатура не поднята) — над скруглениями экрана. */
-  bottom: max(var(--safe-bottom, 0px), var(--app-keyboard-bottom, 0px));
   /* 3px снизу — чтобы синий контур фокуса инпута не обрезался клавиатурой */
-  padding: 6px 8px 3px;
-  background: var(--bg, #0d0d12);
+  padding: 6px 0 3px;
 }
 
 .packroom__input {

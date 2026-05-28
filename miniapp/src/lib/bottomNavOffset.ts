@@ -1,9 +1,12 @@
-/** Смещение fixed-элементов (поле ввода) от низа layout viewport до верха таббара. */
+/** Смещение fixed-контейнеров (чат) от низа видимой области до верха таббара. */
 export function measureBottomNavOffset(navEl: HTMLElement): number {
-  // Таббар приклеен к bottom:0, поэтому композеру нужно подняться ровно на его
-  // отрисованную высоту. rect.height одинаково корректен на iOS и Android и не
-  // зависит от innerHeight, который Android TG WebView часто завышает (из-за чего
-  // прежняя формула innerHeight − nav.top уводила поле ввода под таббар).
   const rect = navEl.getBoundingClientRect();
-  return Math.max(0, Math.ceil(rect.height));
+  const vv = window.visualViewport;
+  // rect.height иногда занижен на Android; innerHeight завышен — считаем по
+  // visualViewport: расстояние от верха nav до низа видимой WebView-области.
+  if (vv) {
+    const visualBottom = vv.height + (vv.offsetTop ?? 0);
+    return Math.max(Math.ceil(rect.height), Math.ceil(visualBottom - rect.top));
+  }
+  return Math.max(Math.ceil(rect.height), Math.ceil(window.innerHeight - rect.top));
 }

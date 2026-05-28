@@ -441,22 +441,6 @@ export function PackGroupChatPanel({
     }
   }, [isNearBottom, scrollToBottom]);
 
-  useLayoutEffect(() => {
-    const form = formRef.current;
-    const host = roomRef.current;
-    if (!form || !host) return;
-    const write = () => {
-      host.style.setProperty("--pack-composer-h", `${Math.ceil(form.getBoundingClientRect().height)}px`);
-    };
-    write();
-    const ro = new ResizeObserver(write);
-    ro.observe(form);
-    return () => {
-      ro.disconnect();
-      host.style.removeProperty("--pack-composer-h");
-    };
-  }, []);
-
   /** Пока клавиатура анимируется — держим низ ленты у поля ввода. */
   useEffect(() => {
     if (!active) return;
