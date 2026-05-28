@@ -128,6 +128,7 @@ export function FeedScreen({
   const [feedCategoryIds, setFeedCategoryIds] = useState<WorkoutCategoryId[]>([]);
   const [viewportStyle, setViewportStyle] = useState<FeedViewportStyle>({});
   const feedHeaderRef = useRef<HTMLDivElement>(null);
+  const feedListRef = useRef<HTMLDivElement>(null);
   const maxFeedIdRef = useRef(0);
   const pollTickRef = useRef(0);
   const loadedOnceRef = useRef(false);
@@ -211,6 +212,55 @@ export function FeedScreen({
     },
     [initData, onRefreshTabBadges, refreshUnreadFeedCards],
   );
+
+  // Карточки с непрочитанными комментариями к твоим тренировкам помечаем
+  // прочитанными, как только они появились в зоне видимости на подвкладке «Лента»
+  // (пользователь пролистал ленту — бейдж пропадает сам, без раскрытия треда).
+  useEffect(() => {
+    if (!active || sub !== "activity" || unreadFeedCardIds.size === 0) return;
+    const root = feedListRef.current;
+    if (!root || typeof IntersectionObserver === "undefined") return;
+
+    const dwellMs = 500;
+    const timers = new Map<number, ReturnType<typeof setTimeout>>();
+    const cleared = new Set<number>();
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        for (const entry of entries) {
+          const id = Number((entry.target as HTMLElement).dataset.feedCardId || 0);
+          if (id <= 0 || cleared.has(id) || !unreadFeedCardIds.has(id)) continue;
+          if (entry.isIntersecting) {
+            if (timers.has(id)) continue;
+            const t = setTimeout(() => {
+              timers.delete(id);
+              cleared.add(id);
+              observer.unobserve(entry.target);
+              markFeedCardThreadRead(id);
+            }, dwellMs);
+            timers.set(id, t);
+          } else {
+            const t = timers.get(id);
+            if (t != null) {
+              clearTimeout(t);
+              timers.delete(id);
+            }
+          }
+        }
+      },
+      { threshold: 0 },
+    );
+
+    root.querySelectorAll<HTMLElement>("[data-feed-card-id]").forEach((node) => {
+      const id = Number(node.dataset.feedCardId || 0);
+      if (id > 0 && unreadFeedCardIds.has(id)) observer.observe(node);
+    });
+
+    return () => {
+      timers.forEach((t) => clearTimeout(t));
+      observer.disconnect();
+    };
+  }, [active, sub, unreadFeedCardIds, markFeedCardThreadRead]);
 
   const feedSubtabBadge = (count: number) => (count > 9 ? "9+" : count > 0 ? String(count) : null);
 
@@ -838,7 +888,7 @@ export function FeedScreen({
           </div>
           {err && <p className="feed__err">{err}</p>}
           {loading && <p className="feed__load muted">Загрузка…</p>}
-          <div className="feed__list">
+          <div className="feed__list" ref={feedListRef}>
             {!loading && !useMockFeed && feedItems.length === 0 && !err && (
               <p className="feed__empty muted">Пока нет отчётов в базе (или нет MONETIZED_CHAT_ID).</p>
             )}
@@ -911,7 +961,7 @@ export function FeedScreen({
                 const canReportCard = !it.is_you && !isLeoSystemFeed;
                 if (!supportsThread) {
                   return (
-                    <div key={it.id} className={slotClass}>
+                    <div key={it.id} className={slotClass} data-feed-card-id={it.id}>
                       <ActivityCard
                         {...base}
                         reactions={supportsReactions ? mergeFeedReactionsForType(it.type, it.reactions) : undefined}
@@ -938,7 +988,7 @@ export function FeedScreen({
                   );
                 }
                 return (
-                  <div key={it.id} className={slotClass}>
+                  <div key={it.id} className={slotClass} data-feed-card-id={it.id}>
                     <ActivityCard
                       {...base}
                       poll={
