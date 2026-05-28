@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"net/url"
 	"strings"
 	"time"
 
@@ -13,6 +14,34 @@ import (
 
 	"github.com/lib/pq"
 )
+
+// dbSessionTimeZone — все таблицы хранят время через DEFAULT (NOW() AT TIME ZONE 'Europe/Moscow'),
+// что даёт «наивный» московский wall-clock. Чтобы при вставке в timestamptz он трактовался как
+// московское время (а не как UTC сервера), фиксируем таймзону сессии. Иначе мгновение уезжает на
+// +3 часа, и в мини-аппе сообщения показываются «из будущего».
+const dbSessionTimeZone = "Europe/Moscow"
+
+// ensureSessionTimeZone добавляет в строку подключения параметр timezone, если он ещё не задан.
+// Поддерживает и URL-форму (postgresql://...), и keyword-форму (host=... dbname=...).
+func ensureSessionTimeZone(databaseURL string) string {
+	if strings.TrimSpace(databaseURL) == "" {
+		return databaseURL
+	}
+	if strings.Contains(databaseURL, "://") {
+		if u, err := url.Parse(databaseURL); err == nil {
+			q := u.Query()
+			if q.Get("timezone") == "" && q.Get("TimeZone") == "" {
+				q.Set("timezone", dbSessionTimeZone)
+				u.RawQuery = q.Encode()
+			}
+			return u.String()
+		}
+	}
+	if strings.Contains(strings.ToLower(databaseURL), "timezone=") {
+		return databaseURL
+	}
+	return databaseURL + " timezone=" + dbSessionTimeZone
+}
 
 func init() {
 	// paywall_access_requests.access_expires_at = 'infinity'::timestamptz — без этого pq отдаёт []byte("infinity"),
@@ -34,6 +63,10 @@ func New(databaseURL string) (*Database, error) {
 	if databaseURL == "" {
 		databaseURL = "postgresql://postgres:password@localhost:5432/leo_bot_db?sslmode=disable"
 	}
+
+	// Фиксируем таймзону сессии = Europe/Moscow (см. dbSessionTimeZone), чтобы DEFAULT-ы
+	// (NOW() AT TIME ZONE 'Europe/Moscow') сохраняли корректное мгновение, а не +3 часа.
+	databaseURL = ensureSessionTimeZone(databaseURL)
 
 	db, err := sql.Open("postgres", databaseURL)
 	if err != nil {

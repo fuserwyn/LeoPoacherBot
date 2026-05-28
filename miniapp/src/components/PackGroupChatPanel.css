@@ -136,7 +136,8 @@ html.app-keyboard-open .packroom {
 .packroom__more {
   position: relative;
   flex-shrink: 0;
-  margin-left: auto;
+  display: inline-flex;
+  align-items: center;
 }
 
 .packroom__more-toggle {
@@ -220,14 +221,22 @@ html.app-keyboard-open .packroom {
 }
 
 .packroom__react-chips {
-  display: flex;
-  flex-wrap: wrap;
+  display: inline-flex;
+  flex-wrap: nowrap;
+  align-items: center;
   gap: 6px;
-  margin-top: 4px;
 }
 
 .packroom__row--me .packroom__react-chips {
   justify-content: flex-end;
+}
+
+.packroom__bubble-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 10px;
+  margin-top: 4px;
 }
 
 .packroom__bubble-wrap {
@@ -328,14 +337,6 @@ html.app-keyboard-open .packroom {
 .packroom__edited {
   color: var(--muted, #6b6b7a);
   font-style: italic;
-}
-
-.packroom__bubble-actions {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 10px;
-  margin-top: 4px;
 }
 
 .packroom__reply {

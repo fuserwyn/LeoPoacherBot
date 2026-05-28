@@ -837,6 +837,14 @@ export function PackGroupChatPanel({
                       <button type="button" className="packroom__reply" onClick={() => startReply(m)}>
                         Ответить
                       </button>
+                      <PackGroupMessageMenu
+                        reactions={reactions}
+                        onReaction={(emoji) => postReaction(m.id, emoji)}
+                        canReport={canReport}
+                        onReport={() => void reportMessage(m.id)}
+                        reporting={Boolean(reportPosting[m.id])}
+                        scrollRootRef={logRef}
+                      />
                       {mine && (
                         <button type="button" className="packroom__edit" onClick={() => startEdit(m)}>
                           Изменить
@@ -854,32 +862,28 @@ export function PackGroupChatPanel({
                           Удалить
                         </button>
                       )}
-                      <PackGroupMessageMenu
-                        reactions={reactions}
-                        onReaction={(emoji) => postReaction(m.id, emoji)}
-                        canReport={canReport}
-                        onReport={() => void reportMessage(m.id)}
-                        reporting={Boolean(reportPosting[m.id])}
-                        scrollRootRef={logRef}
-                      />
+                      {activeReactions.length > 0 && (
+                        <div className="packroom__react-chips" role="group" aria-label="Реакции на сообщение">
+                          {activeReactions.map((r) => (
+                            <button
+                              key={r.emoji}
+                              type="button"
+                              className={`act-card__react-btn${r.me ? " act-card__react-btn--mine" : ""}`}
+                              onClick={() => postReaction(m.id, r.emoji)}
+                              title={
+                                Array.isArray(r.voters) && r.voters.length > 0
+                                  ? `Лайкнули: ${r.voters.join(", ")}`
+                                  : undefined
+                              }
+                            >
+                              {r.emoji}
+                              {r.count > 0 && <span className="act-card__react-cnt">{r.count}</span>}
+                            </button>
+                          ))}
+                        </div>
+                      )}
                     </div>
                   </div>
-                  {activeReactions.length > 0 && (
-                    <div className="packroom__react-chips" role="group" aria-label="Реакции на сообщение">
-                      {activeReactions.map((r) => (
-                        <button
-                          key={r.emoji}
-                          type="button"
-                          className={`act-card__react-btn${r.me ? " act-card__react-btn--mine" : ""}`}
-                          onClick={() => postReaction(m.id, r.emoji)}
-                          title={Array.isArray(r.voters) && r.voters.length > 0 ? `Лайкнули: ${r.voters.join(", ")}` : undefined}
-                        >
-                          {r.emoji}
-                          {r.count > 0 && <span className="act-card__react-cnt">{r.count}</span>}
-                        </button>
-                      ))}
-                    </div>
-                  )}
                 </div>
               </div>
             </div>
