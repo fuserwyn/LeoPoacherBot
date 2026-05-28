@@ -466,7 +466,12 @@ html.app-keyboard-open .packroom {
   position: fixed;
   left: 0;
   right: 0;
-  bottom: var(--bottom-nav-stack, var(--bottom-nav-h, var(--feed-bottom-nav-h, 72px)));
+  /* Safe-area-флор: поле ввода не уезжает под скругления экрана, даже если
+     таббар скрыт, а инсет клавиатуры ещё не посчитан (=0). */
+  bottom: max(
+    var(--safe-bottom, 0px),
+    var(--bottom-nav-stack, var(--bottom-nav-h, var(--feed-bottom-nav-h, 72px)))
+  );
   z-index: 90;
   max-width: 520px;
   margin: 0 auto;
@@ -485,7 +490,9 @@ html.app-keyboard-open .packroom {
 }
 
 html.app-keyboard-open .packroom__form {
-  bottom: var(--app-keyboard-bottom, 0px);
+  /* Если клавиатура реально открыта — над ней; если инсет ещё 0
+     (фокус есть, но клавиатура не поднята) — над скруглениями экрана. */
+  bottom: max(var(--safe-bottom, 0px), var(--app-keyboard-bottom, 0px));
   /* 3px снизу — чтобы синий контур фокуса инпута не обрезался клавиатурой */
   padding: 6px 8px 3px;
   background: var(--bg, #0d0d12);
