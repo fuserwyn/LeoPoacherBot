@@ -133,17 +133,36 @@ html.app-keyboard-open .packroom {
 }
 
 .packroom__bubble {
-  display: block;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
   width: fit-content;
   max-width: 100%;
   padding: 8px 12px;
   border-radius: 12px;
   font-size: 0.9rem;
   line-height: 1.4;
-  white-space: pre-wrap;
-  word-break: break-word;
   text-align: start;
   box-sizing: border-box;
+}
+
+.packroom__bubble-text {
+  margin: 0;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.packroom__row--highlight .packroom__bubble {
+  animation: packroom-highlight 1.6s ease-out;
+}
+
+@keyframes packroom-highlight {
+  0% {
+    box-shadow: 0 0 0 2px rgba(90, 140, 255, 0.85);
+  }
+  100% {
+    box-shadow: none;
+  }
 }
 
 .packroom__row--leo .packroom__bubble {
@@ -201,36 +220,83 @@ html.app-keyboard-open .packroom {
 }
 
 .packroom__quote {
-  margin: 0 0 6px;
-  padding: 8px 10px;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  margin: 0;
+  padding: 6px 8px;
   border-radius: 8px;
-  border-left: 3px solid rgba(90, 140, 255, 0.55);
-  background: rgba(0, 0, 0, 0.18);
-  font-size: 13px;
+  border: none;
+  border-left: 3px solid rgba(90, 140, 255, 0.7);
+  background: rgba(0, 0, 0, 0.22);
+  font: inherit;
+  font-size: 12px;
   max-width: 100%;
+  text-align: start;
+  cursor: pointer;
+}
+
+.packroom__quote:disabled {
+  cursor: default;
+  opacity: 0.75;
+}
+
+.packroom__quote--missing {
+  border-left-color: rgba(140, 140, 160, 0.5);
+}
+
+.packroom__row--me .packroom__quote {
+  border-left-color: rgba(210, 255, 230, 0.75);
+  background: rgba(0, 0, 0, 0.16);
+}
+
+.packroom__row--leo .packroom__quote {
+  border-left-color: rgba(120, 200, 150, 0.65);
 }
 
 .packroom__quote-author {
   display: block;
-  font-weight: 600;
-  margin-bottom: 4px;
+  font-weight: 700;
+  font-size: 12px;
+  line-height: 1.25;
+  color: rgba(120, 170, 255, 0.98);
+}
+
+.packroom__row--me .packroom__quote-author {
+  color: rgba(220, 255, 235, 0.98);
+}
+
+.packroom__row--leo .packroom__quote-author {
+  color: rgba(140, 220, 170, 0.98);
 }
 
 .packroom__quote-text {
-  margin: 0;
+  display: block;
   line-height: 1.35;
-  color: var(--text-muted);
+  color: rgba(220, 220, 235, 0.82);
   white-space: pre-wrap;
   overflow-wrap: anywhere;
   word-break: break-word;
+  max-width: 100%;
+}
+
+.packroom__row--me .packroom__quote-text {
+  color: rgba(240, 255, 248, 0.88);
+}
+
+.packroom__quote-text--muted {
+  font-style: italic;
+  opacity: 0.8;
 }
 
 .packroom__reply-intent {
   width: 100%;
-  padding: 8px 10px;
+  padding: 8px 10px 8px 12px;
   border-radius: 10px;
-  border: 1px solid rgba(90, 140, 255, 0.35);
-  background: rgba(90, 140, 255, 0.08);
+  border: 1px solid rgba(90, 140, 255, 0.45);
+  border-left: 3px solid rgba(90, 140, 255, 0.85);
+  background: rgba(90, 140, 255, 0.1);
   box-sizing: border-box;
 }
 

@@ -123,6 +123,9 @@ type Props = {
 const NOTE_MAX = 1500;
 const OTHER_LABEL_MAX = 80;
 
+/** Временно скрыть возможность прикреплять фото. Поменяй на true, чтобы включить обратно. */
+const PHOTO_ENABLED = false;
+
 export function NewWorkoutScreen({ onClose, onSave, showAlert }: Props) {
   const { visualH, keyboardBottom } = useViewportMetrics();
 
@@ -393,42 +396,44 @@ export function NewWorkoutScreen({ onClose, onSave, showAlert }: Props) {
           </div>
         </div>
 
-        <div className="nwo__photo-row">
-          <h2 className="nwo__sec nwo__sec--inline">Фото</h2>
-          <input
-            className="nwo__file"
-            type="file"
-            accept="image/*"
-            title="Необязательно — стая увидит снимок в ленте"
-            onChange={(e) => {
-              const f = e.target.files?.[0] ?? null;
-              if (f) setPendingCrop(f);
-              e.target.value = "";
-            }}
-          />
-          {photo ? (
-            <>
-              <span className="nwo__photo-name" aria-live="polite">
-                {photo.name.length > 18 ? `${photo.name.slice(0, 16)}…` : photo.name}
-              </span>
-              <button
-                type="button"
-                className="nwo__photo-edit"
-                onClick={() => setPendingCrop(photo)}
-              >
-                Обрезать
-              </button>
-              <button
-                type="button"
-                className="nwo__photo-edit nwo__photo-edit--ghost"
-                onClick={() => setPhoto(null)}
-                aria-label="Убрать фото"
-              >
-                ✕
-              </button>
-            </>
-          ) : null}
-        </div>
+        {PHOTO_ENABLED && (
+          <div className="nwo__photo-row">
+            <h2 className="nwo__sec nwo__sec--inline">Фото</h2>
+            <input
+              className="nwo__file"
+              type="file"
+              accept="image/*"
+              title="Необязательно — стая увидит снимок в ленте"
+              onChange={(e) => {
+                const f = e.target.files?.[0] ?? null;
+                if (f) setPendingCrop(f);
+                e.target.value = "";
+              }}
+            />
+            {photo ? (
+              <>
+                <span className="nwo__photo-name" aria-live="polite">
+                  {photo.name.length > 18 ? `${photo.name.slice(0, 16)}…` : photo.name}
+                </span>
+                <button
+                  type="button"
+                  className="nwo__photo-edit"
+                  onClick={() => setPendingCrop(photo)}
+                >
+                  Обрезать
+                </button>
+                <button
+                  type="button"
+                  className="nwo__photo-edit nwo__photo-edit--ghost"
+                  onClick={() => setPhoto(null)}
+                  aria-label="Убрать фото"
+                >
+                  ✕
+                </button>
+              </>
+            ) : null}
+          </div>
+        )}
       </div>
 
       <footer className="nwo__foot" hidden={showKeyboardBar}>
@@ -449,7 +454,7 @@ export function NewWorkoutScreen({ onClose, onSave, showAlert }: Props) {
           </button>
         </div>
       ) : null}
-      {pendingCrop ? (
+      {PHOTO_ENABLED && pendingCrop ? (
         <PhotoCropper
           file={pendingCrop}
           onCancel={() => setPendingCrop(null)}

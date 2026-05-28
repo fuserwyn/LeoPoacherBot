@@ -175,6 +175,30 @@ func (c *Config) IsAdminTelegramUser(userID int64) bool {
 	return false
 }
 
+// AdminTelegramUserIDs — уникальные Telegram ID всех админов (OWNER_ID + ADMIN_IDS).
+func (c *Config) AdminTelegramUserIDs() []int64 {
+	if c == nil {
+		return nil
+	}
+	seen := make(map[int64]struct{})
+	var out []int64
+	add := func(id int64) {
+		if id <= 0 {
+			return
+		}
+		if _, ok := seen[id]; ok {
+			return
+		}
+		seen[id] = struct{}{}
+		out = append(out, id)
+	}
+	add(c.OwnerID)
+	for _, id := range c.AdminIDs {
+		add(id)
+	}
+	return out
+}
+
 // PaywallUsesStars — счёт в Telegram Stars (XTR): режим PAYMENT_CURRENCY=XTR или доп. PAYMENT_STARS_ENABLED.
 func (c *Config) PaywallUsesStars() bool {
 	if c.PaymentCurrency == "XTR" && c.PaymentAmountMinorUnits > 0 {

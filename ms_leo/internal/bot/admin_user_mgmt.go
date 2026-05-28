@@ -333,20 +333,15 @@ func (b *Bot) resolveAdminUserSearch(chatID int64, query string) {
 	}
 
 	tbl := newAdminTable(
-		[]string{"№", "ID", "Имя", "Стат"},
-		[]int{2, 11, 22, 6},
+		[]string{"№", "ID", "Ник"},
+		[]int{2, 11, 18},
 	)
 	rows := make([][]tgbotapi.InlineKeyboardButton, 0, 3)
 	for i, hit := range hits {
-		stat := "актив"
-		if hit.IsDeleted {
-			stat = "удал"
-		}
 		tbl.addRow(
 			strconv.Itoa(i+1),
 			strconv.FormatInt(hit.UserID, 10),
 			adminPaywallPersonLabel(hit.Username, hit.DisplayName, hit.UserID),
-			stat,
 		)
 	}
 	// Кнопки pick используют admin_user_pick_ вместо admin_user_open_

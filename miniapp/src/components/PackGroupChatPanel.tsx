@@ -331,12 +331,33 @@ export function PackGroupChatPanel({
     }
   }, [text, sending, inTelegram, initData, showAlert, load, onHaptic, replyIntent]);
 
+  const [highlightMessageId, setHighlightMessageId] = useState<number | null>(null);
+  const highlightTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
   const startReply = useCallback((m: PackGroupMessage) => {
     const authorLabel = m.is_leo ? "Лео" : m.username;
     const excerpt = m.text.length > 100 ? `${m.text.slice(0, 99).trim()}…` : m.text.trim();
     setReplyIntent({ replyToMessageId: m.id, authorLabel, excerpt });
     window.setTimeout(() => inputRef.current?.focus(), 80);
   }, []);
+
+  const scrollToQuotedMessage = useCallback((messageId: number) => {
+    const log = logRef.current;
+    if (!log || messageId <= 0) return;
+    const target = log.querySelector<HTMLElement>(`[data-pack-msg-id="${messageId}"]`);
+    if (!target) return;
+    target.scrollIntoView({ block: "center", behavior: "smooth" });
+    setHighlightMessageId(messageId);
+    if (highlightTimerRef.current) clearTimeout(highlightTimerRef.current);
+    highlightTimerRef.current = setTimeout(() => setHighlightMessageId(null), 1600);
+  }, []);
+
+  useEffect(
+    () => () => {
+      if (highlightTimerRef.current) clearTimeout(highlightTimerRef.current);
+    },
+    [],
+  );
 
   const removeMine = useCallback(
     async (messageID: number) => {
@@ -380,10 +401,18 @@ export function PackGroupChatPanel({
         <div className="packroom__log-inner">
         {items.map((m) => {
           const mine = !m.is_leo && m.user_id === meId;
+          const isReply = m.reply_to_id != null && m.reply_to_id > 0;
+          const replyAuthor = m.reply_to_is_leo ? "Лео" : (m.reply_to_username || "").trim();
+          const replyText = (m.reply_to_text || "").trim();
+          const replyKnown = replyAuthor !== "" || replyText !== "";
+          const rowTone = m.is_leo ? "packroom__row--leo" : mine ? "packroom__row--me" : "packroom__row--oth";
           return (
             <div
               key={m.id}
-              className={`packroom__row ${m.is_leo ? "packroom__row--leo" : mine ? "packroom__row--me" : "packroom__row--oth"}`}
+              data-pack-msg-id={m.id}
+              className={`packroom__row ${rowTone}${isReply ? " packroom__row--reply" : ""}${
+                highlightMessageId === m.id ? " packroom__row--highlight" : ""
+              }`}
             >
               <div className="packroom__row-inner">
                 <div className="packroom__ava" aria-hidden>
@@ -400,19 +429,31 @@ export function PackGroupChatPanel({
                     {m.is_leo ? "Лео" : m.username} · {formatChatTime(m.created_at)} · {timeAgoFromISO(m.created_at)}
                   </div>
                   <div className="packroom__bubble-wrap">
-                    {m.reply_to_id != null &&
-                      m.reply_to_id > 0 &&
-                      ((m.reply_to_text || "").trim() !== "" || (m.reply_to_username || "").trim() !== "") && (
-                        <div className="packroom__quote" aria-label="Ответ на сообщение">
-                          <span className="packroom__quote-author muted">
-                            {m.reply_to_is_leo ? "Лео" : m.reply_to_username}
+                    <div className="packroom__bubble">
+                      {isReply && (
+                        <button
+                          type="button"
+                          className={`packroom__quote${replyKnown ? "" : " packroom__quote--missing"}`}
+                          aria-label="Перейти к сообщению, на которое ответили"
+                          disabled={!replyKnown}
+                          onClick={() => {
+                            if (m.reply_to_id != null && m.reply_to_id > 0) scrollToQuotedMessage(m.reply_to_id);
+                          }}
+                        >
+                          <span className="packroom__quote-author">
+                            {replyKnown ? replyAuthor || "Сообщение" : "Сообщение удалено"}
                           </span>
-                          {(m.reply_to_text || "").trim() !== "" && (
-                            <p className="packroom__quote-text">{(m.reply_to_text || "").trim()}</p>
+                          {replyText !== "" ? (
+                            <span className="packroom__quote-text">{replyText}</span>
+                          ) : replyKnown ? null : (
+                            <span className="packroom__quote-text packroom__quote-text--muted">
+                              Исходное сообщение недоступно
+                            </span>
                           )}
-                        </div>
+                        </button>
                       )}
-                    <div className="packroom__bubble">{m.text}</div>
+                      <p className="packroom__bubble-text">{m.text}</p>
+                    </div>
                     <div className="packroom__bubble-actions">
                       <button type="button" className="packroom__reply" onClick={() => startReply(m)}>
                         Ответить

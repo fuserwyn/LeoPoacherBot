@@ -173,6 +173,7 @@ func (b *Bot) Start(ctx context.Context) error {
 	}
 
 	b.restoreSickApprovalWatchers()
+	b.setupAdminBotCommands()
 
 	// Сканируем историю сообщений при старте, если включено в конфиге
 	if b.config.ScanHistoryOnStart {
@@ -973,8 +974,14 @@ func (b *Bot) handleStart(msg *tgbotapi.Message) {
 	}
 
 	reply := tgbotapi.NewMessage(msg.Chat.ID, welcomeText)
-	if msg.Chat.IsPrivate() && b.botSupportAvailable() {
-		reply.ReplyMarkup = b.privateBottomReplyKeyboard(msg.From.ID)
+	if msg.Chat.IsPrivate() && msg.From != nil {
+		if b.isAdminTelegramUser(msg.From.ID) {
+			welcomeText += "\n\n⚙️ Админ-панель — кнопка «" + botAdminReplyButtonText + "» внизу экрана (или /admin)."
+			reply.Text = welcomeText
+		}
+		if kb := b.privateBottomReplyKeyboard(msg.From.ID); kb != nil {
+			reply.ReplyMarkup = kb
+		}
 	}
 
 	b.logger.Infof("Sending start message to chat %d", msg.Chat.ID)

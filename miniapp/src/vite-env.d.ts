@@ -24,6 +24,8 @@ interface TelegramWebApp {
   colorScheme: "light" | "dark";
   themeParams: Record<string, string | undefined>;
   isExpanded: boolean;
+  /** Платформа клиента: ios | android | android_x | macos | tdesktop | weba | webk | unigram | unknown. */
+  platform?: string;
   /** Высота видимой области Mini App (в пикселях), см. WebApp.viewportHeight в Telegram. */
   viewportHeight?: number;
   /** Высота без оверлеев (стабильнее при появлении клавиатуры). */

@@ -45,26 +45,16 @@ func (b *Bot) showAdminUsersListPage(chatID int64, offset int) {
 		subtitle = fmt.Sprintf("Строки %d–%d из %d · нажми № под таблицей", from, to, total)
 
 		tbl := newAdminTable(
-			[]string{"№", "ID", "Имя", "Куб", "Стр", "Опл", "Стат"},
-			[]int{2, 11, 16, 5, 4, 4, 6},
+			[]string{"№", "ID", "Ник", "Куб", "Стр"},
+			[]int{2, 11, 18, 5, 4},
 		)
 		for i, u := range users {
-			pay := "—"
-			if u.HasActivePaywall {
-				pay = "да"
-			}
-			stat := "актив"
-			if u.IsDeleted {
-				stat = "удал"
-			}
 			tbl.addRow(
 				strconv.Itoa(offset+i+1),
 				strconv.FormatInt(u.UserID, 10),
 				adminPaywallPersonLabel(u.Username, u.DisplayName, u.UserID),
 				strconv.Itoa(u.Cups),
 				strconv.Itoa(u.StreakDays),
-				pay,
-				stat,
 			)
 		}
 		tableText = tbl.render()
@@ -125,8 +115,8 @@ func (b *Bot) showAdminPaymentsPage(chatID int64, offset int) {
 		subtitle = fmt.Sprintf("Строки %d–%d из %d · нажми № под таблицей", from, to, total)
 
 		tbl := newAdminTable(
-			[]string{"№", "Заявка", "ID", "Имя", "Статус", "Сумма", "Дата", "Дост"},
-			[]int{2, 7, 11, 12, 9, 8, 11, 4},
+			[]string{"№", "Заявка", "ID", "Ник", "Статус", "Сумма", "Дата", "Дост"},
+			[]int{2, 7, 11, 14, 9, 8, 11, 4},
 		)
 		for i, p := range payments {
 			access := "—"
@@ -202,18 +192,36 @@ func appendAdminPickButtonRows(rows [][]tgbotapi.InlineKeyboardButton, users []d
 	return rows
 }
 
+// adminPaywallPersonLabel — только Telegram-ник (@username) для таблиц админки.
 func adminPaywallPersonLabel(username, displayName string, userID int64) string {
-	parts := make([]string, 0, 2)
-	if n := strings.TrimSpace(displayName); n != "" {
-		parts = append(parts, n)
-	}
-	if u := strings.TrimSpace(username); u != "" {
-		parts = append(parts, u)
-	}
-	if len(parts) == 0 {
+	_ = displayName
+	u := strings.TrimSpace(username)
+	if u == "" {
 		return strconv.FormatInt(userID, 10)
 	}
-	return strings.Join(parts, " ")
+	if strings.HasPrefix(u, "@") {
+		return u
+	}
+	if strings.HasPrefix(strings.ToLower(u), "user") {
+		return strconv.FormatInt(userID, 10)
+	}
+	if !strings.Contains(u, " ") && adminLooksLikeTelegramHandle(u) {
+		return "@" + u
+	}
+	return strconv.FormatInt(userID, 10)
+}
+
+func adminLooksLikeTelegramHandle(s string) bool {
+	if s == "" {
+		return false
+	}
+	for _, r := range s {
+		if (r >= 'a' && r <= 'z') || (r >= 'A' && r <= 'Z') || (r >= '0' && r <= '9') || r == '_' {
+			continue
+		}
+		return false
+	}
+	return true
 }
 
 func adminFormatPaymentAmount(amountMinor sql.NullInt64, currency sql.NullString) string {

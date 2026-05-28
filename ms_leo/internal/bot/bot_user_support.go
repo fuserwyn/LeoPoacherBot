@@ -10,7 +10,7 @@ const botSupportCallbackStart = "bot_support_start"
 const botSupportCallbackCancel = "bot_support_cancel"
 
 const botSupportReplyButtonText = "💬 Поддержка"
-const botAdminReplyButtonText = "⚙️ Админка"
+const botAdminReplyButtonText = "⚙️ Админ-панель"
 
 func (b *Bot) botSupportAvailable() bool {
 	return b != nil && b.config != nil && b.config.MonetizedChatID != 0 && b.db != nil
@@ -20,27 +20,33 @@ func (b *Bot) isAdminTelegramUser(userID int64) bool {
 	return b != nil && b.config != nil && b.config.IsAdminTelegramUser(userID)
 }
 
-// privateBottomReplyKeyboard — постоянная кнопка внизу лички с ботом.
+// privateBottomReplyKeyboard — постоянные кнопки внизу лички с ботом.
 func (b *Bot) privateBottomReplyKeyboard(userID int64) *tgbotapi.ReplyKeyboardMarkup {
 	if userID <= 0 {
 		return nil
 	}
-	var buttonText string
-	switch {
-	case b.isAdminTelegramUser(userID):
-		buttonText = botAdminReplyButtonText
-	case b.botSupportAvailable():
-		buttonText = botSupportReplyButtonText
-	default:
+	if !b.isAdminTelegramUser(userID) && !b.botSupportAvailable() {
 		return nil
 	}
-	kb := tgbotapi.NewReplyKeyboard(
-		tgbotapi.NewKeyboardButtonRow(
-			tgbotapi.NewKeyboardButton(buttonText),
-		),
-	)
-	kb.ResizeKeyboard = true
-	kb.OneTimeKeyboard = false
+	var rows [][]tgbotapi.KeyboardButton
+	if b.isAdminTelegramUser(userID) {
+		rows = append(rows, tgbotapi.NewKeyboardButtonRow(
+			tgbotapi.NewKeyboardButton(botAdminReplyButtonText),
+		))
+	}
+	if b.botSupportAvailable() {
+		rows = append(rows, tgbotapi.NewKeyboardButtonRow(
+			tgbotapi.NewKeyboardButton(botSupportReplyButtonText),
+		))
+	}
+	if len(rows) == 0 {
+		return nil
+	}
+	kb := tgbotapi.ReplyKeyboardMarkup{
+		Keyboard:        rows,
+		ResizeKeyboard:  true,
+		OneTimeKeyboard: false,
+	}
 	return &kb
 }
 
@@ -54,7 +60,10 @@ func (b *Bot) syncPrivateBottomKeyboard(chatID, userID int64) {
 		return
 	}
 	kind := "support"
-	if b.isAdminTelegramUser(userID) {
+	switch {
+	case b.isAdminTelegramUser(userID) && b.botSupportAvailable():
+		kind = "admin+support"
+	case b.isAdminTelegramUser(userID):
 		kind = "admin"
 	}
 	if prev, ok := b.privateBottomKeyboardKind.Load(userID); ok && prev == kind {
@@ -173,7 +182,12 @@ func isSupportReplyButtonText(text string) bool {
 
 func isAdminReplyButtonText(text string) bool {
 	t := strings.TrimSpace(text)
-	return t == botAdminReplyButtonText || strings.EqualFold(t, "Админка")
+	switch t {
+	case botAdminReplyButtonText, "⚙️ Админка", "Админ-панель", "Админка":
+		return true
+	default:
+		return false
+	}
 }
 
 // handleUserSupportFlowMessage — личка: режим поддержки (до мини-аппа), без ответа Лео.
