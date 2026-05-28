@@ -162,36 +162,41 @@ html.app-keyboard-open .packroom {
 }
 
 .packroom__more-popover {
-  position: absolute;
-  z-index: 40;
-  left: 0;
-  top: calc(100% + 6px);
-  min-width: min(260px, calc(100vw - 32px));
-  max-width: min(calc(100vw - 32px), 300px);
-  padding: 10px;
+  display: flex;
+  flex-direction: column;
+  width: min(280px, calc(100vw - 20px));
+  max-height: min(320px, 52vh);
+  overflow: hidden;
+  padding: 0;
   background: var(--card, #14141c);
   border: 1px solid var(--border-subtle, #2a2a36);
   border-radius: 12px;
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
-}
-
-.packroom__row--me .packroom__more-popover {
-  left: auto;
-  right: 0;
+  box-shadow: 0 10px 32px rgba(0, 0, 0, 0.45);
+  touch-action: pan-y;
 }
 
 .packroom__more-emojis {
+  flex: 1 1 auto;
+  min-height: 0;
   display: flex;
   flex-wrap: wrap;
+  align-content: flex-start;
   gap: 8px;
-  max-height: min(280px, 48vh);
+  padding: 10px;
   overflow-y: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+}
+
+.packroom__more-footer {
+  flex-shrink: 0;
+  padding: 4px;
+  border-top: 1px solid var(--border-subtle, #2a2a36);
+  background: var(--card, #14141c);
 }
 
 .packroom__more-divider {
-  height: 1px;
-  margin: 8px 0;
-  background: var(--border-subtle, #2a2a36);
+  display: none;
 }
 
 .packroom__more-item {
@@ -205,7 +210,7 @@ html.app-keyboard-open .packroom {
   font-size: 14px;
   line-height: 1.35;
   text-align: left;
-  color: var(--text, #e8e8f0);
+  color: #f0a8a8;
   cursor: pointer;
 }
 

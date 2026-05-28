@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type RefObject } from "react";
 import { formatChatTime } from "../lib/timeAgo";
 import { LEO_AVATAR_URL } from "../lib/leoAvatar";
 import { moderationUserMessage, isModerationError } from "../lib/moderationMessages";
@@ -18,41 +18,102 @@ function PackGroupMessageMenu({
   canReport,
   onReport,
   reporting = false,
+  scrollRootRef,
 }: {
   reactions: { emoji: string; count: number; me?: boolean }[];
   onReaction: (emoji: string) => void;
   canReport?: boolean;
   onReport?: () => void;
   reporting?: boolean;
+  scrollRootRef?: RefObject<HTMLElement | null>;
 }) {
   const wrapRef = useRef<HTMLDivElement>(null);
+  const popoverRef = useRef<HTMLDivElement>(null);
   const [open, setOpen] = useState(false);
+  const [popoverPos, setPopoverPos] = useState<{ top: number; left: number } | null>(null);
+
+  const layoutPopover = useCallback(() => {
+    const wrap = wrapRef.current;
+    const popover = popoverRef.current;
+    if (!wrap || !popover) return;
+    const toggle = wrap.querySelector(".packroom__more-toggle");
+    if (!(toggle instanceof HTMLElement)) return;
+
+    const tr = toggle.getBoundingClientRect();
+    const popW = popover.offsetWidth;
+    const popH = popover.offsetHeight;
+    const gap = 8;
+    const margin = 10;
+    const maxH = Math.min(320, Math.floor(window.innerHeight * 0.52));
+
+    let top = tr.bottom + gap;
+    if (top + popH > window.innerHeight - margin) {
+      top = Math.max(margin, tr.top - gap - Math.min(popH, maxH));
+    }
+
+    let left = tr.right - popW;
+    if (left < margin) left = margin;
+    if (left + popW > window.innerWidth - margin) {
+      left = Math.max(margin, window.innerWidth - margin - popW);
+    }
+
+    setPopoverPos({ top, left });
+  }, []);
+
+  useLayoutEffect(() => {
+    if (!open) {
+      setPopoverPos(null);
+      return;
+    }
+    layoutPopover();
+    const ro = new ResizeObserver(layoutPopover);
+    if (popoverRef.current) ro.observe(popoverRef.current);
+    window.addEventListener("resize", layoutPopover);
+    return () => {
+      ro.disconnect();
+      window.removeEventListener("resize", layoutPopover);
+    };
+  }, [open, layoutPopover, reactions.length, canReport]);
 
   useEffect(() => {
     if (!open) return;
     const close = (e: MouseEvent | TouchEvent) => {
       const t = e.target as Node;
-      if (wrapRef.current?.contains(t)) return;
+      if (wrapRef.current?.contains(t) || popoverRef.current?.contains(t)) return;
       setOpen(false);
     };
     const esc = (e: KeyboardEvent) => {
       if (e.key === "Escape") setOpen(false);
     };
+    const onScroll = () => setOpen(false);
     document.addEventListener("mousedown", close);
     document.addEventListener("touchstart", close);
     document.addEventListener("keydown", esc);
+    scrollRootRef?.current?.addEventListener("scroll", onScroll, { passive: true });
+    window.addEventListener("scroll", onScroll, { passive: true, capture: true });
     return () => {
       document.removeEventListener("mousedown", close);
       document.removeEventListener("touchstart", close);
       document.removeEventListener("keydown", esc);
+      scrollRootRef?.current?.removeEventListener("scroll", onScroll);
+      window.removeEventListener("scroll", onScroll, { capture: true });
     };
-  }, [open]);
+  }, [open, scrollRootRef]);
+
+  const confirmReport = () => {
+    if (
+      !window.confirm(
+        "Отправить жалобу на это сообщение?\n\nАдмины проверят его в разделе поддержки.",
+      )
+    ) {
+      return;
+    }
+    setOpen(false);
+    onReport?.();
+  };
 
   return (
-    <div
-      className={`packroom__more${open ? " packroom__more--open" : ""}`}
-      ref={wrapRef}
-    >
+    <div className={`packroom__more${open ? " packroom__more--open" : ""}`} ref={wrapRef}>
       <button
         type="button"
         className={`packroom__more-toggle${open ? " packroom__more-toggle--open" : ""}`}
@@ -65,7 +126,17 @@ function PackGroupMessageMenu({
         {reporting ? "…" : "⋯"}
       </button>
       {open && !reporting && (
-        <div className="packroom__more-popover" role="menu">
+        <div
+          ref={popoverRef}
+          className="packroom__more-popover"
+          role="menu"
+          style={
+            popoverPos
+              ? { position: "fixed", top: popoverPos.top, left: popoverPos.left, zIndex: 250 }
+              : { position: "fixed", visibility: "hidden", top: 0, left: 0, zIndex: 250 }
+          }
+          onTouchMove={(e) => e.stopPropagation()}
+        >
           <div className="packroom__more-emojis" role="group" aria-label="Реакции">
             {reactions.map((r) => (
               <button
@@ -83,20 +154,11 @@ function PackGroupMessageMenu({
             ))}
           </div>
           {canReport && onReport != null && (
-            <>
-              <div className="packroom__more-divider" aria-hidden />
-              <button
-                type="button"
-                className="packroom__more-item"
-                role="menuitem"
-                onClick={() => {
-                  setOpen(false);
-                  onReport();
-                }}
-              >
+            <div className="packroom__more-footer">
+              <button type="button" className="packroom__more-item" role="menuitem" onClick={confirmReport}>
                 Пожаловаться на сообщение
               </button>
-            </>
+            </div>
           )}
         </div>
       )}
@@ -700,6 +762,7 @@ export function PackGroupChatPanel({
                         canReport={canReport}
                         onReport={() => void reportMessage(m.id)}
                         reporting={Boolean(reportPosting[m.id])}
+                        scrollRootRef={logRef}
                       />
                     </div>
                   </div>
