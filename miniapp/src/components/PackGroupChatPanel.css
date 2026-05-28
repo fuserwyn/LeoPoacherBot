@@ -313,6 +313,23 @@ html.app-keyboard-open .packroom {
   text-underline-offset: 2px;
 }
 
+.packroom__edit {
+  display: block;
+  border: none;
+  background: transparent;
+  color: var(--muted, #8b8b9a);
+  font-size: 12px;
+  padding: 0;
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.packroom__edited {
+  color: var(--muted, #6b6b7a);
+  font-style: italic;
+}
+
 .packroom__bubble-actions {
   display: flex;
   flex-wrap: wrap;
@@ -429,6 +446,12 @@ html.app-keyboard-open .packroom {
   border-left: 3px solid rgba(90, 140, 255, 0.85);
   background: rgba(90, 140, 255, 0.1);
   box-sizing: border-box;
+}
+
+.packroom__reply-intent--edit {
+  border-color: rgba(46, 167, 110, 0.5);
+  border-left-color: rgba(46, 167, 110, 0.9);
+  background: rgba(46, 167, 110, 0.12);
 }
 
 .packroom__reply-intent-row {
