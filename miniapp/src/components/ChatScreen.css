@@ -309,7 +309,9 @@ html.app-keyboard-open .chat {
 }
 
 html.app-keyboard-open .chat__form {
-  bottom: var(--app-keyboard-bottom, 0px);
+  /* Клавиатура открыта — над ней; инсет ещё 0 (фокус есть, но клавиатура не
+     поднята) — над скруглениями экрана, чтобы поле не уезжало под низ. */
+  bottom: max(var(--safe-bottom, 0px), var(--app-keyboard-bottom, 0px));
   padding: 6px 12px 3px;
   background: var(--bg, #0d0d12);
 }
