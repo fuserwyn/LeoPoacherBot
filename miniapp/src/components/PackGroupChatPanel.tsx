@@ -198,6 +198,7 @@ export type PackGroupMessage = {
   reply_to_username?: string;
   reply_to_text?: string;
   reply_to_is_leo?: boolean;
+  edited_at?: string;
   reactions?: PackFeedReactionDTO[];
 };
 
@@ -205,6 +206,11 @@ type ReplyIntent = {
   replyToMessageId: number;
   authorLabel: string;
   excerpt: string;
+};
+
+type EditIntent = {
+  messageId: number;
+  originalText: string;
 };
 
 function excerptText(text: string, max = 100): string {
@@ -263,6 +269,7 @@ export function PackGroupChatPanel({
   const [items, setItems] = useState<PackGroupMessage[]>([]);
   const [text, setText] = useState("");
   const [replyIntent, setReplyIntent] = useState<ReplyIntent | null>(null);
+  const [editIntent, setEditIntent] = useState<EditIntent | null>(null);
   const [sending, setSending] = useState(false);
   const [reportPosting, setReportPosting] = useState<Record<number, boolean>>({});
   const [err, setErr] = useState<string | null>(null);
@@ -536,6 +543,47 @@ export function PackGroupChatPanel({
     }
     setSending(true);
     onHaptic?.();
+
+    // Режим редактирования: правим существующее сообщение, не создаём новое.
+    if (editIntent != null) {
+      const editId = editIntent.messageId;
+      const original = editIntent.originalText;
+      setText("");
+      setEditIntent(null);
+      setItems((prev) => prev.map((m) => (m.id === editId ? { ...m, text: t } : m)));
+      try {
+        const res = await fetch(`${apiBase}/api/miniapp/pack-group/messages/edit`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ init_data: initData, message_id: editId, text: t }),
+        });
+        const j = (await res.json().catch(() => ({}))) as { error?: string; message?: string };
+        if (!res.ok) {
+          setItems((prev) => prev.map((m) => (m.id === editId ? { ...m, text: original } : m)));
+          if (isModerationError(j.error)) {
+            showAlert(moderationUserMessage(j.error, j.message));
+            return;
+          }
+          const errMap: Record<string, string> = {
+            not_found: "Сообщение не найдено (обнови чат)",
+            forbidden: "Нет доступа",
+            chat_mismatch: "Открой мини-апп из чата стаи",
+            empty_text: "Сообщение не может быть пустым",
+            text_too_long: "Слишком длинное сообщение",
+          };
+          showAlert(errMap[j.error ?? ""] ?? j.error ?? `Ошибка ${res.status}`);
+          return;
+        }
+        await load();
+      } catch (e) {
+        setItems((prev) => prev.map((m) => (m.id === editId ? { ...m, text: original } : m)));
+        showAlert(e instanceof Error ? e.message : "Сеть");
+      } finally {
+        setSending(false);
+      }
+      return;
+    }
+
     const replyToId = replyIntent?.replyToMessageId ?? 0;
     setText("");
     setReplyIntent(null);
@@ -567,7 +615,7 @@ export function PackGroupChatPanel({
     } finally {
       setSending(false);
     }
-  }, [text, sending, inTelegram, initData, showAlert, load, onHaptic, replyIntent]);
+  }, [text, sending, inTelegram, initData, showAlert, load, onHaptic, replyIntent, editIntent]);
 
   const reportMessage = useCallback(
     async (messageID: number) => {
@@ -606,8 +654,27 @@ export function PackGroupChatPanel({
   const startReply = useCallback((m: PackGroupMessage) => {
     const authorLabel = m.is_leo ? "Лео" : m.username;
     const excerpt = m.text.length > 100 ? `${m.text.slice(0, 99).trim()}…` : m.text.trim();
+    setEditIntent(null);
     setReplyIntent({ replyToMessageId: m.id, authorLabel, excerpt });
     window.setTimeout(() => inputRef.current?.focus(), 80);
+  }, []);
+
+  const startEdit = useCallback((m: PackGroupMessage) => {
+    setReplyIntent(null);
+    setEditIntent({ messageId: m.id, originalText: m.text });
+    setText(m.text);
+    window.setTimeout(() => {
+      const el = inputRef.current;
+      if (!el) return;
+      el.focus();
+      const end = el.value.length;
+      el.setSelectionRange(end, end);
+    }, 80);
+  }, []);
+
+  const cancelEdit = useCallback(() => {
+    setEditIntent(null);
+    setText("");
   }, []);
 
   useEffect(
@@ -739,6 +806,7 @@ export function PackGroupChatPanel({
                   <div className="packroom__meta-row">
                     <div className="packroom__meta">
                       {m.is_leo ? "Лео" : m.username} · {formatChatTime(m.created_at)}
+                      {m.edited_at ? <span className="packroom__edited"> · изменено</span> : null}
                     </div>
                   </div>
                   <div className="packroom__bubble-wrap">
@@ -762,6 +830,11 @@ export function PackGroupChatPanel({
                       <button type="button" className="packroom__reply" onClick={() => startReply(m)}>
                         Ответить
                       </button>
+                      {mine && (
+                        <button type="button" className="packroom__edit" onClick={() => startEdit(m)}>
+                          Изменить
+                        </button>
+                      )}
                       {mine && (
                         <button
                           type="button"
@@ -816,7 +889,19 @@ export function PackGroupChatPanel({
           void send();
         }}
       >
-        {replyIntent != null && (
+        {editIntent != null && (
+          <div className="packroom__reply-intent packroom__reply-intent--edit">
+            <div className="packroom__reply-intent-row">
+              <span className="packroom__reply-intent-label">
+                Редактирование сообщения
+              </span>
+              <button type="button" className="packroom__reply-intent-cancel" onClick={cancelEdit}>
+                ✕
+              </button>
+            </div>
+          </div>
+        )}
+        {replyIntent != null && editIntent == null && (
           <div className="packroom__reply-intent">
             <div className="packroom__reply-intent-row">
               <span className="packroom__reply-intent-label">
@@ -838,9 +923,11 @@ export function PackGroupChatPanel({
           value={text}
           onChange={(e) => setText(e.target.value)}
           placeholder={
-            replyIntent != null
-              ? `Ответ ${replyIntent.authorLabel}… @leo — чтобы ответил бот`
-              : "Сообщение… @leo — чтобы ответил бот"
+            editIntent != null
+              ? "Измени сообщение…"
+              : replyIntent != null
+                ? `Ответ ${replyIntent.authorLabel}… @leo — чтобы ответил бот`
+                : "Сообщение… @leo — чтобы ответил бот"
           }
           maxLength={4000}
           autoComplete="off"
@@ -856,8 +943,13 @@ export function PackGroupChatPanel({
             window.setTimeout(scrollToBottomIfNear, 280);
           }}
         />
-        <button type="submit" className="packroom__send" disabled={sending || !text.trim()}>
-          {sending ? "…" : "➤"}
+        <button
+          type="submit"
+          className="packroom__send"
+          disabled={sending || !text.trim()}
+          aria-label={editIntent != null ? "Сохранить изменения" : "Отправить"}
+        >
+          {sending ? "…" : editIntent != null ? "✓" : "➤"}
         </button>
         </div>
       </form>
