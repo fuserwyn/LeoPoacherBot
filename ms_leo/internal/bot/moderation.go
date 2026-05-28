@@ -43,6 +43,20 @@ func (b *Bot) ugcGate() *moderation.Gate {
 }
 
 func (b *Bot) enforceUGC(text string, surface moderation.Surface, userID int64) (moderation.Result, error) {
+	if b != nil && b.db != nil && b.config != nil && b.config.MonetizedChatID != 0 && userID > 0 {
+		if muted, err := b.db.IsUserUGCMuted(userID, b.config.MonetizedChatID); err != nil {
+			b.logger.Warnf("ugc mute check user=%d: %v", userID, err)
+		} else if muted {
+			res := moderation.Result{
+				Allowed:     false,
+				Reason:      moderation.ReasonMuted,
+				UserMessage: moderation.UserWarnings[moderation.ReasonMuted],
+				APICode:     "user_muted",
+			}
+			b.deliverModerationWarning(userID, surface, text, res)
+			return res, &ModerationBlockedError{APICode: res.APICode, Message: res.UserMessage}
+		}
+	}
 	res := b.ugcGate().Check(text, surface, userID, time.Now())
 	if res.Allowed {
 		return res, nil
@@ -51,7 +65,54 @@ func (b *Bot) enforceUGC(text string, surface moderation.Surface, userID int64) 
 	if res.AlertAdmin {
 		b.notifyAdminsModerationAlert(userID, surface, text, res)
 	}
+	if res.Reason == moderation.ReasonCriticalRU && b.db != nil && b.config != nil && b.config.MonetizedChatID != 0 {
+		b.recordUGCViolation(userID, b.config.MonetizedChatID, false)
+	}
 	return res, &ModerationBlockedError{APICode: res.APICode, Message: res.UserMessage}
+}
+
+const ugcAutoMuteViolationThreshold = 3
+const ugcMuteDuration = 24 * time.Hour
+
+// recordUGCViolation — +1 к счётчику; при autoMute=true или пороге ≥3 — мьют 24ч.
+func (b *Bot) recordUGCViolation(userID, packChatID int64, autoMute bool) int {
+	if b == nil || b.db == nil || userID == 0 || packChatID == 0 {
+		return 0
+	}
+	count, err := b.db.IncrementUGCViolationCount(userID, packChatID)
+	if err != nil {
+		b.logger.Warnf("ugc violation increment user=%d: %v", userID, err)
+		return 0
+	}
+	if autoMute || count >= ugcAutoMuteViolationThreshold {
+		until := time.Now().UTC().Add(ugcMuteDuration)
+		if err := b.db.MuteUserUGCUntil(userID, packChatID, until); err != nil {
+			b.logger.Warnf("ugc auto mute user=%d: %v", userID, err)
+		} else {
+			b.notifyUserTextByID(userID, packChatID,
+				"🔇 Публикации в Стае временно ограничены на 24 часа из‑за нарушений правил. Если это ошибка — поддержка в профиле.",
+				"", 0)
+		}
+	}
+	return count
+}
+
+func (b *Bot) adminMuteUserUGC(chatID, targetUserID, packChatID int64, hours int) {
+	if hours <= 0 {
+		hours = 24
+	}
+	if err := b.db.MuteUserUGCUntil(targetUserID, packChatID, time.Now().UTC().Add(time.Duration(hours)*time.Hour)); err != nil {
+		b.api.Send(tgbotapi.NewMessage(chatID, "❌ Не удалось замьютить: "+err.Error()))
+		return
+	}
+	count, _ := b.db.IncrementUGCViolationCount(targetUserID, packChatID)
+	b.api.Send(tgbotapi.NewMessage(chatID, fmt.Sprintf(
+		"🔇 Пользователь %d: UGC-мьют на %d ч. Нарушений: %d.",
+		targetUserID, hours, count,
+	)))
+	b.notifyUserTextByID(targetUserID, packChatID,
+		fmt.Sprintf("🔇 Публикации в Стае ограничены на %d ч. по решению модератора.", hours),
+		"", 0)
 }
 
 func (b *Bot) deliverModerationWarning(userID int64, surface moderation.Surface, rawText string, res moderation.Result) {
@@ -103,6 +164,8 @@ func ModerationHTTPStatus(code string) int {
 	switch code {
 	case "moderation_rate_limited":
 		return 429
+	case "user_muted":
+		return 403
 	default:
 		return 400
 	}

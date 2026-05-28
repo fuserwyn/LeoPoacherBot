@@ -433,3 +433,177 @@ func (d *Database) AdminDeletePackGroupMessage(packChatID, messageID int64) (boo
 	n, _ := res.RowsAffected()
 	return n > 0, nil
 }
+
+// AdminHideFeedUserMessage — soft hide поста ленты (остаётся в БД для аудита).
+func (d *Database) AdminHideFeedUserMessage(packChatID, messageID int64) (bool, error) {
+	if packChatID == 0 || messageID == 0 {
+		return false, nil
+	}
+	res, err := d.db.Exec(
+		`UPDATE user_messages SET is_hidden = TRUE
+		  WHERE id = $1 AND chat_id = $2 AND COALESCE(is_hidden, FALSE) = FALSE`,
+		messageID, packChatID,
+	)
+	if err != nil {
+		return false, fmt.Errorf("hide user_message: %w", err)
+	}
+	n, _ := res.RowsAffected()
+	return n > 0, nil
+}
+
+// AdminHideTrainingFeedThreadReply — soft hide комментария в треде.
+func (d *Database) AdminHideTrainingFeedThreadReply(packChatID, threadReplyID int64) (bool, error) {
+	if packChatID == 0 || threadReplyID == 0 {
+		return false, nil
+	}
+	tx, err := d.db.Begin()
+	if err != nil {
+		return false, err
+	}
+	defer func() { _ = tx.Rollback() }()
+
+	res, err := tx.Exec(
+		`UPDATE miniapp_training_feed_thread SET is_hidden = TRUE
+		  WHERE id = $1 AND pack_chat_id = $2 AND COALESCE(is_hidden, FALSE) = FALSE`,
+		threadReplyID, packChatID,
+	)
+	if err != nil {
+		return false, err
+	}
+	n, _ := res.RowsAffected()
+	if n == 0 {
+		return false, nil
+	}
+	if _, err := tx.Exec(
+		`DELETE FROM miniapp_training_thread_unread WHERE thread_reply_id = $1`,
+		threadReplyID,
+	); err != nil {
+		return false, err
+	}
+	if err := tx.Commit(); err != nil {
+		return false, err
+	}
+	return true, nil
+}
+
+// AdminHidePackGroupMessage — soft hide сообщения общего чата.
+func (d *Database) AdminHidePackGroupMessage(packChatID, messageID int64) (bool, error) {
+	if packChatID == 0 || messageID == 0 {
+		return false, nil
+	}
+	tx, err := d.db.Begin()
+	if err != nil {
+		return false, err
+	}
+	defer func() { _ = tx.Rollback() }()
+
+	res, err := tx.Exec(
+		`UPDATE miniapp_pack_group_chat SET is_hidden = TRUE
+		  WHERE id = $1 AND pack_chat_id = $2 AND COALESCE(is_hidden, FALSE) = FALSE`,
+		messageID, packChatID,
+	)
+	if err != nil {
+		return false, err
+	}
+	n, _ := res.RowsAffected()
+	if n == 0 {
+		return false, nil
+	}
+	if _, err := tx.Exec(
+		`DELETE FROM miniapp_pack_group_unread WHERE pack_message_id = $1`,
+		messageID,
+	); err != nil {
+		return false, err
+	}
+	if err := tx.Commit(); err != nil {
+		return false, err
+	}
+	return true, nil
+}
+
+// AdminHideFeedUserMessage — soft hide поста ленты (остаётся в БД для аудита).
+func (d *Database) AdminHideFeedUserMessage(packChatID, messageID int64) (bool, error) {
+	if packChatID == 0 || messageID == 0 {
+		return false, nil
+	}
+	res, err := d.db.Exec(
+		`UPDATE user_messages SET is_hidden = TRUE
+		  WHERE id = $1 AND chat_id = $2 AND COALESCE(is_hidden, FALSE) = FALSE`,
+		messageID, packChatID,
+	)
+	if err != nil {
+		return false, fmt.Errorf("hide user_message: %w", err)
+	}
+	n, _ := res.RowsAffected()
+	return n > 0, nil
+}
+
+// AdminHideTrainingFeedThreadReply — soft hide комментария в треде.
+func (d *Database) AdminHideTrainingFeedThreadReply(packChatID, threadReplyID int64) (bool, error) {
+	if packChatID == 0 || threadReplyID == 0 {
+		return false, nil
+	}
+	tx, err := d.db.Begin()
+	if err != nil {
+		return false, err
+	}
+	defer func() { _ = tx.Rollback() }()
+
+	res, err := tx.Exec(
+		`UPDATE miniapp_training_feed_thread SET is_hidden = TRUE
+		  WHERE id = $1 AND pack_chat_id = $2 AND COALESCE(is_hidden, FALSE) = FALSE`,
+		threadReplyID, packChatID,
+	)
+	if err != nil {
+		return false, err
+	}
+	n, _ := res.RowsAffected()
+	if n == 0 {
+		return false, nil
+	}
+	if _, err := tx.Exec(
+		`DELETE FROM miniapp_training_thread_unread WHERE thread_reply_id = $1`,
+		threadReplyID,
+	); err != nil {
+		return false, err
+	}
+	if err := tx.Commit(); err != nil {
+		return false, err
+	}
+	return true, nil
+}
+
+// AdminHidePackGroupMessage — soft hide сообщения общего чата.
+func (d *Database) AdminHidePackGroupMessage(packChatID, messageID int64) (bool, error) {
+	if packChatID == 0 || messageID == 0 {
+		return false, nil
+	}
+	tx, err := d.db.Begin()
+	if err != nil {
+		return false, err
+	}
+	defer func() { _ = tx.Rollback() }()
+
+	res, err := tx.Exec(
+		`UPDATE miniapp_pack_group_chat SET is_hidden = TRUE
+		  WHERE id = $1 AND pack_chat_id = $2 AND COALESCE(is_hidden, FALSE) = FALSE`,
+		messageID, packChatID,
+	)
+	if err != nil {
+		return false, err
+	}
+	n, _ := res.RowsAffected()
+	if n == 0 {
+		return false, nil
+	}
+	if _, err := tx.Exec(
+		`DELETE FROM miniapp_pack_group_unread WHERE pack_message_id = $1`,
+		messageID,
+	); err != nil {
+		return false, err
+	}
+	if err := tx.Commit(); err != nil {
+		return false, err
+	}
+	return true, nil
+}

@@ -19,6 +19,7 @@ const (
 	ReasonCriticalRU  Reason = "critical_ru"
 	ReasonTooLong     Reason = "too_long"
 	ReasonRateLimited Reason = "rate_limited"
+	ReasonMuted       Reason = "muted"
 )
 
 // Result — итог синхронной PRE-проверки.

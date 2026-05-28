@@ -41,6 +41,7 @@ func (d *Database) ListPackActivityFeed(chatID int64, limit int, sinceUTC *time.
 		LEFT JOIN miniapp_user_profile p
 			ON p.user_id = um.user_id AND p.pack_chat_id = um.chat_id
 		WHERE um.chat_id = $1
+		  AND COALESCE(um.is_hidden, FALSE) = FALSE
 		  AND um.message_type IN ('training_done', 'pack_join', 'pack_rejoin', 'daily_wisdom', 'pack_removed', 'admin_post', 'admin_poll')
 		  ` + whereSince + `
 		ORDER BY um.created_at DESC
@@ -102,6 +103,7 @@ func (d *Database) ListPackActivityFeedAfterID(chatID int64, sinceID int64, limi
 			ON p.user_id = um.user_id AND p.pack_chat_id = um.chat_id
 		WHERE um.chat_id = $1
 		  AND um.id > $2
+		  AND COALESCE(um.is_hidden, FALSE) = FALSE
 		  AND um.message_type IN ('training_done', 'pack_join', 'pack_rejoin', 'daily_wisdom', 'pack_removed', 'admin_post', 'admin_poll')
 		ORDER BY um.id DESC
 		LIMIT $3

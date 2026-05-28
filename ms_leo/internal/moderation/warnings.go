@@ -8,6 +8,7 @@ var UserWarnings = map[Reason]string{
 	ReasonLink:        "Не опубликовал — ссылки и упоминания @-каналов в Стае пока запрещены.",
 	ReasonCriticalRU:  "Не опубликовал — такой текст нельзя публиковать.",
 	ReasonRateLimited: "Подожди немного перед следующим сообщением.",
+	ReasonMuted:       "Публикация в Стае временно ограничена. Если это ошибка — напиши в поддержку.",
 }
 
 func warningFor(reason Reason, maxRunes int) string {
@@ -32,6 +33,8 @@ func apiCodeFor(reason Reason) string {
 		return "moderation_too_long"
 	case ReasonRateLimited:
 		return "moderation_rate_limited"
+	case ReasonMuted:
+		return "user_muted"
 	default:
 		return "moderation_blocked"
 	}

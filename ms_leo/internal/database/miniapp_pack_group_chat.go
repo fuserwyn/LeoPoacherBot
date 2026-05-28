@@ -77,6 +77,7 @@ func (d *Database) ListMiniappPackGroupChatRows(packChatID int64, limit int, sin
 		SELECT id, from_user_id, COALESCE(username, ''), is_leo, message_text, created_at, reply_to_id
 		FROM miniapp_pack_group_chat
 		WHERE pack_chat_id = $1
+		  AND COALESCE(is_hidden, FALSE) = FALSE
 		` + whereSince + `
 		ORDER BY created_at DESC, id DESC
 		LIMIT $2

@@ -333,6 +333,7 @@ func (d *Database) ListTrainingFeedThreadByMessages(userMessageIDs []int64) (map
 		LEFT JOIN miniapp_user_profile p
 			ON p.user_id = t.from_user_id AND p.pack_chat_id = t.pack_chat_id
 		WHERE t.user_message_id = ANY($1)
+		  AND COALESCE(t.is_hidden, FALSE) = FALSE
 		ORDER BY t.user_message_id, t.created_at ASC
 	`
 	rows, err := d.db.Query(q, pq.Array(userMessageIDs))

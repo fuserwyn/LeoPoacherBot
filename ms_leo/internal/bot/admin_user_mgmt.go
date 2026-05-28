@@ -254,6 +254,27 @@ func (b *Bot) handleAdminUserMgmtCallback(callback *tgbotapi.CallbackQuery) bool
 			b.adminDeleteReportedContent(chatID, reportID)
 		}
 		return true
+
+	case strings.HasPrefix(data, "admin_feed_report_hide_"):
+		reportID, err := strconv.ParseInt(strings.TrimPrefix(data, "admin_feed_report_hide_"), 10, 64)
+		if err == nil && reportID > 0 {
+			b.adminHideReportedContent(chatID, reportID)
+		}
+		return true
+
+	case strings.HasPrefix(data, "admin_feed_report_mute_"):
+		reportID, err := strconv.ParseInt(strings.TrimPrefix(data, "admin_feed_report_mute_"), 10, 64)
+		if err == nil && reportID > 0 {
+			b.adminMuteReportedUser(chatID, reportID)
+		}
+		return true
+
+	case strings.HasPrefix(data, "admin_user_mute_ugc_"):
+		targetID, ok := parseTarget("admin_user_mute_ugc_")
+		if ok {
+			b.adminMuteUserUGC(chatID, targetID, b.adminPackChatID(), 24)
+		}
+		return true
 	}
 	return false
 }

@@ -977,6 +977,36 @@ var Migrations = []Migration{
 			ALTER TABLE miniapp_pack_group_chat DROP COLUMN IF EXISTS reply_to_id;
 		`,
 	},
+	{
+		Version:     48,
+		Description: "UGC moderation: soft hide, mute, violation counter",
+		UpSQL: `
+			ALTER TABLE training_state
+				ADD COLUMN IF NOT EXISTS ugc_muted_until TIMESTAMPTZ,
+				ADD COLUMN IF NOT EXISTS ugc_violation_count INTEGER NOT NULL DEFAULT 0;
+
+			ALTER TABLE user_messages
+				ADD COLUMN IF NOT EXISTS is_hidden BOOLEAN NOT NULL DEFAULT FALSE;
+
+			ALTER TABLE miniapp_training_feed_thread
+				ADD COLUMN IF NOT EXISTS is_hidden BOOLEAN NOT NULL DEFAULT FALSE;
+
+			ALTER TABLE miniapp_pack_group_chat
+				ADD COLUMN IF NOT EXISTS is_hidden BOOLEAN NOT NULL DEFAULT FALSE;
+
+			CREATE INDEX IF NOT EXISTS idx_user_messages_feed_visible
+				ON user_messages (chat_id, created_at DESC)
+				WHERE is_hidden = FALSE;
+		`,
+		DownSQL: `
+			DROP INDEX IF EXISTS idx_user_messages_feed_visible;
+			ALTER TABLE miniapp_pack_group_chat DROP COLUMN IF EXISTS is_hidden;
+			ALTER TABLE miniapp_training_feed_thread DROP COLUMN IF EXISTS is_hidden;
+			ALTER TABLE user_messages DROP COLUMN IF EXISTS is_hidden;
+			ALTER TABLE training_state DROP COLUMN IF EXISTS ugc_muted_until;
+			ALTER TABLE training_state DROP COLUMN IF EXISTS ugc_violation_count;
+		`,
+	},
 }
 
 // MigrationRecord представляет запись о выполненной миграции
