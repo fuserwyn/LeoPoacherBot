@@ -271,17 +271,64 @@ func (b *Bot) handleAdminUserMgmtCallback(callback *tgbotapi.CallbackQuery) bool
 		}
 		return true
 
+	case strings.HasPrefix(data, "admin_feed_report_mute_yes_"):
+		reportID, err := strconv.ParseInt(strings.TrimPrefix(data, "admin_feed_report_mute_yes_"), 10, 64)
+		if err == nil && reportID > 0 {
+			b.adminMuteReportedUser(chatID, reportID)
+		}
+		return true
+
 	case strings.HasPrefix(data, "admin_feed_report_mute_"):
 		reportID, err := strconv.ParseInt(strings.TrimPrefix(data, "admin_feed_report_mute_"), 10, 64)
 		if err == nil && reportID > 0 {
-			b.adminMuteReportedUser(chatID, reportID)
+			packChatID := b.adminPackChatID()
+			item, err := b.db.GetMiniappFeedReport(packChatID, reportID)
+			if err != nil || item == nil {
+				b.api.Send(tgbotapi.NewMessage(chatID, "❌ Жалоба не найдена."))
+				return true
+			}
+			if item.TargetUserID <= 0 {
+				b.api.Send(tgbotapi.NewMessage(chatID, "❌ Нет пользователя для мьюта."))
+				return true
+			}
+			msg := tgbotapi.NewMessage(chatID, fmt.Sprintf(
+				"🔇 Выдать UGC-мьют на 24 ч пользователю %d по жалобе #%d?\n\n"+
+					"Пользователь не сможет публиковать в ленте, чате стаи и заметках к тренировкам.",
+				item.TargetUserID, reportID,
+			))
+			msg.ReplyMarkup = tgbotapi.NewInlineKeyboardMarkup(
+				tgbotapi.NewInlineKeyboardRow(
+					tgbotapi.NewInlineKeyboardButtonData("✅ Да, замьютить", "admin_feed_report_mute_yes_"+strconv.FormatInt(reportID, 10)),
+					tgbotapi.NewInlineKeyboardButtonData("❌ Отмена", "admin_feed_report_"+strconv.FormatInt(reportID, 10)),
+				),
+			)
+			b.api.Send(msg)
+		}
+		return true
+
+	case strings.HasPrefix(data, "admin_user_mute_ugc_yes_"):
+		targetID, ok := parseTarget("admin_user_mute_ugc_yes_")
+		if ok {
+			b.adminMuteUserUGC(chatID, targetID, b.adminPackChatID(), 24)
+			b.showAdminUserCard(chatID, targetID)
 		}
 		return true
 
 	case strings.HasPrefix(data, "admin_user_mute_ugc_"):
 		targetID, ok := parseTarget("admin_user_mute_ugc_")
 		if ok {
-			b.adminMuteUserUGC(chatID, targetID, b.adminPackChatID(), 24)
+			msg := tgbotapi.NewMessage(chatID, fmt.Sprintf(
+				"🔇 Выдать UGC-мьют на 24 ч пользователю %d?\n\n"+
+					"Пользователь не сможет публиковать в ленте, чате стаи и заметках к тренировкам.",
+				targetID,
+			))
+			msg.ReplyMarkup = tgbotapi.NewInlineKeyboardMarkup(
+				tgbotapi.NewInlineKeyboardRow(
+					tgbotapi.NewInlineKeyboardButtonData("✅ Да, замьютить", "admin_user_mute_ugc_yes_"+strconv.FormatInt(targetID, 10)),
+					tgbotapi.NewInlineKeyboardButtonData("❌ Отмена", "admin_user_open_"+strconv.FormatInt(targetID, 10)),
+				),
+			)
+			b.api.Send(msg)
 		}
 		return true
 	}
