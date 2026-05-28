@@ -302,24 +302,54 @@ func (b *Bot) sendTrainingThreadCommentDM(telegramUserID int64, text string) {
 
 // MiniappTrainingThreadUnreadCount — для бейджа на вкладке «Стая».
 func (b *Bot) MiniappTrainingThreadUnreadCount(initD initdata.InitData, viewerUserID int64) (int64, error) {
+	n, _, err := b.MiniappTrainingThreadUnreadSummary(initD, viewerUserID)
+	return n, err
+}
+
+// MiniappTrainingThreadUnreadSummary — счётчик и id отчётов с непрочитанными комментариями.
+func (b *Bot) MiniappTrainingThreadUnreadSummary(initD initdata.InitData, viewerUserID int64) (count int64, userMessageIDs []int64, err error) {
 	if err := b.AssertMiniAppPackChatAligns(initD); err != nil {
-		return 0, err
+		return 0, nil, err
 	}
 	chatID := b.config.MonetizedChatID
 	if chatID == 0 || b.db == nil {
-		return 0, nil
+		return 0, nil, nil
 	}
-	return b.db.CountTrainingThreadUnread(viewerUserID, chatID)
+	count, err = b.db.CountTrainingThreadUnread(viewerUserID, chatID)
+	if err != nil {
+		return 0, nil, err
+	}
+	userMessageIDs, err = b.db.ListTrainingThreadUnreadUserMessageIDs(viewerUserID, chatID)
+	if err != nil {
+		return 0, nil, err
+	}
+	return count, userMessageIDs, nil
 }
 
-// MiniappTrainingThreadUnreadClear — сброс бейджа при открытии ленты.
-func (b *Bot) MiniappTrainingThreadUnreadClear(initD initdata.InitData, viewerUserID int64) error {
+// markTrainingThreadReplyUnread — бейдж «Стая» + опциональная личка (системный текст, не LLM).
+func (b *Bot) markTrainingThreadReplyUnread(packChatID, notifyUserID, threadReplyID int64, dmBody string) {
+	if b == nil || b.db == nil || notifyUserID == 0 || threadReplyID == 0 {
+		return
+	}
+	if err := b.db.InsertTrainingThreadUnread(notifyUserID, packChatID, threadReplyID); err != nil {
+		b.logger.Warnf("training thread unread insert: %v", err)
+	}
+	if strings.TrimSpace(dmBody) != "" {
+		b.sendTrainingThreadCommentDM(notifyUserID, dmBody)
+	}
+}
+
+// MiniappTrainingThreadUnreadClear — сброс бейджа; userMessageID>0 — только под одним отчётом.
+func (b *Bot) MiniappTrainingThreadUnreadClear(initD initdata.InitData, viewerUserID int64, userMessageID int64) error {
 	if err := b.AssertMiniAppPackChatAligns(initD); err != nil {
 		return err
 	}
 	chatID := b.config.MonetizedChatID
 	if chatID == 0 || b.db == nil {
 		return nil
+	}
+	if userMessageID > 0 {
+		return b.db.ClearTrainingThreadUnreadForUserMessage(viewerUserID, chatID, userMessageID)
 	}
 	return b.db.ClearTrainingThreadUnread(viewerUserID, chatID)
 }

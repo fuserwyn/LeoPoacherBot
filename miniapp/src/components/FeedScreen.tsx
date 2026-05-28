@@ -16,6 +16,7 @@ import {
   type PackFeedItemDTO,
   type PackFeedThreadReplyDTO,
 } from "../lib/packFeed";
+import { clearFeedThreadUnread, fetchFeedThreadUnreadSummary } from "../lib/feedThreadUnread";
 import { timeAgoFromISO } from "../lib/timeAgo";
 import { streakStreakAriaLabel } from "../lib/streakLabel";
 import {
@@ -60,6 +61,10 @@ type Props = {
   active?: boolean;
   /** Обновить бейджи таббара (после открытия общего чата). */
   onRefreshTabBadges?: () => void;
+  /** Непрочитанные комментарии в ленте (бейдж подвкладки). */
+  feedThreadUnreadCount?: number;
+  /** Непрочитанные ответы в общем чате (бейдж подвкладки). */
+  packGroupUnreadCount?: number;
 };
 
 type Sub = "activity" | "room";
@@ -97,8 +102,11 @@ export function FeedScreen({
   onRefreshAll,
   active = true,
   onRefreshTabBadges,
+  feedThreadUnreadCount = 0,
+  packGroupUnreadCount = 0,
 }: Props) {
   const [sub, setSub] = useState<Sub>("activity");
+  const [unreadFeedCardIds, setUnreadFeedCardIds] = useState<Set<number>>(() => new Set());
 
   const [feedItems, setFeedItems] = useState<PackFeedItemDTO[]>([]);
   const [useMockFeed, setUseMockFeed] = useState(false);
@@ -162,6 +170,42 @@ export function FeedScreen({
     hapticLight();
     setFeedCategoryIds([]);
   }, [hapticLight]);
+
+  const refreshUnreadFeedCards = useCallback(async () => {
+    if (!inTelegram || !initData.trim()) {
+      setUnreadFeedCardIds(new Set());
+      return;
+    }
+    const summary = await fetchFeedThreadUnreadSummary(initData);
+    setUnreadFeedCardIds(new Set(summary.userMessageIds));
+  }, [inTelegram, initData]);
+
+  useEffect(() => {
+    if (!active || !inTelegram || !initData.trim()) return;
+    void refreshUnreadFeedCards();
+    const t = window.setInterval(() => void refreshUnreadFeedCards(), 30_000);
+    return () => window.clearInterval(t);
+  }, [active, inTelegram, initData, refreshUnreadFeedCards, feedThreadUnreadCount]);
+
+  const markFeedCardThreadRead = useCallback(
+    (userMessageId: number) => {
+      if (userMessageId <= 0 || !initData.trim()) return;
+      setUnreadFeedCardIds((prev) => {
+        if (!prev.has(userMessageId)) return prev;
+        const next = new Set(prev);
+        next.delete(userMessageId);
+        return next;
+      });
+      void (async () => {
+        await clearFeedThreadUnread(initData, userMessageId);
+        onRefreshTabBadges?.();
+        await refreshUnreadFeedCards();
+      })();
+    },
+    [initData, onRefreshTabBadges, refreshUnreadFeedCards],
+  );
+
+  const feedSubtabBadge = (count: number) => (count > 9 ? "9+" : count > 0 ? String(count) : null);
 
   const syncFeed = useCallback(
     async (opts?: { full?: boolean; silent?: boolean }) => {
@@ -642,7 +686,14 @@ export function FeedScreen({
             role="tab"
             aria-selected={sub === "activity"}
           >
-            Лента
+            <span className="feed__subtab-inner">
+              Лента
+              {feedSubtabBadge(feedThreadUnreadCount) != null ? (
+                <span className="feed__subtab-badge" aria-hidden>
+                  {feedSubtabBadge(feedThreadUnreadCount)}
+                </span>
+              ) : null}
+            </span>
           </button>
           <button
             type="button"
@@ -651,7 +702,14 @@ export function FeedScreen({
             role="tab"
             aria-selected={sub === "room"}
           >
-            Чат
+            <span className="feed__subtab-inner">
+              Чат
+              {feedSubtabBadge(packGroupUnreadCount) != null ? (
+                <span className="feed__subtab-badge" aria-hidden>
+                  {feedSubtabBadge(packGroupUnreadCount)}
+                </span>
+              ) : null}
+            </span>
           </button>
         </div>
         {sub === "activity" && (
@@ -861,6 +919,8 @@ export function FeedScreen({
                           : mergePackFeedReactions(HEALTHY_FEED_EMOJIS, it.reactions)
                       }
                       onReactionClick={(emoji) => void postTrainingReact(it.id, emoji)}
+                      hasUnreadThread={unreadFeedCardIds.has(it.id)}
+                      onThreadOpened={() => markFeedCardThreadRead(it.id)}
                       threadReplies={threadReplies}
                       onThreadReplyDelete={(replyId) => void deleteTrainingThreadReply(it.id, replyId)}
                       onThreadReplyLike={(replyId) => void toggleTrainingThreadLike(it.id, replyId)}

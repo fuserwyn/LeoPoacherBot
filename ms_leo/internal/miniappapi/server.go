@@ -311,7 +311,7 @@ func (s *Server) handlePostFeedTrainingThreadUnreadCount(w http.ResponseWriter, 
 		s.jsonErr(w, http.StatusBadRequest, "user_missing")
 		return
 	}
-	n, err := s.bot.MiniappTrainingThreadUnreadCount(parsed, parsed.User.ID)
+	n, cardIDs, err := s.bot.MiniappTrainingThreadUnreadSummary(parsed, parsed.User.ID)
 	if err != nil {
 		if errors.Is(err, bot.ErrMiniAppChatMismatch) {
 			s.jsonErr(w, http.StatusConflict, "chat_mismatch")
@@ -322,7 +322,7 @@ func (s *Server) handlePostFeedTrainingThreadUnreadCount(w http.ResponseWriter, 
 		return
 	}
 	w.Header().Set("Content-Type", "application/json; charset=utf-8")
-	_ = json.NewEncoder(w).Encode(map[string]any{"ok": true, "count": n})
+	_ = json.NewEncoder(w).Encode(map[string]any{"ok": true, "count": n, "user_message_ids": cardIDs})
 }
 
 func (s *Server) handlePostFeedTrainingThreadUnreadClear(w http.ResponseWriter, r *http.Request) {
@@ -332,7 +332,8 @@ func (s *Server) handlePostFeedTrainingThreadUnreadClear(w http.ResponseWriter, 
 		return
 	}
 	var body struct {
-		InitData string `json:"init_data"`
+		InitData      string `json:"init_data"`
+		UserMessageID int64  `json:"user_message_id"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
 		s.jsonErr(w, http.StatusBadRequest, "invalid_json")
@@ -356,7 +357,7 @@ func (s *Server) handlePostFeedTrainingThreadUnreadClear(w http.ResponseWriter, 
 		s.jsonErr(w, http.StatusBadRequest, "user_missing")
 		return
 	}
-	if err := s.bot.MiniappTrainingThreadUnreadClear(parsed, parsed.User.ID); err != nil {
+	if err := s.bot.MiniappTrainingThreadUnreadClear(parsed, parsed.User.ID, body.UserMessageID); err != nil {
 		if errors.Is(err, bot.ErrMiniAppChatMismatch) {
 			s.jsonErr(w, http.StatusConflict, "chat_mismatch")
 			return

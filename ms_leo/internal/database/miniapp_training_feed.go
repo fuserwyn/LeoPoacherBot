@@ -506,6 +506,55 @@ func (d *Database) ClearTrainingThreadUnread(recipientUserID, packChatID int64) 
 	return nil
 }
 
+// ListTrainingThreadUnreadUserMessageIDs — отчёты в ленте с непрочитанными комментариями/ответами.
+func (d *Database) ListTrainingThreadUnreadUserMessageIDs(recipientUserID, packChatID int64) ([]int64, error) {
+	if recipientUserID == 0 {
+		return nil, nil
+	}
+	rows, err := d.db.Query(
+		`SELECT DISTINCT t.user_message_id
+		 FROM miniapp_training_thread_unread u
+		 JOIN miniapp_training_feed_thread t ON t.id = u.thread_reply_id
+		 WHERE u.recipient_user_id = $1 AND u.pack_chat_id = $2
+		 ORDER BY t.user_message_id DESC`,
+		recipientUserID, packChatID,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("list training thread unread cards: %w", err)
+	}
+	defer rows.Close()
+	var ids []int64
+	for rows.Next() {
+		var id int64
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		if id > 0 {
+			ids = append(ids, id)
+		}
+	}
+	return ids, rows.Err()
+}
+
+// ClearTrainingThreadUnreadForUserMessage — просмотрен тред под конкретным отчётом.
+func (d *Database) ClearTrainingThreadUnreadForUserMessage(recipientUserID, packChatID, userMessageID int64) error {
+	if recipientUserID == 0 || userMessageID == 0 {
+		return nil
+	}
+	_, err := d.db.Exec(
+		`DELETE FROM miniapp_training_thread_unread u
+		 USING miniapp_training_feed_thread t
+		 WHERE u.thread_reply_id = t.id
+		   AND u.recipient_user_id = $1 AND u.pack_chat_id = $2
+		   AND t.user_message_id = $3`,
+		recipientUserID, packChatID, userMessageID,
+	)
+	if err != nil {
+		return fmt.Errorf("clear training thread unread for card: %w", err)
+	}
+	return nil
+}
+
 // SortReactionAggsForDisplay — стабильный порядок эмодзи в UI.
 func SortReactionAggsForDisplay(aggs []TrainingFeedReactionAgg, preferredOrder []string) []TrainingFeedReactionAgg {
 	idx := make(map[string]int, len(preferredOrder))

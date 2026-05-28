@@ -233,13 +233,30 @@ func (b *Bot) ProcessMiniAppPackGroupMessage(d initdata.InitData, text string, r
 	if b.api != nil && b.api.Self.ID != 0 && b.api.Self.UserName != "" {
 		leoName = "@" + b.api.Self.UserName
 	}
-	if id, err := b.db.InsertMiniappPackGroupMessage(chatID, 0, leoName, true, reply, 0); err != nil {
+	leoReplyToID := int64(0)
+	if userMsgID > 0 {
+		leoReplyToID = userMsgID
+	}
+	if id, err := b.db.InsertMiniappPackGroupMessage(chatID, 0, leoName, true, reply, leoReplyToID); err != nil {
 		b.logger.Warnf("pack miniapp insert Leo row: %v", err)
 	} else {
 		b.indexPackGroupChatRAG(chatID, 0, "leo", reply, id)
+		b.afterLeoPackGroupReplyInserted(chatID, d.User.ID, reply, id)
 	}
 	out.ReplyText = reply
 	return out, nil
+}
+
+func (b *Bot) afterLeoPackGroupReplyInserted(packChatID, recipientUserID int64, replyText string, leoMessageID int64) {
+	if b == nil || b.db == nil || recipientUserID == 0 || leoMessageID == 0 {
+		return
+	}
+	if err := b.db.InsertPackGroupUnread(recipientUserID, packChatID, leoMessageID); err != nil {
+		b.logger.Warnf("pack group leo unread insert: %v", err)
+	}
+	preview := truncateForDM(replyText, 160)
+	body := "🦁 Лео ответил в чате стаи.\n\n«" + preview + "»\n\nОткрой мини-апп → «Стая» → «Чат»."
+	b.sendTrainingThreadCommentDM(recipientUserID, body)
 }
 
 func (b *Bot) afterPackGroupReplyInserted(packChatID, commenterUserID int64, commenterName, commentText string, messageID, replyToID int64) {

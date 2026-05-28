@@ -280,6 +280,10 @@ export type ActivityCardProps = {
   /** Пожаловаться на комментарий в треде. */
   onThreadReplyReport?: (threadReplyId: number) => void;
   threadReplyReporting?: Record<number, boolean>;
+  /** Есть непрочитанные ответы в треде (участник или Лео). */
+  hasUnreadThread?: boolean;
+  /** Пользователь открыл тред — сбросить локальный/серверный unread. */
+  onThreadOpened?: () => void;
 };
 
 export function ActivityCard({
@@ -310,6 +314,8 @@ export function ActivityCard({
   reportPosting = false,
   onThreadReplyReport,
   threadReplyReporting = {},
+  hasUnreadThread = false,
+  onThreadOpened,
 }: ActivityCardProps) {
   const threadBodyRef = useRef<HTMLDivElement>(null);
   const threadComposeRef = useRef<HTMLDivElement>(null);
@@ -319,6 +325,14 @@ export function ActivityCard({
   const [lightboxOpen, setLightboxOpen] = useState(false);
   const [photoFailed, setPhotoFailed] = useState(false);
   const prevThreadLen = useRef(threadReplies.length);
+  const prevThreadOpenRef = useRef(false);
+
+  useEffect(() => {
+    if (threadOpen && !prevThreadOpenRef.current) {
+      onThreadOpened?.();
+    }
+    prevThreadOpenRef.current = threadOpen;
+  }, [threadOpen, onThreadOpened]);
 
   const scrollThreadComposeIntoView = useCallback(() => {
     const target = threadComposeRef.current ?? threadInputRef.current;
@@ -489,7 +503,7 @@ export function ActivityCard({
         <div className="act-card__thread">
             <button
               type="button"
-              className="act-card__thread-toggle"
+              className={`act-card__thread-toggle${hasUnreadThread && !threadOpen ? " act-card__thread-toggle--unread" : ""}`}
               aria-expanded={threadOpen}
               onClick={() => setThreadOpen((v) => !v)}
             >
@@ -499,6 +513,9 @@ export function ActivityCard({
                   : threadCount > 0
                     ? `Комментарии · ${threadCount}`
                     : "Комментарии"}
+                {hasUnreadThread && !threadOpen ? (
+                  <span className="act-card__thread-unread-dot" aria-label="Непрочитанные ответы" />
+                ) : null}
               </span>
               <span className="act-card__thread-chevron" aria-hidden>
                 {threadOpen ? "▲" : "▼"}

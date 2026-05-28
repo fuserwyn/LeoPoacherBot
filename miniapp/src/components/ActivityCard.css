@@ -494,6 +494,20 @@
   background: rgba(255, 255, 255, 0.04);
 }
 
+.act-card__thread-toggle--unread {
+  border-color: rgba(255, 106, 43, 0.45);
+}
+
+.act-card__thread-unread-dot {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  margin-left: 6px;
+  border-radius: 50%;
+  background: var(--accent, #ff6a2b);
+  vertical-align: middle;
+}
+
 .act-card__thread-chevron {
   flex-shrink: 0;
   font-size: 10px;

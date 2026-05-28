@@ -13,7 +13,7 @@ import { SupportScreen } from "./components/SupportScreen";
 import { buildOptimisticTrainingFeedItem, type PackFeedItemDTO } from "./lib/packFeed";
 import { sendMiniappPrivateText, sendMiniappTrainingWithPhoto } from "./lib/miniappPrivateSend";
 import { fetchLeoPendingCount } from "./lib/leoPersonalInbox";
-import { clearFeedThreadUnread, fetchFeedThreadUnreadCount } from "./lib/feedThreadUnread";
+import { fetchFeedThreadUnreadSummary } from "./lib/feedThreadUnread";
 import { fetchPackGroupUnreadCount } from "./lib/packGroupUnread";
 import { ensureMiniappOnboarding } from "./lib/miniappOnboarding";
 import { syncTimezoneIfNeeded } from "./lib/timezoneSync";
@@ -59,7 +59,9 @@ export function App() {
   const [achievementsMax, setAchievementsMax] = useState(8);
   const [workouts, setWorkouts] = useState(0);
   const [leoPending, setLeoPending] = useState(0);
-  const [feedUnread, setFeedUnread] = useState(0);
+  const [feedThreadUnread, setFeedThreadUnread] = useState(0);
+  const [packGroupUnread, setPackGroupUnread] = useState(0);
+  const feedUnread = feedThreadUnread + packGroupUnread;
   const [feedRefreshToken, setFeedRefreshToken] = useState(0);
   const [optimisticFeedItem, setOptimisticFeedItem] = useState<PackFeedItemDTO | null>(null);
   const [daysSinceLastTraining, setDaysSinceLastTraining] = useState<number>(-1);
@@ -78,16 +80,18 @@ export function App() {
   const refreshTabBadges = useCallback(async () => {
     if (accessGateStatus !== "ok" || !inTelegram || !initData?.trim()) {
       setLeoPending(0);
-      setFeedUnread(0);
+      setFeedThreadUnread(0);
+      setPackGroupUnread(0);
       return;
     }
     const [leo, feedThread, packGroup] = await Promise.all([
       fetchLeoPendingCount(initData),
-      fetchFeedThreadUnreadCount(initData),
+      fetchFeedThreadUnreadSummary(initData),
       fetchPackGroupUnreadCount(initData),
     ]);
     setLeoPending(leo);
-    setFeedUnread(feedThread + packGroup);
+    setFeedThreadUnread(feedThread.count);
+    setPackGroupUnread(packGroup);
   }, [accessGateStatus, inTelegram, initData]);
 
   const refreshProfileStats = useCallback(async () => {
@@ -172,21 +176,6 @@ export function App() {
     void refreshProfileStats();
   }, [accessGateStatus, refreshProfileStats]);
 
-  useEffect(() => {
-    if (accessGateStatus !== "ok" || tab !== "feed" || !inTelegram || !initData?.trim()) return;
-    let cancelled = false;
-    void (async () => {
-      await clearFeedThreadUnread(initData);
-      if (!cancelled) {
-        const n = await fetchFeedThreadUnreadCount(initData);
-        if (!cancelled) setFeedUnread(n);
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [accessGateStatus, tab, inTelegram, initData]);
-
   const onLeoInboxDrained = useCallback(() => {
     void refreshTabBadges();
   }, [refreshTabBadges]);
@@ -221,6 +210,8 @@ export function App() {
             refreshToken={feedRefreshToken}
             optimisticFeedItem={optimisticFeedItem}
             onOptimisticConsumed={() => setOptimisticFeedItem(null)}
+            feedThreadUnreadCount={feedThreadUnread}
+            packGroupUnreadCount={packGroupUnread}
             onRefreshAll={async () => {
               await Promise.all([refreshProfileStats(), refreshTabBadges()]);
             }}

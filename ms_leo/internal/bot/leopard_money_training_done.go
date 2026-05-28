@@ -534,7 +534,12 @@ func (b *Bot) LeoBanterReplyToUserTrainingFeedThread(
 		r := []rune(reply)
 		reply = string(r[:900]) + "…"
 	}
-	if _, err := b.db.InsertTrainingFeedThreadReply(packChatID, trainingUserMessageID, 0, "Лео", reply, userThreadReplyRowID); err != nil {
+	leoReplyID, err := b.db.InsertTrainingFeedThreadReply(packChatID, trainingUserMessageID, 0, "Лео", reply, userThreadReplyRowID)
+	if err != nil {
 		b.logger.Warnf("leo training feed thread banter insert: %v", err)
+		return
 	}
+	preview := truncateForDM(reply, 160)
+	dmBody := "🦁 Лео ответил на твой комментарий в ленте.\n\n«" + preview + "»\n\nОткрой мини-апп → вкладка «Стая» → «Лента»."
+	b.markTrainingThreadReplyUnread(packChatID, viewerTelegramUserID, leoReplyID, dmBody)
 }

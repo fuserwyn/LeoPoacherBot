@@ -57,12 +57,12 @@ export function BottomNav({
         className={`bottom-nav__item ${active === "feed" ? "is-active" : ""}`}
         onClick={onFeed}
         aria-current={active === "feed" ? "page" : undefined}
-        aria-label={feedBadge ? `Стая, непрочитанных комментариев: ${feedBadgeCount}` : "Стая"}
+        aria-label={feedBadge ? `Стая, непрочитанных: ${feedBadgeCount}` : "Стая"}
       >
         <span className="bottom-nav__icon-wrap" aria-hidden>
           <span className="bottom-nav__icon">🐆</span>
           {feedBadge && (
-            <span className="bottom-nav__badge bottom-nav__badge--feed" title="Новый комментарий к твоей тренировке">
+            <span className="bottom-nav__badge bottom-nav__badge--feed" title="Новые ответы в ленте или чате стаи">
               {feedBadge}
             </span>
           )}
