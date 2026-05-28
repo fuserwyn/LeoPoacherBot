@@ -95,6 +95,8 @@ func (s *Server) serve(w http.ResponseWriter, r *http.Request) {
 		s.handlePostPackGroupUnreadClear(w, r)
 	case path == "/api/miniapp/pack-group/react" && r.Method == http.MethodPost:
 		s.handlePostPackGroupReact(w, r)
+	case path == "/api/miniapp/pack-group/search" && r.Method == http.MethodPost:
+		s.handlePostPackGroupSearch(w, r)
 	case path == "/api/miniapp/profile/load" && r.Method == http.MethodPost:
 		s.handlePostProfileLoad(w, r)
 	case path == "/api/miniapp/profile/save" && r.Method == http.MethodPost:
@@ -1045,6 +1047,56 @@ func (s *Server) handlePostPackGroupFeed(w http.ResponseWriter, r *http.Request)
 			return
 		}
 		s.logger.Errorf("pack group feed: %v", err)
+		s.jsonErr(w, http.StatusInternalServerError, "pack_group_error")
+		return
+	}
+	w.Header().Set("Content-Type", "application/json; charset=utf-8")
+	_ = json.NewEncoder(w).Encode(map[string]any{"ok": true, "messages": items})
+}
+
+func (s *Server) handlePostPackGroupSearch(w http.ResponseWriter, r *http.Request) {
+	corsWriteHeaders(w, r)
+	if s.bot == nil || s.token == "" {
+		s.jsonErr(w, http.StatusServiceUnavailable, "server_unavailable")
+		return
+	}
+	var body struct {
+		InitData string `json:"init_data"`
+		Query    string `json:"query"`
+		Limit    int    `json:"limit"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		s.jsonErr(w, http.StatusBadRequest, "invalid_json")
+		return
+	}
+	if body.InitData == "" {
+		s.jsonErr(w, http.StatusBadRequest, "missing_init_data")
+		return
+	}
+	if err := initdata.Validate(body.InitData, s.token, 24*time.Hour); err != nil {
+		s.jsonErr(w, http.StatusUnauthorized, "invalid_init_data")
+		return
+	}
+	parsed, err := initdata.Parse(body.InitData)
+	if err != nil {
+		s.jsonErr(w, http.StatusBadRequest, "parse_init_data")
+		return
+	}
+	if parsed.User.ID == 0 {
+		s.jsonErr(w, http.StatusBadRequest, "user_missing")
+		return
+	}
+	items, err := s.bot.PackGroupChatSearch(parsed.User.ID, parsed, body.Query, body.Limit)
+	if err != nil {
+		if errors.Is(err, bot.ErrMiniAppChatMismatch) {
+			s.jsonErr(w, http.StatusConflict, "chat_mismatch")
+			return
+		}
+		if errors.Is(err, bot.ErrPackFeedForbidden) {
+			s.jsonErr(w, http.StatusForbidden, "forbidden")
+			return
+		}
+		s.logger.Errorf("pack group search: %v", err)
 		s.jsonErr(w, http.StatusInternalServerError, "pack_group_error")
 		return
 	}

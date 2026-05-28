@@ -3,6 +3,7 @@ package database
 import (
 	"database/sql"
 	"fmt"
+	"strings"
 	"time"
 
 	"leo-bot/internal/domain"
@@ -105,6 +106,48 @@ func (d *Database) ListMiniappPackGroupChatRows(packChatID int64, limit int, sin
 	}
 	for i, j := 0, len(items)-1; i < j; i, j = i+1, j-1 {
 		items[i], items[j] = items[j], items[i]
+	}
+	if items == nil {
+		items = []PackGroupChatRow{}
+	}
+	return items, nil
+}
+
+// SearchMiniappPackGroupChatRows — поиск по тексту во всей истории чата (ILIKE),
+// новые сверху (по id DESC). Спецсимволы LIKE экранируются.
+func (d *Database) SearchMiniappPackGroupChatRows(packChatID int64, query string, limit int) ([]PackGroupChatRow, error) {
+	if limit <= 0 {
+		limit = 50
+	}
+	if limit > 100 {
+		limit = 100
+	}
+	esc := strings.NewReplacer(`\`, `\\`, `%`, `\%`, `_`, `\_`).Replace(query)
+	pattern := "%" + esc + "%"
+	const q = `
+		SELECT id, from_user_id, COALESCE(username, ''), is_leo, message_text, created_at, reply_to_id, edited_at
+		FROM miniapp_pack_group_chat
+		WHERE pack_chat_id = $1
+		  AND COALESCE(is_hidden, FALSE) = FALSE
+		  AND message_text ILIKE $2 ESCAPE '\'
+		ORDER BY id DESC
+		LIMIT $3
+	`
+	rows, err := d.db.Query(q, packChatID, pattern, limit)
+	if err != nil {
+		return nil, fmt.Errorf("search miniapp pack group: %w", err)
+	}
+	defer rows.Close()
+	var items []PackGroupChatRow
+	for rows.Next() {
+		var m PackGroupChatRow
+		if err := rows.Scan(&m.ID, &m.FromUserID, &m.Username, &m.IsLeo, &m.MessageText, &m.CreatedAt, &m.ReplyToID, &m.EditedAt); err != nil {
+			return nil, err
+		}
+		items = append(items, m)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
 	}
 	if items == nil {
 		items = []PackGroupChatRow{}

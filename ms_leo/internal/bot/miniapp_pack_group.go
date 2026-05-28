@@ -82,6 +82,39 @@ func (b *Bot) PackGroupChatForViewer(viewerUserID int64, initD initdata.InitData
 	return b.enrichPackGroupChatReactions(msgs, viewerUserID, chatID), nil
 }
 
+// PackGroupChatSearch — поиск по всей истории общего чата (текст сообщений).
+// Возвращает совпадения (новые сверху) с цитатами reply; фото/реакции не обогащаем —
+// результаты используются как список сниппетов.
+func (b *Bot) PackGroupChatSearch(viewerUserID int64, initD initdata.InitData, query string, limit int) ([]*domain.PackGroupChatMessage, error) {
+	if err := b.AssertMiniAppPackChatAligns(initD); err != nil {
+		return nil, err
+	}
+	chatID := b.config.MonetizedChatID
+	if chatID == 0 {
+		return []*domain.PackGroupChatMessage{}, nil
+	}
+	q := strings.TrimSpace(query)
+	if len([]rune(q)) < 2 {
+		return []*domain.PackGroupChatMessage{}, nil
+	}
+	if b.config.IsAdminTelegramUser(viewerUserID) {
+		// ok
+	} else {
+		ok, err := b.db.UserInPackOrPaid(viewerUserID, chatID, b.config.PaywallEnabled)
+		if err != nil {
+			return nil, err
+		}
+		if !ok {
+			return nil, ErrPackFeedForbidden
+		}
+	}
+	rows, err := b.db.SearchMiniappPackGroupChatRows(chatID, q, limit)
+	if err != nil {
+		return nil, err
+	}
+	return b.packGroupRowsToMessages(rows), nil
+}
+
 func (b *Bot) packGroupRowsToMessages(rows []database.PackGroupChatRow) []*domain.PackGroupChatMessage {
 	out := make([]*domain.PackGroupChatMessage, 0, len(rows))
 	if len(rows) == 0 {
