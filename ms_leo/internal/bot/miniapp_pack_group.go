@@ -190,15 +190,16 @@ func (b *Bot) ProcessMiniAppPackGroupMessage(d initdata.InitData, text string, r
 	}
 	uname := displayNameFromInitData(d)
 
-	var userMsgID int64
-	if id, err := b.db.InsertMiniappPackGroupMessage(chatID, d.User.ID, uname, false, text, replyToID); err != nil {
-		b.logger.Warnf("pack miniapp insert user row: %v", err)
-	} else {
-		userMsgID = id
-		b.indexPackGroupChatRAG(chatID, d.User.ID, "user", text, id)
-		if replyToID > 0 && userMsgID > 0 {
-			b.afterPackGroupReplyInserted(chatID, d.User.ID, uname, text, userMsgID, replyToID)
-		}
+	userMsgID, err := b.db.InsertMiniappPackGroupMessage(chatID, d.User.ID, uname, false, text, replyToID)
+	if err != nil {
+		// Раньше ошибка проглатывалась и наружу отдавался успех — сообщение «терялось»
+		// без уведомления. Теперь возвращаем ошибку, чтобы miniapp показал её пользователю.
+		b.logger.Errorf("pack miniapp insert user row: %v", err)
+		return out, err
+	}
+	b.indexPackGroupChatRAG(chatID, d.User.ID, "user", text, userMsgID)
+	if replyToID > 0 && userMsgID > 0 {
+		b.afterPackGroupReplyInserted(chatID, d.User.ID, uname, text, userMsgID, replyToID)
 	}
 
 	botName := ""

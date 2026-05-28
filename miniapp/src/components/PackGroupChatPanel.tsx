@@ -681,10 +681,36 @@ export function PackGroupChatPanel({
     }
 
     const replyToId = replyIntent?.replyToMessageId ?? 0;
+    const replyLabel = replyIntent?.authorLabel ?? "";
+    const replyExcerpt = replyIntent?.excerpt ?? "";
     setText("");
     setReplyIntent(null);
     forceScrollRef.current = true;
     userScrolledUpRef.current = false;
+
+    // Оптимистичная вставка своего сообщения — мгновенная обратная связь.
+    // Временный отрицательный id; после успешного load() заменяется серверной строкой,
+    // при ошибке откатывается.
+    const tempId = -Date.now();
+    setItems((prev) => {
+      const myName = prev.find((m) => !m.is_leo && m.user_id === meId)?.username ?? "";
+      const optimistic: PackGroupMessage = {
+        id: tempId,
+        user_id: meId,
+        username: myName,
+        text: t,
+        created_at: new Date().toISOString(),
+        is_leo: false,
+      };
+      if (replyToId > 0) {
+        optimistic.reply_to_id = replyToId;
+        optimistic.reply_to_username = replyLabel === "Лео" ? "" : replyLabel;
+        optimistic.reply_to_text = replyExcerpt;
+        optimistic.reply_to_is_leo = replyLabel === "Лео";
+      }
+      return [...prev, optimistic];
+    });
+
     try {
       const body: { init_data: string; text: string; reply_to_id?: number } = {
         init_data: initData,
@@ -698,6 +724,7 @@ export function PackGroupChatPanel({
       });
       const j = (await res.json().catch(() => ({}))) as { error?: string; message?: string; ok?: boolean; reply_text?: string };
       if (!res.ok) {
+        setItems((prev) => prev.filter((m) => m.id !== tempId));
         if (isModerationError(j.error)) {
           showAlert(moderationUserMessage(j.error, j.message));
           return;
@@ -707,11 +734,12 @@ export function PackGroupChatPanel({
       }
       await load();
     } catch (e) {
+      setItems((prev) => prev.filter((m) => m.id !== tempId));
       showAlert(e instanceof Error ? e.message : "Сеть");
     } finally {
       setSending(false);
     }
-  }, [text, sending, inTelegram, initData, showAlert, load, onHaptic, replyIntent, editIntent]);
+  }, [text, sending, inTelegram, initData, showAlert, load, onHaptic, replyIntent, editIntent, meId]);
 
   const reportMessage = useCallback(
     async (messageID: number) => {

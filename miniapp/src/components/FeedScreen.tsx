@@ -131,6 +131,8 @@ export function FeedScreen({
   const maxFeedIdRef = useRef(0);
   const pollTickRef = useRef(0);
   const loadedOnceRef = useRef(false);
+  /** Идёт полный синк — чтобы не плодить дубли (двойной fetch на маунте, наложение поллинга и пост-экшн-синков). */
+  const fullSyncInFlightRef = useRef(false);
 
   const categoryFilterSet = useMemo(() => new Set(feedCategoryIds), [feedCategoryIds]);
 
@@ -142,6 +144,9 @@ export function FeedScreen({
   const visibleFeedItems = useMemo(() => {
     return feedWithOptimistic.filter((it) => {
       if (it.type === "sick_leave") return false;
+      // Свой только что отправленный пост показываем всегда, даже если активен
+      // фильтр по типам тренировок (иначе кажется, что отчёт не отправился).
+      if (optimisticFeedItem && it.id === optimisticFeedItem.id) return true;
       if (feedOnlyMine && !it.is_you) return false;
       if (feedCategoryIds.length > 0) {
         if (it.type !== "training_done") return false;
@@ -149,7 +154,7 @@ export function FeedScreen({
       }
       return true;
     });
-  }, [feedWithOptimistic, feedOnlyMine, feedCategoryIds, categoryFilterSet]);
+  }, [feedWithOptimistic, feedOnlyMine, feedCategoryIds, categoryFilterSet, optimisticFeedItem]);
 
   const hapticLight = useCallback(() => {
     window.Telegram?.WebApp?.HapticFeedback?.impactOccurred?.("light");
@@ -221,6 +226,10 @@ export function FeedScreen({
       }
       const full = opts?.full === true || maxFeedIdRef.current === 0;
       const sinceId = full ? 0 : maxFeedIdRef.current;
+      // Дедуп: если полный синк уже выполняется, новый полный синк пропускаем
+      // (защищает от двойного fetch на маунте и наложения поллинга/пост-экшн-синков).
+      if (full && fullSyncInFlightRef.current) return;
+      if (full) fullSyncInFlightRef.current = true;
       if (!opts?.silent) setErr(null);
       if (!opts?.silent && !loadedOnceRef.current) setLoading(true);
       setUseMockFeed(false);
@@ -243,6 +252,8 @@ export function FeedScreen({
           }
           return;
         }
+        // Успешный ответ (в т.ч. тихий поллинг) снимает «липкий» баннер ошибки.
+        setErr(null);
         const incoming = j.items ?? [];
         if (full || sinceId === 0) {
           setFeedItems(incoming);
@@ -274,6 +285,7 @@ export function FeedScreen({
           setFeedItems([]);
         }
       } finally {
+        if (full) fullSyncInFlightRef.current = false;
         if (!opts?.silent) setLoading(false);
       }
     },
@@ -284,15 +296,19 @@ export function FeedScreen({
     (userMessageId: number, emoji: string) => {
       if (!apiBase || !initData) return;
 
-      let snapshot: PackFeedItemDTO[] | null = null;
-      setFeedItems((prev) => {
-        snapshot = prev;
-        return prev.map((it) =>
-          it.id === userMessageId
-            ? { ...it, reactions: optimisticTogglePackFeedReaction(it.reactions, emoji) }
-            : it,
+      const applyToggle = () =>
+        setFeedItems((prev) =>
+          prev.map((it) =>
+            it.id === userMessageId
+              ? { ...it, reactions: optimisticTogglePackFeedReaction(it.reactions, emoji) }
+              : it,
+          ),
         );
-      });
+
+      // Оптимистично переключаем реакцию сразу. Откат — повторное переключение
+      // того же эмодзи на этом же посте (toggle идемпотентен), чтобы не затереть
+      // параллельные оптимистичные изменения других реакций/постов.
+      applyToggle();
 
       void (async () => {
         try {
@@ -303,13 +319,13 @@ export function FeedScreen({
           });
           const j = (await res.json().catch(() => ({}))) as { error?: string };
           if (!res.ok) {
-            if (snapshot) setFeedItems(snapshot);
+            applyToggle();
             showAlert(j.error === "invalid_emoji" ? "Такую реакцию нельзя" : j.error ?? `Ошибка ${res.status}`);
             return;
           }
           void syncFeed({ full: true, silent: true });
         } catch (e) {
-          if (snapshot) setFeedItems(snapshot);
+          applyToggle();
           showAlert(e instanceof Error ? e.message : "Сеть");
         }
       })();
@@ -500,15 +516,18 @@ export function FeedScreen({
     (trainingUserMessageId: number, threadReplyId: number) => {
       if (!apiBase || !initData) return;
 
-      let snapshot: PackFeedItemDTO[] | null = null;
-      setFeedItems((prev) => {
-        snapshot = prev;
-        return prev.map((it) =>
-          it.id === trainingUserMessageId && it.thread
-            ? { ...it, thread: optimisticToggleThreadReplyLike(it.thread, threadReplyId) }
-            : it,
+      const applyToggle = () =>
+        setFeedItems((prev) =>
+          prev.map((it) =>
+            it.id === trainingUserMessageId && it.thread
+              ? { ...it, thread: optimisticToggleThreadReplyLike(it.thread, threadReplyId) }
+              : it,
+          ),
         );
-      });
+
+      // Оптимистично переключаем лайк; откат — повторный toggle того же лайка,
+      // чтобы не затирать другие параллельные оптимистичные изменения.
+      applyToggle();
 
       void (async () => {
         try {
@@ -519,7 +538,7 @@ export function FeedScreen({
           });
           const j = (await res.json().catch(() => ({}))) as { error?: string; thread?: PackFeedThreadReplyDTO[] };
           if (!res.ok) {
-            if (snapshot) setFeedItems(snapshot);
+            applyToggle();
             showAlert(j.error ?? `Ошибка ${res.status}`);
             return;
           }
@@ -532,7 +551,7 @@ export function FeedScreen({
             void syncFeed({ full: true, silent: true });
           }
         } catch (e) {
-          if (snapshot) setFeedItems(snapshot);
+          applyToggle();
           showAlert(e instanceof Error ? e.message : "Сеть");
         }
       })();
@@ -553,7 +572,9 @@ export function FeedScreen({
   }, [active, syncFeed]);
 
   useEffect(() => {
-    if (!active || !apiBase || !inTelegram || !initData.trim()) return;
+    // Поллим ленту только когда открыта именно подвкладка «Лента»: на подвкладке
+    // общего чата это лишняя сеть/батарея и фоновые апдейты состояния.
+    if (!active || sub !== "activity" || !apiBase || !inTelegram || !initData.trim()) return;
     let cancelled = false;
     let timer: ReturnType<typeof setTimeout> | null = null;
 
@@ -571,7 +592,7 @@ export function FeedScreen({
       cancelled = true;
       if (timer) clearTimeout(timer);
     };
-  }, [active, inTelegram, initData, syncFeed]);
+  }, [active, sub, inTelegram, initData, syncFeed]);
 
   useLayoutEffect(() => {
     const sticky = feedHeaderRef.current;
