@@ -47,6 +47,17 @@ func packFeedSupportsThread(messageType string) bool {
 	}
 }
 
+func packFeedSupportsReactions(messageType string) bool {
+	switch messageType {
+	case "training_done", "sick_leave", "healthy",
+		userMessageTypeAdminPost, userMessageTypeAdminPoll,
+		userMessageTypePackJoin, userMessageTypePackRejoin, userMessageTypeDailyWisdom:
+		return true
+	default:
+		return false
+	}
+}
+
 func allowedTrainingFeedEmoji(s string) (string, bool) {
 	s = strings.TrimSpace(s)
 	for _, e := range trainingFeedAllowedEmojis {
@@ -61,7 +72,7 @@ func allowedEmojiForType(messageType, emoji string) (string, bool) {
 	emoji = strings.TrimSpace(emoji)
 	var allowed []string
 	switch messageType {
-	case "training_done":
+	case "training_done", userMessageTypePackJoin, userMessageTypePackRejoin, userMessageTypeDailyWisdom:
 		allowed = trainingFeedAllowedEmojis
 	case "sick_leave":
 		allowed = sickLeaveAllowedEmojis
@@ -112,7 +123,7 @@ func (b *Bot) PackTrainingFeedReact(viewerUserID int64, initD initdata.InitData,
 	if err != nil {
 		return err
 	}
-	if !has || !packFeedSupportsThread(typ) {
+	if !has || !packFeedSupportsReactions(typ) {
 		return ErrTrainingFeedParentNotFound
 	}
 	em, ok := allowedEmojiForType(typ, emoji)
@@ -491,6 +502,19 @@ func (b *Bot) PackFeedThreadRepliesForViewer(viewerUserID, userMessageID int64) 
 	return b.threadRowsToPackReplies(m[userMessageID], viewerUserID, chatID), nil
 }
 
+func allowedEmojiListForFeedType(messageType string) []string {
+	switch messageType {
+	case "training_done", userMessageTypePackJoin, userMessageTypePackRejoin, userMessageTypeDailyWisdom:
+		return trainingFeedAllowedEmojis
+	case "sick_leave":
+		return sickLeaveAllowedEmojis
+	case "healthy", userMessageTypeAdminPost, userMessageTypeAdminPoll:
+		return healthyAllowedEmojis
+	default:
+		return nil
+	}
+}
+
 // enrichPackFeedTrainingSocial — реакции и треды для карточек ленты с соц. активностью.
 func (b *Bot) enrichPackFeedTrainingSocial(items []PackFeedItem, viewerUserID int64, chatID int64) []PackFeedItem {
 	socialIDs := make([]int64, 0)
@@ -499,11 +523,11 @@ func (b *Bot) enrichPackFeedTrainingSocial(items []PackFeedItem, viewerUserID in
 		if packFeedSupportsThread(it.Type) {
 			socialIDs = append(socialIDs, it.ID)
 		}
-		if it.Type == "training_done" || it.Type == "sick_leave" || it.Type == "healthy" || it.Type == userMessageTypeAdminPost || it.Type == userMessageTypeAdminPoll {
+		if packFeedSupportsReactions(it.Type) {
 			reactionIDs = append(reactionIDs, it.ID)
 		}
 	}
-	if len(socialIDs) == 0 {
+	if len(socialIDs) == 0 && len(reactionIDs) == 0 {
 		return items
 	}
 	aggsMap := map[int64][]database.TrainingFeedReactionAgg{}
@@ -516,32 +540,33 @@ func (b *Bot) enrichPackFeedTrainingSocial(items []PackFeedItem, viewerUserID in
 			return items
 		}
 	}
-	threadMap, err := b.db.ListTrainingFeedThreadByMessages(socialIDs)
-	if err != nil {
-		b.logger.Warnf("pack feed thread list: %v", err)
-		return items
+	threadMap := map[int64][]database.TrainingFeedThreadRow{}
+	if len(socialIDs) > 0 {
+		var err error
+		threadMap, err = b.db.ListTrainingFeedThreadByMessages(socialIDs)
+		if err != nil {
+			b.logger.Warnf("pack feed thread list: %v", err)
+			threadMap = map[int64][]database.TrainingFeedThreadRow{}
+		}
 	}
 	for i := range items {
+		id := items[i].ID
+		if packFeedSupportsReactions(items[i].Type) {
+			meEmoji := meMap[id]
+			if aggs, ok := aggsMap[id]; ok {
+				allowed := allowedEmojiListForFeedType(items[i].Type)
+				for _, a := range database.SortReactionAggsForDisplay(aggs, allowed) {
+					items[i].Reactions = append(items[i].Reactions, PackFeedReaction{
+						Emoji:  a.Emoji,
+						Count:  a.Count,
+						Me:     meEmoji == a.Emoji,
+						Voters: a.Voters,
+					})
+				}
+			}
+		}
 		if !packFeedSupportsThread(items[i].Type) {
 			continue
-		}
-		id := items[i].ID
-		meEmoji := meMap[id]
-		if aggs, ok := aggsMap[id]; ok {
-			allowed := trainingFeedAllowedEmojis
-			if items[i].Type == "sick_leave" {
-				allowed = sickLeaveAllowedEmojis
-			} else if items[i].Type == "healthy" || items[i].Type == userMessageTypeAdminPost || items[i].Type == userMessageTypeAdminPoll {
-				allowed = healthyAllowedEmojis
-			}
-			for _, a := range database.SortReactionAggsForDisplay(aggs, allowed) {
-				items[i].Reactions = append(items[i].Reactions, PackFeedReaction{
-					Emoji:  a.Emoji,
-					Count:  a.Count,
-					Me:     meEmoji == a.Emoji,
-					Voters: a.Voters,
-				})
-			}
 		}
 		if thr, ok := threadMap[id]; ok {
 			items[i].Thread = b.threadRowsToPackReplies(thr, viewerUserID, chatID)

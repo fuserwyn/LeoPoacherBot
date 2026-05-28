@@ -25,13 +25,13 @@ const (
 func packJoinMiniappFeedPublicText(displayName string) string {
 	d := strings.TrimSpace(displayName)
 	if d == "" {
-		return "👋 В стае новый участник."
+		return "В стае новый участник."
 	}
-	return fmt.Sprintf("👋 В стае новый участник: %s.", d)
+	return fmt.Sprintf("В стае новый участник: %s.", d)
 }
 
 func packRejoinMiniappFeedPublicText() string {
-	return "🔁 Участник вернулся в стаю. Я написал ему в личку — с возвращением и напоминание про ритм стаи."
+	return "Участник вернулся в стаю. Я написал ему в личку — с возвращением и напоминание про ритм стаи."
 }
 
 // Персональное приветствие — только в Telegram-личку вступившему (не дублировать целиком в ленту).
@@ -105,9 +105,6 @@ func (b *Bot) saveDailyWisdomPackFeed(wisdom string) {
 	t := strings.TrimSpace(wisdom)
 	if t == "" {
 		return
-	}
-	if !strings.HasPrefix(t, "🌅") && !strings.HasPrefix(t, "✨") && !strings.HasPrefix(t, "💡") {
-		t = "🌅 " + t
 	}
 	um := &domain.UserMessage{
 		UserID:      0,
