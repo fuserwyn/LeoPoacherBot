@@ -141,6 +141,9 @@ func packGroupRowToMessage(r database.PackGroupChatRow) domain.PackGroupChatMess
 	if r.ReplyToID.Valid && r.ReplyToID.Int64 > 0 {
 		m.ReplyToID = r.ReplyToID.Int64
 	}
+	if r.EditedAt.Valid {
+		m.EditedAt = r.EditedAt.Time.UTC().Format("2006-01-02T15:04:05Z07:00")
+	}
 	return m
 }
 
@@ -387,6 +390,43 @@ func (b *Bot) DeleteMiniAppPackGroupMessage(viewerUserID int64, initD initdata.I
 		_ = b.db.DeletePackGroupUnreadByMessageID(messageID)
 	}
 	return deleted, nil
+}
+
+// EditMiniAppPackGroupMessage — отредактировать своё (не Лео) сообщение в общем чате мини-аппа.
+func (b *Bot) EditMiniAppPackGroupMessage(viewerUserID int64, initD initdata.InitData, messageID int64, text string) (bool, error) {
+	if err := b.AssertMiniAppPackChatAligns(initD); err != nil {
+		return false, err
+	}
+	chatID := b.config.MonetizedChatID
+	if chatID == 0 {
+		return false, nil
+	}
+	if b.config.IsAdminTelegramUser(viewerUserID) {
+		// владелец тоже правит только своё — на уровне SQL WHERE from_user_id.
+	} else {
+		ok, err := b.db.UserInPackOrPaid(viewerUserID, chatID, b.config.PaywallEnabled)
+		if err != nil {
+			return false, err
+		}
+		if !ok {
+			return false, ErrPackFeedForbidden
+		}
+	}
+	text = strings.TrimSpace(text)
+	if text == "" {
+		return false, nil
+	}
+	if _, err := b.enforceUGC(text, moderation.SurfacePackGroupChat, viewerUserID); err != nil {
+		return false, err
+	}
+	updated, err := b.db.UpdateMiniappPackGroupMessageByAuthor(chatID, messageID, viewerUserID, text)
+	if err != nil {
+		return false, err
+	}
+	if updated {
+		b.indexPackGroupChatRAG(chatID, viewerUserID, "user", text, messageID)
+	}
+	return updated, nil
 }
 
 func allowedPackGroupChatEmoji(emoji string) (string, bool) {

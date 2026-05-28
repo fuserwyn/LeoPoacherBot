@@ -467,8 +467,6 @@ func (b *Bot) handleCommand(msg *tgbotapi.Message) {
 		b.generateAndSendDailyWisdom()
 	case "admin":
 		b.handleAdmin(msg)
-	case "owner":
-		b.handleOwner(msg)
 	case "audit_last24":
 		b.auditLast24h()
 	default:

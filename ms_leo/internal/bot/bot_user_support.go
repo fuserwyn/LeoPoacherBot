@@ -29,11 +29,6 @@ func (b *Bot) isAdminTelegramUser(userID int64) bool {
 	return ok
 }
 
-// isOwnerOnly — true только для владельца бота (OWNER_ID).
-func (b *Bot) isOwnerOnly(userID int64) bool {
-	return b != nil && b.config != nil && b.config.OwnerID != 0 && userID == b.config.OwnerID
-}
-
 // reloadDynamicAdmins — перезагружает кэш динамических администраторов из БД.
 func (b *Bot) reloadDynamicAdmins() {
 	if b == nil || b.db == nil {

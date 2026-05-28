@@ -104,6 +104,7 @@ type PackGroupChatMessage struct {
 	ReplyToUsername string                  `json:"reply_to_username,omitempty"`
 	ReplyToText     string                  `json:"reply_to_text,omitempty"`
 	ReplyToIsLeo    bool                    `json:"reply_to_is_leo,omitempty"`
+	EditedAt        string                  `json:"edited_at,omitempty"`
 	Reactions       []PackGroupChatReaction `json:"reactions,omitempty"`
 }
 

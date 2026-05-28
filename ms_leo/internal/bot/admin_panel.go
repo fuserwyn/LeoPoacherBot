@@ -98,10 +98,6 @@ func (b *Bot) handleAdminCallbackQuery(callback *tgbotapi.CallbackQuery) {
 		b.api.Request(callbackConfig)
 		return
 	}
-	if strings.HasPrefix(callback.Data, "owner_") {
-		b.handleOwnerCallbackQuery(callback)
-		return
-	}
 	if strings.HasPrefix(callback.Data, "admin_users_list_") ||
 		strings.HasPrefix(callback.Data, "admin_payments_") {
 		if b.handleAdminDirectoryCallback(callback) {
@@ -223,11 +219,6 @@ func (b *Bot) handleAdminFlowMessage(msg *tgbotapi.Message) bool {
 			b.api.Send(tgbotapi.NewMessage(msg.Chat.ID, "⚠️ Сначала заверши текущий мастер или отправь /cancel"))
 		}
 		return true
-	}
-
-	// Панель владельца: добавление динамического администратора
-	if session.Mode == "owner_add_admin" {
-		return b.handleOwnerAdminAddMessage(msg)
 	}
 
 	if b.handleAdminUserMgmtMessage(msg, session) {

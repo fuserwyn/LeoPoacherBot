@@ -134,6 +134,9 @@ func packGroupRowToDomain(r PackGroupChatRow) domain.PackGroupChatMessage {
 	if r.ReplyToID.Valid && r.ReplyToID.Int64 > 0 {
 		m.ReplyToID = r.ReplyToID.Int64
 	}
+	if r.EditedAt.Valid {
+		m.EditedAt = r.EditedAt.Time.UTC().Format("2006-01-02T15:04:05Z07:00")
+	}
 	return m
 }
 
@@ -261,6 +264,24 @@ func (d *Database) DeleteMiniappPackGroupMessageByAuthor(packChatID, messageID, 
 	)
 	if err != nil {
 		return false, fmt.Errorf("delete miniapp pack group by author: %w", err)
+	}
+	n, _ := res.RowsAffected()
+	return n > 0, nil
+}
+
+// UpdateMiniappPackGroupMessageByAuthor — отредактировать своё сообщение (не Лео) в общем чате мини-аппа.
+func (d *Database) UpdateMiniappPackGroupMessageByAuthor(packChatID, messageID, actorUserID int64, newText string) (bool, error) {
+	if packChatID == 0 || messageID == 0 || actorUserID == 0 {
+		return false, nil
+	}
+	res, err := d.db.Exec(
+		`UPDATE miniapp_pack_group_chat
+		 SET message_text = $4, edited_at = (NOW() AT TIME ZONE 'Europe/Moscow')
+		 WHERE id = $1 AND pack_chat_id = $2 AND from_user_id = $3 AND is_leo = FALSE`,
+		messageID, packChatID, actorUserID, newText,
+	)
+	if err != nil {
+		return false, fmt.Errorf("update miniapp pack group by author: %w", err)
 	}
 	n, _ := res.RowsAffected()
 	return n > 0, nil
