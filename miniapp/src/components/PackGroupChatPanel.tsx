@@ -9,6 +9,7 @@ import {
   type RefObject,
   type TouchEvent as ReactTouchEvent,
 } from "react";
+import { createPortal } from "react-dom";
 import { formatChatTime } from "../lib/timeAgo";
 import {
   createChatScrollScheduler,
@@ -158,43 +159,47 @@ function PackGroupMessageMenu({
       >
         {reporting ? "…" : "⋯"}
       </button>
-      {open && !reporting && (
-        <div
-          ref={popoverRef}
-          className="packroom__more-popover"
-          role="menu"
-          style={
-            popoverPos
-              ? { position: "fixed", top: popoverPos.top, left: popoverPos.left, zIndex: 250 }
-              : { position: "fixed", visibility: "hidden", top: 0, left: 0, zIndex: 250 }
-          }
-          onTouchMove={(e) => e.stopPropagation()}
-        >
-          <div className="packroom__more-emojis" role="group" aria-label="Реакции">
-            {reactions.map((r) => (
-              <button
-                key={r.emoji}
-                type="button"
-                className={`act-card__react-btn${r.me ? " act-card__react-btn--mine" : ""}`}
-                onClick={() => {
-                  onReaction(r.emoji);
-                  setOpen(false);
-                }}
-              >
-                {r.emoji}
-                {r.count > 0 && <span className="act-card__react-cnt">{r.count}</span>}
-              </button>
-            ))}
-          </div>
-          {canReport && onReport != null && (
-            <div className="packroom__more-footer">
-              <button type="button" className="packroom__more-item" role="menuitem" onClick={confirmReport}>
-                Пожаловаться на сообщение
-              </button>
-            </div>
-          )}
-        </div>
-      )}
+      {open && !reporting
+        ? createPortal(
+            <div
+              ref={popoverRef}
+              className="packroom__more-popover"
+              role="menu"
+              style={
+                popoverPos
+                  ? { position: "fixed", top: popoverPos.top, left: popoverPos.left, zIndex: 250 }
+                  : { position: "fixed", visibility: "hidden", top: 0, left: 0, zIndex: 250 }
+              }
+              onTouchMove={(e) => e.stopPropagation()}
+              onTouchStart={(e) => e.stopPropagation()}
+            >
+              <div className="packroom__more-emojis" role="group" aria-label="Реакции">
+                {reactions.map((r) => (
+                  <button
+                    key={r.emoji}
+                    type="button"
+                    className={`act-card__react-btn${r.me ? " act-card__react-btn--mine" : ""}`}
+                    onClick={() => {
+                      onReaction(r.emoji);
+                      setOpen(false);
+                    }}
+                  >
+                    {r.emoji}
+                    {r.count > 0 && <span className="act-card__react-cnt">{r.count}</span>}
+                  </button>
+                ))}
+              </div>
+              {canReport && onReport != null && (
+                <div className="packroom__more-footer">
+                  <button type="button" className="packroom__more-item" role="menuitem" onClick={confirmReport}>
+                    Пожаловаться на сообщение
+                  </button>
+                </div>
+              )}
+            </div>,
+            document.body,
+          )
+        : null}
     </div>
   );
 }
