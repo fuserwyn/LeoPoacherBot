@@ -1007,6 +1007,46 @@ var Migrations = []Migration{
 			ALTER TABLE training_state DROP COLUMN IF EXISTS ugc_violation_count;
 		`,
 	},
+	{
+		Version:     50,
+		Description: "Pack group chat emoji reactions",
+		UpSQL: `
+			CREATE TABLE IF NOT EXISTS miniapp_pack_group_reactions (
+				id BIGSERIAL PRIMARY KEY,
+				pack_chat_id BIGINT NOT NULL,
+				pack_message_id BIGINT NOT NULL REFERENCES miniapp_pack_group_chat(id) ON DELETE CASCADE,
+				user_id BIGINT NOT NULL,
+				username TEXT NOT NULL DEFAULT '',
+				emoji TEXT NOT NULL,
+				created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
+				updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
+				UNIQUE (pack_message_id, user_id)
+			);
+			CREATE INDEX IF NOT EXISTS idx_miniapp_pg_react_msg
+				ON miniapp_pack_group_reactions (pack_message_id);
+			CREATE INDEX IF NOT EXISTS idx_miniapp_pg_react_pack
+				ON miniapp_pack_group_reactions (pack_chat_id);
+		`,
+		DownSQL: `
+			DROP INDEX IF EXISTS idx_miniapp_pg_react_pack;
+			DROP INDEX IF EXISTS idx_miniapp_pg_react_msg;
+			DROP TABLE IF EXISTS miniapp_pack_group_reactions;
+		`,
+	},
+	{
+		Version:     51,
+		Description: "Feed reports: allow pack group chat messages",
+		UpSQL: `
+			ALTER TABLE miniapp_feed_reports DROP CONSTRAINT IF EXISTS miniapp_feed_reports_target_type_check;
+			ALTER TABLE miniapp_feed_reports ADD CONSTRAINT miniapp_feed_reports_target_type_check
+				CHECK (target_type IN ('feed_post', 'thread_reply', 'pack_group_message'));
+		`,
+		DownSQL: `
+			ALTER TABLE miniapp_feed_reports DROP CONSTRAINT IF EXISTS miniapp_feed_reports_target_type_check;
+			ALTER TABLE miniapp_feed_reports ADD CONSTRAINT miniapp_feed_reports_target_type_check
+				CHECK (target_type IN ('feed_post', 'thread_reply'));
+		`,
+	},
 }
 
 // MigrationRecord представляет запись о выполненной миграции

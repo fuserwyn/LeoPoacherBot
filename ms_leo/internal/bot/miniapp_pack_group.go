@@ -16,6 +16,7 @@ import (
 )
 
 var ErrPackGroupInvalidReply = errors.New("pack group invalid reply reference")
+var ErrPackGroupMessageNotFound = errors.New("pack group message not found")
 
 // @leo или @<username_бота> (как в группе).
 var reMentionLeo = regexp.MustCompile(`(?i)@leo\b`)
@@ -53,7 +54,7 @@ func displayNameFromInitData(d initdata.InitData) string {
 }
 
 // PackGroupChatForViewer — история общего чата (мини-апп), те же права, что и лента.
-func (b *Bot) PackGroupChatForViewer(viewerUserID int64, initD initdata.InitData) ([]*domain.PackGroupChatMessage, error) {
+func (b *Bot) PackGroupChatForViewer(viewerUserID int64, initD initdata.InitData, initDataRaw string) ([]*domain.PackGroupChatMessage, error) {
 	if err := b.AssertMiniAppPackChatAligns(initD); err != nil {
 		return nil, err
 	}
@@ -77,7 +78,8 @@ func (b *Bot) PackGroupChatForViewer(viewerUserID int64, initD initdata.InitData
 		return nil, err
 	}
 	msgs := b.packGroupRowsToMessages(rows)
-	return b.enrichPackGroupChatAuthorPhotos(msgs, chatID), nil
+	msgs = b.enrichPackGroupChatAuthorPhotos(msgs, chatID, initDataRaw)
+	return b.enrichPackGroupChatReactions(msgs, viewerUserID, chatID), nil
 }
 
 func (b *Bot) packGroupRowsToMessages(rows []database.PackGroupChatRow) []*domain.PackGroupChatMessage {
@@ -387,9 +389,135 @@ func (b *Bot) DeleteMiniAppPackGroupMessage(viewerUserID int64, initD initdata.I
 	return deleted, nil
 }
 
-func (b *Bot) enrichPackGroupChatAuthorPhotos(msgs []*domain.PackGroupChatMessage, chatID int64) []*domain.PackGroupChatMessage {
+func allowedPackGroupChatEmoji(emoji string) (string, bool) {
+	return allowedTrainingFeedEmoji(emoji)
+}
+
+// PackGroupChatReact — эмодзи-реакция на сообщение общего чата (повтор с той же эмодзи снимает).
+func (b *Bot) PackGroupChatReact(viewerUserID int64, initD initdata.InitData, messageID int64, emoji string) error {
+	if err := b.AssertMiniAppPackChatAligns(initD); err != nil {
+		return err
+	}
+	chatID := b.config.MonetizedChatID
+	if chatID == 0 {
+		return ErrPackFeedForbidden
+	}
+	if b.config.IsAdminTelegramUser(viewerUserID) {
+		// ok
+	} else {
+		ok, err := b.db.UserInPackOrPaid(viewerUserID, chatID, b.config.PaywallEnabled)
+		if err != nil {
+			return err
+		}
+		if !ok {
+			return ErrPackFeedForbidden
+		}
+	}
+	if messageID <= 0 {
+		return ErrPackGroupMessageNotFound
+	}
+	row, ok, err := b.db.GetMiniappPackGroupMessageInPack(chatID, messageID)
+	if err != nil {
+		return err
+	}
+	if !ok {
+		return ErrPackGroupMessageNotFound
+	}
+	_ = row
+	em, ok := allowedPackGroupChatEmoji(emoji)
+	if !ok {
+		return ErrTrainingFeedInvalidEmoji
+	}
+	uname := displayNameFromInitData(initD)
+	return b.db.SetPackGroupReaction(chatID, messageID, viewerUserID, uname, em)
+}
+
+// PackGroupChatReport — жалоба на сообщение в общем чате стаи.
+func (b *Bot) PackGroupChatReport(viewerUserID int64, initD initdata.InitData, messageID int64) error {
+	if err := b.AssertMiniAppPackChatAligns(initD); err != nil {
+		return err
+	}
+	if err := b.assertPackFeedSocialViewer(viewerUserID); err != nil {
+		return err
+	}
+	chatID := b.config.MonetizedChatID
+	if messageID <= 0 {
+		return ErrPackGroupMessageNotFound
+	}
+	row, ok, err := b.db.GetMiniappPackGroupMessageInPack(chatID, messageID)
+	if err != nil {
+		return err
+	}
+	if !ok {
+		return ErrPackGroupMessageNotFound
+	}
+	if row.IsLeo || row.FromUserID == 0 {
+		return ErrFeedReportLeo
+	}
+	if row.FromUserID == viewerUserID {
+		return ErrFeedReportSelf
+	}
+	reportID, err := b.db.InsertMiniappFeedReport(
+		chatID, viewerUserID, "pack_group_message", messageID, 0, row.FromUserID, row.MessageText,
+	)
+	if err != nil {
+		if strings.Contains(err.Error(), "duplicate key") || strings.Contains(err.Error(), "unique constraint") {
+			return ErrFeedReportAlreadyExists
+		}
+		return err
+	}
+	b.notifyAdminsAboutFeedReport(reportID, viewerUserID, "pack_group_message", messageID, 0, row.FromUserID, row.MessageText)
+	return nil
+}
+
+func (b *Bot) enrichPackGroupChatReactions(msgs []*domain.PackGroupChatMessage, viewerUserID, chatID int64) []*domain.PackGroupChatMessage {
 	if b == nil || b.db == nil || chatID == 0 || len(msgs) == 0 {
 		return msgs
+	}
+	ids := make([]int64, 0, len(msgs))
+	for _, m := range msgs {
+		if m != nil && m.ID > 0 {
+			ids = append(ids, m.ID)
+		}
+	}
+	if len(ids) == 0 {
+		return msgs
+	}
+	aggsMap, meMap, err := b.db.ListPackGroupReactionAggs(chatID, ids, viewerUserID)
+	if err != nil {
+		b.logger.Warnf("pack group reaction aggs: %v", err)
+		return msgs
+	}
+	for _, m := range msgs {
+		if m == nil {
+			continue
+		}
+		meEmoji := meMap[m.ID]
+		if aggs, ok := aggsMap[m.ID]; ok {
+			feedAggs := make([]database.TrainingFeedReactionAgg, len(aggs))
+			for i, a := range aggs {
+				feedAggs[i] = database.TrainingFeedReactionAgg{Emoji: a.Emoji, Count: a.Count, Voters: a.Voters}
+			}
+			for _, a := range database.SortReactionAggsForDisplay(feedAggs, trainingFeedAllowedEmojis) {
+				m.Reactions = append(m.Reactions, domain.PackGroupChatReaction{
+					Emoji:  a.Emoji,
+					Count:  a.Count,
+					Me:     meEmoji == a.Emoji,
+					Voters: a.Voters,
+				})
+			}
+		}
+	}
+	return msgs
+}
+
+func (b *Bot) enrichPackGroupChatAuthorPhotos(msgs []*domain.PackGroupChatMessage, chatID int64, initDataRaw string) []*domain.PackGroupChatMessage {
+	if b == nil || b.db == nil || chatID == 0 || len(msgs) == 0 {
+		return msgs
+	}
+	publicBase := ""
+	if b.config != nil {
+		publicBase = strings.TrimSpace(b.config.MiniappPublicBaseURL)
 	}
 	var ids []int64
 	seen := map[int64]struct{}{}
@@ -409,13 +537,13 @@ func (b *Bot) enrichPackGroupChatAuthorPhotos(msgs []*domain.PackGroupChatMessag
 	urlMap, err := b.db.MiniappTelegramPhotoURLMap(chatID, ids)
 	if err != nil {
 		b.logger.Warnf("pack group chat author photos: %v", err)
-		return msgs
+		urlMap = map[int64]string{}
 	}
 	for _, m := range msgs {
 		if m == nil || m.IsLeo || m.UserID == 0 {
 			continue
 		}
-		m.AuthorPhotoURL = urlMap[m.UserID]
+		m.AuthorPhotoURL = packFeedResolveAuthorPhoto(urlMap[m.UserID], publicBase, m.UserID, initDataRaw)
 	}
 	return msgs
 }

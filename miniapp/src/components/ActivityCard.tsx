@@ -83,7 +83,7 @@ function ReactionChip({
   );
 }
 
-function TrainingReactionsBar({
+export function TrainingReactionsBar({
   reactions,
   onReactionClick,
 }: {
@@ -171,7 +171,7 @@ function TrainingReactionsBar({
   );
 }
 
-function ReportActionMenu({
+export function ReportActionMenu({
   menuItemLabel,
   onReport,
   posting = false,

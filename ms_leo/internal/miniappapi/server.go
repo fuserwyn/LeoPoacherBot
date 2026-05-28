@@ -83,10 +83,14 @@ func (s *Server) serve(w http.ResponseWriter, r *http.Request) {
 		s.handlePostPackGroupMessage(w, r)
 	case path == "/api/miniapp/pack-group/messages/delete" && r.Method == http.MethodPost:
 		s.handlePostPackGroupMessageDelete(w, r)
+	case path == "/api/miniapp/pack-group/report" && r.Method == http.MethodPost:
+		s.handlePostPackGroupReport(w, r)
 	case path == "/api/miniapp/pack-group/unread-count" && r.Method == http.MethodPost:
 		s.handlePostPackGroupUnreadCount(w, r)
 	case path == "/api/miniapp/pack-group/unread-clear" && r.Method == http.MethodPost:
 		s.handlePostPackGroupUnreadClear(w, r)
+	case path == "/api/miniapp/pack-group/react" && r.Method == http.MethodPost:
+		s.handlePostPackGroupReact(w, r)
 	case path == "/api/miniapp/profile/load" && r.Method == http.MethodPost:
 		s.handlePostProfileLoad(w, r)
 	case path == "/api/miniapp/profile/save" && r.Method == http.MethodPost:
@@ -881,6 +885,75 @@ func (s *Server) handlePostFeedReport(w http.ResponseWriter, r *http.Request) {
 	_ = json.NewEncoder(w).Encode(map[string]any{"ok": true})
 }
 
+func (s *Server) handlePostPackGroupReport(w http.ResponseWriter, r *http.Request) {
+	corsWriteHeaders(w, r)
+	if s.bot == nil || s.token == "" {
+		s.jsonErr(w, http.StatusServiceUnavailable, "server_unavailable")
+		return
+	}
+	var body struct {
+		InitData  string `json:"init_data"`
+		MessageID int64  `json:"message_id"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		s.jsonErr(w, http.StatusBadRequest, "invalid_json")
+		return
+	}
+	if body.InitData == "" {
+		s.jsonErr(w, http.StatusBadRequest, "missing_init_data")
+		return
+	}
+	if body.MessageID == 0 {
+		s.jsonErr(w, http.StatusBadRequest, "missing_message_id")
+		return
+	}
+	if err := initdata.Validate(body.InitData, s.token, 24*time.Hour); err != nil {
+		s.logger.Warnf("miniapp pack group report: invalid init: %v", err)
+		s.jsonErr(w, http.StatusUnauthorized, "invalid_init_data")
+		return
+	}
+	parsed, err := initdata.Parse(body.InitData)
+	if err != nil {
+		s.jsonErr(w, http.StatusBadRequest, "parse_init_data")
+		return
+	}
+	if parsed.User.ID == 0 {
+		s.jsonErr(w, http.StatusBadRequest, "user_missing")
+		return
+	}
+	if err := s.bot.PackGroupChatReport(parsed.User.ID, parsed, body.MessageID); err != nil {
+		if errors.Is(err, bot.ErrMiniAppChatMismatch) {
+			s.jsonErr(w, http.StatusConflict, "chat_mismatch")
+			return
+		}
+		if errors.Is(err, bot.ErrTrainingFeedSocialForbidden) {
+			s.jsonErr(w, http.StatusForbidden, "forbidden")
+			return
+		}
+		if errors.Is(err, bot.ErrPackGroupMessageNotFound) {
+			s.jsonErr(w, http.StatusNotFound, "not_found")
+			return
+		}
+		if errors.Is(err, bot.ErrFeedReportSelf) {
+			s.jsonErr(w, http.StatusBadRequest, "cannot_report_self")
+			return
+		}
+		if errors.Is(err, bot.ErrFeedReportLeo) {
+			s.jsonErr(w, http.StatusBadRequest, "cannot_report_leo")
+			return
+		}
+		if errors.Is(err, bot.ErrFeedReportAlreadyExists) {
+			s.jsonErr(w, http.StatusConflict, "already_reported")
+			return
+		}
+		s.logger.Errorf("pack group report: %v", err)
+		s.jsonErr(w, http.StatusInternalServerError, "report_error")
+		return
+	}
+	w.Header().Set("Content-Type", "application/json; charset=utf-8")
+	_ = json.NewEncoder(w).Encode(map[string]any{"ok": true})
+}
+
 func (s *Server) handlePostPackGroupFeed(w http.ResponseWriter, r *http.Request) {
 	corsWriteHeaders(w, r)
 	if s.bot == nil || s.token == "" {
@@ -912,7 +985,7 @@ func (s *Server) handlePostPackGroupFeed(w http.ResponseWriter, r *http.Request)
 		s.jsonErr(w, http.StatusBadRequest, "user_missing")
 		return
 	}
-	items, err := s.bot.PackGroupChatForViewer(parsed.User.ID, parsed)
+	items, err := s.bot.PackGroupChatForViewer(parsed.User.ID, parsed, body.InitData)
 	if err != nil {
 		if errors.Is(err, bot.ErrMiniAppChatMismatch) {
 			s.jsonErr(w, http.StatusConflict, "chat_mismatch")
@@ -1150,6 +1223,68 @@ func (s *Server) handlePostPackGroupUnreadClear(w http.ResponseWriter, r *http.R
 		}
 		s.logger.Errorf("pack group unread clear: %v", err)
 		s.jsonErr(w, http.StatusInternalServerError, "unread_error")
+		return
+	}
+	w.Header().Set("Content-Type", "application/json; charset=utf-8")
+	_ = json.NewEncoder(w).Encode(map[string]any{"ok": true})
+}
+
+func (s *Server) handlePostPackGroupReact(w http.ResponseWriter, r *http.Request) {
+	corsWriteHeaders(w, r)
+	if s.bot == nil || s.token == "" {
+		s.jsonErr(w, http.StatusServiceUnavailable, "server_unavailable")
+		return
+	}
+	var body struct {
+		InitData  string `json:"init_data"`
+		MessageID int64  `json:"message_id"`
+		Emoji     string `json:"emoji"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		s.jsonErr(w, http.StatusBadRequest, "invalid_json")
+		return
+	}
+	if body.InitData == "" {
+		s.jsonErr(w, http.StatusBadRequest, "missing_init_data")
+		return
+	}
+	if body.MessageID == 0 {
+		s.jsonErr(w, http.StatusBadRequest, "missing_message_id")
+		return
+	}
+	if err := initdata.Validate(body.InitData, s.token, 24*time.Hour); err != nil {
+		s.logger.Warnf("miniapp pack group react: invalid init: %v", err)
+		s.jsonErr(w, http.StatusUnauthorized, "invalid_init_data")
+		return
+	}
+	parsed, err := initdata.Parse(body.InitData)
+	if err != nil {
+		s.jsonErr(w, http.StatusBadRequest, "parse_init_data")
+		return
+	}
+	if parsed.User.ID == 0 {
+		s.jsonErr(w, http.StatusBadRequest, "user_missing")
+		return
+	}
+	if err := s.bot.PackGroupChatReact(parsed.User.ID, parsed, body.MessageID, body.Emoji); err != nil {
+		if errors.Is(err, bot.ErrMiniAppChatMismatch) {
+			s.jsonErr(w, http.StatusConflict, "chat_mismatch")
+			return
+		}
+		if errors.Is(err, bot.ErrPackFeedForbidden) {
+			s.jsonErr(w, http.StatusForbidden, "forbidden")
+			return
+		}
+		if errors.Is(err, bot.ErrTrainingFeedInvalidEmoji) {
+			s.jsonErr(w, http.StatusBadRequest, "invalid_emoji")
+			return
+		}
+		if errors.Is(err, bot.ErrPackGroupMessageNotFound) {
+			s.jsonErr(w, http.StatusNotFound, "not_found")
+			return
+		}
+		s.logger.Errorf("pack group react: %v", err)
+		s.jsonErr(w, http.StatusInternalServerError, "react_error")
 		return
 	}
 	w.Header().Set("Content-Type", "application/json; charset=utf-8")

@@ -109,6 +109,8 @@ func (b *Bot) notifyAdminsAboutFeedReport(
 	kind := "пост в ленте"
 	if targetType == "thread_reply" {
 		kind = "комментарий"
+	} else if targetType == "pack_group_message" {
+		kind = "сообщение в чате"
 	}
 	title := fmt.Sprintf("🚨 Жалоба на %s · #%d", kind, reportID)
 	body := fmt.Sprintf(
@@ -162,10 +164,14 @@ func feedReportTargetLabel(item *domain.MiniappFeedReport) string {
 	if item == nil {
 		return ""
 	}
-	if item.TargetType == "thread_reply" {
+	switch item.TargetType {
+	case "thread_reply":
 		return "Комментарий"
+	case "pack_group_message":
+		return "Сообщение в чате"
+	default:
+		return "Пост"
 	}
-	return "Пост"
 }
 
 func feedReportPersonLabel(name string, userID int64) string {

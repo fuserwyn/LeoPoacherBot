@@ -3,6 +3,14 @@ import { formatChatTime, timeAgoFromISO } from "../lib/timeAgo";
 import { LEO_AVATAR_URL } from "../lib/leoAvatar";
 import { moderationUserMessage, isModerationError } from "../lib/moderationMessages";
 import { clearPackGroupUnread, fetchPackGroupUnreadSummary } from "../lib/packGroupUnread";
+import {
+  mergeTrainingFeedReactions,
+  optimisticTogglePackFeedReaction,
+  resolveFeedAvatarUrl,
+  type PackFeedReactionDTO,
+} from "../lib/packFeed";
+import { ReportActionMenu, TrainingReactionsBar } from "./ActivityCard";
+import "./ActivityCard.css";
 import "./PackGroupChatPanel.css";
 
 const apiBase = (import.meta.env.VITE_MINIAPP_API_URL as string | undefined)?.replace(/\/$/, "") ?? "";
@@ -19,6 +27,7 @@ export type PackGroupMessage = {
   reply_to_username?: string;
   reply_to_text?: string;
   reply_to_is_leo?: boolean;
+  reactions?: PackFeedReactionDTO[];
 };
 
 type ReplyIntent = {
@@ -81,6 +90,7 @@ export function PackGroupChatPanel({
   const [text, setText] = useState("");
   const [replyIntent, setReplyIntent] = useState<ReplyIntent | null>(null);
   const [sending, setSending] = useState(false);
+  const [reportPosting, setReportPosting] = useState<Record<number, boolean>>({});
   const [err, setErr] = useState<string | null>(null);
   const endRef = useRef<HTMLDivElement | null>(null);
   const logRef = useRef<HTMLDivElement | null>(null);
@@ -385,6 +395,40 @@ export function PackGroupChatPanel({
     }
   }, [text, sending, inTelegram, initData, showAlert, load, onHaptic, replyIntent]);
 
+  const reportMessage = useCallback(
+    async (messageID: number) => {
+      if (!apiBase || !inTelegram || !initData || !messageID) return;
+      setReportPosting((p) => ({ ...p, [messageID]: true }));
+      try {
+        const res = await fetch(`${apiBase}/api/miniapp/pack-group/report`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ init_data: initData, message_id: messageID }),
+        });
+        const j = (await res.json().catch(() => ({}))) as { error?: string };
+        if (!res.ok) {
+          const errMap: Record<string, string> = {
+            not_found: "Сообщение не найдено (обнови чат)",
+            forbidden: "Нет доступа",
+            chat_mismatch: "Открой мини-апп из чата стаи",
+            cannot_report_self: "Нельзя пожаловаться на своё сообщение",
+            cannot_report_leo: "На это сообщение пожаловаться нельзя",
+            already_reported: "Ты уже отправлял жалобу на это",
+            report_error: "Не удалось отправить жалобу",
+          };
+          showAlert(errMap[j.error ?? ""] ?? j.error ?? `Ошибка ${res.status}`);
+          return;
+        }
+        showAlert("Жалоба отправлена. Админы увидят её в поддержке.");
+      } catch (e) {
+        showAlert(e instanceof Error ? e.message : "Сеть");
+      } finally {
+        setReportPosting((p) => ({ ...p, [messageID]: false }));
+      }
+    },
+    [inTelegram, initData, showAlert],
+  );
+
   const startReply = useCallback((m: PackGroupMessage) => {
     const authorLabel = m.is_leo ? "Лео" : m.username;
     const excerpt = m.text.length > 100 ? `${m.text.slice(0, 99).trim()}…` : m.text.trim();
@@ -421,6 +465,43 @@ export function PackGroupChatPanel({
     [inTelegram, initData, showAlert],
   );
 
+  const postReaction = useCallback(
+    (messageId: number, emoji: string) => {
+      if (!apiBase || !inTelegram || !initData || !messageId) return;
+
+      let snapshot: PackGroupMessage[] | null = null;
+      setItems((prev) => {
+        snapshot = prev;
+        return prev.map((m) =>
+          m.id === messageId
+            ? { ...m, reactions: optimisticTogglePackFeedReaction(m.reactions, emoji) }
+            : m,
+        );
+      });
+
+      void (async () => {
+        try {
+          const res = await fetch(`${apiBase}/api/miniapp/pack-group/react`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ init_data: initData, message_id: messageId, emoji }),
+          });
+          const j = (await res.json().catch(() => ({}))) as { error?: string };
+          if (!res.ok) {
+            if (snapshot) setItems(snapshot);
+            showAlert(j.error === "invalid_emoji" ? "Такую реакцию нельзя" : j.error ?? `Ошибка ${res.status}`);
+            return;
+          }
+          await load();
+        } catch (e) {
+          if (snapshot) setItems(snapshot);
+          showAlert(e instanceof Error ? e.message : "Сеть");
+        }
+      })();
+    },
+    [inTelegram, initData, showAlert, load],
+  );
+
   const itemsById = useMemo(() => {
     const map = new Map<number, PackGroupMessage>();
     for (const m of items) map.set(m.id, m);
@@ -451,6 +532,9 @@ export function PackGroupChatPanel({
           const isReply = replyQuote != null;
           const rowTone = m.is_leo ? "packroom__row--leo" : mine ? "packroom__row--me" : "packroom__row--oth";
           const isUnread = unreadMessageIds.has(m.id);
+          const canReport = !mine && !m.is_leo;
+          const reactions = mergeTrainingFeedReactions(m.reactions);
+          const avatarUrl = resolveFeedAvatarUrl(m.author_photo_url);
           return (
             <div
               key={m.id}
@@ -463,15 +547,32 @@ export function PackGroupChatPanel({
                 <div className="packroom__ava" aria-hidden>
                   {m.is_leo ? (
                     <img className="packroom__avatar" src={LEO_AVATAR_URL} width={32} height={32} alt="" loading="lazy" />
-                  ) : m.author_photo_url ? (
-                    <img className="packroom__avatar" src={m.author_photo_url} width={32} height={32} alt="" loading="lazy" />
+                  ) : avatarUrl ? (
+                    <img
+                      className="packroom__avatar"
+                      src={avatarUrl}
+                      width={32}
+                      height={32}
+                      alt=""
+                      loading="lazy"
+                    />
                   ) : (
                     <span className="packroom__avatar-ph">🐾</span>
                   )}
                 </div>
                 <div className="packroom__content">
-                  <div className="packroom__meta">
-                    {m.is_leo ? "Лео" : m.username} · {formatChatTime(m.created_at)} · {timeAgoFromISO(m.created_at)}
+                  <div className="packroom__meta-row">
+                    <div className="packroom__meta">
+                      {m.is_leo ? "Лео" : m.username} · {formatChatTime(m.created_at)} · {timeAgoFromISO(m.created_at)}
+                    </div>
+                    {canReport && (
+                      <ReportActionMenu
+                        className="packroom__menu"
+                        menuItemLabel="Пожаловаться на сообщение"
+                        onReport={() => void reportMessage(m.id)}
+                        posting={Boolean(reportPosting[m.id])}
+                      />
+                    )}
                   </div>
                   <div className="packroom__bubble-wrap">
                     <div className="packroom__bubble">
@@ -507,6 +608,12 @@ export function PackGroupChatPanel({
                         </button>
                       )}
                     </div>
+                  </div>
+                  <div className="packroom__react act-card__react" role="group" aria-label="Реакции">
+                    <TrainingReactionsBar
+                      reactions={reactions}
+                      onReactionClick={(emoji) => postReaction(m.id, emoji)}
+                    />
                   </div>
                 </div>
               </div>

@@ -431,6 +431,13 @@ func (d *Database) AdminDeletePackGroupMessage(packChatID, messageID int64) (boo
 		return false, err
 	}
 	n, _ := res.RowsAffected()
+	if _, err := d.db.Exec(
+		`DELETE FROM miniapp_feed_reports
+		 WHERE pack_chat_id = $1 AND target_type = 'pack_group_message' AND user_message_id = $2`,
+		packChatID, messageID,
+	); err != nil {
+		return false, fmt.Errorf("delete pack group feed reports: %w", err)
+	}
 	return n > 0, nil
 }
 

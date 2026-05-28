@@ -673,10 +673,14 @@ func (b *Bot) adminDeleteReportedContent(chatID, reportID int64) {
 
 	var ok bool
 	var label string
-	if item.ThreadReplyID > 0 {
+	switch item.TargetType {
+	case "pack_group_message":
+		ok, err = b.db.AdminDeletePackGroupMessage(packChatID, item.UserMessageID)
+		label = fmt.Sprintf("сообщение чата #%d", item.UserMessageID)
+	case "thread_reply":
 		ok, err = b.db.AdminDeleteTrainingFeedThreadReply(packChatID, item.ThreadReplyID)
 		label = fmt.Sprintf("комментарий t%d", item.ThreadReplyID)
-	} else if item.UserMessageID > 0 {
+	default:
 		ok, err = b.db.AdminDeleteFeedUserMessage(packChatID, item.UserMessageID)
 		label = fmt.Sprintf("пост #%d", item.UserMessageID)
 	}
@@ -706,10 +710,14 @@ func (b *Bot) adminHideReportedContent(chatID, reportID int64) {
 
 	var ok bool
 	var label string
-	if item.ThreadReplyID > 0 {
+	switch item.TargetType {
+	case "pack_group_message":
+		ok, err = b.db.AdminHidePackGroupMessage(packChatID, item.UserMessageID)
+		label = fmt.Sprintf("сообщение чата #%d", item.UserMessageID)
+	case "thread_reply":
 		ok, err = b.db.AdminHideTrainingFeedThreadReply(packChatID, item.ThreadReplyID)
 		label = fmt.Sprintf("комментарий t%d", item.ThreadReplyID)
-	} else if item.UserMessageID > 0 {
+	default:
 		ok, err = b.db.AdminHideFeedUserMessage(packChatID, item.UserMessageID)
 		label = fmt.Sprintf("пост #%d", item.UserMessageID)
 	}

@@ -446,7 +446,7 @@ func (b *Bot) showAdminFeedReportsInbox(chatID int64) {
 		return
 	}
 	var text strings.Builder
-	text.WriteString("🚨 Жалобы на ленту\n\n")
+	text.WriteString("🚨 Жалобы на контент\n\n")
 	if len(items) == 0 {
 		text.WriteString("Открытых жалоб нет.")
 	} else {
@@ -502,9 +502,15 @@ func (b *Bot) showAdminFeedReport(chatID, reportID int64) {
 	text.WriteString("На кого: ")
 	text.WriteString(feedReportPersonLabel(item.TargetName, item.TargetUserID))
 	text.WriteString("\n")
-	text.WriteString("Отчёт в ленте: #")
-	text.WriteString(strconv.FormatInt(item.UserMessageID, 10))
-	text.WriteString("\n")
+	if item.TargetType == "pack_group_message" {
+		text.WriteString("Сообщение в чате: #")
+		text.WriteString(strconv.FormatInt(item.UserMessageID, 10))
+		text.WriteString("\n")
+	} else {
+		text.WriteString("Отчёт в ленте: #")
+		text.WriteString(strconv.FormatInt(item.UserMessageID, 10))
+		text.WriteString("\n")
+	}
 	if item.ThreadReplyID > 0 {
 		text.WriteString("Комментарий: #")
 		text.WriteString(strconv.FormatInt(item.ThreadReplyID, 10))

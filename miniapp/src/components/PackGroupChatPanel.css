@@ -115,9 +115,37 @@ html.app-keyboard-open .packroom {
   text-align: left;
 }
 
+.packroom__meta-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  min-width: 0;
+}
+
 .packroom__meta {
   font-size: 0.72rem;
   color: var(--muted, #6b6b7a);
+  min-width: 0;
+}
+
+.packroom__menu {
+  flex-shrink: 0;
+}
+
+.packroom__react {
+  margin-top: 2px;
+  padding: 0;
+  border: none;
+  background: none;
+}
+
+.packroom__row--me .packroom__react .act-card__react-inner {
+  justify-content: flex-end;
+}
+
+.packroom__row--me .packroom__meta-row {
+  flex-direction: row-reverse;
 }
 
 .packroom__bubble-wrap {
@@ -221,6 +249,23 @@ html.app-keyboard-open .packroom {
   color: rgba(90, 140, 255, 0.95);
   cursor: pointer;
   text-align: left;
+}
+
+.packroom__report {
+  padding: 2px 0;
+  border: none;
+  background: none;
+  font: inherit;
+  font-size: 12px;
+  color: var(--muted, #8b8b9a);
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.packroom__report:disabled {
+  opacity: 0.55;
+  cursor: default;
 }
 
 .packroom__quote {
