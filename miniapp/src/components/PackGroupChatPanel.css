@@ -173,23 +173,27 @@
   min-height: 0;
   overflow-y: auto;
   -webkit-overflow-scrolling: touch;
-  overscroll-behavior: contain;
+  touch-action: pan-y;
+  overscroll-behavior-y: contain;
   /* Иначе при догрузке аватаров WebKit «якорит» на предпоследнее сообщение. */
   overflow-anchor: none;
   padding: 4px 0 0;
 }
 
-/* Короткая лента — сообщения у поля ввода; длинная — скролл с привязкой к низу. */
+/* Короткая лента — сообщения у поля ввода; длинная — обычный скролл. */
 .packroom__log-inner {
   min-height: 100%;
   display: flex;
   flex-direction: column;
-  justify-content: flex-end;
   gap: 8px;
-  /* Композер in-flow под лентой — достаточно небольшого зазора. */
   padding-bottom: 8px;
   box-sizing: border-box;
   overflow-anchor: none;
+}
+
+.packroom__log-inner::before {
+  content: "";
+  flex: 1 0 auto;
 }
 
 .packroom__log-end {

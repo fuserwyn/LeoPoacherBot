@@ -10,6 +10,11 @@ import {
   type TouchEvent as ReactTouchEvent,
 } from "react";
 import { formatChatTime } from "../lib/timeAgo";
+import {
+  createChatScrollScheduler,
+  isChatLogNearBottom,
+  scrollChatLogToEnd,
+} from "../lib/chatLogScroll";
 import { LEO_AVATAR_URL } from "../lib/leoAvatar";
 import { moderationUserMessage, isModerationError } from "../lib/moderationMessages";
 import { clearPackGroupUnread, fetchPackGroupUnreadSummary } from "../lib/packGroupUnread";
@@ -227,8 +232,8 @@ function SwipeToReply({ onReply, children }: { onReply: () => void; children: Re
     const deltaX = e.touches[0].clientX - startX.current;
     const deltaY = e.touches[0].clientY - startY.current;
     if (dir.current === null) {
-      if (Math.abs(deltaX) < 10 && Math.abs(deltaY) < 10) return;
-      dir.current = Math.abs(deltaX) > Math.abs(deltaY) * 1.3 ? "h" : "v";
+      if (Math.abs(deltaX) < 14 && Math.abs(deltaY) < 14) return;
+      dir.current = Math.abs(deltaX) > Math.abs(deltaY) * 1.85 ? "h" : "v";
     }
     if (dir.current !== "h") return;
     let d = deltaX;
@@ -402,6 +407,10 @@ export function PackGroupChatPanel({
   const inputRef = useRef<HTMLInputElement | null>(null);
   /** true когда пользователь прокрутил вверх — не перебиваем позицию при поллинге */
   const userScrolledUpRef = useRef(false);
+  /** Пока идёт жест скролла — не дёргаем scrollTop из ResizeObserver/поллинга. */
+  const userScrollingRef = useRef(false);
+  const scrollGestureTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const tailMessageIdRef = useRef<number | null>(null);
   const didInitialScrollRef = useRef(false);
   /** После отправки — всегда вниз, даже если читал историю выше */
   const forceScrollRef = useRef(false);
@@ -414,31 +423,21 @@ export function PackGroupChatPanel({
   const [serverResults, setServerResults] = useState<PackGroupMessage[]>([]);
   const [searching, setSearching] = useState(false);
 
-  const isNearBottom = useCallback((el: HTMLDivElement, threshold = 96) => {
-    return el.scrollHeight - el.scrollTop - el.clientHeight < threshold;
+  const isNearBottom = useCallback((el: HTMLDivElement, threshold = 80) => {
+    return isChatLogNearBottom(el, threshold);
   }, []);
 
   const scrollToBottom = useCallback(() => {
     const el = logRef.current;
     if (!el) return;
-    const run = () => {
-      el.scrollTop = el.scrollHeight;
-      endRef.current?.scrollIntoView({ block: "end" });
-    };
-    run();
-    requestAnimationFrame(() => {
-      run();
-      requestAnimationFrame(run);
-    });
+    scrollChatLogToEnd(el);
   }, []);
 
-  const scrollToBottomIfNear = useCallback(() => {
+  const scrollToBottomIfAllowed = useCallback(() => {
     const el = logRef.current;
-    if (!el) return;
-    if (!userScrolledUpRef.current || isNearBottom(el, 160)) {
-      userScrolledUpRef.current = false;
-      scrollToBottom();
-    }
+    if (!el || userScrollingRef.current) return;
+    if (userScrolledUpRef.current && !isNearBottom(el, 120)) return;
+    scrollToBottom();
   }, [isNearBottom, scrollToBottom]);
 
   /** Пока клавиатура анимируется — держим низ ленты у поля ввода. */
@@ -448,7 +447,7 @@ export function PackGroupChatPanel({
     const onViewportChange = () => {
       const input = document.activeElement;
       if (!(input instanceof HTMLInputElement) || !input.classList.contains("packroom__input")) return;
-      userScrolledUpRef.current = false;
+      if (userScrolledUpRef.current) return;
       scrollToBottom();
     };
     vv?.addEventListener("resize", onViewportChange);
@@ -467,17 +466,14 @@ export function PackGroupChatPanel({
     const mo = new MutationObserver(() => {
       const open = root.classList.contains("app-keyboard-open");
       if (wasOpen && !open) {
-        requestAnimationFrame(() => {
-          requestAnimationFrame(scrollToBottomIfNear);
-        });
-        window.setTimeout(scrollToBottomIfNear, 120);
-        window.setTimeout(scrollToBottomIfNear, 320);
+        requestAnimationFrame(scrollToBottomIfAllowed);
+        window.setTimeout(scrollToBottomIfAllowed, 120);
       }
       wasOpen = open;
     });
     mo.observe(root, { attributes: true, attributeFilter: ["class"] });
     return () => mo.disconnect();
-  }, [active, scrollToBottomIfNear]);
+  }, [active, scrollToBottomIfAllowed]);
 
   const load = useCallback(async () => {
     if (!apiBase || !inTelegram || !initData) return;
@@ -556,9 +552,17 @@ export function PackGroupChatPanel({
     if (!el) return;
     const onScroll = () => {
       userScrolledUpRef.current = !isNearBottom(el);
+      userScrollingRef.current = true;
+      if (scrollGestureTimerRef.current) clearTimeout(scrollGestureTimerRef.current);
+      scrollGestureTimerRef.current = setTimeout(() => {
+        userScrollingRef.current = false;
+      }, 180);
     };
     el.addEventListener("scroll", onScroll, { passive: true });
-    return () => el.removeEventListener("scroll", onScroll);
+    return () => {
+      el.removeEventListener("scroll", onScroll);
+      if (scrollGestureTimerRef.current) clearTimeout(scrollGestureTimerRef.current);
+    };
   }, [isNearBottom]);
 
   // Рост ленты (поллинг, аватары) — держим конец видимым, если пользователь внизу.
@@ -568,18 +572,19 @@ export function PackGroupChatPanel({
     const inner = el.firstElementChild;
     if (!(inner instanceof HTMLElement)) return;
 
-    const ro = new ResizeObserver(() => {
+    const scheduleScroll = createChatScrollScheduler(() => {
+      if (userScrollingRef.current) return;
       if (forceScrollRef.current || !userScrolledUpRef.current) {
         scrollToBottom();
       }
     });
+
+    const ro = new ResizeObserver(scheduleScroll);
     ro.observe(inner);
     const onImgLoad = (e: Event) => {
       if (!(e.target instanceof HTMLImageElement)) return;
       if (!e.target.classList.contains("packroom__avatar")) return;
-      if (forceScrollRef.current || !userScrolledUpRef.current) {
-        scrollToBottom();
-      }
+      scheduleScroll();
     };
     inner.addEventListener("load", onImgLoad, true);
     return () => {
@@ -607,6 +612,7 @@ export function PackGroupChatPanel({
     if (!didInitialScrollRef.current) {
       didInitialScrollRef.current = true;
       userScrolledUpRef.current = false;
+      tailMessageIdRef.current = items[items.length - 1]?.id ?? null;
       const firstUnread = pendingUnreadScrollRef.current;
       if (firstUnread != null && firstUnread > 0) {
         pendingUnreadScrollRef.current = null;
@@ -614,17 +620,13 @@ export function PackGroupChatPanel({
         return;
       }
       scrollToBottom();
-      const t1 = window.setTimeout(scrollToBottom, 0);
-      const t2 = window.setTimeout(scrollToBottom, 80);
-      const t3 = window.setTimeout(scrollToBottom, 280);
-      const t4 = window.setTimeout(scrollToBottom, 600);
-      return () => {
-        window.clearTimeout(t1);
-        window.clearTimeout(t2);
-        window.clearTimeout(t3);
-        window.clearTimeout(t4);
-      };
+      requestAnimationFrame(scrollToBottom);
+      return;
     }
+
+    const tailId = items[items.length - 1]?.id ?? null;
+    const tailChanged = tailId !== tailMessageIdRef.current;
+    tailMessageIdRef.current = tailId;
 
     if (forceScrollRef.current) {
       forceScrollRef.current = false;
@@ -633,8 +635,7 @@ export function PackGroupChatPanel({
       return;
     }
 
-    if (!userScrolledUpRef.current || isNearBottom(el)) {
-      userScrolledUpRef.current = false;
+    if (tailChanged && !userScrollingRef.current && (!userScrolledUpRef.current || isNearBottom(el))) {
       scrollToBottom();
     }
   }, [active, items, isNearBottom, scrollToBottom, scrollToQuotedMessage]);
@@ -1034,10 +1035,6 @@ export function PackGroupChatPanel({
         role="log"
         aria-label="Чат стаи"
         ref={logRef}
-        onPointerDown={() => {
-          window.setTimeout(scrollToBottomIfNear, 120);
-          window.setTimeout(scrollToBottomIfNear, 320);
-        }}
       >
         <div className="packroom__log-inner">
         {items.map((m) => {
@@ -1214,14 +1211,10 @@ export function PackGroupChatPanel({
           autoComplete="off"
           enterKeyHint="send"
           onFocus={() => {
-            userScrolledUpRef.current = false;
-            scrollToBottom();
-            window.setTimeout(scrollToBottom, 100);
-            window.setTimeout(scrollToBottom, 320);
+            if (!userScrolledUpRef.current) scrollToBottom();
           }}
           onBlur={() => {
-            window.setTimeout(scrollToBottomIfNear, 80);
-            window.setTimeout(scrollToBottomIfNear, 280);
+            window.setTimeout(scrollToBottomIfAllowed, 120);
           }}
         />
         <button

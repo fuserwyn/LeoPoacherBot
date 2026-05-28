@@ -1,5 +1,10 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { clearLeoPersonalInbox } from "../lib/leoPersonalInbox";
+import {
+  createChatScrollScheduler,
+  isChatLogNearBottom,
+  scrollChatLogToEnd,
+} from "../lib/chatLogScroll";
 import { formatChatTime } from "../lib/timeAgo";
 import { LEO_AVATAR_URL } from "../lib/leoAvatar";
 import "./ChatScreen.css";
@@ -120,6 +125,11 @@ export function ChatScreen({ name, initData, inTelegram, showAlert, onInboxOpene
   const didInitialScrollRef = useRef(false);
   /** true — после отправки сообщения пользователем: всегда скроллим вниз, даже если был наверху */
   const forceScrollRef = useRef(false);
+  /** Пользователь читает историю выше — не дёргаем scrollTop при поллинге. */
+  const userScrolledUpRef = useRef(false);
+  const userScrollingRef = useRef(false);
+  const scrollGestureTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const tailMessageKeyRef = useRef<string | null>(null);
   /** max(server_id) перед отправкой пользователя — новый ответ Лео с id выше этого. */
   const baselineMaxForPendingLeoRef = useRef(0);
 
@@ -136,22 +146,57 @@ export function ChatScreen({ name, initData, inTelegram, showAlert, onInboxOpene
     };
   }, [active]);
 
-  const isNearLogBottom = useCallback(() => {
+  const isNearLogBottom = useCallback((threshold = 80) => {
     const el = logRef.current;
     if (!el) return true;
-    return el.scrollHeight - el.scrollTop - el.clientHeight < 160;
+    return isChatLogNearBottom(el, threshold);
   }, []);
 
   const scrollLogToEnd = useCallback(() => {
     const el = logRef.current;
     if (!el) return;
-    el.scrollTop = el.scrollHeight;
-    endRef.current?.scrollIntoView({ block: "end" });
+    scrollChatLogToEnd(el);
   }, []);
 
-  const scrollLogToEndIfNear = useCallback(() => {
-    if (isNearLogBottom()) scrollLogToEnd();
+  const scrollLogToEndIfAllowed = useCallback(() => {
+    if (userScrollingRef.current) return;
+    if (userScrolledUpRef.current && !isNearLogBottom(120)) return;
+    scrollLogToEnd();
   }, [isNearLogBottom, scrollLogToEnd]);
+
+  // Отслеживаем жест скролла и «читаю историю».
+  useEffect(() => {
+    const el = logRef.current;
+    if (!el) return;
+    const onScroll = () => {
+      userScrolledUpRef.current = !isNearLogBottom();
+      userScrollingRef.current = true;
+      if (scrollGestureTimerRef.current) clearTimeout(scrollGestureTimerRef.current);
+      scrollGestureTimerRef.current = setTimeout(() => {
+        userScrollingRef.current = false;
+      }, 180);
+    };
+    el.addEventListener("scroll", onScroll, { passive: true });
+    return () => {
+      el.removeEventListener("scroll", onScroll);
+      if (scrollGestureTimerRef.current) clearTimeout(scrollGestureTimerRef.current);
+    };
+  }, [isNearLogBottom]);
+
+  // Рост ленты — подтягиваем низ только если пользователь внизу.
+  useEffect(() => {
+    const el = logRef.current;
+    if (!el) return;
+    const scheduleScroll = createChatScrollScheduler(() => {
+      if (userScrollingRef.current) return;
+      if (forceScrollRef.current || !userScrolledUpRef.current) {
+        scrollLogToEnd();
+      }
+    });
+    const ro = new ResizeObserver(scheduleScroll);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [scrollLogToEnd]);
 
   /** Пока клавиатура анимируется — держим низ ленты у поля ввода. */
   useEffect(() => {
@@ -160,6 +205,7 @@ export function ChatScreen({ name, initData, inTelegram, showAlert, onInboxOpene
     const onViewportChange = () => {
       const input = document.activeElement;
       if (!(input instanceof HTMLInputElement) || !input.classList.contains("chat__input")) return;
+      if (userScrolledUpRef.current) return;
       scrollLogToEnd();
     };
     vv?.addEventListener("resize", onViewportChange);
@@ -178,42 +224,46 @@ export function ChatScreen({ name, initData, inTelegram, showAlert, onInboxOpene
     const mo = new MutationObserver(() => {
       const open = root.classList.contains("app-keyboard-open");
       if (wasOpen && !open) {
-        requestAnimationFrame(() => {
-          requestAnimationFrame(scrollLogToEndIfNear);
-        });
-        window.setTimeout(scrollLogToEndIfNear, 120);
-        window.setTimeout(scrollLogToEndIfNear, 320);
+        requestAnimationFrame(scrollLogToEndIfAllowed);
+        window.setTimeout(scrollLogToEndIfAllowed, 120);
       }
       wasOpen = open;
     });
     mo.observe(root, { attributes: true, attributeFilter: ["class"] });
     return () => mo.disconnect();
-  }, [active, scrollLogToEndIfNear]);
+  }, [active, scrollLogToEndIfAllowed]);
 
   useEffect(() => {
     const el = logRef.current;
     if (!el || !loaded) return;
     if (!didInitialScrollRef.current) {
-      // items may still be empty on the first `loaded=true` tick (setLoaded and setItems
-      // are separate async state updates). Wait until messages are actually rendered.
       if (items.length === 0) return;
       didInitialScrollRef.current = true;
-      requestAnimationFrame(() => {
-        if (logRef.current) logRef.current.scrollTop = logRef.current.scrollHeight;
-      });
+      userScrolledUpRef.current = false;
+      tailMessageKeyRef.current = items[items.length - 1]?.uiKey ?? null;
+      requestAnimationFrame(scrollLogToEnd);
       return;
     }
-    // Пользователь отправил сообщение — всегда показываем его, даже если был наверху.
+
+    const tailKey = items[items.length - 1]?.uiKey ?? null;
+    const tailChanged = tailKey !== tailMessageKeyRef.current;
+    tailMessageKeyRef.current = tailKey;
+
     if (forceScrollRef.current) {
       forceScrollRef.current = false;
-      el.scrollTop = el.scrollHeight;
+      userScrolledUpRef.current = false;
+      scrollLogToEnd();
       return;
     }
-    const nearBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 120;
-    if (nearBottom) {
-      el.scrollTop = el.scrollHeight;
+
+    if (
+      tailChanged &&
+      !userScrollingRef.current &&
+      (!userScrolledUpRef.current || isNearLogBottom())
+    ) {
+      scrollLogToEnd();
     }
-  }, [items, sending, leoTyping, loaded]);
+  }, [items, sending, leoTyping, loaded, isNearLogBottom, scrollLogToEnd]);
 
   useEffect(() => {
     if (!leoTyping) return;
@@ -426,10 +476,6 @@ export function ChatScreen({ name, initData, inTelegram, showAlert, onInboxOpene
         role="log"
         aria-label="Сообщения с ботом"
         ref={logRef}
-        onPointerDown={() => {
-          window.setTimeout(scrollLogToEndIfNear, 120);
-          window.setTimeout(scrollLogToEndIfNear, 320);
-        }}
       >
         {loaded && items.length === 0 && (
           <div className="chat__row chat__row--sys">
@@ -496,13 +542,10 @@ export function ChatScreen({ name, initData, inTelegram, showAlert, onInboxOpene
           value={text}
           onChange={(e) => setText(e.target.value)}
           onFocus={() => {
-            scrollLogToEnd();
-            window.setTimeout(scrollLogToEnd, 100);
-            window.setTimeout(scrollLogToEnd, 320);
+            if (!userScrolledUpRef.current) scrollLogToEnd();
           }}
           onBlur={() => {
-            window.setTimeout(scrollLogToEndIfNear, 80);
-            window.setTimeout(scrollLogToEndIfNear, 280);
+            window.setTimeout(scrollLogToEndIfAllowed, 120);
           }}
           placeholder="Лео, подскажи…"
           maxLength={4000}

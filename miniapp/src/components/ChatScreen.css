@@ -182,7 +182,8 @@
   gap: 12px;
   overflow-y: auto;
   -webkit-overflow-scrolling: touch;
-  overscroll-behavior: contain;
+  touch-action: pan-y;
+  overscroll-behavior-y: contain;
   /* iOS: при закрытии клавиатуры не «якорить» низ ленты под композером. */
   overflow-anchor: none;
 }

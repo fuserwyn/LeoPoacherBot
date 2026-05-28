@@ -77,13 +77,12 @@ html.feed-thread-composer-open .feed__list {
   overflow-anchor: none;
 }
 
-/* iOS WebKit: rubber-band на документе утаскивает каретку position:fixed инпута.
-   Когда чат с Лео активен — фиксируем body, скроллится только .chat__log внутри. */
+/* Композер in-flow — достаточно overflow:hidden, без position:fixed на body
+   (position:fixed ломает инерцию вертикального скролла в WebView). */
 body.body--lock {
-  position: fixed;
-  inset: 0;
-  height: 100dvh;
   overflow: hidden;
+  height: 100dvh;
+  overscroll-behavior: none;
   padding-bottom: 0;
 }
 
