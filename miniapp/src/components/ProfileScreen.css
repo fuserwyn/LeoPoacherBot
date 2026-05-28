@@ -515,7 +515,6 @@
   --achievement-shell: #ffe566;
   --achievement-bean: #f0b429;
   --achievement-claw: #d4a017;
-  --achievement-cup-shine: #fff6bf;
   --achievement-crown: #ffd84d;
   --achievement-crown-band: #e8b923;
   --achievement-crown-gem: #fff8dc;
@@ -545,38 +544,8 @@
   fill: #fff;
 }
 
-.profile__achievement-cup-bowl {
-  fill: var(--achievement-shell);
-  stroke: var(--achievement-outline);
-  stroke-width: 1.15;
-  stroke-linejoin: round;
-}
-
-.profile__achievement-cup-handle {
-  stroke: var(--achievement-outline);
-  stroke-width: 1.05;
-  stroke-linecap: round;
-}
-
-.profile__achievement-cup-stem,
-.profile__achievement-cup-base {
-  fill: var(--achievement-bean);
-  stroke: var(--achievement-outline);
-  stroke-width: 0.85;
-}
-
-.profile__achievement-cup-star {
-  fill: var(--achievement-cup-shine, #fff6bf);
-  stroke: var(--achievement-outline);
-  stroke-width: 0.7;
-  stroke-linejoin: round;
-}
-
-.profile__achievement-days--cups {
-  font-size: 7px;
-  top: 82%;
-  color: var(--achievement-day-color);
-  text-shadow: 0 1px 0 rgba(255, 255, 255, 0.55);
+.profile__achievement-paw--crown .profile__achievement-pad-shell {
+  stroke-width: 1.9;
 }
 
 .profile__achievement--420.is-earned .profile__achievement-badge {
