@@ -272,69 +272,6 @@ func (b *Bot) getUserLocalDate(offsetFromMoscow int) string {
 	return b.getUserLocalNow(offsetFromMoscow).Format("2006-01-02")
 }
 
-func parseTimezoneOffsetFromCommand(text string) (int, error) {
-	lower := strings.ToLower(text)
-	idx := strings.Index(lower, "#timezone")
-	if idx == -1 {
-		return 0, fmt.Errorf("timezone command not found")
-	}
-
-	rest := strings.TrimSpace(text[idx+len("#timezone"):])
-	if rest == "" {
-		return 0, fmt.Errorf("empty timezone offset")
-	}
-
-	offsetStr := strings.Fields(rest)[0]
-	// Разрешаем #timezone 0 как удобный сброс к МСК.
-	if offsetStr == "0" {
-		return 0, nil
-	}
-	if !strings.HasPrefix(offsetStr, "+") && !strings.HasPrefix(offsetStr, "-") {
-		return 0, fmt.Errorf("offset must start with + or - (or be 0)")
-	}
-
-	offset, err := strconv.Atoi(offsetStr)
-	if err != nil {
-		return 0, fmt.Errorf("invalid timezone offset")
-	}
-	if offset < -12 || offset > 12 {
-		return 0, fmt.Errorf("offset out of allowed range")
-	}
-	return offset, nil
-}
-
-func (b *Bot) handleTimezoneCommand(msg *tgbotapi.Message, text string) {
-	offset, err := parseTimezoneOffsetFromCommand(text)
-	if err != nil {
-		usage := "⚠️ Неверный формат #timezone.\n\nИспользуй: #timezone +4, #timezone -2 или #timezone 0\n(смещение относительно Москвы, диапазон: -12..+12)"
-		b.notifyUserText(msg, usage, "", 0)
-		return
-	}
-
-	log, err := b.db.GetMessageLog(msg.From.ID, b.packTrainingStateChatID(msg))
-	if err != nil {
-		b.logger.Errorf("Failed to get message log for timezone command: %v", err)
-		b.notifyUserText(msg, "❌ Не удалось сохранить часовой пояс, попробуй еще раз.", "", 0)
-		return
-	}
-
-	log.TimezoneOffsetFromMoscow = offset
-	if err := b.db.SaveMessageLog(log); err != nil {
-		b.logger.Errorf("Failed to save timezone offset: %v", err)
-		b.notifyUserText(msg, "❌ Не удалось сохранить часовой пояс, попробуй еще раз.", "", 0)
-		return
-	}
-
-	sign := "+"
-	if offset < 0 {
-		sign = ""
-	}
-	localNow := b.getUserLocalNow(offset)
-	reply := fmt.Sprintf("✅ Часовой пояс сохранен: МСК%s%d\n🕒 Твое локальное время: %s\n\nТеперь логика по времени будет считаться по твоему локальному часу.",
-		sign, offset, localNow.Format("02.01 15:04"))
-	b.notifyUserText(msg, reply, "", 0)
-}
-
 func (b *Bot) handleUpdate(update tgbotapi.Update) {
 	// Обрабатываем callback queries (нажатия на inline кнопки)
 	if update.CallbackQuery != nil {
@@ -495,8 +432,7 @@ func (b *Bot) handleMessage(msg *tgbotapi.Message, personalReplyCh chan<- string
 	hasTrainingReport := leopardmoney.IsTrainingReportLine(text)
 	hasSickLeave := strings.Contains(strings.ToLower(text), "#sick_leave")
 	hasHealthy := strings.Contains(strings.ToLower(text), "#healthy")
-	hasTimeZone := strings.Contains(strings.ToLower(text), "#timezone")
-	hasCommand := hasTrainingReport || hasSickLeave || hasHealthy || hasTimeZone
+	hasCommand := hasTrainingReport || hasSickLeave || hasHealthy
 
 	// Если есть команда, обрабатываем её и НЕ обрабатываем через ИИ
 	if hasCommand {
@@ -540,8 +476,6 @@ func (b *Bot) handleMessage(msg *tgbotapi.Message, personalReplyCh chan<- string
 				messageType = "sick_leave"
 			} else if hasHealthy {
 				messageType = "healthy"
-			} else if hasTimeZone {
-				messageType = "timezone"
 			}
 
 			userMsg := &domain.UserMessage{
@@ -578,7 +512,7 @@ func (b *Bot) handleMessage(msg *tgbotapi.Message, personalReplyCh chan<- string
 					}
 				}
 			} else {
-				// #sick_leave / #healthy / #timezone — приватные события, в ленту стаи их не дублируем
+				// #sick_leave / #healthy — приватные события, в ленту стаи их не дублируем
 				// (только #training_done зеркалится в pack feed выше).
 				if err := b.db.SaveUserMessage(userMsg); err != nil {
 					b.logger.Errorf("Failed to save user message: %v", err)
@@ -624,9 +558,7 @@ func (b *Bot) handleMessage(msg *tgbotapi.Message, personalReplyCh chan<- string
 		}
 
 		// Обрабатываем хештеги
-		if hasTimeZone {
-			b.handleTimezoneCommand(msg, text)
-		} else if hasTrainingReport {
+		if hasTrainingReport {
 			b.handleTrainingDone(msg, personalReplyCh, trainingDoneFeedMsgID)
 		} else if hasSickLeave {
 			b.handleSickLeave(msg)

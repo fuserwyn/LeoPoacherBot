@@ -16,7 +16,7 @@ import { fetchLeoPendingCount } from "./lib/leoPersonalInbox";
 import { fetchFeedThreadUnreadSummary } from "./lib/feedThreadUnread";
 import { fetchPackGroupUnreadCount } from "./lib/packGroupUnread";
 import { ensureMiniappOnboarding } from "./lib/miniappOnboarding";
-import { syncTimezoneIfNeeded } from "./lib/timezoneSync";
+import { syncDeviceTimezone } from "./lib/timezoneSync";
 import "./App.css";
 
 type Tab = "chat" | "feed" | "rules" | "profile";
@@ -129,11 +129,11 @@ export function App() {
       setAchievementCount(typeof j.achievement_count === "number" ? j.achievement_count : 0);
       setAchievementsMax(typeof j.achievements_max === "number" ? j.achievements_max : 9);
       setWorkouts(typeof j.workouts_total === "number" ? j.workouts_total : 0);
-      // Одноразовое автоопределение TZ для пользователей без явно выставленного смещения.
+      // Автоопределение часового пояса из устройства: приводим хранимое смещение к зоне телефона.
       if (!tzSyncedRef.current) {
         tzSyncedRef.current = true;
         const currentOffset = typeof j.timezone_offset === "number" ? j.timezone_offset : 0;
-        void syncTimezoneIfNeeded(initData, currentOffset);
+        void syncDeviceTimezone(initData, currentOffset);
       }
     } catch {
       return;

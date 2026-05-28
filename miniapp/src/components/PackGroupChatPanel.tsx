@@ -1,4 +1,14 @@
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type RefObject } from "react";
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ReactNode,
+  type RefObject,
+  type TouchEvent as ReactTouchEvent,
+} from "react";
 import { formatChatTime } from "../lib/timeAgo";
 import { LEO_AVATAR_URL } from "../lib/leoAvatar";
 import { moderationUserMessage, isModerationError } from "../lib/moderationMessages";
@@ -180,6 +190,92 @@ function PackGroupMessageMenu({
           )}
         </div>
       )}
+    </div>
+  );
+}
+
+// Свайп сообщения влево = "Ответить". Жест распознаётся как горизонтальный,
+// чтобы не мешать вертикальному скроллу ленты; при достижении порога даём haptic.
+function SwipeToReply({ onReply, children }: { onReply: () => void; children: ReactNode }) {
+  const startX = useRef(0);
+  const startY = useRef(0);
+  const dir = useRef<null | "h" | "v">(null);
+  const passed = useRef(false);
+  const lastDx = useRef(0);
+  const [dx, setDx] = useState(0);
+  const [snap, setSnap] = useState(false);
+
+  const THRESHOLD = 56;
+  const MAX = 84;
+
+  const hapticLight = () => {
+    window.Telegram?.WebApp?.HapticFeedback?.impactOccurred?.("light");
+  };
+
+  const onTouchStart = (e: ReactTouchEvent<HTMLDivElement>) => {
+    if (e.touches.length !== 1) return;
+    startX.current = e.touches[0].clientX;
+    startY.current = e.touches[0].clientY;
+    dir.current = null;
+    passed.current = false;
+    lastDx.current = 0;
+    setSnap(false);
+  };
+
+  const onTouchMove = (e: ReactTouchEvent<HTMLDivElement>) => {
+    if (e.touches.length !== 1) return;
+    const deltaX = e.touches[0].clientX - startX.current;
+    const deltaY = e.touches[0].clientY - startY.current;
+    if (dir.current === null) {
+      if (Math.abs(deltaX) < 10 && Math.abs(deltaY) < 10) return;
+      dir.current = Math.abs(deltaX) > Math.abs(deltaY) * 1.3 ? "h" : "v";
+    }
+    if (dir.current !== "h") return;
+    let d = deltaX;
+    if (d > 0) d = 0;
+    if (d < -MAX) d = -MAX;
+    lastDx.current = d;
+    setDx(d);
+    const reached = -d >= THRESHOLD;
+    if (reached && !passed.current) {
+      passed.current = true;
+      hapticLight();
+    } else if (!reached && passed.current) {
+      passed.current = false;
+    }
+  };
+
+  const finish = () => {
+    const reached = -lastDx.current >= THRESHOLD;
+    setSnap(true);
+    setDx(0);
+    lastDx.current = 0;
+    dir.current = null;
+    passed.current = false;
+    if (reached) onReply();
+  };
+
+  const reached = -dx >= THRESHOLD;
+
+  return (
+    <div className="packroom__swipe">
+      <span
+        className={`packroom__swipe-hint${reached ? " packroom__swipe-hint--active" : ""}`}
+        style={{ opacity: Math.min(1, -dx / THRESHOLD) }}
+        aria-hidden
+      >
+        ↩
+      </span>
+      <div
+        className="packroom__row-inner"
+        style={{ transform: `translateX(${dx}px)`, transition: snap ? "transform 0.18s ease" : "none" }}
+        onTouchStart={onTouchStart}
+        onTouchMove={onTouchMove}
+        onTouchEnd={finish}
+        onTouchCancel={finish}
+      >
+        {children}
+      </div>
     </div>
   );
 }
@@ -792,7 +888,7 @@ export function PackGroupChatPanel({
                 highlightMessageId === m.id ? " packroom__row--highlight" : ""
               }${isUnread ? " packroom__row--unread" : ""}`}
             >
-              <div className="packroom__row-inner">
+              <SwipeToReply onReply={() => startReply(m)}>
                 <div className="packroom__ava" aria-hidden>
                   {m.is_leo ? (
                     <img className="packroom__avatar" src={LEO_AVATAR_URL} width={32} height={32} alt="" loading="lazy" />
@@ -885,7 +981,7 @@ export function PackGroupChatPanel({
                     </div>
                   </div>
                 </div>
-              </div>
+              </SwipeToReply>
             </div>
           );
         })}

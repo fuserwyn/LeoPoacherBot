@@ -1,12 +1,10 @@
 /**
- * Автоопределение часового пояса пользователя при первом открытии мини-аппа.
- * Бэкенд хранит смещение в часах относительно МСК (UTC+3) — конвертим из браузерного offset.
+ * Часовой пояс пользователя определяется автоматически из устройства (системная зона телефона)
+ * и синхронизируется на бэкенд при каждом запуске мини-аппа. Это единственный источник правды —
+ * ручной команды (#timezone) больше нет.
  *
- * Стратегия (минимум риска): если у пользователя на бэке timezone_offset == 0 (дефолт МСК)
- * И детектированное смещение != 0 — апдейтим. Это разовый upgrade нового пользователя
- * без перезаписи ручной настройки `#timezone +X` (если он осознанно её ставил).
- *
- * IANA-зону пока не сохраняем — её хранение требует миграции БД (отложено).
+ * Бэкенд хранит смещение в часах относительно МСК (UTC+3); конвертим из браузерного offset.
+ * IANA-зону не храним — вся серверная логика (стрик, таймеры, дедлайны) работает по int-смещению.
  */
 
 const apiBase = (import.meta.env.VITE_MINIAPP_API_URL as string | undefined)?.replace(/\/$/, "") ?? "";
@@ -14,10 +12,9 @@ const apiBase = (import.meta.env.VITE_MINIAPP_API_URL as string | undefined)?.re
 const MOSCOW_UTC_OFFSET_HOURS = 3;
 
 /**
- * Возвращает смещение пользователя относительно Москвы в часах,
- * округлённое к ближайшему целому (бэкенд хранит int -12..+12).
- * Если страна на 30/45-минутном offset — стрик считается с погрешностью до часа,
- * но это приемлемо для текущей логики.
+ * Смещение пользователя относительно Москвы в часах, округлённое к ближайшему целому
+ * (бэкенд хранит int -12..+12). На зонах с 30/45-мин offset стрик считается с погрешностью
+ * до часа — это приемлемо для текущей логики.
  */
 function detectOffsetFromMoscow(): number {
   // getTimezoneOffset() возвращает разницу UTC - local в минутах, поэтому со знаком минус.
@@ -40,15 +37,14 @@ export function detectTimezoneInfo(): { offsetFromMoscow: number; ianaName: stri
 }
 
 /**
- * Идемпотентно дотягивает TZ пользователя на бэке.
- * currentOffset — то, что уже хранится у пользователя (из /profile/load); если 0 и detected != 0 — обновляем.
- * Если currentOffset != 0 — не трогаем (значит пользователь уже сконфигурирован).
+ * Приводит хранимое на бэке смещение к фактическому часовому поясу устройства.
+ * Шлём profile/save только если оно отличается от сохранённого, чтобы не дёргать сеть зря.
+ * @param currentOffset — текущее смещение пользователя из /profile/load.
  */
-export async function syncTimezoneIfNeeded(initData: string, currentOffset: number): Promise<void> {
+export async function syncDeviceTimezone(initData: string, currentOffset: number): Promise<void> {
   if (!apiBase || !initData.trim()) return;
   const { offsetFromMoscow } = detectTimezoneInfo();
-  if (currentOffset !== 0) return;
-  if (offsetFromMoscow === 0) return;
+  if (offsetFromMoscow === currentOffset) return;
   try {
     await fetch(`${apiBase}/api/miniapp/profile/save`, {
       method: "POST",
