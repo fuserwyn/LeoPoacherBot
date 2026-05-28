@@ -41,15 +41,33 @@ function PackGroupMessageMenu({
 
     const tr = toggle.getBoundingClientRect();
     const popW = popover.offsetWidth;
-    const popH = popover.offsetHeight;
     const gap = 8;
     const margin = 10;
-    const maxH = Math.min(320, Math.floor(window.innerHeight * 0.52));
 
-    let top = tr.bottom + gap;
-    if (top + popH > window.innerHeight - margin) {
-      top = Math.max(margin, tr.top - gap - Math.min(popH, maxH));
-    }
+    // Нижняя граница — верх поля ввода (композер + таббар), а НЕ низ экрана:
+    // иначе нижние эмодзи уходят под форму ввода и до них нельзя доскроллить.
+    const composer = document.querySelector(".packroom__form");
+    const bottomLimit =
+      composer instanceof HTMLElement
+        ? Math.min(window.innerHeight - margin, composer.getBoundingClientRect().top - gap)
+        : window.innerHeight - margin;
+    const topLimit = margin;
+
+    // Натуральная высота (без ограничения), чтобы решить, куда раскрывать.
+    popover.style.maxHeight = "";
+    const naturalH = popover.offsetHeight;
+
+    const spaceBelow = bottomLimit - (tr.bottom + gap);
+    const spaceAbove = tr.top - gap - topLimit;
+    const openUp = spaceBelow < Math.min(naturalH, 220) && spaceAbove > spaceBelow;
+
+    const avail = Math.max(140, Math.floor(openUp ? spaceAbove : spaceBelow));
+    popover.style.maxHeight = `${Math.min(320, avail)}px`;
+    const popH = Math.min(popover.offsetHeight, Math.min(320, avail));
+
+    let top = openUp ? tr.top - gap - popH : tr.bottom + gap;
+    if (top < topLimit) top = topLimit;
+    if (top + popH > bottomLimit) top = Math.max(topLimit, bottomLimit - popH);
 
     let left = tr.right - popW;
     if (left < margin) left = margin;

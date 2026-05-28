@@ -124,7 +124,8 @@ func (b *Bot) showAdminUserCard(chatID, targetUserID int64) {
 			tgbotapi.NewInlineKeyboardButtonData("⏳ Дней без тренировки", "admin_user_inactive_"+strconv.FormatInt(targetUserID, 10)),
 		),
 		tgbotapi.NewInlineKeyboardRow(
-			tgbotapi.NewInlineKeyboardButtonData("🗑 Удалить сообщение", "admin_user_msg_"+strconv.FormatInt(targetUserID, 10)),
+			tgbotapi.NewInlineKeyboardButtonData("🗑 Лента", "admin_user_del_feed_"+strconv.FormatInt(targetUserID, 10)),
+			tgbotapi.NewInlineKeyboardButtonData("🗑 Чат стаи", "admin_user_del_chat_"+strconv.FormatInt(targetUserID, 10)),
 		),
 	}
 	if ugcMuted {
@@ -231,16 +232,63 @@ func (b *Bot) handleAdminUserMgmtCallback(callback *tgbotapi.CallbackQuery) bool
 		}
 		return true
 
-	case strings.HasPrefix(data, "admin_user_msg_"):
-		targetID, ok := parseTarget("admin_user_msg_")
+	case strings.HasPrefix(data, "admin_user_del_feed_yes_"):
+		targetID, ok := parseTarget("admin_user_del_feed_yes_")
 		if ok {
-			b.startAdminUserAction(adminID, targetID, "user_delete_msg", "await_message_id")
-			b.api.Send(tgbotapi.NewMessage(chatID,
-				fmt.Sprintf("🗑 Отправь ID сообщения для удаления.\n\n"+
-					"• #123 — пост в ленте (user_messages)\n"+
-					"• t123 — комментарий в треде\n"+
-					"• g123 — сообщение общего чата стаи\n\n"+
-					"Пользователь: %d", targetID)))
+			n, err := b.db.AdminDeleteAllFeedMessagesByUser(b.adminPackChatID(), targetID)
+			if err != nil {
+				b.api.Send(tgbotapi.NewMessage(chatID, "❌ Ошибка: "+err.Error()))
+			} else {
+				b.api.Send(tgbotapi.NewMessage(chatID, fmt.Sprintf("✅ Удалено %d постов из ленты пользователя %d.", n, targetID)))
+			}
+			b.showAdminUserCard(chatID, targetID)
+		}
+		return true
+
+	case strings.HasPrefix(data, "admin_user_del_feed_"):
+		targetID, ok := parseTarget("admin_user_del_feed_")
+		if ok {
+			msg := tgbotapi.NewMessage(chatID, fmt.Sprintf(
+				"🗑 Удалить все посты пользователя %d из ленты?\n\nВместе с комментариями, реакциями и голосами в опросах.",
+				targetID,
+			))
+			msg.ReplyMarkup = tgbotapi.NewInlineKeyboardMarkup(
+				tgbotapi.NewInlineKeyboardRow(
+					tgbotapi.NewInlineKeyboardButtonData("✅ Да, удалить", "admin_user_del_feed_yes_"+strconv.FormatInt(targetID, 10)),
+					tgbotapi.NewInlineKeyboardButtonData("❌ Отмена", "admin_user_open_"+strconv.FormatInt(targetID, 10)),
+				),
+			)
+			b.api.Send(msg)
+		}
+		return true
+
+	case strings.HasPrefix(data, "admin_user_del_chat_yes_"):
+		targetID, ok := parseTarget("admin_user_del_chat_yes_")
+		if ok {
+			n, err := b.db.AdminDeleteAllPackGroupMessagesByUser(b.adminPackChatID(), targetID)
+			if err != nil {
+				b.api.Send(tgbotapi.NewMessage(chatID, "❌ Ошибка: "+err.Error()))
+			} else {
+				b.api.Send(tgbotapi.NewMessage(chatID, fmt.Sprintf("✅ Удалено %d сообщений пользователя %d из чата стаи.", n, targetID)))
+			}
+			b.showAdminUserCard(chatID, targetID)
+		}
+		return true
+
+	case strings.HasPrefix(data, "admin_user_del_chat_"):
+		targetID, ok := parseTarget("admin_user_del_chat_")
+		if ok {
+			msg := tgbotapi.NewMessage(chatID, fmt.Sprintf(
+				"🗑 Удалить все сообщения пользователя %d из чата стаи?\n\nВместе с реакциями и жалобами на них.",
+				targetID,
+			))
+			msg.ReplyMarkup = tgbotapi.NewInlineKeyboardMarkup(
+				tgbotapi.NewInlineKeyboardRow(
+					tgbotapi.NewInlineKeyboardButtonData("✅ Да, удалить", "admin_user_del_chat_yes_"+strconv.FormatInt(targetID, 10)),
+					tgbotapi.NewInlineKeyboardButtonData("❌ Отмена", "admin_user_open_"+strconv.FormatInt(targetID, 10)),
+				),
+			)
+			b.api.Send(msg)
 		}
 		return true
 
@@ -438,17 +486,6 @@ func (b *Bot) handleAdminUserMgmtMessage(msg *tgbotapi.Message, session *adminSe
 		b.showAdminUserCard(msg.Chat.ID, targetID)
 		return true
 
-	case "await_message_id":
-		targetID := session.TargetUserID
-		b.clearAdminFlow(msg.From.ID)
-		ok, label := b.adminDeleteMessageByRef(text)
-		if !ok {
-			b.api.Send(tgbotapi.NewMessage(msg.Chat.ID, "❌ Сообщение не найдено или уже удалено."))
-		} else {
-			b.api.Send(tgbotapi.NewMessage(msg.Chat.ID, fmt.Sprintf("✅ Удалено: %s", label)))
-		}
-		b.showAdminUserCard(msg.Chat.ID, targetID)
-		return true
 	}
 	return false
 }

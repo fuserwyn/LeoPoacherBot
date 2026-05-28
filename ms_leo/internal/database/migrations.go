@@ -1076,6 +1076,17 @@ var Migrations = []Migration{
 			DROP TABLE IF EXISTS dynamic_admins;
 		`,
 	},
+	{
+		Version:     53,
+		Description: "Pack group chat: edited_at marker for edited messages",
+		UpSQL: `
+			ALTER TABLE miniapp_pack_group_chat
+				ADD COLUMN IF NOT EXISTS edited_at TIMESTAMP WITH TIME ZONE NULL;
+		`,
+		DownSQL: `
+			ALTER TABLE miniapp_pack_group_chat DROP COLUMN IF EXISTS edited_at;
+		`,
+	},
 }
 
 // MigrationRecord представляет запись о выполненной миграции

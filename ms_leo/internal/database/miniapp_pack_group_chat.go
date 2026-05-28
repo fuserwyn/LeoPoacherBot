@@ -19,6 +19,7 @@ type PackGroupChatRow struct {
 	MessageText string
 	CreatedAt   time.Time
 	ReplyToID   sql.NullInt64
+	EditedAt    sql.NullTime
 }
 
 // InsertMiniappPackGroupMessage — одно сообщение в общем чате мини-аппа.
@@ -44,11 +45,11 @@ func (d *Database) InsertMiniappPackGroupMessage(packChatID, fromUserID int64, u
 func (d *Database) GetMiniappPackGroupMessageInPack(packChatID, messageID int64) (PackGroupChatRow, bool, error) {
 	var row PackGroupChatRow
 	err := d.db.QueryRow(`
-		SELECT id, from_user_id, COALESCE(username, ''), is_leo, message_text, created_at, reply_to_id
+		SELECT id, from_user_id, COALESCE(username, ''), is_leo, message_text, created_at, reply_to_id, edited_at
 		FROM miniapp_pack_group_chat
 		WHERE id = $1 AND pack_chat_id = $2
 	`, messageID, packChatID).Scan(
-		&row.ID, &row.FromUserID, &row.Username, &row.IsLeo, &row.MessageText, &row.CreatedAt, &row.ReplyToID,
+		&row.ID, &row.FromUserID, &row.Username, &row.IsLeo, &row.MessageText, &row.CreatedAt, &row.ReplyToID, &row.EditedAt,
 	)
 	if err == sql.ErrNoRows {
 		return PackGroupChatRow{}, false, nil
@@ -74,7 +75,7 @@ func (d *Database) ListMiniappPackGroupChatRows(packChatID int64, limit int, sin
 		args = append(args, *sinceUTC)
 	}
 	q := `
-		SELECT id, from_user_id, COALESCE(username, ''), is_leo, message_text, created_at, reply_to_id
+		SELECT id, from_user_id, COALESCE(username, ''), is_leo, message_text, created_at, reply_to_id, edited_at
 		FROM miniapp_pack_group_chat
 		WHERE pack_chat_id = $1
 		  AND COALESCE(is_hidden, FALSE) = FALSE
@@ -90,7 +91,7 @@ func (d *Database) ListMiniappPackGroupChatRows(packChatID int64, limit int, sin
 	var items []PackGroupChatRow
 	for rows.Next() {
 		var m PackGroupChatRow
-		if err := rows.Scan(&m.ID, &m.FromUserID, &m.Username, &m.IsLeo, &m.MessageText, &m.CreatedAt, &m.ReplyToID); err != nil {
+		if err := rows.Scan(&m.ID, &m.FromUserID, &m.Username, &m.IsLeo, &m.MessageText, &m.CreatedAt, &m.ReplyToID, &m.EditedAt); err != nil {
 			return nil, err
 		}
 		items = append(items, m)
@@ -143,7 +144,7 @@ func (d *Database) ListMiniappPackGroupMessagesByIDs(packChatID int64, ids []int
 		return out, nil
 	}
 	rows, err := d.db.Query(`
-		SELECT id, from_user_id, COALESCE(username, ''), is_leo, message_text, created_at, reply_to_id
+		SELECT id, from_user_id, COALESCE(username, ''), is_leo, message_text, created_at, reply_to_id, edited_at
 		FROM miniapp_pack_group_chat
 		WHERE pack_chat_id = $1 AND id = ANY($2)
 	`, packChatID, pq.Array(ids))
@@ -153,7 +154,7 @@ func (d *Database) ListMiniappPackGroupMessagesByIDs(packChatID int64, ids []int
 	defer rows.Close()
 	for rows.Next() {
 		var m PackGroupChatRow
-		if err := rows.Scan(&m.ID, &m.FromUserID, &m.Username, &m.IsLeo, &m.MessageText, &m.CreatedAt, &m.ReplyToID); err != nil {
+		if err := rows.Scan(&m.ID, &m.FromUserID, &m.Username, &m.IsLeo, &m.MessageText, &m.CreatedAt, &m.ReplyToID, &m.EditedAt); err != nil {
 			return nil, err
 		}
 		out[m.ID] = m

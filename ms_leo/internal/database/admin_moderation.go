@@ -527,3 +527,118 @@ func (d *Database) AdminHidePackGroupMessage(packChatID, messageID int64) (bool,
 	}
 	return true, nil
 }
+
+// AdminDeleteAllFeedMessagesByUser — удаляет все посты пользователя из ленты вместе с тредами,
+// реакциями, голосами и жалобами. Возвращает количество удалённых постов.
+func (d *Database) AdminDeleteAllFeedMessagesByUser(packChatID, userID int64) (int64, error) {
+	if packChatID == 0 || userID == 0 {
+		return 0, nil
+	}
+	tx, err := d.db.Begin()
+	if err != nil {
+		return 0, err
+	}
+	defer func() { _ = tx.Rollback() }()
+
+	if _, err := tx.Exec(`
+		DELETE FROM miniapp_training_thread_unread
+		WHERE thread_reply_id IN (
+			SELECT t.id FROM miniapp_training_feed_thread t
+			JOIN user_messages m ON m.id = t.user_message_id
+			WHERE m.user_id = $1 AND m.chat_id = $2
+		)`, userID, packChatID); err != nil {
+		return 0, fmt.Errorf("del thread unread: %w", err)
+	}
+	if _, err := tx.Exec(`
+		DELETE FROM miniapp_training_feed_thread_likes
+		WHERE thread_reply_id IN (
+			SELECT t.id FROM miniapp_training_feed_thread t
+			JOIN user_messages m ON m.id = t.user_message_id
+			WHERE m.user_id = $1 AND m.chat_id = $2
+		)`, userID, packChatID); err != nil {
+		return 0, fmt.Errorf("del thread likes: %w", err)
+	}
+	if _, err := tx.Exec(`
+		DELETE FROM miniapp_training_feed_thread
+		WHERE pack_chat_id = $2 AND user_message_id IN (
+			SELECT id FROM user_messages WHERE user_id = $1 AND chat_id = $2
+		)`, userID, packChatID); err != nil {
+		return 0, fmt.Errorf("del threads: %w", err)
+	}
+	if _, err := tx.Exec(`
+		DELETE FROM miniapp_training_feed_reactions
+		WHERE pack_chat_id = $2 AND user_message_id IN (
+			SELECT id FROM user_messages WHERE user_id = $1 AND chat_id = $2
+		)`, userID, packChatID); err != nil {
+		return 0, fmt.Errorf("del reactions: %w", err)
+	}
+	if _, err := tx.Exec(`
+		DELETE FROM miniapp_feed_poll_votes
+		WHERE user_message_id IN (
+			SELECT id FROM user_messages WHERE user_id = $1 AND chat_id = $2
+		)`, userID, packChatID); err != nil {
+		return 0, fmt.Errorf("del poll votes: %w", err)
+	}
+	if _, err := tx.Exec(`
+		DELETE FROM miniapp_feed_reports
+		WHERE pack_chat_id = $2 AND user_message_id IN (
+			SELECT id FROM user_messages WHERE user_id = $1 AND chat_id = $2
+		)`, userID, packChatID); err != nil {
+		return 0, fmt.Errorf("del feed reports: %w", err)
+	}
+	res, err := tx.Exec(`DELETE FROM user_messages WHERE user_id = $1 AND chat_id = $2`, userID, packChatID)
+	if err != nil {
+		return 0, fmt.Errorf("del user_messages: %w", err)
+	}
+	n, _ := res.RowsAffected()
+	if err := tx.Commit(); err != nil {
+		return 0, err
+	}
+	return n, nil
+}
+
+// AdminDeleteAllPackGroupMessagesByUser — удаляет все сообщения пользователя из чата стаи.
+// Возвращает количество удалённых сообщений.
+func (d *Database) AdminDeleteAllPackGroupMessagesByUser(packChatID, userID int64) (int64, error) {
+	if packChatID == 0 || userID == 0 {
+		return 0, nil
+	}
+	tx, err := d.db.Begin()
+	if err != nil {
+		return 0, err
+	}
+	defer func() { _ = tx.Rollback() }()
+
+	if _, err := tx.Exec(`
+		DELETE FROM miniapp_pack_group_unread
+		WHERE pack_message_id IN (
+			SELECT id FROM miniapp_pack_group_chat WHERE user_id = $1 AND pack_chat_id = $2
+		)`, userID, packChatID); err != nil {
+		return 0, fmt.Errorf("del pack group unread: %w", err)
+	}
+	if _, err := tx.Exec(`
+		DELETE FROM miniapp_pack_group_reactions
+		WHERE pack_chat_id = $2 AND pack_message_id IN (
+			SELECT id FROM miniapp_pack_group_chat WHERE user_id = $1 AND pack_chat_id = $2
+		)`, userID, packChatID); err != nil {
+		return 0, fmt.Errorf("del pack group reactions: %w", err)
+	}
+	if _, err := tx.Exec(`
+		DELETE FROM miniapp_feed_reports
+		WHERE pack_chat_id = $2 AND target_type = 'pack_group_message' AND user_message_id IN (
+			SELECT id FROM miniapp_pack_group_chat WHERE user_id = $1 AND pack_chat_id = $2
+		)`, userID, packChatID); err != nil {
+		return 0, fmt.Errorf("del pack group reports: %w", err)
+	}
+	res, err := tx.Exec(`
+		DELETE FROM miniapp_pack_group_chat WHERE user_id = $1 AND pack_chat_id = $2
+	`, userID, packChatID)
+	if err != nil {
+		return 0, fmt.Errorf("del pack group messages: %w", err)
+	}
+	n, _ := res.RowsAffected()
+	if err := tx.Commit(); err != nil {
+		return 0, err
+	}
+	return n, nil
+}

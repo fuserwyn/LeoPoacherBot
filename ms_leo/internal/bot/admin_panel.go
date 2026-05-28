@@ -10,8 +10,8 @@ import (
 )
 
 type adminSession struct {
-	Mode         string // feed_text | poll | support | user_mgmt | user_add_cups | user_add_streak | user_delete_msg
-	Step         string // await_text | await_support_text | await_poll_question | await_poll_options | await_user_id | await_amount | await_message_id
+	Mode         string // feed_text | poll | support | user_mgmt | user_add_cups | user_add_streak | owner_add_admin
+	Step         string // await_text | await_support_text | await_poll_question | await_poll_options | await_user_id | await_amount | await_admin_id
 	TargetUserID int64
 	PollQuestion string
 }
