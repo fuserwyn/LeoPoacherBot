@@ -2,7 +2,7 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } fr
 import { formatChatTime, timeAgoFromISO } from "../lib/timeAgo";
 import { LEO_AVATAR_URL } from "../lib/leoAvatar";
 import { moderationUserMessage, isModerationError } from "../lib/moderationMessages";
-import { clearPackGroupUnread } from "../lib/packGroupUnread";
+import { clearPackGroupUnread, fetchPackGroupUnreadSummary } from "../lib/packGroupUnread";
 import "./PackGroupChatPanel.css";
 
 const apiBase = (import.meta.env.VITE_MINIAPP_API_URL as string | undefined)?.replace(/\/$/, "") ?? "";
@@ -93,6 +93,10 @@ export function PackGroupChatPanel({
   /** После отправки — всегда вниз, даже если читал историю выше */
   const forceScrollRef = useRef(false);
   const wasActiveRef = useRef(false);
+  const [highlightMessageId, setHighlightMessageId] = useState<number | null>(null);
+  const [unreadMessageIds, setUnreadMessageIds] = useState<Set<number>>(() => new Set());
+  const highlightTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const pendingUnreadScrollRef = useRef<number | null>(null);
 
   const isNearBottom = useCallback((el: HTMLDivElement, threshold = 96) => {
     return el.scrollHeight - el.scrollTop - el.clientHeight < threshold;
@@ -200,10 +204,20 @@ export function PackGroupChatPanel({
     }
   }, [inTelegram, initData]);
 
+  const bootstrapUnreadAndLoad = useCallback(async () => {
+    if (!inTelegram || !initData.trim()) return;
+    const summary = await fetchPackGroupUnreadSummary(initData);
+    setUnreadMessageIds(new Set(summary.messageIds));
+    pendingUnreadScrollRef.current = summary.messageIds[0] ?? null;
+    await load();
+    await clearPackGroupUnread(initData);
+    onRefreshTabBadges?.();
+  }, [inTelegram, initData, load, onRefreshTabBadges]);
+
   useEffect(() => {
     if (!active) return;
-    void load();
-  }, [load, active]);
+    void bootstrapUnreadAndLoad();
+  }, [active, bootstrapUnreadAndLoad]);
 
   useEffect(() => {
     if (!active) {
@@ -229,18 +243,6 @@ export function PackGroupChatPanel({
     document.body.classList.add("body--lock");
     return () => document.body.classList.remove("body--lock");
   }, [active]);
-
-  useEffect(() => {
-    if (!active || !inTelegram || !initData.trim()) return;
-    let cancelled = false;
-    void (async () => {
-      await clearPackGroupUnread(initData);
-      if (!cancelled) onRefreshTabBadges?.();
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [active, inTelegram, initData, onRefreshTabBadges]);
 
   useEffect(() => {
     if (!active || !apiBase || !inTelegram || !initData) return;
@@ -286,6 +288,17 @@ export function PackGroupChatPanel({
     };
   }, [items.length, scrollToBottom]);
 
+  const scrollToQuotedMessage = useCallback((messageId: number) => {
+    const log = logRef.current;
+    if (!log || messageId <= 0) return;
+    const target = log.querySelector<HTMLElement>(`[data-pack-msg-id="${messageId}"]`);
+    if (!target) return;
+    target.scrollIntoView({ block: "center", behavior: "smooth" });
+    setHighlightMessageId(messageId);
+    if (highlightTimerRef.current) clearTimeout(highlightTimerRef.current);
+    highlightTimerRef.current = setTimeout(() => setHighlightMessageId(null), 1600);
+  }, []);
+
   useEffect(() => {
     if (!active) return;
     const el = logRef.current;
@@ -294,6 +307,12 @@ export function PackGroupChatPanel({
     if (!didInitialScrollRef.current) {
       didInitialScrollRef.current = true;
       userScrolledUpRef.current = false;
+      const firstUnread = pendingUnreadScrollRef.current;
+      if (firstUnread != null && firstUnread > 0) {
+        pendingUnreadScrollRef.current = null;
+        window.setTimeout(() => scrollToQuotedMessage(firstUnread), 60);
+        return;
+      }
       scrollToBottom();
       const t1 = window.setTimeout(scrollToBottom, 0);
       const t2 = window.setTimeout(scrollToBottom, 80);
@@ -318,7 +337,7 @@ export function PackGroupChatPanel({
       userScrolledUpRef.current = false;
       scrollToBottom();
     }
-  }, [active, items, isNearBottom, scrollToBottom]);
+  }, [active, items, isNearBottom, scrollToBottom, scrollToQuotedMessage]);
 
   const send = useCallback(async () => {
     const t = text.trim();
@@ -366,25 +385,11 @@ export function PackGroupChatPanel({
     }
   }, [text, sending, inTelegram, initData, showAlert, load, onHaptic, replyIntent]);
 
-  const [highlightMessageId, setHighlightMessageId] = useState<number | null>(null);
-  const highlightTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-
   const startReply = useCallback((m: PackGroupMessage) => {
     const authorLabel = m.is_leo ? "Лео" : m.username;
     const excerpt = m.text.length > 100 ? `${m.text.slice(0, 99).trim()}…` : m.text.trim();
     setReplyIntent({ replyToMessageId: m.id, authorLabel, excerpt });
     window.setTimeout(() => inputRef.current?.focus(), 80);
-  }, []);
-
-  const scrollToQuotedMessage = useCallback((messageId: number) => {
-    const log = logRef.current;
-    if (!log || messageId <= 0) return;
-    const target = log.querySelector<HTMLElement>(`[data-pack-msg-id="${messageId}"]`);
-    if (!target) return;
-    target.scrollIntoView({ block: "center", behavior: "smooth" });
-    setHighlightMessageId(messageId);
-    if (highlightTimerRef.current) clearTimeout(highlightTimerRef.current);
-    highlightTimerRef.current = setTimeout(() => setHighlightMessageId(null), 1600);
   }, []);
 
   useEffect(
@@ -445,13 +450,14 @@ export function PackGroupChatPanel({
           const replyQuote = resolveReplyQuote(m, itemsById);
           const isReply = replyQuote != null;
           const rowTone = m.is_leo ? "packroom__row--leo" : mine ? "packroom__row--me" : "packroom__row--oth";
+          const isUnread = unreadMessageIds.has(m.id);
           return (
             <div
               key={m.id}
               data-pack-msg-id={m.id}
               className={`packroom__row ${rowTone}${isReply ? " packroom__row--reply" : ""}${
                 highlightMessageId === m.id ? " packroom__row--highlight" : ""
-              }`}
+              }${isUnread ? " packroom__row--unread" : ""}`}
             >
               <div className="packroom__row-inner">
                 <div className="packroom__ava" aria-hidden>

@@ -220,6 +220,34 @@ func (d *Database) ClearPackGroupUnread(recipientUserID, packChatID int64) error
 	return nil
 }
 
+// ListPackGroupUnreadMessageIDs — id сообщений с непрочитанными ответами.
+func (d *Database) ListPackGroupUnreadMessageIDs(recipientUserID, packChatID int64) ([]int64, error) {
+	if recipientUserID == 0 || packChatID == 0 {
+		return nil, nil
+	}
+	rows, err := d.db.Query(
+		`SELECT pack_message_id FROM miniapp_pack_group_unread
+		 WHERE recipient_user_id = $1 AND pack_chat_id = $2
+		 ORDER BY pack_message_id ASC`,
+		recipientUserID, packChatID,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("list pack group unread ids: %w", err)
+	}
+	defer rows.Close()
+	var ids []int64
+	for rows.Next() {
+		var id int64
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		if id > 0 {
+			ids = append(ids, id)
+		}
+	}
+	return ids, rows.Err()
+}
+
 // DeleteMiniappPackGroupMessageByAuthor — удалить своё сообщение (не Лео) в общем чате мини-аппа.
 func (d *Database) DeleteMiniappPackGroupMessageByAuthor(packChatID, messageID, actorUserID int64) (bool, error) {
 	if packChatID == 0 || messageID == 0 || actorUserID == 0 {

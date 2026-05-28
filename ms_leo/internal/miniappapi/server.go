@@ -1098,18 +1098,18 @@ func (s *Server) handlePostPackGroupUnreadCount(w http.ResponseWriter, r *http.R
 		s.jsonErr(w, http.StatusBadRequest, "user_missing")
 		return
 	}
-	n, err := s.bot.MiniappPackGroupUnreadCount(parsed, parsed.User.ID)
+	summary, err := s.bot.MiniappPackGroupUnreadSummary(parsed, parsed.User.ID)
 	if err != nil {
 		if errors.Is(err, bot.ErrMiniAppChatMismatch) {
 			s.jsonErr(w, http.StatusConflict, "chat_mismatch")
 			return
 		}
-		s.logger.Errorf("pack group unread count: %v", err)
+		s.logger.Errorf("pack group unread summary: %v", err)
 		s.jsonErr(w, http.StatusInternalServerError, "unread_error")
 		return
 	}
 	w.Header().Set("Content-Type", "application/json; charset=utf-8")
-	_ = json.NewEncoder(w).Encode(map[string]any{"ok": true, "count": n})
+	_ = json.NewEncoder(w).Encode(map[string]any{"ok": true, "count": summary.Count, "pack_message_ids": summary.MessageIDs})
 }
 
 func (s *Server) handlePostPackGroupUnreadClear(w http.ResponseWriter, r *http.Request) {

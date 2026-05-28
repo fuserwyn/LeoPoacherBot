@@ -261,3 +261,21 @@ func (d *Database) EnrichMiniappPersonalChatLikes(userID, packChatID, viewerUser
 	}
 	return nil
 }
+
+// CountMiniappPersonalChatUserMessagesOnDate — сообщения пользователя Лео за локальный календарный день.
+func (d *Database) CountMiniappPersonalChatUserMessagesOnDate(userID, packChatID int64, localDate string, tzOffsetFromMoscow int) (int, error) {
+	if userID == 0 || packChatID == 0 || strings.TrimSpace(localDate) == "" {
+		return 0, nil
+	}
+	var n int
+	err := d.db.QueryRow(`
+		SELECT COUNT(*)
+		FROM miniapp_personal_chat
+		WHERE user_id = $1 AND pack_chat_id = $2 AND role = 'user'
+		  AND ((created_at AT TIME ZONE 'Europe/Moscow') + ($3 || ' hours')::interval)::date = $4::date
+	`, userID, packChatID, tzOffsetFromMoscow, localDate).Scan(&n)
+	if err != nil {
+		return 0, fmt.Errorf("count miniapp personal chat on date: %w", err)
+	}
+	return n, nil
+}

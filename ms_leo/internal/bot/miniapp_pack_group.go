@@ -310,14 +310,39 @@ func (b *Bot) afterPackGroupReplyInserted(packChatID, commenterUserID int64, com
 
 // MiniappPackGroupUnreadCount — для бейджа на вкладке «Стая».
 func (b *Bot) MiniappPackGroupUnreadCount(initD initdata.InitData, viewerUserID int64) (int64, error) {
-	if err := b.AssertMiniAppPackChatAligns(initD); err != nil {
+	summary, err := b.MiniappPackGroupUnreadSummary(initD, viewerUserID)
+	if err != nil {
 		return 0, err
+	}
+	return summary.Count, nil
+}
+
+// PackGroupUnreadSummary — счётчик и id сообщений с непрочитанными ответами.
+type PackGroupUnreadSummary struct {
+	Count      int64
+	MessageIDs []int64
+}
+
+func (b *Bot) MiniappPackGroupUnreadSummary(initD initdata.InitData, viewerUserID int64) (PackGroupUnreadSummary, error) {
+	out := PackGroupUnreadSummary{}
+	if err := b.AssertMiniAppPackChatAligns(initD); err != nil {
+		return out, err
 	}
 	chatID := b.config.MonetizedChatID
 	if chatID == 0 || b.db == nil {
-		return 0, nil
+		return out, nil
 	}
-	return b.db.CountPackGroupUnread(viewerUserID, chatID)
+	n, err := b.db.CountPackGroupUnread(viewerUserID, chatID)
+	if err != nil {
+		return out, err
+	}
+	ids, err := b.db.ListPackGroupUnreadMessageIDs(viewerUserID, chatID)
+	if err != nil {
+		return out, err
+	}
+	out.Count = n
+	out.MessageIDs = ids
+	return out, nil
 }
 
 // MiniappPackGroupUnreadClear — сброс бейджа при открытии общего чата.

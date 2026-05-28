@@ -70,3 +70,14 @@ func TestRateLimit(t *testing.T) {
 		t.Fatalf("expected rate limit, got %+v", res)
 	}
 }
+
+func TestCheckContentSkipsRateLimit(t *testing.T) {
+	g := NewGate(NewLimiter())
+	now := time.Now()
+	for i := 0; i < 10; i++ {
+		res := g.CheckContent("админ пост", SurfaceAdminPost, now)
+		if !res.Allowed {
+			t.Fatalf("unexpected block at %d: %+v", i, res)
+		}
+	}
+}

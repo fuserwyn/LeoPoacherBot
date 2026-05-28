@@ -156,6 +156,10 @@ html.app-keyboard-open .packroom {
   animation: packroom-highlight 1.6s ease-out;
 }
 
+.packroom__row--unread .packroom__bubble {
+  box-shadow: inset 3px 0 0 #e8924a;
+}
+
 @keyframes packroom-highlight {
   0% {
     box-shadow: 0 0 0 2px rgba(90, 140, 255, 0.85);
