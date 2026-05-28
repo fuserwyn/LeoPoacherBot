@@ -982,6 +982,17 @@ func (b *Bot) handleHelp(msg *tgbotapi.Message) {
 }
 
 func (b *Bot) handleStart(msg *tgbotapi.Message) {
+	// Фиксируем визит в личке
+	if msg.From != nil && msg.Chat.IsPrivate() && b.db != nil {
+		username := msg.From.UserName
+		firstName := msg.From.FirstName
+		lastName := msg.From.LastName
+		go func() {
+			if err := b.db.RecordBotVisit(msg.From.ID, username, firstName, lastName); err != nil {
+				b.logger.Warnf("RecordBotVisit: %v", err)
+			}
+		}()
+	}
 	// После оплаты ЮKassa вебхук может опоздать — подтягиваем succeeded и выдаём доступ до проверки paywall.
 	if msg.From != nil && msg.Chat.IsPrivate() && b.paywallActive() {
 		if b.config.PaywallYookassaReady() {

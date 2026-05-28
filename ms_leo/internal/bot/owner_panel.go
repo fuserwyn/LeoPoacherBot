@@ -28,9 +28,6 @@ func (b *Bot) showOwnerMenu(chatID int64) {
 	text := "👑 Панель владельца\n\nВыбери действие:"
 	keyboard := tgbotapi.NewInlineKeyboardMarkup(
 		tgbotapi.NewInlineKeyboardRow(
-			tgbotapi.NewInlineKeyboardButtonData("📊 Статистика посещений", "owner_visit_stats"),
-		),
-		tgbotapi.NewInlineKeyboardRow(
 			tgbotapi.NewInlineKeyboardButtonData("👥 Список администраторов", "owner_admin_list"),
 		),
 		tgbotapi.NewInlineKeyboardRow(
@@ -64,12 +61,6 @@ func (b *Bot) handleOwnerCallbackQuery(callback *tgbotapi.CallbackQuery) bool {
 	case data == "owner_menu":
 		b.showOwnerMenu(chatID)
 
-	case data == "owner_visit_stats":
-		b.showOwnerVisitStats(chatID)
-
-	case data == "owner_visit_recent":
-		b.showOwnerRecentVisits(chatID)
-
 	case data == "owner_admin_list":
 		b.showOwnerAdminList(chatID)
 
@@ -93,73 +84,6 @@ func (b *Bot) handleOwnerCallbackQuery(callback *tgbotapi.CallbackQuery) bool {
 
 	b.api.Request(tgbotapi.NewCallback(callback.ID, ""))
 	return true
-}
-
-// ─── Visit stats ──────────────────────────────────────────────────────────────
-
-func (b *Bot) showOwnerVisitStats(chatID int64) {
-	stats, err := b.db.GetBotVisitStats()
-	if err != nil {
-		b.api.Send(tgbotapi.NewMessage(chatID, "❌ Не удалось загрузить статистику: "+err.Error()))
-		return
-	}
-
-	var sb strings.Builder
-	sb.WriteString("📊 Статистика посещений бота\n\n")
-	sb.WriteString(fmt.Sprintf("Всего визитов:    %d\n", stats.TotalVisits))
-	sb.WriteString(fmt.Sprintf("Уникальных юзеров: %d\n", stats.UniqueUsers))
-	sb.WriteString(fmt.Sprintf("Сегодня:          %d\n", stats.TodayVisits))
-	sb.WriteString(fmt.Sprintf("За 7 дней:        %d\n", stats.WeekVisits))
-	sb.WriteString(fmt.Sprintf("За 30 дней:       %d\n", stats.MonthVisits))
-
-	if len(stats.TopVisitors) > 0 {
-		sb.WriteString("\n🏆 Топ по визитам:\n")
-		for i, u := range stats.TopVisitors {
-			name := ownerDisplayName(u.Username, u.FirstName, u.UserID)
-			sb.WriteString(fmt.Sprintf("%d. %s — %d\n", i+1, name, u.Visits))
-		}
-	}
-
-	keyboard := tgbotapi.NewInlineKeyboardMarkup(
-		tgbotapi.NewInlineKeyboardRow(
-			tgbotapi.NewInlineKeyboardButtonData("🕓 Последние визиты", "owner_visit_recent"),
-		),
-		tgbotapi.NewInlineKeyboardRow(
-			tgbotapi.NewInlineKeyboardButtonData("⬅️ Назад", "owner_menu"),
-		),
-	)
-	msg := tgbotapi.NewMessage(chatID, sb.String())
-	msg.ReplyMarkup = keyboard
-	b.api.Send(msg)
-}
-
-func (b *Bot) showOwnerRecentVisits(chatID int64) {
-	visits, err := b.db.GetRecentBotVisits(30)
-	if err != nil {
-		b.api.Send(tgbotapi.NewMessage(chatID, "❌ Не удалось загрузить визиты: "+err.Error()))
-		return
-	}
-
-	var sb strings.Builder
-	sb.WriteString("🕓 Последние 30 визитов\n\n")
-	if len(visits) == 0 {
-		sb.WriteString("Визитов пока нет.")
-	} else {
-		for i, v := range visits {
-			name := ownerDisplayName(v.Username, v.FirstName, v.UserID)
-			sb.WriteString(fmt.Sprintf("%d. %s · %s\n",
-				i+1, name, v.VisitedAt.Format("02.01 15:04")))
-		}
-	}
-
-	keyboard := tgbotapi.NewInlineKeyboardMarkup(
-		tgbotapi.NewInlineKeyboardRow(
-			tgbotapi.NewInlineKeyboardButtonData("⬅️ К статистике", "owner_visit_stats"),
-		),
-	)
-	msg := tgbotapi.NewMessage(chatID, clipAdminSupportText(sb.String(), 3800))
-	msg.ReplyMarkup = keyboard
-	b.api.Send(msg)
 }
 
 // ─── Admin management ─────────────────────────────────────────────────────────

@@ -30,10 +30,10 @@ func (b *Bot) handleAdmin(msg *tgbotapi.Message) {
 }
 
 func (b *Bot) showAdminMenu(chatID int64) {
-	b.showAdminMenuForUser(chatID, 0)
+	b.showAdminMenuForUser(chatID)
 }
 
-func (b *Bot) showAdminMenuForUser(chatID, userID int64) {
+func (b *Bot) showAdminMenuForUser(chatID int64) {
 	text := "⚙️ Админ-панель\n\nВыбери действие:"
 	rows := [][]tgbotapi.InlineKeyboardButton{
 		tgbotapi.NewInlineKeyboardRow(
@@ -48,11 +48,9 @@ func (b *Bot) showAdminMenuForUser(chatID, userID int64) {
 			tgbotapi.NewInlineKeyboardButtonData("📝 Текст", "admin_mode_feed_text"),
 			tgbotapi.NewInlineKeyboardButtonData("🗳 Опрос", "admin_mode_poll"),
 		),
-	}
-	if userID != 0 && b.isOwnerOnly(userID) {
-		rows = append(rows, tgbotapi.NewInlineKeyboardRow(
-			tgbotapi.NewInlineKeyboardButtonData("👑 Панель владельца", "owner_menu"),
-		))
+		tgbotapi.NewInlineKeyboardRow(
+			tgbotapi.NewInlineKeyboardButtonData("📊 Посещения бота", "admin_visit_stats"),
+		),
 	}
 	rows = append(rows, tgbotapi.NewInlineKeyboardRow(
 		tgbotapi.NewInlineKeyboardButtonData("❎ Отмена", "admin_cancel"),
@@ -66,7 +64,7 @@ func (b *Bot) handleAdminCallbackQuery(callback *tgbotapi.CallbackQuery) {
 	if callback == nil || callback.Message == nil || callback.From == nil {
 		return
 	}
-	if !b.config.IsAdminTelegramUser(callback.From.ID) || !callback.Message.Chat.IsPrivate() {
+	if !b.isAdminTelegramUser(callback.From.ID) || !callback.Message.Chat.IsPrivate() {
 		callbackConfig := tgbotapi.NewCallback(callback.ID, "Недостаточно прав")
 		b.api.Request(callbackConfig)
 		return
@@ -138,6 +136,10 @@ func (b *Bot) handleAdminCallbackQuery(callback *tgbotapi.CallbackQuery) {
 	switch callback.Data {
 	case "admin_open":
 		b.openAdminPanelForUser(callback.Message.Chat.ID, callback.From.ID)
+	case "admin_visit_stats":
+		b.showAdminVisitStats(callback.Message.Chat.ID)
+	case "admin_visit_recent":
+		b.showAdminRecentVisits(callback.Message.Chat.ID)
 	case "admin_support_inbox":
 		b.showAdminSupportInbox(callback.Message.Chat.ID)
 	case "admin_support_back":
@@ -592,6 +594,83 @@ func (b *Bot) dismissAdminFeedReport(chatID, reportID int64) {
 	}
 	b.api.Send(tgbotapi.NewMessage(chatID, "✅ Жалоба отмечена обработанной."))
 	b.showAdminFeedReportsInbox(chatID)
+}
+
+// ─── Visit stats (доступно всем админам) ─────────────────────────────────────
+
+func (b *Bot) showAdminVisitStats(chatID int64) {
+	stats, err := b.db.GetBotVisitStats()
+	if err != nil {
+		b.api.Send(tgbotapi.NewMessage(chatID, "❌ Не удалось загрузить статистику: "+err.Error()))
+		return
+	}
+
+	var sb strings.Builder
+	sb.WriteString("📊 Статистика посещений бота\n\n")
+	sb.WriteString(fmt.Sprintf("Всего визитов:     %d\n", stats.TotalVisits))
+	sb.WriteString(fmt.Sprintf("Уникальных юзеров: %d\n", stats.UniqueUsers))
+	sb.WriteString(fmt.Sprintf("Сегодня:           %d\n", stats.TodayVisits))
+	sb.WriteString(fmt.Sprintf("За 7 дней:         %d\n", stats.WeekVisits))
+	sb.WriteString(fmt.Sprintf("За 30 дней:        %d\n", stats.MonthVisits))
+
+	if len(stats.TopVisitors) > 0 {
+		sb.WriteString("\n🏆 Топ по визитам:\n")
+		for i, u := range stats.TopVisitors {
+			name := adminVisitDisplayName(u.Username, u.FirstName, u.UserID)
+			sb.WriteString(fmt.Sprintf("%d. %s — %d\n", i+1, name, u.Visits))
+		}
+	}
+
+	keyboard := tgbotapi.NewInlineKeyboardMarkup(
+		tgbotapi.NewInlineKeyboardRow(
+			tgbotapi.NewInlineKeyboardButtonData("🕓 Последние визиты", "admin_visit_recent"),
+		),
+		tgbotapi.NewInlineKeyboardRow(
+			tgbotapi.NewInlineKeyboardButtonData("⬅️ К админке", "admin_open"),
+		),
+	)
+	msg := tgbotapi.NewMessage(chatID, sb.String())
+	msg.ReplyMarkup = keyboard
+	b.api.Send(msg)
+}
+
+func (b *Bot) showAdminRecentVisits(chatID int64) {
+	visits, err := b.db.GetRecentBotVisits(30)
+	if err != nil {
+		b.api.Send(tgbotapi.NewMessage(chatID, "❌ Не удалось загрузить визиты: "+err.Error()))
+		return
+	}
+
+	var sb strings.Builder
+	sb.WriteString("🕓 Последние 30 визитов\n\n")
+	if len(visits) == 0 {
+		sb.WriteString("Визитов пока нет.")
+	} else {
+		for i, v := range visits {
+			name := adminVisitDisplayName(v.Username, v.FirstName, v.UserID)
+			sb.WriteString(fmt.Sprintf("%d. %s · %s\n",
+				i+1, name, v.VisitedAt.Format("02.01 15:04")))
+		}
+	}
+
+	keyboard := tgbotapi.NewInlineKeyboardMarkup(
+		tgbotapi.NewInlineKeyboardRow(
+			tgbotapi.NewInlineKeyboardButtonData("⬅️ К статистике", "admin_visit_stats"),
+		),
+	)
+	msg := tgbotapi.NewMessage(chatID, clipAdminSupportText(sb.String(), 3800))
+	msg.ReplyMarkup = keyboard
+	b.api.Send(msg)
+}
+
+func adminVisitDisplayName(username, firstName string, userID int64) string {
+	if username != "" {
+		return "@" + username
+	}
+	if firstName != "" {
+		return firstName
+	}
+	return strconv.FormatInt(userID, 10)
 }
 
 func clipAdminSupportText(s string, limit int) string {

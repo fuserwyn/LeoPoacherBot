@@ -113,7 +113,7 @@ func (b *Bot) syncPrivateBottomKeyboard(chatID, userID int64) {
 // openAdminPanelForUser — админ-панель + гарантированная кнопка «Админка» внизу.
 func (b *Bot) openAdminPanelForUser(chatID, userID int64) {
 	b.syncPrivateBottomKeyboard(chatID, userID)
-	b.showAdminMenuForUser(chatID, userID)
+	b.showAdminMenuForUser(chatID)
 }
 
 func (b *Bot) botSupportPromptInlineKeyboard() *tgbotapi.InlineKeyboardMarkup {
