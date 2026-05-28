@@ -1047,6 +1047,35 @@ var Migrations = []Migration{
 				CHECK (target_type IN ('feed_post', 'thread_reply'));
 		`,
 	},
+	{
+		Version:     52,
+		Description: "Dynamic admins and bot visits tracking",
+		UpSQL: `
+			CREATE TABLE IF NOT EXISTS dynamic_admins (
+				user_id      BIGINT PRIMARY KEY,
+				username     TEXT    NOT NULL DEFAULT '',
+				added_by     BIGINT  NOT NULL DEFAULT 0,
+				added_at     TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW()
+			);
+
+			CREATE TABLE IF NOT EXISTS bot_visits (
+				id           BIGSERIAL PRIMARY KEY,
+				user_id      BIGINT  NOT NULL,
+				username     TEXT    NOT NULL DEFAULT '',
+				first_name   TEXT    NOT NULL DEFAULT '',
+				last_name    TEXT    NOT NULL DEFAULT '',
+				visited_at   TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW()
+			);
+			CREATE INDEX IF NOT EXISTS idx_bot_visits_user_id    ON bot_visits (user_id);
+			CREATE INDEX IF NOT EXISTS idx_bot_visits_visited_at ON bot_visits (visited_at DESC);
+		`,
+		DownSQL: `
+			DROP INDEX IF EXISTS idx_bot_visits_visited_at;
+			DROP INDEX IF EXISTS idx_bot_visits_user_id;
+			DROP TABLE IF EXISTS bot_visits;
+			DROP TABLE IF EXISTS dynamic_admins;
+		`,
+	},
 }
 
 // MigrationRecord представляет запись о выполненной миграции

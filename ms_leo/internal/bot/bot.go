@@ -53,6 +53,9 @@ type Bot struct {
 	miniappTrainingPhotoURL sync.Map // int64 (user id) -> string
 	ugcModerationGate       *moderation.Gate
 	ugcModerationLimiter    *moderation.Limiter
+	// Динамические администраторы, добавленные владельцем через бот (кэш из БД).
+	dynamicAdmins   map[int64]struct{}
+	dynamicAdminsMu sync.RWMutex
 }
 
 // leopardOnboardingBodyText — полный текст онбординга Fat Leopard (редактируй здесь).
@@ -123,7 +126,7 @@ func New(cfg *config.Config, db *database.Database, log logger.Logger) (*Bot, er
 	}
 
 	limiter := moderation.NewLimiter()
-	return &Bot{
+	b := &Bot{
 		api:                  api,
 		db:                   db,
 		logger:               log,
@@ -132,12 +135,15 @@ func New(cfg *config.Config, db *database.Database, log logger.Logger) (*Bot, er
 		aiClient:             aiClient,
 		ragStore:             ragStore,
 		sickApprovalWatchers: make(map[int64]chan struct{}),
-		adminSessions:       make(map[int64]*adminSession),
-		userSupportSessions: make(map[int64]struct{}),
+		adminSessions:        make(map[int64]*adminSession),
+		userSupportSessions:  make(map[int64]struct{}),
 		miniappPersonalQueue: make(map[int64][]string),
 		ugcModerationLimiter: limiter,
 		ugcModerationGate:    moderation.NewGate(limiter),
-	}, nil
+		dynamicAdmins:        make(map[int64]struct{}),
+	}
+	b.reloadDynamicAdmins()
+	return b, nil
 }
 
 func (b *Bot) Start(ctx context.Context) error {
@@ -461,6 +467,8 @@ func (b *Bot) handleCommand(msg *tgbotapi.Message) {
 		b.generateAndSendDailyWisdom()
 	case "admin":
 		b.handleAdmin(msg)
+	case "owner":
+		b.handleOwner(msg)
 	case "audit_last24":
 		b.auditLast24h()
 	default:

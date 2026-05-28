@@ -17,7 +17,42 @@ func (b *Bot) botSupportAvailable() bool {
 }
 
 func (b *Bot) isAdminTelegramUser(userID int64) bool {
-	return b != nil && b.config != nil && b.config.IsAdminTelegramUser(userID)
+	if b == nil || b.config == nil {
+		return false
+	}
+	if b.config.IsAdminTelegramUser(userID) {
+		return true
+	}
+	b.dynamicAdminsMu.RLock()
+	_, ok := b.dynamicAdmins[userID]
+	b.dynamicAdminsMu.RUnlock()
+	return ok
+}
+
+// isOwnerOnly — true только для владельца бота (OWNER_ID).
+func (b *Bot) isOwnerOnly(userID int64) bool {
+	return b != nil && b.config != nil && b.config.OwnerID != 0 && userID == b.config.OwnerID
+}
+
+// reloadDynamicAdmins — перезагружает кэш динамических администраторов из БД.
+func (b *Bot) reloadDynamicAdmins() {
+	if b == nil || b.db == nil {
+		return
+	}
+	ids, err := b.db.LoadDynamicAdminIDs()
+	if err != nil {
+		if b.logger != nil {
+			b.logger.Warnf("reloadDynamicAdmins: %v", err)
+		}
+		return
+	}
+	m := make(map[int64]struct{}, len(ids))
+	for _, id := range ids {
+		m[id] = struct{}{}
+	}
+	b.dynamicAdminsMu.Lock()
+	b.dynamicAdmins = m
+	b.dynamicAdminsMu.Unlock()
 }
 
 // privateBottomReplyKeyboard — постоянные кнопки внизу лички с ботом.
@@ -78,7 +113,7 @@ func (b *Bot) syncPrivateBottomKeyboard(chatID, userID int64) {
 // openAdminPanelForUser — админ-панель + гарантированная кнопка «Админка» внизу.
 func (b *Bot) openAdminPanelForUser(chatID, userID int64) {
 	b.syncPrivateBottomKeyboard(chatID, userID)
-	b.showAdminMenu(chatID)
+	b.showAdminMenuForUser(chatID, userID)
 }
 
 func (b *Bot) botSupportPromptInlineKeyboard() *tgbotapi.InlineKeyboardMarkup {

@@ -30,8 +30,12 @@ func (b *Bot) handleAdmin(msg *tgbotapi.Message) {
 }
 
 func (b *Bot) showAdminMenu(chatID int64) {
+	b.showAdminMenuForUser(chatID, 0)
+}
+
+func (b *Bot) showAdminMenuForUser(chatID, userID int64) {
 	text := "⚙️ Админ-панель\n\nВыбери действие:"
-	keyboard := tgbotapi.NewInlineKeyboardMarkup(
+	rows := [][]tgbotapi.InlineKeyboardButton{
 		tgbotapi.NewInlineKeyboardRow(
 			tgbotapi.NewInlineKeyboardButtonData("💬 Поддержка", "admin_support_inbox"),
 			tgbotapi.NewInlineKeyboardButtonData("📋 Список юзеров", "admin_users_list_0"),
@@ -44,12 +48,17 @@ func (b *Bot) showAdminMenu(chatID int64) {
 			tgbotapi.NewInlineKeyboardButtonData("📝 Текст", "admin_mode_feed_text"),
 			tgbotapi.NewInlineKeyboardButtonData("🗳 Опрос", "admin_mode_poll"),
 		),
-		tgbotapi.NewInlineKeyboardRow(
-			tgbotapi.NewInlineKeyboardButtonData("❎ Отмена", "admin_cancel"),
-		),
-	)
+	}
+	if userID != 0 && b.isOwnerOnly(userID) {
+		rows = append(rows, tgbotapi.NewInlineKeyboardRow(
+			tgbotapi.NewInlineKeyboardButtonData("👑 Панель владельца", "owner_menu"),
+		))
+	}
+	rows = append(rows, tgbotapi.NewInlineKeyboardRow(
+		tgbotapi.NewInlineKeyboardButtonData("❎ Отмена", "admin_cancel"),
+	))
 	msg := tgbotapi.NewMessage(chatID, text)
-	msg.ReplyMarkup = keyboard
+	msg.ReplyMarkup = &tgbotapi.InlineKeyboardMarkup{InlineKeyboard: rows}
 	b.api.Send(msg)
 }
 
@@ -89,6 +98,10 @@ func (b *Bot) handleAdminCallbackQuery(callback *tgbotapi.CallbackQuery) {
 		}
 		callbackConfig := tgbotapi.NewCallback(callback.ID, "")
 		b.api.Request(callbackConfig)
+		return
+	}
+	if strings.HasPrefix(callback.Data, "owner_") {
+		b.handleOwnerCallbackQuery(callback)
 		return
 	}
 	if strings.HasPrefix(callback.Data, "admin_users_list_") ||
@@ -208,6 +221,11 @@ func (b *Bot) handleAdminFlowMessage(msg *tgbotapi.Message) bool {
 			b.api.Send(tgbotapi.NewMessage(msg.Chat.ID, "⚠️ Сначала заверши текущий мастер или отправь /cancel"))
 		}
 		return true
+	}
+
+	// Панель владельца: добавление динамического администратора
+	if session.Mode == "owner_add_admin" {
+		return b.handleOwnerAdminAddMessage(msg)
 	}
 
 	if b.handleAdminUserMgmtMessage(msg, session) {

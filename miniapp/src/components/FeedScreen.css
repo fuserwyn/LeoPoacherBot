@@ -184,7 +184,7 @@
 
 .feed__filter-pill {
   flex: 0 0 auto;
-  padding: 4px 10px;
+  padding: 7px 14px;
   border-radius: 999px;
   border: 1px solid var(--border-subtle, #2a2a36);
   background: #14141c;
@@ -193,6 +193,9 @@
   font-weight: 600;
   line-height: 1.25;
   cursor: pointer;
+  min-height: 36px;
+  display: inline-flex;
+  align-items: center;
 }
 
 .feed__filter-pill.is-active {
@@ -216,7 +219,7 @@
   align-items: center;
   gap: 3px;
   flex-shrink: 0;
-  padding: 4px 8px;
+  padding: 7px 12px;
   border-radius: 999px;
   border: 1px solid var(--border-subtle, #2a2a36);
   background: #14141c;
@@ -226,6 +229,7 @@
   line-height: 1.2;
   cursor: pointer;
   white-space: nowrap;
+  min-height: 36px;
 }
 
 .feed__filter-chip.is-active {
