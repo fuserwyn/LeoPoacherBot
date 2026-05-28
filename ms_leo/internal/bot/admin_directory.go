@@ -46,7 +46,7 @@ func (b *Bot) showAdminUsersListPage(chatID int64, offset int) {
 
 		tbl := newAdminTable(
 			[]string{"№", "ID", "Ник", "Куб", "Стр"},
-			[]int{2, 11, 18, 5, 4},
+			[]int{2, 10, 12, 4, 3},
 		)
 		for i, u := range users {
 			tbl.addRow(
@@ -115,28 +115,18 @@ func (b *Bot) showAdminPaymentsPage(chatID int64, offset int) {
 		subtitle = fmt.Sprintf("Строки %d–%d из %d · нажми № под таблицей", from, to, total)
 
 		tbl := newAdminTable(
-			[]string{"№", "Заявка", "ID", "Ник", "Статус", "Сумма", "Дата", "Дост"},
-			[]int{2, 7, 11, 14, 9, 8, 11, 4},
+			[]string{"№", "Ник", "Статус", "Сумма", "Дата"},
+			[]int{2, 13, 6, 7, 8},
 		)
 		for i, p := range payments {
-			access := "—"
-			if p.Status == "completed" {
-				if p.AccessActive {
-					access = "да"
-				} else {
-					access = "нет"
-				}
-			}
+			status := adminPaymentStatusShort(p.Status, p.AccessActive)
 			when := p.CreatedAt.In(time.FixedZone("MSK", 3*3600)).Format("02.01 15:04")
 			tbl.addRow(
 				strconv.Itoa(offset+i+1),
-				strconv.FormatInt(p.ID, 10),
-				strconv.FormatInt(p.UserID, 10),
 				adminPaywallPersonLabel(p.Username, p.DisplayName, p.UserID),
-				p.Status,
+				status,
 				adminFormatPaymentAmount(p.AmountMinor, p.Currency),
 				when,
-				access,
 			)
 		}
 		tableText = tbl.render()
@@ -224,6 +214,25 @@ func adminLooksLikeTelegramHandle(s string) bool {
 	return true
 }
 
+// adminPaymentStatusShort — сокращённый статус для узкой колонки.
+func adminPaymentStatusShort(status string, accessActive bool) string {
+	switch status {
+	case "completed":
+		if accessActive {
+			return "ok"
+		}
+		return "ok-"
+	case "pending":
+		return "ждёт"
+	case "cancelled":
+		return "отмн"
+	case "refunded":
+		return "возвр"
+	default:
+		return status
+	}
+}
+
 func adminFormatPaymentAmount(amountMinor sql.NullInt64, currency sql.NullString) string {
 	if !amountMinor.Valid || amountMinor.Int64 <= 0 {
 		return "—"
@@ -245,25 +254,15 @@ func (b *Bot) formatAdminUserPaymentsBlock(userID, packChatID int64) string {
 		return "\n\n💳 Оплаты: нет заявок"
 	}
 	tbl := newAdminTable(
-		[]string{"Заявка", "Статус", "Сумма", "Дата", "Дост"},
-		[]int{7, 9, 8, 11, 4},
+		[]string{"Статус", "Сумма", "Дата"},
+		[]int{6, 7, 8},
 	)
 	for _, p := range payments {
-		access := "—"
-		if p.Status == "completed" {
-			if p.AccessActive {
-				access = "да"
-			} else {
-				access = "нет"
-			}
-		}
 		when := p.CreatedAt.In(time.FixedZone("MSK", 3*3600)).Format("02.01 15:04")
 		tbl.addRow(
-			strconv.FormatInt(p.ID, 10),
-			p.Status,
+			adminPaymentStatusShort(p.Status, p.AccessActive),
 			adminFormatPaymentAmount(p.AmountMinor, p.Currency),
 			when,
-			access,
 		)
 	}
 	return "\n\n💳 Оплаты (последние):\n<pre>" + adminEscapeHTML(tbl.render()) + "</pre>"
