@@ -515,38 +515,40 @@
   --achievement-shell: #ffe566;
   --achievement-bean: #f0b429;
   --achievement-claw: #d4a017;
-  --achievement-crown: #ffd84d;
-  --achievement-crown-band: #e8b923;
-  --achievement-crown-gem: #fff8dc;
+  --achievement-cup-shine: #fff6bf;
   --achievement-day-color: #6b4f05;
 }
 
-.profile__achievement-crown {
-  fill: var(--achievement-crown, #ffd84d);
+.profile__achievement-cup-bowl {
+  fill: var(--achievement-shell);
   stroke: var(--achievement-outline);
-  stroke-width: 1.4;
+  stroke-width: 1.15;
   stroke-linejoin: round;
 }
 
-.profile__achievement-crown-band {
-  fill: var(--achievement-crown-band, #e8b923);
+.profile__achievement-cup-handle {
   stroke: var(--achievement-outline);
-  stroke-width: 1.1;
+  stroke-width: 1.05;
+  stroke-linecap: round;
 }
 
-.profile__achievement-crown-gem {
-  fill: var(--achievement-crown-gem, #fff8dc);
+.profile__achievement-cup-stem,
+.profile__achievement-cup-base {
+  fill: var(--achievement-bean);
   stroke: var(--achievement-outline);
-  stroke-width: 0.8;
+  stroke-width: 0.85;
 }
 
-.profile__achievement-crown-gem--main {
-  fill: #fff;
+.profile__achievement-cup-star {
+  fill: var(--achievement-cup-shine, #fff6bf);
+  stroke: var(--achievement-outline);
+  stroke-width: 0.7;
+  stroke-linejoin: round;
 }
 
-.profile__achievement-days--crown {
+.profile__achievement-days--cups {
   font-size: 7px;
-  top: 80%;
+  top: 82%;
   color: var(--achievement-day-color);
   text-shadow: 0 1px 0 rgba(255, 255, 255, 0.55);
 }

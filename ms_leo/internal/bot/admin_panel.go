@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
+	"time"
 
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 )
@@ -99,6 +100,8 @@ func (b *Bot) handleAdminCallbackQuery(callback *tgbotapi.CallbackQuery) {
 		}
 	}
 	if strings.HasPrefix(callback.Data, "admin_feed_report_del_") ||
+		strings.HasPrefix(callback.Data, "admin_feed_report_hide_") ||
+		strings.HasPrefix(callback.Data, "admin_feed_report_mute_") ||
 		strings.HasPrefix(callback.Data, "admin_user_") ||
 		callback.Data == "admin_users" {
 		if b.handleAdminUserMgmtCallback(callback) {
@@ -510,11 +513,23 @@ func (b *Bot) showAdminFeedReport(chatID, reportID int64) {
 	text.WriteString("\nТекст:\n«")
 	text.WriteString(clipAdminSupportText(item.TargetText, 900))
 	text.WriteString("»")
+	if item.TargetUserID > 0 {
+		if ugc, err := b.db.GetUGCModerationState(item.TargetUserID, b.config.MonetizedChatID); err == nil {
+			text.WriteString(fmt.Sprintf("\n\nUGC-нарушения автора: %d", ugc.ViolationCount))
+			if ugc.MutedUntil != nil && ugc.MutedUntil.After(time.Now()) {
+				text.WriteString(fmt.Sprintf("\nUGC-мьют до: %s", ugc.MutedUntil.UTC().Format("2006-01-02 15:04 UTC")))
+			}
+		}
+	}
 	msg := tgbotapi.NewMessage(chatID, clipAdminSupportText(text.String(), 3500))
 	if item.Status == "open" {
 		msg.ReplyMarkup = tgbotapi.NewInlineKeyboardMarkup(
 			tgbotapi.NewInlineKeyboardRow(
-				tgbotapi.NewInlineKeyboardButtonData("🗑 Удалить контент", "admin_feed_report_del_"+strconv.FormatInt(item.ID, 10)),
+				tgbotapi.NewInlineKeyboardButtonData("🙈 Скрыть", "admin_feed_report_hide_"+strconv.FormatInt(item.ID, 10)),
+				tgbotapi.NewInlineKeyboardButtonData("🔇 Mute 24ч", "admin_feed_report_mute_"+strconv.FormatInt(item.ID, 10)),
+			),
+			tgbotapi.NewInlineKeyboardRow(
+				tgbotapi.NewInlineKeyboardButtonData("🗑 Удалить", "admin_feed_report_del_"+strconv.FormatInt(item.ID, 10)),
 				tgbotapi.NewInlineKeyboardButtonData("✅ Обработано", "admin_feed_report_dismiss_"+strconv.FormatInt(item.ID, 10)),
 			),
 			tgbotapi.NewInlineKeyboardRow(

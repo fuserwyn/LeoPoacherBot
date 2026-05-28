@@ -22,6 +22,47 @@ function normalizeProfileData(profile: ProfileData): ProfileData {
   };
 }
 
+function AchievementMiniCup({
+  x,
+  y,
+  rotate,
+  scale = 1,
+  featured = false,
+}: {
+  x: number;
+  y: number;
+  rotate: number;
+  scale?: number;
+  featured?: boolean;
+}) {
+  return (
+    <g transform={`translate(${x} ${y}) rotate(${rotate}) scale(${scale})`}>
+      <path
+        className="profile__achievement-cup-bowl"
+        d="M-5.2 -3.2 H5.2 L4 5.8 Q0 8.2 -4 5.8 Z"
+      />
+      <path
+        className="profile__achievement-cup-handle"
+        d="M-5.2 -2.2 Q-8 -2.2 -8 1.2 Q-8 4.4 -5.2 4.4"
+        fill="none"
+      />
+      <path
+        className="profile__achievement-cup-handle"
+        d="M5.2 -2.2 Q8 -2.2 8 1.2 Q8 4.4 5.2 4.4"
+        fill="none"
+      />
+      <rect className="profile__achievement-cup-stem" x="-1.3" y="5.6" width="2.6" height="2.8" rx="0.35" />
+      <rect className="profile__achievement-cup-base" x="-4.4" y="8" width="8.8" height="2.1" rx="0.65" />
+      {featured ? (
+        <path
+          className="profile__achievement-cup-star"
+          d="M0 -1.2 L0.7 0.5 L2.6 0.7 L1.1 1.9 L1.5 3.8 L0 2.8 L-1.5 3.8 L-1.1 1.9 L-2.6 0.7 L-0.7 0.5 Z"
+        />
+      ) : null}
+    </g>
+  );
+}
+
 type Props = {
   name: string;
   streak: number;
@@ -52,7 +93,7 @@ const ACHIEVEMENTS = [
   { days: 90, colorClass: "profile__achievement--90", variant: "paw" },
   { days: 180, colorClass: "profile__achievement--180", variant: "paw" },
   { days: 365, colorClass: "profile__achievement--365", variant: "paw" },
-  { days: 420, colorClass: "profile__achievement--420", variant: "crown" },
+  { days: 420, colorClass: "profile__achievement--420", variant: "cups" },
 ] as const;
 
 export function ProfileScreen({
@@ -467,36 +508,14 @@ export function ProfileScreen({
                     d="M32 49 C22 41 14 35 14 26 C14 21 18 17 23 17 C27 17 30 19 32 23 C34 19 37 17 41 17 C46 17 50 21 50 26 C50 35 42 41 32 49 Z"
                   />
                 </svg>
-              ) : variant === "crown" ? (
-                <svg className="profile__achievement-paw profile__achievement-paw--crown" viewBox="0 0 64 64">
+              ) : variant === "cups" ? (
+                <svg className="profile__achievement-paw profile__achievement-paw--cups" viewBox="0 0 64 64">
                   <circle className="profile__achievement-bg" cx="32" cy="32" r="28" />
-                  <path
-                    className="profile__achievement-crown"
-                    d="M14 18 L18 8 L24 14 L32 5 L40 14 L46 8 L50 18 L50 22 L14 22 Z"
-                  />
-                  <rect className="profile__achievement-crown-band" x="14" y="20" width="36" height="4" rx="1.2" />
-                  <circle className="profile__achievement-crown-gem" cx="18" cy="13" r="1.6" />
-                  <circle className="profile__achievement-crown-gem profile__achievement-crown-gem--main" cx="32" cy="9" r="2.2" />
-                  <circle className="profile__achievement-crown-gem" cx="46" cy="13" r="1.6" />
-
-                  <ellipse className="profile__achievement-toe-shell" cx="15.5" cy="28" rx="8" ry="9.5" transform="rotate(-16 15.5 28)" />
-                  <ellipse className="profile__achievement-toe-shell" cx="27.5" cy="21.5" rx="8.6" ry="10.5" transform="rotate(-6 27.5 21.5)" />
-                  <ellipse className="profile__achievement-toe-shell" cx="40.5" cy="21.5" rx="8.6" ry="10.5" transform="rotate(6 40.5 21.5)" />
-                  <ellipse className="profile__achievement-toe-shell" cx="52.5" cy="28" rx="8" ry="9.5" transform="rotate(16 52.5 28)" />
-
-                  <ellipse className="profile__achievement-toe-bean" cx="15.5" cy="29" rx="4.7" ry="5.9" transform="rotate(-16 15.5 29)" />
-                  <ellipse className="profile__achievement-toe-bean" cx="27.5" cy="22.5" rx="4.9" ry="6.3" transform="rotate(-6 27.5 22.5)" />
-                  <ellipse className="profile__achievement-toe-bean" cx="40.5" cy="22.5" rx="4.9" ry="6.3" transform="rotate(6 40.5 22.5)" />
-                  <ellipse className="profile__achievement-toe-bean" cx="52.5" cy="29" rx="4.7" ry="5.9" transform="rotate(16 52.5 29)" />
-
-                  <path
-                    className="profile__achievement-pad-shell"
-                    d="M32 36 C22 36 16 43 16 52 C16 59 22 63 32 63 C42 63 48 59 48 52 C48 43 42 36 32 36 Z"
-                  />
-                  <path
-                    className="profile__achievement-pad-bean"
-                    d="M32 41 C25 41 21 46 21 52 C21 57 25 60 32 60 C39 60 43 57 43 52 C43 46 39 41 32 41 Z"
-                  />
+                  <AchievementMiniCup x={15.5} y={27} rotate={-18} scale={0.76} />
+                  <AchievementMiniCup x={27.5} y={20.5} rotate={-8} scale={0.82} />
+                  <AchievementMiniCup x={40.5} y={20.5} rotate={8} scale={0.82} />
+                  <AchievementMiniCup x={52.5} y={27} rotate={18} scale={0.76} />
+                  <AchievementMiniCup x={32} y={46} rotate={0} scale={1.08} featured />
                 </svg>
               ) : (
                 <svg className="profile__achievement-paw" viewBox="0 0 64 64">
@@ -527,7 +546,7 @@ export function ProfileScreen({
                 </svg>
               )}
               <span
-                className={`profile__achievement-days${days >= 100 ? " profile__achievement-days--triple" : days >= 10 ? " profile__achievement-days--double" : ""}${variant === "heart" ? " profile__achievement-days--heart" : ""}${variant === "crown" ? " profile__achievement-days--crown" : ""}`}
+                className={`profile__achievement-days${days >= 100 ? " profile__achievement-days--triple" : days >= 10 ? " profile__achievement-days--double" : ""}${variant === "heart" ? " profile__achievement-days--heart" : ""}${variant === "cups" ? " profile__achievement-days--cups" : ""}`}
               >
                 {days}
               </span>

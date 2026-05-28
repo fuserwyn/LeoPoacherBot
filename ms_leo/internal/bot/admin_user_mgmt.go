@@ -100,6 +100,12 @@ func (b *Bot) showAdminUserCard(chatID, targetUserID int64) {
 	body.WriteString(fmt.Sprintf("Больничный: %s\n", adminEscapeHTML(sick)))
 	body.WriteString(fmt.Sprintf("Удалён из стаи: %s\n", adminEscapeHTML(deleted)))
 	body.WriteString(fmt.Sprintf("Доступ: %s\n", adminEscapeHTML(paywall)))
+	if ugc, uerr := b.db.GetUGCModerationState(targetUserID, packChatID); uerr == nil {
+		body.WriteString(fmt.Sprintf("UGC-нарушения: %d\n", ugc.ViolationCount))
+		if ugc.MutedUntil != nil && ugc.MutedUntil.After(time.Now()) {
+			body.WriteString(fmt.Sprintf("UGC-мьют до: %s\n", adminEscapeHTML(ugc.MutedUntil.UTC().Format("2006-01-02 15:04 UTC"))))
+		}
+	}
 	body.WriteString(fmt.Sprintf("Ачивки: %d/%d", stats.AchievementCount, stats.AchievementsMax))
 	body.WriteString(b.formatAdminUserPaymentsBlock(targetUserID, packChatID))
 
@@ -117,6 +123,9 @@ func (b *Bot) showAdminUserCard(chatID, targetUserID int64) {
 		),
 		tgbotapi.NewInlineKeyboardRow(
 			tgbotapi.NewInlineKeyboardButtonData("🗑 Удалить сообщение", "admin_user_msg_"+strconv.FormatInt(targetUserID, 10)),
+		),
+		tgbotapi.NewInlineKeyboardRow(
+			tgbotapi.NewInlineKeyboardButtonData("🔇 UGC-мьют 24ч", "admin_user_mute_ugc_"+strconv.FormatInt(targetUserID, 10)),
 		),
 	}
 	if !ml.IsDeleted {
@@ -681,5 +690,65 @@ func (b *Bot) adminDeleteReportedContent(chatID, reportID int64) {
 	}
 	_, _ = b.db.DismissMiniappFeedReport(packChatID, reportID)
 	b.api.Send(tgbotapi.NewMessage(chatID, fmt.Sprintf("✅ Удалено без пометки: %s. Жалоба #%d закрыта.", label, reportID)))
+	b.showAdminFeedReportsInbox(chatID)
+}
+
+func (b *Bot) adminHideReportedContent(chatID, reportID int64) {
+	if b == nil || b.db == nil {
+		return
+	}
+	packChatID := b.adminPackChatID()
+	item, err := b.db.GetMiniappFeedReport(packChatID, reportID)
+	if err != nil || item == nil {
+		b.api.Send(tgbotapi.NewMessage(chatID, "❌ Жалоба не найдена."))
+		return
+	}
+
+	var ok bool
+	var label string
+	if item.ThreadReplyID > 0 {
+		ok, err = b.db.AdminHideTrainingFeedThreadReply(packChatID, item.ThreadReplyID)
+		label = fmt.Sprintf("комментарий t%d", item.ThreadReplyID)
+	} else if item.UserMessageID > 0 {
+		ok, err = b.db.AdminHideFeedUserMessage(packChatID, item.UserMessageID)
+		label = fmt.Sprintf("пост #%d", item.UserMessageID)
+	}
+	if err != nil {
+		b.api.Send(tgbotapi.NewMessage(chatID, "❌ Ошибка: "+err.Error()))
+		return
+	}
+	if !ok {
+		b.api.Send(tgbotapi.NewMessage(chatID, "❌ Контент уже скрыт или не найден."))
+		return
+	}
+	if item.TargetUserID > 0 {
+		count := b.recordUGCViolation(item.TargetUserID, packChatID, false)
+		b.api.Send(tgbotapi.NewMessage(chatID, fmt.Sprintf(
+			"🙈 Скрыто: %s. Нарушений у автора: %d. Жалоба #%d закрыта.",
+			label, count, reportID,
+		)))
+	} else {
+		b.api.Send(tgbotapi.NewMessage(chatID, fmt.Sprintf("🙈 Скрыто: %s. Жалоба #%d закрыта.", label, reportID)))
+	}
+	_, _ = b.db.DismissMiniappFeedReport(packChatID, reportID)
+	b.showAdminFeedReportsInbox(chatID)
+}
+
+func (b *Bot) adminMuteReportedUser(chatID, reportID int64) {
+	if b == nil || b.db == nil {
+		return
+	}
+	packChatID := b.adminPackChatID()
+	item, err := b.db.GetMiniappFeedReport(packChatID, reportID)
+	if err != nil || item == nil {
+		b.api.Send(tgbotapi.NewMessage(chatID, "❌ Жалоба не найдена."))
+		return
+	}
+	if item.TargetUserID <= 0 {
+		b.api.Send(tgbotapi.NewMessage(chatID, "❌ Нет пользователя для мьюта."))
+		return
+	}
+	b.adminMuteUserUGC(chatID, item.TargetUserID, packChatID, 24)
+	_, _ = b.db.DismissMiniappFeedReport(packChatID, reportID)
 	b.showAdminFeedReportsInbox(chatID)
 }

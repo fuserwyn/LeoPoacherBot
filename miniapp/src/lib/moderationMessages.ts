@@ -7,6 +7,7 @@ const MODERATION_MESSAGES: Record<string, string> = {
   moderation_too_long: "Слишком длинно — сократи текст.",
   moderation_rate_limited: "Подожди немного перед следующим сообщением.",
   moderation_blocked: "Не опубликовал — текст не прошёл проверку.",
+  user_muted: "Публикация в Стае временно ограничена. Если это ошибка — напиши в поддержку.",
 };
 
 export function moderationUserMessage(code: string | undefined, fallback?: string): string {
@@ -17,5 +18,5 @@ export function moderationUserMessage(code: string | undefined, fallback?: strin
 
 export function isModerationError(code: string | undefined): boolean {
   if (!code) return false;
-  return code.startsWith("moderation_");
+  return code.startsWith("moderation_") || code === "user_muted";
 }
