@@ -5,10 +5,8 @@ import { PackGroupChatPanel } from "./PackGroupChatPanel";
 import {
   dtoToCard,
   feedHasMatchingTrainingReport,
-  HEALTHY_FEED_EMOJIS,
   mergePackFeedIncremental,
-  mergePackFeedReactions,
-  mergeTrainingFeedReactions,
+  mergeFeedReactionsForType,
   optimisticTogglePackFeedReaction,
   optimisticToggleThreadReplyLike,
   resolveFeedAvatarUrl,
@@ -847,6 +845,11 @@ export function FeedScreen({
                   it.type === "healthy" ||
                   it.type === "admin_post" ||
                   it.type === "admin_poll";
+                const supportsReactions =
+                  supportsThread ||
+                  it.type === "pack_join" ||
+                  it.type === "pack_rejoin" ||
+                  it.type === "daily_wisdom";
                 const isLeoSystemFeed =
                   it.type === "pack_join" ||
                   it.type === "pack_rejoin" ||
@@ -890,6 +893,10 @@ export function FeedScreen({
                     <div key={it.id} className={slotClass}>
                       <ActivityCard
                         {...base}
+                        reactions={supportsReactions ? mergeFeedReactionsForType(it.type, it.reactions) : undefined}
+                        onReactionClick={
+                          supportsReactions ? (emoji) => void postTrainingReact(it.id, emoji) : undefined
+                        }
                         onReport={canReportCard ? () => void reportFeedContent(it.id) : undefined}
                         reportPosting={feedReportPosting[it.id] ?? false}
                         poll={
@@ -926,11 +933,7 @@ export function FeedScreen({
                             }
                           : undefined
                       }
-                      reactions={
-                        it.type === "training_done"
-                          ? mergeTrainingFeedReactions(it.reactions)
-                          : mergePackFeedReactions(HEALTHY_FEED_EMOJIS, it.reactions)
-                      }
+                      reactions={mergeFeedReactionsForType(it.type, it.reactions)}
                       onReactionClick={(emoji) => void postTrainingReact(it.id, emoji)}
                       hasUnreadThread={unreadFeedCardIds.has(it.id)}
                       onThreadOpened={() => markFeedCardThreadRead(it.id)}

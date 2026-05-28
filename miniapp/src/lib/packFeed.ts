@@ -236,11 +236,11 @@ function typeMeta(t: string): { emoji: string; activity: string; details: string
     case "healthy":
       return { emoji: "💚", activity: "Выздоровление", details: "" };
     case "pack_join":
-      return { emoji: "🐆", activity: "Лео · приветствие", details: "Новый участник" };
+      return { emoji: "🐆", activity: "Лео · приветствие", details: "" };
     case "pack_rejoin":
-      return { emoji: "🐆", activity: "Лео · приветствие", details: "Вернулся в стаю" };
+      return { emoji: "🐆", activity: "Лео · приветствие", details: "" };
     case "daily_wisdom":
-      return { emoji: "🌅", activity: "Мудрость дня", details: "Мудрость дня" };
+      return { emoji: "🌅", activity: "Мудрость дня", details: "" };
     case "pack_removed":
       return { emoji: "🐆", activity: "Лео · стая", details: "Выбыл за неактивность" };
     case "admin_post":
@@ -311,11 +311,9 @@ export function dtoToCard(d: PackFeedItemDTO): ActivityCardProps {
   const comment =
     commentRaw.length > maxComment ? commentRaw.slice(0, maxComment - 1) + "…" : commentRaw;
   if (isLeoNotice) {
-    let leoDetails = newcomer;
-    if (d.type === "daily_wisdom") leoDetails = "Мудрость дня";
-    else if (d.type === "pack_removed") leoDetails = newcomer;
-    else if (d.type === "pack_join") leoDetails = "Новый участник";
-    else if (d.type === "pack_rejoin") leoDetails = "Вернулся в стаю";
+    // Подзаголовок только если не дублирует строку типа (🌅 Мудрость дня / 🐆 приветствие) и текст карточки.
+    let leoDetails = "";
+    if (d.type === "pack_removed") leoDetails = newcomer;
     return {
       avatar: LEO_AVATAR_URL,
       name: "Лео",

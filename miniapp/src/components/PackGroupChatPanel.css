@@ -133,19 +133,96 @@ html.app-keyboard-open .packroom {
   flex-shrink: 0;
 }
 
-.packroom__react {
-  margin-top: 2px;
-  padding: 0;
+.packroom__more {
+  position: relative;
+  flex-shrink: 0;
+  margin-left: auto;
+}
+
+.packroom__more-toggle {
   border: none;
-  background: none;
+  background: transparent;
+  font-size: 18px;
+  line-height: 1;
+  letter-spacing: 1px;
+  padding: 2px 4px;
+  cursor: pointer;
+  color: rgba(140, 140, 160, 0.95);
 }
 
-.packroom__row--me .packroom__react .act-card__react-inner {
+.packroom__more-toggle:hover:not(:disabled),
+.packroom__more-toggle:focus-visible,
+.packroom__more-toggle--open {
+  color: rgba(220, 220, 235, 0.98);
+}
+
+.packroom__more-toggle:disabled {
+  cursor: default;
+  opacity: 0.45;
+}
+
+.packroom__more-popover {
+  position: absolute;
+  z-index: 40;
+  left: 0;
+  top: calc(100% + 6px);
+  min-width: min(260px, calc(100vw - 32px));
+  max-width: min(calc(100vw - 32px), 300px);
+  padding: 10px;
+  background: var(--card, #14141c);
+  border: 1px solid var(--border-subtle, #2a2a36);
+  border-radius: 12px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
+}
+
+.packroom__row--me .packroom__more-popover {
+  left: auto;
+  right: 0;
+}
+
+.packroom__more-emojis {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  max-height: min(280px, 48vh);
+  overflow-y: auto;
+}
+
+.packroom__more-divider {
+  height: 1px;
+  margin: 8px 0;
+  background: var(--border-subtle, #2a2a36);
+}
+
+.packroom__more-item {
+  display: block;
+  width: 100%;
+  padding: 10px 8px;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  font: inherit;
+  font-size: 14px;
+  line-height: 1.35;
+  text-align: left;
+  color: var(--text, #e8e8f0);
+  cursor: pointer;
+}
+
+.packroom__more-item:hover,
+.packroom__more-item:focus-visible {
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.packroom__react-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 4px;
+}
+
+.packroom__row--me .packroom__react-chips {
   justify-content: flex-end;
-}
-
-.packroom__row--me .packroom__meta-row {
-  flex-direction: row-reverse;
 }
 
 .packroom__bubble-wrap {

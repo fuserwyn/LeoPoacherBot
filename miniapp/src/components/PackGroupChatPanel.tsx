@@ -9,9 +9,100 @@ import {
   resolveFeedAvatarUrl,
   type PackFeedReactionDTO,
 } from "../lib/packFeed";
-import { ReportActionMenu, TrainingReactionsBar } from "./ActivityCard";
 import "./ActivityCard.css";
 import "./PackGroupChatPanel.css";
+
+function PackGroupMessageMenu({
+  reactions,
+  onReaction,
+  canReport,
+  onReport,
+  reporting = false,
+}: {
+  reactions: { emoji: string; count: number; me?: boolean }[];
+  onReaction: (emoji: string) => void;
+  canReport?: boolean;
+  onReport?: () => void;
+  reporting?: boolean;
+}) {
+  const wrapRef = useRef<HTMLDivElement>(null);
+  const [open, setOpen] = useState(false);
+
+  useEffect(() => {
+    if (!open) return;
+    const close = (e: MouseEvent | TouchEvent) => {
+      const t = e.target as Node;
+      if (wrapRef.current?.contains(t)) return;
+      setOpen(false);
+    };
+    const esc = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setOpen(false);
+    };
+    document.addEventListener("mousedown", close);
+    document.addEventListener("touchstart", close);
+    document.addEventListener("keydown", esc);
+    return () => {
+      document.removeEventListener("mousedown", close);
+      document.removeEventListener("touchstart", close);
+      document.removeEventListener("keydown", esc);
+    };
+  }, [open]);
+
+  return (
+    <div
+      className={`packroom__more${open ? " packroom__more--open" : ""}`}
+      ref={wrapRef}
+    >
+      <button
+        type="button"
+        className={`packroom__more-toggle${open ? " packroom__more-toggle--open" : ""}`}
+        aria-expanded={open}
+        aria-haspopup="menu"
+        aria-label="Реакции и действия"
+        disabled={reporting}
+        onClick={() => setOpen((v) => !v)}
+      >
+        {reporting ? "…" : "⋯"}
+      </button>
+      {open && !reporting && (
+        <div className="packroom__more-popover" role="menu">
+          <div className="packroom__more-emojis" role="group" aria-label="Реакции">
+            {reactions.map((r) => (
+              <button
+                key={r.emoji}
+                type="button"
+                className={`act-card__react-btn${r.me ? " act-card__react-btn--mine" : ""}`}
+                onClick={() => {
+                  onReaction(r.emoji);
+                  setOpen(false);
+                }}
+              >
+                {r.emoji}
+                {r.count > 0 && <span className="act-card__react-cnt">{r.count}</span>}
+              </button>
+            ))}
+          </div>
+          {canReport && onReport != null && (
+            <>
+              <div className="packroom__more-divider" aria-hidden />
+              <button
+                type="button"
+                className="packroom__more-item"
+                role="menuitem"
+                onClick={() => {
+                  setOpen(false);
+                  onReport();
+                }}
+              >
+                Пожаловаться на сообщение
+              </button>
+            </>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
 
 const apiBase = (import.meta.env.VITE_MINIAPP_API_URL as string | undefined)?.replace(/\/$/, "") ?? "";
 
@@ -537,6 +628,7 @@ export function PackGroupChatPanel({
           const isUnread = unreadMessageIds.has(m.id);
           const canReport = !mine && !m.is_leo;
           const reactions = mergeTrainingFeedReactions(m.reactions);
+          const activeReactions = reactions.filter((r) => r.count > 0);
           const avatarUrl = resolveFeedAvatarUrl(m.author_photo_url);
           return (
             <div
@@ -568,14 +660,6 @@ export function PackGroupChatPanel({
                     <div className="packroom__meta">
                       {m.is_leo ? "Лео" : m.username} · {formatChatTime(m.created_at)}
                     </div>
-                    {canReport && (
-                      <ReportActionMenu
-                        className="packroom__menu"
-                        menuItemLabel="Пожаловаться на сообщение"
-                        onReport={() => void reportMessage(m.id)}
-                        posting={Boolean(reportPosting[m.id])}
-                      />
-                    )}
                   </div>
                   <div className="packroom__bubble-wrap">
                     <div className="packroom__bubble">
@@ -610,14 +694,31 @@ export function PackGroupChatPanel({
                           Удалить
                         </button>
                       )}
+                      <PackGroupMessageMenu
+                        reactions={reactions}
+                        onReaction={(emoji) => postReaction(m.id, emoji)}
+                        canReport={canReport}
+                        onReport={() => void reportMessage(m.id)}
+                        reporting={Boolean(reportPosting[m.id])}
+                      />
                     </div>
                   </div>
-                  <div className="packroom__react act-card__react" role="group" aria-label="Реакции">
-                    <TrainingReactionsBar
-                      reactions={reactions}
-                      onReactionClick={(emoji) => postReaction(m.id, emoji)}
-                    />
-                  </div>
+                  {activeReactions.length > 0 && (
+                    <div className="packroom__react-chips" role="group" aria-label="Реакции на сообщение">
+                      {activeReactions.map((r) => (
+                        <button
+                          key={r.emoji}
+                          type="button"
+                          className={`act-card__react-btn${r.me ? " act-card__react-btn--mine" : ""}`}
+                          onClick={() => postReaction(m.id, r.emoji)}
+                          title={Array.isArray(r.voters) && r.voters.length > 0 ? `Лайкнули: ${r.voters.join(", ")}` : undefined}
+                        >
+                          {r.emoji}
+                          {r.count > 0 && <span className="act-card__react-cnt">{r.count}</span>}
+                        </button>
+                      ))}
+                    </div>
+                  )}
                 </div>
               </div>
             </div>
