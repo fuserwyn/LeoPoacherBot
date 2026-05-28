@@ -417,8 +417,11 @@ export function ActivityCard({
           )}
         </div>
         <div className="act-card__meta">
-          <div className="act-card__row">
+          <div className="act-card__row act-card__row--name">
             <span className="act-card__name">{name}</span>
+          </div>
+          <div className="act-card__row act-card__row--sub">
+            <p className="act-card__time">{timeAgo}</p>
             {showStreak && (
               <span
                 className="pill pill--streak"
@@ -430,7 +433,6 @@ export function ActivityCard({
               </span>
             )}
           </div>
-          <p className="act-card__time">{timeAgo}</p>
         </div>
         {onReport != null && (
           <ReportActionMenu

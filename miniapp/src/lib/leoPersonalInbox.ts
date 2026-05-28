@@ -18,7 +18,23 @@ export async function fetchLeoPendingCount(initData: string): Promise<number> {
   }
 }
 
-/** Забирает все ожидающие фрагменты (как серия poll), порядок FIFO. Макс. 25 на цикл. */
+/** Сброс бейджа «Лео» одним запросом (очередь in-memory; тексты уже в personal-chat feed). */
+export async function clearLeoPersonalInbox(initData: string): Promise<boolean> {
+  if (!apiBase || !initData.trim()) return false;
+  try {
+    const res = await fetch(`${apiBase}/api/miniapp/personal-reply/drain`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ init_data: initData }),
+    });
+    const j = (await res.json().catch(() => ({}))) as { ok?: boolean };
+    return res.ok && Boolean(j.ok);
+  } catch {
+    return false;
+  }
+}
+
+/** @deprecated use clearLeoPersonalInbox — медленный цикл poll. */
 export async function drainLeoPersonalInbox(initData: string): Promise<string[]> {
   if (!apiBase || !initData.trim()) return [];
   const out: string[] = [];

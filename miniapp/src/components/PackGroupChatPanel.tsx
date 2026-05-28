@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
-import { formatChatTime, timeAgoFromISO } from "../lib/timeAgo";
+import { formatChatTime } from "../lib/timeAgo";
 import { LEO_AVATAR_URL } from "../lib/leoAvatar";
 import { moderationUserMessage, isModerationError } from "../lib/moderationMessages";
 import { clearPackGroupUnread, fetchPackGroupUnreadSummary } from "../lib/packGroupUnread";
@@ -75,6 +75,8 @@ type Props = {
   /** Подвкладка «Чат» в ленте видима (keep-alive). */
   active?: boolean;
   onRefreshTabBadges?: () => void;
+  /** Сразу убрать бейдж общего чата из UI (до ответа сервера). */
+  onPackGroupChatOpened?: () => void;
 };
 
 export function PackGroupChatPanel({
@@ -85,6 +87,7 @@ export function PackGroupChatPanel({
   onHaptic,
   active = true,
   onRefreshTabBadges,
+  onPackGroupChatOpened,
 }: Props) {
   const [items, setItems] = useState<PackGroupMessage[]>([]);
   const [text, setText] = useState("");
@@ -216,13 +219,13 @@ export function PackGroupChatPanel({
 
   const bootstrapUnreadAndLoad = useCallback(async () => {
     if (!inTelegram || !initData.trim()) return;
+    onPackGroupChatOpened?.();
     const summary = await fetchPackGroupUnreadSummary(initData);
     setUnreadMessageIds(new Set(summary.messageIds));
     pendingUnreadScrollRef.current = summary.messageIds[0] ?? null;
-    await load();
-    await clearPackGroupUnread(initData);
-    onRefreshTabBadges?.();
-  }, [inTelegram, initData, load, onRefreshTabBadges]);
+    void clearPackGroupUnread(initData).then(() => onRefreshTabBadges?.());
+    void load();
+  }, [inTelegram, initData, load, onRefreshTabBadges, onPackGroupChatOpened]);
 
   useEffect(() => {
     if (!active) return;
@@ -563,7 +566,7 @@ export function PackGroupChatPanel({
                 <div className="packroom__content">
                   <div className="packroom__meta-row">
                     <div className="packroom__meta">
-                      {m.is_leo ? "Лео" : m.username} · {formatChatTime(m.created_at)} · {timeAgoFromISO(m.created_at)}
+                      {m.is_leo ? "Лео" : m.username} · {formatChatTime(m.created_at)}
                     </div>
                     {canReport && (
                       <ReportActionMenu

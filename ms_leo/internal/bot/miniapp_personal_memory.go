@@ -112,6 +112,21 @@ func (b *Bot) MiniappPersonalQueueLen(userID int64) int {
 	return len(b.miniappPersonalQueue[userID])
 }
 
+// ClearMiniappPersonalReplyQueue — сброс in-memory очереди (бейдж «Лео»); тексты уже в БД.
+func (b *Bot) ClearMiniappPersonalReplyQueue(userID int64) int {
+	if b == nil || userID == 0 {
+		return 0
+	}
+	b.miniappPersonalMu.Lock()
+	defer b.miniappPersonalMu.Unlock()
+	if b.miniappPersonalQueue == nil {
+		return 0
+	}
+	n := len(b.miniappPersonalQueue[userID])
+	delete(b.miniappPersonalQueue, userID)
+	return n
+}
+
 // PopMiniappPersonalReply — один фрагмент ответа для poll API (FIFO в памяти процесса).
 func (b *Bot) PopMiniappPersonalReply(userID int64) (text string, ok bool) {
 	if b == nil || userID == 0 {

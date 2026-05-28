@@ -186,19 +186,38 @@
 .act-card__row {
   display: flex;
   align-items: center;
-  justify-content: space-between;
   gap: 8px;
+  min-width: 0;
+}
+
+.act-card__row--name {
+  margin-bottom: 1px;
+}
+
+.act-card__row--sub {
+  flex-wrap: wrap;
+  justify-content: flex-start;
 }
 
 .act-card__name {
   font-weight: 600;
   font-size: 14px;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .act-card__time {
   font-size: 11px;
   color: var(--text-muted);
-  margin: 1px 0 0;
+  margin: 0;
+  flex-shrink: 0;
+}
+
+.act-card__row--sub .pill--streak {
+  flex-shrink: 0;
+  margin-left: auto;
 }
 
 .act-card__type {

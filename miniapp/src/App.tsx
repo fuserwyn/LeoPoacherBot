@@ -94,6 +94,9 @@ export function App() {
     setPackGroupUnread(packGroup);
   }, [accessGateStatus, inTelegram, initData]);
 
+  const clearLeoBadge = useCallback(() => setLeoPending(0), []);
+  const clearPackGroupBadge = useCallback(() => setPackGroupUnread(0), []);
+
   const refreshProfileStats = useCallback(async () => {
     const apiBase = (import.meta.env.VITE_MINIAPP_API_URL as string | undefined)?.replace(/\/$/, "") ?? "";
     if (accessGateStatus !== "ok" || !inTelegram || !initData?.trim() || !apiBase) return;
@@ -180,6 +183,10 @@ export function App() {
     void refreshTabBadges();
   }, [refreshTabBadges]);
 
+  const onLeoChatOpened = useCallback(() => {
+    clearLeoBadge();
+  }, [clearLeoBadge]);
+
   const effectiveName = profileDisplayName.trim() || name.trim() || "друг";
   const tabsVisible = !supportOpen && !workoutOpen;
 
@@ -216,6 +223,7 @@ export function App() {
               await Promise.all([refreshProfileStats(), refreshTabBadges()]);
             }}
             onRefreshTabBadges={refreshTabBadges}
+            onPackGroupChatOpened={clearPackGroupBadge}
           />
         </TabKeepAlive>
         <TabKeepAlive active={tab === "chat"} hidden={!tabsVisible}>
@@ -225,6 +233,7 @@ export function App() {
             initData={initData}
             inTelegram={inTelegram}
             showAlert={showAlert}
+            onInboxOpened={onLeoChatOpened}
             onInboxDrained={onLeoInboxDrained}
           />
         </TabKeepAlive>
@@ -268,6 +277,7 @@ export function App() {
         onChat={() => {
           setWorkoutOpen(false);
           setSupportOpen(false);
+          clearLeoBadge();
           setTab("chat");
         }}
         onFeed={() => {

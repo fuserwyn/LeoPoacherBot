@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
-import { drainLeoPersonalInbox } from "../lib/leoPersonalInbox";
+import { clearLeoPersonalInbox } from "../lib/leoPersonalInbox";
 import { formatChatTime } from "../lib/timeAgo";
 import { LEO_AVATAR_URL } from "../lib/leoAvatar";
 import "./ChatScreen.css";
@@ -11,7 +11,9 @@ type Props = {
   initData: string;
   inTelegram: boolean;
   showAlert: (m: string) => void;
-  /** После забора очереди лички с сервера (для сброса бейджа). */
+  /** После открытия чата — сразу сбросить бейдж в UI. */
+  onInboxOpened?: () => void;
+  /** После забора очереди лички с сервера (синхронизация с сервером). */
   onInboxDrained?: () => void;
   /** Вкладка видима (keep-alive: false — без поллинга и body--lock). */
   active?: boolean;
@@ -104,7 +106,7 @@ function maxServerID(items: ChatMsg[]): number {
   return max;
 }
 
-export function ChatScreen({ name, initData, inTelegram, showAlert, onInboxDrained, active = true }: Props) {
+export function ChatScreen({ name, initData, inTelegram, showAlert, onInboxOpened, onInboxDrained, active = true }: Props) {
   const [text, setText] = useState("");
   const [sending, setSending] = useState(false);
   /** После POST /messages: ответ ИИ пишется асинхронно — «печатает» до появления строки Лео в фиде. */
@@ -302,24 +304,18 @@ export function ChatScreen({ name, initData, inTelegram, showAlert, onInboxDrain
     };
   }, [active, inTelegram, initData]);
 
-  /** Дополнительно дёрнуть очередь поллинга-warning'ов: бейдж в табах сбрасываем. */
+  /** Сброс бейджа «Лео»: сразу в UI, очередь на сервере — параллельно. */
   useEffect(() => {
     if (!active || !envApi || !inTelegram || !initData?.trim()) return;
+    onInboxOpened?.();
     let cancelled = false;
-    (async () => {
-      const parts = await drainLeoPersonalInbox(initData);
-      if (cancelled) return;
-      // Сами тексты подгружаются через основной poll feed (Лео туда же сохраняет).
-      // Здесь только сброс бейджа.
-      if (parts.length > 0) {
-        // ничего не добавляем в state — основной поллер подтянет
-      }
-      onInboxDrained?.();
-    })();
+    void clearLeoPersonalInbox(initData).then(() => {
+      if (!cancelled) onInboxDrained?.();
+    });
     return () => {
       cancelled = true;
     };
-  }, [active, inTelegram, initData, onInboxDrained]);
+  }, [active, inTelegram, initData, onInboxOpened, onInboxDrained]);
 
   const send = useCallback(async () => {
     const t = text.trim();

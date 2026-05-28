@@ -1,5 +1,5 @@
 import { LEO_AVATAR_URL } from "./leoAvatar";
-import { timeAgoFromISO } from "./timeAgo";
+import { formatLocalDateTime } from "./timeAgo";
 import {
   stripLeadingCategoryFromTrainingReport,
   trainingDoneCategoryDisplayLabel,
@@ -221,11 +221,11 @@ function typeMeta(t: string): { emoji: string; activity: string; details: string
     case "healthy":
       return { emoji: "💚", activity: "Выздоровление", details: "" };
     case "pack_join":
-      return { emoji: "🐆", activity: "Лео · приветствие", details: "Новый участник" };
+      return { emoji: "👋", activity: "Лео · приветствие", details: "👋 Новый участник" };
     case "pack_rejoin":
-      return { emoji: "🐆", activity: "Лео · приветствие", details: "Вернулся в стаю" };
+      return { emoji: "🔁", activity: "Лео · приветствие", details: "🔁 Вернулся в стаю" };
     case "daily_wisdom":
-      return { emoji: "🌅", activity: "Мудрость дня", details: "Мудрость дня" };
+      return { emoji: "🌅", activity: "Мудрость дня", details: "🌅 Мудрость дня" };
     case "pack_removed":
       return { emoji: "🐆", activity: "Лео · стая", details: "Выбыл за неактивность" };
     case "admin_post":
@@ -297,16 +297,16 @@ export function dtoToCard(d: PackFeedItemDTO): ActivityCardProps {
     commentRaw.length > maxComment ? commentRaw.slice(0, maxComment - 1) + "…" : commentRaw;
   if (isLeoNotice) {
     let leoDetails = newcomer;
-    if (d.type === "daily_wisdom") leoDetails = "Мудрость дня";
+    if (d.type === "daily_wisdom") leoDetails = "🌅 Мудрость дня";
     else if (d.type === "pack_removed") leoDetails = newcomer;
-    else if (d.type === "pack_join") leoDetails = "Новый участник";
-    else if (d.type === "pack_rejoin") leoDetails = "Вернулся в стаю";
+    else if (d.type === "pack_join") leoDetails = "👋 Новый участник";
+    else if (d.type === "pack_rejoin") leoDetails = "🔁 Вернулся в стаю";
     return {
       avatar: LEO_AVATAR_URL,
       name: "Лео",
       streak: 0,
       hideStreak: true,
-      timeAgo: timeAgoFromISO(d.created_at),
+      timeAgo: formatLocalDateTime(d.created_at),
       emoji: m.emoji,
       activity: m.activity,
       details: leoDetails,
@@ -320,7 +320,7 @@ export function dtoToCard(d: PackFeedItemDTO): ActivityCardProps {
       streak: 0,
       hideStreak: true,
       lightTone: true,
-      timeAgo: timeAgoFromISO(d.created_at),
+      timeAgo: formatLocalDateTime(d.created_at),
       emoji: m.emoji,
       activity: m.activity,
       details: "",
@@ -334,7 +334,7 @@ export function dtoToCard(d: PackFeedItemDTO): ActivityCardProps {
       streak: 0,
       hideStreak: true,
       lightTone: true,
-      timeAgo: timeAgoFromISO(d.created_at),
+      timeAgo: formatLocalDateTime(d.created_at),
       emoji: m.emoji,
       activity: m.activity,
       details: d.poll?.total_votes ? `${d.poll.total_votes} голосов` : "",
@@ -345,7 +345,7 @@ export function dtoToCard(d: PackFeedItemDTO): ActivityCardProps {
     avatar: (pic || "").trim() || avatarFor(d.username),
     name: d.is_you ? "Ты" : d.username || `Участник ${d.user_id}`,
     streak: d.streak_days,
-    timeAgo: timeAgoFromISO(d.created_at),
+    timeAgo: formatLocalDateTime(d.created_at),
     emoji: trainingEmoji,
     activity: d.type === "training_done" ? trainingDoneCategoryDisplayLabel(d.text) : m.activity,
     details: d.type === "training_done" ? "" : m.details,

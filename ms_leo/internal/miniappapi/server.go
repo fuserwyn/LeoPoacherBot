@@ -47,6 +47,8 @@ func (s *Server) serve(w http.ResponseWriter, r *http.Request) {
 		s.handlePostMessage(w, r)
 	case path == "/api/miniapp/personal-reply/pending-count" && r.Method == http.MethodPost:
 		s.handlePostPersonalPendingCount(w, r)
+	case path == "/api/miniapp/personal-reply/drain" && r.Method == http.MethodPost:
+		s.handlePostPersonalReplyDrain(w, r)
 	case path == "/api/miniapp/personal-reply/poll" && r.Method == http.MethodPost:
 		s.handlePostPersonalReplyPoll(w, r)
 	case path == "/api/miniapp/personal-chat/feed" && r.Method == http.MethodPost:
@@ -244,6 +246,51 @@ func (s *Server) handlePostPersonalReplyPoll(w http.ResponseWriter, r *http.Requ
 		out["reply_text"] = txt
 	}
 	_ = json.NewEncoder(w).Encode(out)
+}
+
+func (s *Server) handlePostPersonalReplyDrain(w http.ResponseWriter, r *http.Request) {
+	corsWriteHeaders(w, r)
+	if s.bot == nil || s.token == "" {
+		s.jsonErr(w, http.StatusServiceUnavailable, "server_unavailable")
+		return
+	}
+	var body struct {
+		InitData string `json:"init_data"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		s.jsonErr(w, http.StatusBadRequest, "invalid_json")
+		return
+	}
+	if body.InitData == "" {
+		s.jsonErr(w, http.StatusBadRequest, "missing_init_data")
+		return
+	}
+	if err := initdata.Validate(body.InitData, s.token, 24*time.Hour); err != nil {
+		s.logger.Warnf("miniapp personal drain: invalid init: %v", err)
+		s.jsonErr(w, http.StatusUnauthorized, "invalid_init_data")
+		return
+	}
+	parsed, err := initdata.Parse(body.InitData)
+	if err != nil {
+		s.jsonErr(w, http.StatusBadRequest, "parse_init_data")
+		return
+	}
+	if parsed.User.ID == 0 {
+		s.jsonErr(w, http.StatusBadRequest, "user_missing")
+		return
+	}
+	if err := s.bot.AssertMiniAppPackChatAligns(parsed); err != nil {
+		if errors.Is(err, bot.ErrMiniAppChatMismatch) {
+			s.jsonErr(w, http.StatusConflict, "chat_mismatch")
+			return
+		}
+		s.logger.Errorf("miniapp personal drain assert chat: %v", err)
+		s.jsonErr(w, http.StatusInternalServerError, "assert_chat_error")
+		return
+	}
+	cleared := s.bot.ClearMiniappPersonalReplyQueue(parsed.User.ID)
+	w.Header().Set("Content-Type", "application/json; charset=utf-8")
+	_ = json.NewEncoder(w).Encode(map[string]any{"ok": true, "cleared": cleared})
 }
 
 func (s *Server) handlePostPersonalPendingCount(w http.ResponseWriter, r *http.Request) {

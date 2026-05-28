@@ -18,7 +18,7 @@ import {
 } from "../lib/packFeed";
 import { moderationUserMessage, isModerationError } from "../lib/moderationMessages";
 import { clearFeedThreadUnread, fetchFeedThreadUnreadSummary } from "../lib/feedThreadUnread";
-import { timeAgoFromISO } from "../lib/timeAgo";
+import { formatLocalDateTime } from "../lib/timeAgo";
 import { streakStreakAriaLabel } from "../lib/streakLabel";
 import {
   sortWorkoutCategoryIds,
@@ -62,6 +62,8 @@ type Props = {
   active?: boolean;
   /** Обновить бейджи таббара (после открытия общего чата). */
   onRefreshTabBadges?: () => void;
+  /** Сразу убрать бейдж общего чата из UI. */
+  onPackGroupChatOpened?: () => void;
   /** Непрочитанные комментарии в ленте (бейдж подвкладки). */
   feedThreadUnreadCount?: number;
   /** Непрочитанные ответы в общем чате (бейдж подвкладки). */
@@ -103,6 +105,7 @@ export function FeedScreen({
   onRefreshAll,
   active = true,
   onRefreshTabBadges,
+  onPackGroupChatOpened,
   feedThreadUnreadCount = 0,
   packGroupUnreadCount = 0,
 }: Props) {
@@ -704,7 +707,10 @@ export function FeedScreen({
           <button
             type="button"
             className={`feed__subtab ${sub === "room" ? "is-active" : ""}`}
-            onClick={() => setSub("room")}
+            onClick={() => {
+              onPackGroupChatOpened?.();
+              setSub("room");
+            }}
             role="tab"
             aria-selected={sub === "room"}
           >
@@ -784,6 +790,7 @@ export function FeedScreen({
           meId={userId}
           showAlert={showAlert}
           onRefreshTabBadges={onRefreshTabBadges}
+          onPackGroupChatOpened={onPackGroupChatOpened}
           onHaptic={() => {
             const w = window.Telegram?.WebApp;
             w?.HapticFeedback?.impactOccurred?.("light");
@@ -866,7 +873,7 @@ export function FeedScreen({
                     id: tr.id,
                     author: (tr.username || "").trim() || `Участник ${tr.user_id}`,
                     text: tr.text,
-                    timeAgo: timeAgoFromISO(tr.created_at),
+                    timeAgo: formatLocalDateTime(tr.created_at),
                     isYou: tr.is_you,
                     isLeo: Boolean(tr.is_leo),
                     authorPhotoUrl: tr.author_photo_url?.trim()
