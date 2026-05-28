@@ -28,7 +28,6 @@ import "./FeedScreen.css";
 
 const apiBase = (import.meta.env.VITE_MINIAPP_API_URL as string | undefined)?.replace(/\/$/, "") ?? "";
 const FEED_POLL_MS = 8000;
-const FEED_FULL_EVERY_N_POLLS = 6;
 
 function applyOptimisticFeedItem(items: PackFeedItemDTO[], optimistic: PackFeedItemDTO | null | undefined): PackFeedItemDTO[] {
   if (!optimistic) return items;
@@ -130,7 +129,6 @@ export function FeedScreen({
   const feedHeaderRef = useRef<HTMLDivElement>(null);
   const feedListRef = useRef<HTMLDivElement>(null);
   const maxFeedIdRef = useRef(0);
-  const pollTickRef = useRef(0);
   const loadedOnceRef = useRef(false);
   /** Идёт полный синк — чтобы не плодить дубли (двойной fetch на маунте, наложение поллинга и пост-экшн-синков). */
   const fullSyncInFlightRef = useRef(false);
@@ -612,7 +610,6 @@ export function FeedScreen({
   useEffect(() => {
     maxFeedIdRef.current = 0;
     loadedOnceRef.current = false;
-    pollTickRef.current = 0;
     if (active) void syncFeed({ full: true });
   }, [refreshToken, syncFeed, active]);
 
@@ -630,9 +627,10 @@ export function FeedScreen({
 
     const tick = async () => {
       if (cancelled) return;
-      pollTickRef.current += 1;
-      const full = pollTickRef.current % FEED_FULL_EVERY_N_POLLS === 0;
-      await syncFeed({ full, silent: true });
+      // Полный синк на каждом опросе: только так подтягиваются новые комментарии
+      // (тред) и реакции к УЖЕ существующим постам. Инкрементальный since_id
+      // возвращает лишь новые посты и не обновляет треды старых.
+      await syncFeed({ full: true, silent: true });
       if (cancelled) return;
       timer = setTimeout(tick, FEED_POLL_MS);
     };

@@ -70,20 +70,31 @@ export function trainingDoneCategoryEmoji(text: string): string {
   return ID_TO_EMOJI[cat] ?? "💪";
 }
 
-/** Заголовок карточки вместо общего «Тренировка»: тип из строки отчёта. */
+/**
+ * Заголовок карточки вместо общего «Тренировка»: тип из строки отчёта.
+ * Для своего вида из поля «Другое» показываем то, что ввёл пользователь (а не «Другое»).
+ */
 export function trainingDoneCategoryDisplayLabel(text: string): string {
-  const cat = parseTrainingDoneCategory(text);
-  if (cat === null) return "Другое";
-  return WORKOUT_CATEGORY_OPTIONS.find((o) => o.id === cat)?.label ?? "Другое";
+  const raw = parseTrainingDoneRawKind(text);
+  if (raw === null) return "Другое";
+  const id = LABEL_TO_ID[raw.toLowerCase()];
+  if (id) return WORKOUT_CATEGORY_OPTIONS.find((o) => o.id === id)?.label ?? "Другое";
+  return raw;
+}
+
+/** Сырой вид активности из первой строки отчёта (с исходным регистром), либо null. */
+function parseTrainingDoneRawKind(text: string): string | null {
+  const line = (text.trim().split("\n")[0] ?? "").trim();
+  const m = line.match(/^(?:#training_done\s*[—–-]\s*)?([^,]+),\s*\d+\s*мин/i);
+  if (!m) return null;
+  return m[1].trim();
 }
 
 /** Первая строка отчёта: «бег, 15 мин, инт. 3/5» (старые — с префиксом #training_done). */
 export function parseTrainingDoneCategory(text: string): WorkoutCategoryId | null {
-  const line = (text.trim().split("\n")[0] ?? "").trim();
-  const m = line.match(/^(?:#training_done\s*[—–-]\s*)?([^,]+),\s*\d+\s*мин/i);
-  if (!m) return null;
-  const raw = m[1].trim().toLowerCase();
-  if (LABEL_TO_ID[raw]) return LABEL_TO_ID[raw];
+  const raw = parseTrainingDoneRawKind(text);
+  if (raw === null) return null;
+  if (LABEL_TO_ID[raw.toLowerCase()]) return LABEL_TO_ID[raw.toLowerCase()];
   return "other";
 }
 

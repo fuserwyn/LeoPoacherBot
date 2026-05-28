@@ -33,8 +33,10 @@
   flex-direction: column;
   justify-content: flex-end;
   gap: 8px;
-  /* --pack-composer-h: ResizeObserver на .packroom__form; min 96px — «Удалить» не под полем */
-  padding-bottom: max(96px, calc(28px + var(--pack-composer-h, 72px)));
+  /* --pack-composer-h: ResizeObserver на .packroom__form. Запас больше, чем у чата
+     с Лео: под пузырём ещё строка «Ответить · ⋯ · Изменить · Удалить», которую на
+     Android иначе перекрывает поле ввода. */
+  padding-bottom: max(128px, calc(56px + var(--pack-composer-h, 72px)));
   box-sizing: border-box;
   overflow-anchor: none;
 }
@@ -45,7 +47,7 @@
   width: 100%;
   overflow: hidden;
   pointer-events: none;
-  scroll-margin-bottom: max(96px, calc(28px + var(--pack-composer-h, 72px)));
+  scroll-margin-bottom: max(128px, calc(56px + var(--pack-composer-h, 72px)));
 }
 
 /* Клавиатура: чат стаи сжимается до видимой зоны над клавиатурой. */
