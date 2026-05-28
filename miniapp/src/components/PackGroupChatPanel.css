@@ -1,9 +1,20 @@
 .packroom {
+  /* Привязка к fixed-опорам (верх = низ шапки ленты, низ = верх таббара), а НЕ к
+     100dvh: Android TG WebView завышает dvh/innerHeight, из-за чего низ ленты
+     уезжал под поле ввода и просвечивал в зазоре. Те же опоры, что у композера и
+     таббара → одинаково на iOS и Android. */
+  position: fixed;
+  top: calc(var(--safe-top, 0px) + var(--feed-header-h, 220px));
+  bottom: var(--bottom-nav-stack, var(--bottom-nav-h, var(--feed-bottom-nav-h, 72px)));
+  left: 0;
+  right: 0;
+  max-width: 520px;
+  margin: 0 auto;
+  /* Боковые отступы раньше давал родитель .feed (padding: 0 8px) — fixed их теряет. */
+  padding: 0 8px;
   display: flex;
   flex-direction: column;
   gap: 10px;
-  min-height: calc(100dvh - var(--feed-header-h, 220px) - var(--feed-bottom-nav-h, 88px));
-  max-height: calc(100dvh - var(--feed-header-h, 220px) - var(--feed-bottom-nav-h, 88px));
   overflow: hidden;
   box-sizing: border-box;
 }
@@ -133,10 +144,9 @@
   scroll-margin-bottom: max(128px, calc(56px + var(--pack-composer-h, 72px)));
 }
 
-/* Клавиатура: чат стаи сжимается до видимой зоны над клавиатурой. */
+/* Клавиатура: низ чата стаи поднимается над клавиатурой (как и поле ввода). */
 html.app-keyboard-open .packroom {
-  min-height: calc(100dvh - var(--feed-header-h, 220px) - var(--app-keyboard-bottom, 0px));
-  max-height: calc(100dvh - var(--feed-header-h, 220px) - var(--app-keyboard-bottom, 0px));
+  bottom: max(var(--safe-bottom, 0px), var(--app-keyboard-bottom, 0px));
 }
 
 .packroom__row {

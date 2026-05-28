@@ -17,9 +17,15 @@
 }
 
 .chat {
-  /* Высота = layout - таббар. Форма над таббаром; при клавиатуре — над ней (--app-keyboard-bottom). */
-  height: calc(100dvh - var(--bottom-nav-h, 72px));
-  max-height: calc(100dvh - var(--bottom-nav-h, 72px));
+  /* Раскладку привязываем к fixed-опорам (низ = верх таббара, как у поля ввода),
+     а НЕ к 100dvh: Android TG WebView завышает dvh/innerHeight, из-за чего низ
+     ленты уезжал ниже поля ввода и просвечивал в зазоре над таббаром. top/bottom
+     от тех же опор, что у композера и таббара → пиксель-в-пиксель как на iOS. */
+  position: fixed;
+  top: var(--safe-top, 0px);
+  bottom: var(--bottom-nav-stack, var(--bottom-nav-h, 72px));
+  left: 0;
+  right: 0;
   display: flex;
   flex-direction: column;
   padding: 0;
@@ -188,10 +194,9 @@
   scroll-margin-bottom: max(96px, calc(28px + var(--chat-composer-h, 72px)));
 }
 
-/* Клавиатура: весь чат (шапка + лента) сжимается до видимой зоны над клавиатурой. */
+/* Клавиатура: низ чата поднимается над клавиатурой (как и поле ввода). */
 html.app-keyboard-open .chat {
-  height: calc(100dvh - var(--app-keyboard-bottom, 0px));
-  max-height: calc(100dvh - var(--app-keyboard-bottom, 0px));
+  bottom: max(var(--safe-bottom, 0px), var(--app-keyboard-bottom, 0px));
 }
 
 .chat__row {
