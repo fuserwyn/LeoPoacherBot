@@ -101,8 +101,12 @@ export function ProfileScreen({
     const gap = 10;
     const taRect = ta.getBoundingClientRect();
     const maxBottom = keyboardTop - barH - gap;
-    if (taRect.bottom > maxBottom) {
-      window.scrollBy({ top: taRect.bottom - maxBottom, behavior: "smooth" });
+    const delta = taRect.bottom - maxBottom;
+    // Порог гасит дрожание/петлю обратной связи: прокручиваем только если поле реально
+    // перекрыто клавиатурой. behavior:"auto" — мгновенно, чтобы анимация плавного скролла
+    // не плодила новые scroll-события и не запускала прокрутку повторно.
+    if (delta > 4) {
+      window.scrollBy({ top: delta, behavior: "auto" });
     }
   }, []);
 
@@ -351,14 +355,16 @@ export function ProfileScreen({
     if (!healthInputFocused || !sickFormOpen) return;
     const run = () => scrollHealthAboveKeyboard();
     run();
-    window.setTimeout(run, 100);
-    window.setTimeout(run, 280);
+    const t1 = window.setTimeout(run, 100);
+    const t2 = window.setTimeout(run, 280);
     const vv = window.visualViewport;
+    // Только resize (показ/скрытие клавиатуры). На scroll НЕ подписываемся: он срабатывает
+    // во время самой прокрутки и при ручном скролле пользователя → петля «уезжания» вверх.
     vv?.addEventListener("resize", run);
-    vv?.addEventListener("scroll", run);
     return () => {
+      window.clearTimeout(t1);
+      window.clearTimeout(t2);
       vv?.removeEventListener("resize", run);
-      vv?.removeEventListener("scroll", run);
     };
   }, [healthInputFocused, sickFormOpen, scrollHealthAboveKeyboard]);
 
