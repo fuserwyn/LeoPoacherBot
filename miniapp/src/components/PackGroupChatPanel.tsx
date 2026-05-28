@@ -710,15 +710,16 @@ export function PackGroupChatPanel({
     (messageId: number, emoji: string) => {
       if (!apiBase || !inTelegram || !initData || !messageId) return;
 
-      let snapshot: PackGroupMessage[] | null = null;
-      setItems((prev) => {
-        snapshot = prev;
-        return prev.map((m) =>
-          m.id === messageId
-            ? { ...m, reactions: optimisticTogglePackFeedReaction(m.reactions, emoji) }
-            : m,
-        );
-      });
+      onHaptic?.();
+
+      let snapshot: PackFeedReactionDTO[] | undefined;
+      setItems((prev) =>
+        prev.map((m) => {
+          if (m.id !== messageId) return m;
+          snapshot = m.reactions;
+          return { ...m, reactions: optimisticTogglePackFeedReaction(m.reactions, emoji) };
+        }),
+      );
 
       void (async () => {
         try {
@@ -729,18 +730,24 @@ export function PackGroupChatPanel({
           });
           const j = (await res.json().catch(() => ({}))) as { error?: string };
           if (!res.ok) {
-            if (snapshot) setItems(snapshot);
+            if (snapshot !== undefined) {
+              setItems((prev) =>
+                prev.map((m) => (m.id === messageId ? { ...m, reactions: snapshot } : m)),
+              );
+            }
             showAlert(j.error === "invalid_emoji" ? "Такую реакцию нельзя" : j.error ?? `Ошибка ${res.status}`);
-            return;
           }
-          await load();
         } catch (e) {
-          if (snapshot) setItems(snapshot);
+          if (snapshot !== undefined) {
+            setItems((prev) =>
+              prev.map((m) => (m.id === messageId ? { ...m, reactions: snapshot } : m)),
+            );
+          }
           showAlert(e instanceof Error ? e.message : "Сеть");
         }
       })();
     },
-    [inTelegram, initData, showAlert, load],
+    [inTelegram, initData, showAlert, onHaptic],
   );
 
   const itemsById = useMemo(() => {

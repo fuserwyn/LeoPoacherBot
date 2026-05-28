@@ -184,7 +184,7 @@
 
 .feed__filter-pill {
   flex: 0 0 auto;
-  padding: 7px 14px;
+  padding: 5px 14px;
   border-radius: 999px;
   border: 1px solid var(--border-subtle, #2a2a36);
   background: #14141c;
@@ -193,7 +193,7 @@
   font-weight: 600;
   line-height: 1.25;
   cursor: pointer;
-  min-height: 36px;
+  min-height: 32px;
   display: inline-flex;
   align-items: center;
 }
@@ -212,6 +212,10 @@
   padding-bottom: 1px;
   -webkit-overflow-scrolling: touch;
   scrollbar-width: thin;
+  /* Горизонтальный свайп по чипам остаётся горизонтальным и не «цепляет»
+     вертикальный скролл ленты. */
+  touch-action: pan-x;
+  overscroll-behavior-x: contain;
 }
 
 .feed__filter-chip {
@@ -219,7 +223,7 @@
   align-items: center;
   gap: 3px;
   flex-shrink: 0;
-  padding: 7px 12px;
+  padding: 5px 12px;
   border-radius: 999px;
   border: 1px solid var(--border-subtle, #2a2a36);
   background: #14141c;
@@ -229,7 +233,7 @@
   line-height: 1.2;
   cursor: pointer;
   white-space: nowrap;
-  min-height: 36px;
+  min-height: 32px;
 }
 
 .feed__filter-chip.is-active {
