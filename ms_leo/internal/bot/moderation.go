@@ -170,6 +170,29 @@ func (b *Bot) adminMuteUserUGC(chatID, targetUserID, packChatID int64, hours int
 		"", 0)
 }
 
+func (b *Bot) adminUnmuteUserUGC(chatID, targetUserID, packChatID int64) {
+	if b == nil || b.db == nil || targetUserID == 0 || packChatID == 0 {
+		return
+	}
+	muted, err := b.db.IsUserUGCMuted(targetUserID, packChatID)
+	if err != nil {
+		b.api.Send(tgbotapi.NewMessage(chatID, "❌ Не удалось проверить мьют: "+err.Error()))
+		return
+	}
+	if !muted {
+		b.api.Send(tgbotapi.NewMessage(chatID, fmt.Sprintf("ℹ️ Пользователь %d не в UGC-мьюте.", targetUserID)))
+		return
+	}
+	if err := b.db.UnmuteUserUGC(targetUserID, packChatID); err != nil {
+		b.api.Send(tgbotapi.NewMessage(chatID, "❌ Не удалось размьютить: "+err.Error()))
+		return
+	}
+	b.api.Send(tgbotapi.NewMessage(chatID, fmt.Sprintf("🔊 Пользователь %d: UGC-мьют снят.", targetUserID)))
+	b.notifyUserTextByID(targetUserID, packChatID,
+		"🔊 Ограничения на публикации в Стае сняты. Можно снова писать в ленте, чате и заметках.",
+		"", 0)
+}
+
 func (b *Bot) deliverModerationWarning(userID int64, surface moderation.Surface, rawText string, res moderation.Result) {
 	if b == nil || userID == 0 || strings.TrimSpace(res.UserMessage) == "" {
 		return

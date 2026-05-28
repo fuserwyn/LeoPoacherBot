@@ -87,3 +87,20 @@ func (d *Database) MuteUserUGCUntil(userID, packChatID int64, until time.Time) e
 	}
 	return nil
 }
+
+func (d *Database) UnmuteUserUGC(userID, packChatID int64) error {
+	if userID == 0 || packChatID == 0 {
+		return nil
+	}
+	_, err := d.db.Exec(
+		`UPDATE training_state
+		    SET ugc_muted_until = NULL,
+		        updated_at = NOW() AT TIME ZONE 'Europe/Moscow'
+		  WHERE user_id = $1 AND chat_id = $2`,
+		userID, packChatID,
+	)
+	if err != nil {
+		return fmt.Errorf("unmute user ugc: %w", err)
+	}
+	return nil
+}

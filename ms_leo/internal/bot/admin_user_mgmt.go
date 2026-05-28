@@ -100,9 +100,11 @@ func (b *Bot) showAdminUserCard(chatID, targetUserID int64) {
 	body.WriteString(fmt.Sprintf("Больничный: %s\n", adminEscapeHTML(sick)))
 	body.WriteString(fmt.Sprintf("Удалён из стаи: %s\n", adminEscapeHTML(deleted)))
 	body.WriteString(fmt.Sprintf("Доступ: %s\n", adminEscapeHTML(paywall)))
+	ugcMuted := false
 	if ugc, uerr := b.db.GetUGCModerationState(targetUserID, packChatID); uerr == nil {
 		body.WriteString(fmt.Sprintf("UGC-нарушения: %d\n", ugc.ViolationCount))
 		if ugc.MutedUntil != nil && ugc.MutedUntil.After(time.Now()) {
+			ugcMuted = true
 			body.WriteString(fmt.Sprintf("UGC-мьют до: %s\n", adminEscapeHTML(ugc.MutedUntil.UTC().Format("2006-01-02 15:04 UTC"))))
 		}
 	}
@@ -124,9 +126,15 @@ func (b *Bot) showAdminUserCard(chatID, targetUserID int64) {
 		tgbotapi.NewInlineKeyboardRow(
 			tgbotapi.NewInlineKeyboardButtonData("🗑 Удалить сообщение", "admin_user_msg_"+strconv.FormatInt(targetUserID, 10)),
 		),
-		tgbotapi.NewInlineKeyboardRow(
+	}
+	if ugcMuted {
+		rows = append(rows, tgbotapi.NewInlineKeyboardRow(
+			tgbotapi.NewInlineKeyboardButtonData("🔊 UGC-размьют", "admin_user_unmute_ugc_"+strconv.FormatInt(targetUserID, 10)),
+		))
+	} else {
+		rows = append(rows, tgbotapi.NewInlineKeyboardRow(
 			tgbotapi.NewInlineKeyboardButtonData("🔇 UGC-мьют 24ч", "admin_user_mute_ugc_"+strconv.FormatInt(targetUserID, 10)),
-		),
+		))
 	}
 	if !ml.IsDeleted {
 		rows = append(rows, tgbotapi.NewInlineKeyboardRow(
@@ -271,6 +279,24 @@ func (b *Bot) handleAdminUserMgmtCallback(callback *tgbotapi.CallbackQuery) bool
 		}
 		return true
 
+	case strings.HasPrefix(data, "admin_feed_report_unmute_"):
+		reportID, err := strconv.ParseInt(strings.TrimPrefix(data, "admin_feed_report_unmute_"), 10, 64)
+		if err == nil && reportID > 0 {
+			packChatID := b.adminPackChatID()
+			item, err := b.db.GetMiniappFeedReport(packChatID, reportID)
+			if err != nil || item == nil {
+				b.api.Send(tgbotapi.NewMessage(chatID, "❌ Жалоба не найдена."))
+				return true
+			}
+			if item.TargetUserID <= 0 {
+				b.api.Send(tgbotapi.NewMessage(chatID, "❌ Нет пользователя для размьюта."))
+				return true
+			}
+			b.adminUnmuteUserUGC(chatID, item.TargetUserID, packChatID)
+			b.showAdminFeedReport(chatID, reportID)
+		}
+		return true
+
 	case strings.HasPrefix(data, "admin_feed_report_mute_yes_"):
 		reportID, err := strconv.ParseInt(strings.TrimPrefix(data, "admin_feed_report_mute_yes_"), 10, 64)
 		if err == nil && reportID > 0 {
@@ -303,6 +329,14 @@ func (b *Bot) handleAdminUserMgmtCallback(callback *tgbotapi.CallbackQuery) bool
 				),
 			)
 			b.api.Send(msg)
+		}
+		return true
+
+	case strings.HasPrefix(data, "admin_user_unmute_ugc_"):
+		targetID, ok := parseTarget("admin_user_unmute_ugc_")
+		if ok {
+			b.adminUnmuteUserUGC(chatID, targetID, b.adminPackChatID())
+			b.showAdminUserCard(chatID, targetID)
 		}
 		return true
 
