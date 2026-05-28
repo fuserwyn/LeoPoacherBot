@@ -14,6 +14,7 @@ import (
 	"leo-bot/internal/domain"
 	"leo-bot/internal/game/leopardmoney"
 	"leo-bot/internal/logger"
+	"leo-bot/internal/moderation"
 	"leo-bot/internal/prompts"
 	"leo-bot/internal/rag"
 	"leo-bot/internal/usecase/sickleave"
@@ -49,6 +50,8 @@ type Bot struct {
 	miniappReplyOrigin sync.Map
 	// miniappTrainingPhotoURL — следующий URL фото для отчёта #training_done из мини‑аппа (съедается при сохранении user_messages).
 	miniappTrainingPhotoURL sync.Map // int64 (user id) -> string
+	ugcModerationGate       *moderation.Gate
+	ugcModerationLimiter    *moderation.Limiter
 }
 
 // leopardOnboardingBodyText — полный текст онбординга Fat Leopard (редактируй здесь).
@@ -118,6 +121,7 @@ func New(cfg *config.Config, db *database.Database, log logger.Logger) (*Bot, er
 		log.Warn("RAG_ENABLED=true but QDRANT_URL or OPENROUTER_API_KEY missing — RAG disabled")
 	}
 
+	limiter := moderation.NewLimiter()
 	return &Bot{
 		api:                  api,
 		db:                   db,
@@ -130,6 +134,8 @@ func New(cfg *config.Config, db *database.Database, log logger.Logger) (*Bot, er
 		adminSessions:       make(map[int64]*adminSession),
 		userSupportSessions: make(map[int64]struct{}),
 		miniappPersonalQueue: make(map[int64][]string),
+		ugcModerationLimiter: limiter,
+		ugcModerationGate:    moderation.NewGate(limiter),
 	}, nil
 }
 

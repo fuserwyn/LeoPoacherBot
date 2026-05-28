@@ -1,6 +1,7 @@
 package bot
 
 import (
+	"errors"
 	"strings"
 	"time"
 
@@ -9,6 +10,7 @@ import (
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 
 	"leo-bot/internal/game/leopardmoney"
+	"leo-bot/internal/moderation"
 )
 
 // PrivateTextMessageFromInitUser — синтетическое входящее сообщение, как в личке.
@@ -55,6 +57,8 @@ func privateChatForUser(u *tgbotapi.User) *tgbotapi.Chat {
 type MiniAppTextProcessResult struct {
 	ReplyText string `json:"reply_text,omitempty"`
 	Pending   bool   `json:"pending,omitempty"`
+	Blocked   bool   `json:"blocked,omitempty"`
+	BlockCode string `json:"block_code,omitempty"`
 }
 
 func isMiniappTrainingReport(text string) bool {
@@ -85,6 +89,23 @@ func (b *Bot) processMiniAppPrivateCore(d initdata.InitData, text string, traini
 	if err := b.AssertMiniAppPackChatAligns(d); err != nil {
 		return out
 	}
+
+	if isMiniappTrainingReport(text) {
+		checkText := moderation.TextForTrainingModeration(text)
+		if _, err := b.enforceUGC(checkText, moderation.SurfaceTrainingNote, d.User.ID); err != nil {
+			var mod *ModerationBlockedError
+			out.Blocked = true
+			if errors.As(err, &mod) && mod != nil {
+				out.ReplyText = mod.Message
+				out.BlockCode = mod.APICode
+			} else {
+				out.ReplyText = moderation.UserWarnings[moderation.ReasonProfanity]
+				out.BlockCode = "moderation_blocked"
+			}
+			return out
+		}
+	}
+
 	_ = PrivateTextMessageFromInitUser(d, text)
 	b.miniappPersonalClear(d.User.ID)
 	b.savePersonalChatMessage(d.User.ID, "user", text)

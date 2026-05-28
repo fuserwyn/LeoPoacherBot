@@ -203,6 +203,16 @@ func (s *Server) handlePostWorkoutWithPhoto(w http.ResponseWriter, r *http.Reque
 
 	publicURL := publicBase + "/api/miniapp/media/" + baseName
 	miniRes := s.bot.ProcessMiniAppPrivateTextWithTrainingPhoto(parsed, line, publicURL)
+	if miniRes.Blocked {
+		code := miniRes.BlockCode
+		if code == "" {
+			code = "moderation_blocked"
+		}
+		w.Header().Set("Content-Type", "application/json; charset=utf-8")
+		w.WriteHeader(bot.ModerationHTTPStatus(code))
+		_ = json.NewEncoder(w).Encode(map[string]string{"error": code, "message": miniRes.ReplyText})
+		return
+	}
 	w.Header().Set("Content-Type", "application/json; charset=utf-8")
 	outm := map[string]any{"ok": true, "photo_url": publicURL}
 	if miniRes.Pending {

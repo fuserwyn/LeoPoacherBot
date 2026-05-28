@@ -16,6 +16,7 @@ import {
   type PackFeedItemDTO,
   type PackFeedThreadReplyDTO,
 } from "../lib/packFeed";
+import { moderationUserMessage, isModerationError } from "../lib/moderationMessages";
 import { clearFeedThreadUnread, fetchFeedThreadUnreadSummary } from "../lib/feedThreadUnread";
 import { timeAgoFromISO } from "../lib/timeAgo";
 import { streakStreakAriaLabel } from "../lib/streakLabel";
@@ -366,12 +367,17 @@ export function FeedScreen({
         });
         const j = (await res.json().catch(() => ({}))) as {
           error?: string;
+          message?: string;
           thread?: PackFeedThreadReplyDTO[];
         };
         if (!res.ok) {
+          if (isModerationError(j.error)) {
+            showAlert(moderationUserMessage(j.error, j.message));
+            return;
+          }
           const errMap: Record<string, string> = {
             empty_text: "Пустой комментарий",
-            text_too_long: "Слишком длинно",
+            text_too_long: "Слишком длинно (максимум 500 символов)",
             not_found: "Запись не найдена (обнови ленту)",
             forbidden: "Нет доступа",
             chat_mismatch: "Открой мини-апп из чата стаи",

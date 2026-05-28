@@ -6,10 +6,10 @@ import (
 	"regexp"
 	"strings"
 	"time"
-	"unicode/utf8"
 
 	"leo-bot/internal/database"
 	"leo-bot/internal/domain"
+	"leo-bot/internal/moderation"
 
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 	initdata "github.com/telegram-mini-apps/init-data-golang"
@@ -170,8 +170,8 @@ func (b *Bot) ProcessMiniAppPackGroupMessage(d initdata.InitData, text string, r
 		}
 	}
 	text = strings.TrimSpace(text)
-	if utf8.RuneCountInString(text) > 4000 {
-		return out, errors.New("text too long")
+	if _, err := b.enforceUGC(text, moderation.SurfacePackGroupChat, d.User.ID); err != nil {
+		return out, err
 	}
 	if replyToID > 0 {
 		parent, ok, err := b.db.GetMiniappPackGroupMessageInPack(chatID, replyToID)

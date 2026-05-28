@@ -664,7 +664,7 @@ export function ActivityCard({
                       }
                       value={threadComposer.draft}
                       onChange={(e) => threadComposer.onDraftChange(e.target.value)}
-                      maxLength={2000}
+                      maxLength={500}
                       onFocus={onThreadComposeFocus}
                       onBlur={onThreadComposeBlur}
                       onKeyDown={(e) => {

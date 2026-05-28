@@ -3,6 +3,8 @@ package prompts
 import (
 	"fmt"
 	"strings"
+
+	"leo-bot/internal/moderation"
 )
 
 // AIQuestionUserPayload — структурированный user-message для AnswerUserQuestion.
@@ -72,8 +74,18 @@ func FormatAIQuestionUserMessage(p AIQuestionUserPayload) string {
 		b.WriteString(h)
 	}
 	b.WriteString("\n\n")
-	fmt.Fprintf(&b, "%s (id=%d) спрашивает: %s", name, p.InterlocutorID, strings.TrimSpace(p.Question))
+	fmt.Fprintf(&b, "%s (id=%d) спрашивает:\n", name, p.InterlocutorID)
+	b.WriteString(WrapUserQuestion(p.Question))
 	return b.String()
+}
+
+// WrapUserQuestion — anti-injection обёртка вопроса пользователя.
+func WrapUserQuestion(question string) string {
+	wrapped := moderation.WrapUserContent("user_question", question)
+	if wrapped == "" {
+		return emptyBlock
+	}
+	return wrapped
 }
 
 // FormatLegacyUserPrompt — обёртка для старых вызовов с плоским контекстом.

@@ -1,5 +1,7 @@
 /** Отправка текста в личку бота через ms_leo (как ChatScreen). */
 
+import { isModerationError, moderationUserMessage } from "./moderationMessages";
+
 const apiBase = (import.meta.env.VITE_MINIAPP_API_URL as string | undefined)?.replace(/\/$/, "") ?? "";
 
 export type MiniappSendResult =
@@ -77,11 +79,15 @@ export async function sendMiniappPrivateText(
   }
   const j = (await res.json().catch(() => ({}))) as {
     error?: string;
+    message?: string;
     ok?: boolean;
     pending?: boolean;
     reply_text?: string;
   };
   if (!res.ok) {
+    if (isModerationError(j.error)) {
+      return { ok: false, error: moderationUserMessage(j.error, j.message) };
+    }
     return { ok: false, error: j.error ?? `Ошибка ${res.status}` };
   }
   const replyNow = j.reply_text?.trim();
@@ -134,6 +140,7 @@ export async function sendMiniappTrainingWithPhoto(
   }
   const j = (await res.json().catch(() => ({}))) as {
     error?: string;
+    message?: string;
     ok?: boolean;
     pending?: boolean;
     reply_text?: string;
@@ -154,6 +161,9 @@ export async function sendMiniappTrainingWithPhoto(
     }
     if (res.status === 400 && j.error === "invalid_multipart") {
       return { ok: false, error: "Не удалось отправить фото. Попробуй выбрать снимок заново." };
+    }
+    if (isModerationError(j.error)) {
+      return { ok: false, error: moderationUserMessage(j.error, j.message) };
     }
     return { ok: false, error: j.error ?? `Ошибка ${res.status}` };
   }

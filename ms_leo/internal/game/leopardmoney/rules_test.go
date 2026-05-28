@@ -13,7 +13,10 @@ func TestAchievementsCountForStreak(t *testing.T) {
 		t.Fatalf("43 days = 4 ach (7,14,30,42)")
 	}
 	if AchievementsCountForStreak(365) != 8 {
-		t.Fatalf("365 days = all ach")
+		t.Fatalf("365 days = 8 ach")
+	}
+	if AchievementsCountForStreak(420) != 9 {
+		t.Fatalf("420 days = all ach")
 	}
 }
 
@@ -30,6 +33,7 @@ func TestStreakAchievementIndex(t *testing.T) {
 		{90, 5},
 		{180, 6},
 		{365, 7},
+		{420, 8},
 		{0, -1},
 		{6, -1},
 		{8, -1},

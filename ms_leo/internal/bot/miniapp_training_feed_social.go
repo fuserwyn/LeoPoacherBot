@@ -4,9 +4,10 @@ import (
 	"errors"
 	"fmt"
 	"strings"
-	"unicode/utf8"
 
 	"leo-bot/internal/database"
+
+	"leo-bot/internal/moderation"
 
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 	initdata "github.com/telegram-mini-apps/init-data-golang"
@@ -135,8 +136,8 @@ func (b *Bot) PackTrainingFeedThreadPost(viewerUserID int64, initD initdata.Init
 	if text == "" {
 		return ErrTrainingFeedThreadEmpty
 	}
-	if utf8.RuneCountInString(text) > 2000 {
-		return ErrTrainingFeedThreadTooLong
+	if _, err := b.enforceUGC(text, moderation.SurfaceFeedComment, viewerUserID); err != nil {
+		return err
 	}
 	chatID := b.config.MonetizedChatID
 	typ, has, err := b.db.GetUserMessageTypeByIDForChat(userMessageID, chatID)

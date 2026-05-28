@@ -88,6 +88,14 @@ func (b *Bot) showAdminUserCard(chatID, targetUserID int64) {
 	body.WriteString(fmt.Sprintf("Имя: %s\n", adminEscapeHTML(adminSupportTitle(ml.Username, targetUserID))))
 	body.WriteString(fmt.Sprintf("Кубки: %d\n", stats.XP))
 	body.WriteString(fmt.Sprintf("Стрик: %d (рекорд %d)\n", stats.StreakDays, stats.MaxStreakDays))
+	if stats.DaysSinceLastTraining >= 0 {
+		body.WriteString(fmt.Sprintf("Дней без тренировки: %d\n", stats.DaysSinceLastTraining))
+	} else {
+		body.WriteString("Дней без тренировки: —\n")
+	}
+	if removalAt := b.GetMiniappInactivityRemovalDeadlineRFC3339(targetUserID, packChatID); removalAt != "" {
+		body.WriteString(fmt.Sprintf("Кик за неактивность: %s\n", adminEscapeHTML(removalAt)))
+	}
 	body.WriteString(fmt.Sprintf("Попытки спасти стрик: %d/%d (доступно %d)\n", stats.StreakSaveAttemptsUsed, stats.StreakSaveAttemptsMax, stats.StreakSaveAttemptsAvail))
 	body.WriteString(fmt.Sprintf("Больничный: %s\n", adminEscapeHTML(sick)))
 	body.WriteString(fmt.Sprintf("Удалён из стаи: %s\n", adminEscapeHTML(deleted)))
@@ -103,6 +111,9 @@ func (b *Bot) showAdminUserCard(chatID, targetUserID int64) {
 		tgbotapi.NewInlineKeyboardRow(
 			tgbotapi.NewInlineKeyboardButtonData("🛟 +1 спасти стрик", "admin_user_save_"+strconv.FormatInt(targetUserID, 10)),
 			tgbotapi.NewInlineKeyboardButtonData("🏥 Отменить больничный", "admin_user_sick_"+strconv.FormatInt(targetUserID, 10)),
+		),
+		tgbotapi.NewInlineKeyboardRow(
+			tgbotapi.NewInlineKeyboardButtonData("⏳ Дней без тренировки", "admin_user_inactive_"+strconv.FormatInt(targetUserID, 10)),
 		),
 		tgbotapi.NewInlineKeyboardRow(
 			tgbotapi.NewInlineKeyboardButtonData("🗑 Удалить сообщение", "admin_user_msg_"+strconv.FormatInt(targetUserID, 10)),
@@ -189,6 +200,20 @@ func (b *Bot) handleAdminUserMgmtCallback(callback *tgbotapi.CallbackQuery) bool
 		}
 		return true
 
+	case strings.HasPrefix(data, "admin_user_inactive_"):
+		targetID, ok := parseTarget("admin_user_inactive_")
+		if ok {
+			b.startAdminUserAction(adminID, targetID, "user_set_inactive", "await_days")
+			b.api.Send(tgbotapi.NewMessage(chatID, fmt.Sprintf(
+				"⏳ Сколько дней пользователь %d не занимался?\n\n"+
+					"0 — тренировка сегодня\n"+
+					"5 — жёлтое предупреждение в профиле\n"+
+					"6 — красное, 7+ — борdeaux\n\n"+
+					"Для безопасного теста кика лучше /set_exempt на тестовом аккаунте.",
+				targetID)))
+		}
+		return true
+
 	case strings.HasPrefix(data, "admin_user_msg_"):
 		targetID, ok := parseTarget("admin_user_msg_")
 		if ok {
@@ -243,6 +268,17 @@ func (b *Bot) handleAdminUserMgmtMessage(msg *tgbotapi.Message, session *adminSe
 	case "await_user_id":
 		b.clearAdminFlow(msg.From.ID)
 		b.resolveAdminUserSearch(msg.Chat.ID, text)
+		return true
+
+	case "await_days":
+		days, err := strconv.Atoi(text)
+		if err != nil || days < 0 || days > 14 {
+			b.api.Send(tgbotapi.NewMessage(msg.Chat.ID, "⚠️ Нужно число от 0 до 14."))
+			return true
+		}
+		targetID := session.TargetUserID
+		b.clearAdminFlow(msg.From.ID)
+		b.adminSetDaysInactive(msg.Chat.ID, targetID, days)
 		return true
 
 	case "await_amount":
@@ -366,6 +402,85 @@ func (b *Bot) resolveAdminUserSearch(chatID int64, query string) {
 	subtitle := fmt.Sprintf("Найдено %d по «%s» · нажми №", len(hits), query)
 	kb := &tgbotapi.InlineKeyboardMarkup{InlineKeyboard: rows}
 	b.sendAdminHTMLPreTable(chatID, "🔍 Поиск пользователя", subtitle, tbl.render(), kb)
+}
+
+// adminSetDaysInactive — для UI-тестов: backdate last_training_date и timer_start_time.
+func (b *Bot) adminSetDaysInactive(chatID, targetUserID int64, days int) {
+	packChatID := b.adminPackChatID()
+	if packChatID == 0 {
+		b.api.Send(tgbotapi.NewMessage(chatID, "❌ Не настроен MonetizedChatID."))
+		return
+	}
+	ml, err := b.db.GetMessageLogAnyState(targetUserID, packChatID)
+	if err != nil || ml == nil {
+		b.api.Send(tgbotapi.NewMessage(chatID, "❌ Пользователь не найден."))
+		return
+	}
+	if days < 0 {
+		days = 0
+	}
+	if days > 14 {
+		days = 14
+	}
+
+	tzOffset := ml.TimezoneOffsetFromMoscow
+	today, err := time.Parse("2006-01-02", b.getUserLocalDate(tzOffset))
+	if err != nil {
+		b.api.Send(tgbotapi.NewMessage(chatID, "❌ Не удалось определить локальную дату пользователя."))
+		return
+	}
+	targetDate := today.AddDate(0, 0, -days).Format("2006-01-02")
+
+	if err := b.db.UpdateStreak(targetUserID, packChatID, ml.StreakDays, targetDate); err != nil {
+		b.api.Send(tgbotapi.NewMessage(chatID, "❌ Ошибка: "+err.Error()))
+		return
+	}
+
+	b.cancelTimer(targetUserID)
+	timerStart := utils.FormatMoscowTime(utils.GetMoscowTime().Add(-time.Duration(days) * 24 * time.Hour))
+	ml, err = b.db.GetMessageLogAnyState(targetUserID, packChatID)
+	if err != nil || ml == nil {
+		b.api.Send(tgbotapi.NewMessage(chatID, "❌ Пользователь не найден после обновления."))
+		return
+	}
+	ml.TimerStartTime = &timerStart
+	if err := b.db.SaveMessageLog(ml); err != nil {
+		b.api.Send(tgbotapi.NewMessage(chatID, "❌ Ошибка сохранения таймера: "+err.Error()))
+		return
+	}
+
+	ml, _ = b.db.GetMessageLogAnyState(targetUserID, packChatID)
+	username := ml.Username
+	if username == "" {
+		username = fmt.Sprintf("User%d", targetUserID)
+	}
+
+	timerNote := ""
+	if ml.HasSickLeave && !ml.HasHealthy {
+		timerNote = " ⚠️ Активен больничный — дедлайн кика может отличаться от профиля."
+	} else if ml.IsExemptFromDeletion {
+		timerNote = " ℹ️ Пользователь exempt — таймер кика не запущен."
+	} else {
+		remaining := b.calculateRemainingTime(ml)
+		if remaining > 0 {
+			b.restoreTimerWithDuration(targetUserID, packChatID, username, remaining, timerStart, tzOffset)
+		} else {
+			timerNote = " ⚠️ Дедлайн кика уже прошёл — таймер не перезапущен (чтобы не удалить из стаи)."
+		}
+	}
+
+	stats := b.GetMiniappProfileStatsForAPI(targetUserID, packChatID)
+	removalAt := b.GetMiniappInactivityRemovalDeadlineRFC3339(targetUserID, packChatID)
+	msg := fmt.Sprintf(
+		"✅ Пользователь %d: %d дн. без тренировки (last_training_date=%s).",
+		targetUserID, stats.DaysSinceLastTraining, targetDate,
+	)
+	if removalAt != "" {
+		msg += fmt.Sprintf("\nКик: %s.", removalAt)
+	}
+	msg += timerNote
+	b.api.Send(tgbotapi.NewMessage(chatID, msg))
+	b.showAdminUserCard(chatID, targetUserID)
 }
 
 func (b *Bot) adminGrantStreakSaveAttempt(chatID, targetUserID int64) {

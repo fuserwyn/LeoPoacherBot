@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { formatChatTime, timeAgoFromISO } from "../lib/timeAgo";
 import { LEO_AVATAR_URL } from "../lib/leoAvatar";
+import { moderationUserMessage, isModerationError } from "../lib/moderationMessages";
 import { clearPackGroupUnread } from "../lib/packGroupUnread";
 import "./PackGroupChatPanel.css";
 
@@ -348,8 +349,12 @@ export function PackGroupChatPanel({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(body),
       });
-      const j = (await res.json().catch(() => ({}))) as { error?: string; ok?: boolean; reply_text?: string };
+      const j = (await res.json().catch(() => ({}))) as { error?: string; message?: string; ok?: boolean; reply_text?: string };
       if (!res.ok) {
+        if (isModerationError(j.error)) {
+          showAlert(moderationUserMessage(j.error, j.message));
+          return;
+        }
         showAlert(j.error ?? `Ошибка ${res.status}`);
         return;
       }

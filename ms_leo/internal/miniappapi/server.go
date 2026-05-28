@@ -172,6 +172,16 @@ func (s *Server) handlePostMessage(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	miniRes := s.bot.ProcessMiniAppPrivateText(parsed, text)
+	if miniRes.Blocked {
+		code := miniRes.BlockCode
+		if code == "" {
+			code = "moderation_blocked"
+		}
+		w.Header().Set("Content-Type", "application/json; charset=utf-8")
+		w.WriteHeader(bot.ModerationHTTPStatus(code))
+		_ = json.NewEncoder(w).Encode(map[string]string{"error": code, "message": miniRes.ReplyText})
+		return
+	}
 	w.Header().Set("Content-Type", "application/json; charset=utf-8")
 	out := map[string]any{"ok": true}
 	if miniRes.Pending {
@@ -642,8 +652,7 @@ func (s *Server) handlePostFeedTrainingThread(w http.ResponseWriter, r *http.Req
 			s.jsonErr(w, http.StatusBadRequest, "empty_text")
 			return
 		}
-		if errors.Is(err, bot.ErrTrainingFeedThreadTooLong) {
-			s.jsonErr(w, http.StatusBadRequest, "text_too_long")
+		if s.jsonModerationErr(w, err) {
 			return
 		}
 		if errors.Is(err, bot.ErrTrainingFeedParentNotFound) {
@@ -983,6 +992,9 @@ func (s *Server) handlePostPackGroupMessage(w http.ResponseWriter, r *http.Reque
 		}
 		if errors.Is(perr, bot.ErrPackGroupInvalidReply) {
 			s.jsonErr(w, http.StatusBadRequest, "invalid_reply")
+			return
+		}
+		if s.jsonModerationErr(w, perr) {
 			return
 		}
 		s.logger.Errorf("pack group message: %v", perr)
@@ -1710,6 +1722,21 @@ func (s *Server) handlePostStreakSaveUse(w http.ResponseWriter, r *http.Request)
 		"streak_save_attempts_max":    max,
 		"streak_save_attempts_avail":  avail,
 	})
+}
+
+func (s *Server) jsonModerationErr(w http.ResponseWriter, err error) bool {
+	var mod *bot.ModerationBlockedError
+	if !errors.As(err, &mod) || mod == nil {
+		return false
+	}
+	code := mod.APICode
+	if code == "" {
+		code = "moderation_blocked"
+	}
+	w.Header().Set("Content-Type", "application/json; charset=utf-8")
+	w.WriteHeader(bot.ModerationHTTPStatus(code))
+	_ = json.NewEncoder(w).Encode(map[string]string{"error": code, "message": mod.Message})
+	return true
 }
 
 func (s *Server) jsonErr(w http.ResponseWriter, code int, err string) {
