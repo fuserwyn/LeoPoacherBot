@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { formatChatTime, timeAgoFromISO } from "../lib/timeAgo";
 import { LEO_AVATAR_URL } from "../lib/leoAvatar";
 import { clearPackGroupUnread } from "../lib/packGroupUnread";
@@ -25,6 +25,36 @@ type ReplyIntent = {
   authorLabel: string;
   excerpt: string;
 };
+
+function excerptText(text: string, max = 100): string {
+  const t = text.trim();
+  if (t.length <= max) return t;
+  return `${t.slice(0, max - 1).trim()}…`;
+}
+
+function resolveReplyQuote(
+  m: PackGroupMessage,
+  byId: Map<number, PackGroupMessage>,
+): { author: string; text: string; parentId: number } | null {
+  const parentId = m.reply_to_id ?? 0;
+  if (parentId <= 0) return null;
+
+  const serverAuthor = m.reply_to_is_leo ? "Лео" : (m.reply_to_username || "").trim();
+  const serverText = (m.reply_to_text || "").trim();
+  if (serverAuthor !== "" || serverText !== "") {
+    return { author: serverAuthor || "Сообщение", text: serverText, parentId };
+  }
+
+  const parent = byId.get(parentId);
+  if (parent) {
+    return {
+      author: parent.is_leo ? "Лео" : parent.username,
+      text: excerptText(parent.text),
+      parentId,
+    };
+  }
+  return null;
+}
 
 type Props = {
   initData: string;
@@ -381,6 +411,12 @@ export function PackGroupChatPanel({
     [inTelegram, initData, showAlert],
   );
 
+  const itemsById = useMemo(() => {
+    const map = new Map<number, PackGroupMessage>();
+    for (const m of items) map.set(m.id, m);
+    return map;
+  }, [items]);
+
   if (!apiBase) {
     return <p className="packroom__warn muted">Нет API URL в билде.</p>;
   }
@@ -401,10 +437,8 @@ export function PackGroupChatPanel({
         <div className="packroom__log-inner">
         {items.map((m) => {
           const mine = !m.is_leo && m.user_id === meId;
-          const isReply = m.reply_to_id != null && m.reply_to_id > 0;
-          const replyAuthor = m.reply_to_is_leo ? "Лео" : (m.reply_to_username || "").trim();
-          const replyText = (m.reply_to_text || "").trim();
-          const replyKnown = replyAuthor !== "" || replyText !== "";
+          const replyQuote = resolveReplyQuote(m, itemsById);
+          const isReply = replyQuote != null;
           const rowTone = m.is_leo ? "packroom__row--leo" : mine ? "packroom__row--me" : "packroom__row--oth";
           return (
             <div
@@ -430,25 +464,16 @@ export function PackGroupChatPanel({
                   </div>
                   <div className="packroom__bubble-wrap">
                     <div className="packroom__bubble">
-                      {isReply && (
+                      {isReply && replyQuote != null && (
                         <button
                           type="button"
-                          className={`packroom__quote${replyKnown ? "" : " packroom__quote--missing"}`}
+                          className="packroom__quote"
                           aria-label="Перейти к сообщению, на которое ответили"
-                          disabled={!replyKnown}
-                          onClick={() => {
-                            if (m.reply_to_id != null && m.reply_to_id > 0) scrollToQuotedMessage(m.reply_to_id);
-                          }}
+                          onClick={() => scrollToQuotedMessage(replyQuote.parentId)}
                         >
-                          <span className="packroom__quote-author">
-                            {replyKnown ? replyAuthor || "Сообщение" : "Сообщение удалено"}
-                          </span>
-                          {replyText !== "" ? (
-                            <span className="packroom__quote-text">{replyText}</span>
-                          ) : replyKnown ? null : (
-                            <span className="packroom__quote-text packroom__quote-text--muted">
-                              Исходное сообщение недоступно
-                            </span>
+                          <span className="packroom__quote-author">{replyQuote.author}</span>
+                          {replyQuote.text !== "" && (
+                            <span className="packroom__quote-text">{replyQuote.text}</span>
                           )}
                         </button>
                       )}

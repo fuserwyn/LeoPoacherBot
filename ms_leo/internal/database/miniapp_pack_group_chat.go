@@ -6,6 +6,8 @@ import (
 	"time"
 
 	"leo-bot/internal/domain"
+
+	"github.com/lib/pq"
 )
 
 // PackGroupChatRow — строка общего чата с опциональной ссылкой reply.
@@ -143,7 +145,7 @@ func (d *Database) ListMiniappPackGroupMessagesByIDs(packChatID int64, ids []int
 		SELECT id, from_user_id, COALESCE(username, ''), is_leo, message_text, created_at, reply_to_id
 		FROM miniapp_pack_group_chat
 		WHERE pack_chat_id = $1 AND id = ANY($2)
-	`, packChatID, ids)
+	`, packChatID, pq.Array(ids))
 	if err != nil {
 		return nil, fmt.Errorf("list miniapp pack group by ids: %w", err)
 	}
