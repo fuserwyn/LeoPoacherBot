@@ -773,22 +773,6 @@ export function FeedScreen({
         </div>
         {sub === "activity" && (
           <div className="feed__filters" aria-label="Фильтры ленты">
-            <div className="feed__filter-scope" role="group" aria-label="Чьи отчёты">
-              <button
-                type="button"
-                className={`feed__filter-pill${!feedOnlyMine ? " is-active" : ""}`}
-                onClick={() => setFeedOnlyMine(false)}
-              >
-                Все
-              </button>
-              <button
-                type="button"
-                className={`feed__filter-pill${feedOnlyMine ? " is-active" : ""}`}
-                onClick={() => setFeedOnlyMine(true)}
-              >
-                Мои тренировки
-              </button>
-            </div>
             <div className="feed__filter-cats" role="group" aria-label="Тип тренировки">
               <button
                 type="button"
@@ -811,6 +795,22 @@ export function FeedScreen({
                   <span className="feed__filter-chip-label">{c.label}</span>
                 </button>
               ))}
+            </div>
+            <div className="feed__filter-scope" role="group" aria-label="Чьи отчёты">
+              <button
+                type="button"
+                className={`feed__filter-pill${!feedOnlyMine ? " is-active" : ""}`}
+                onClick={() => setFeedOnlyMine(false)}
+              >
+                Все
+              </button>
+              <button
+                type="button"
+                className={`feed__filter-pill${feedOnlyMine ? " is-active" : ""}`}
+                onClick={() => setFeedOnlyMine(true)}
+              >
+                Мои тренировки
+              </button>
             </div>
           </div>
         )}
