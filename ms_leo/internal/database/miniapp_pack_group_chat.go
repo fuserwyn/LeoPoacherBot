@@ -74,13 +74,17 @@ func (d *Database) ListMiniappPackGroupChatRows(packChatID int64, limit int, sin
 		whereSince = " AND created_at >= $3"
 		args = append(args, *sinceUTC)
 	}
+	// Сортируем по id (BIGSERIAL, монотонно растёт при вставке), а НЕ по created_at:
+	// created_at у части старых строк сохранён в разных часовых поясах, из-за чего
+	// новое сообщение с «отстающим» временем уезжало наверх ленты. id всегда отражает
+	// реальный порядок вставки → новые сообщения гарантированно внизу.
 	q := `
 		SELECT id, from_user_id, COALESCE(username, ''), is_leo, message_text, created_at, reply_to_id, edited_at
 		FROM miniapp_pack_group_chat
 		WHERE pack_chat_id = $1
 		  AND COALESCE(is_hidden, FALSE) = FALSE
 		` + whereSince + `
-		ORDER BY created_at DESC, id DESC
+		ORDER BY id DESC
 		LIMIT $2
 	`
 	rows, err := d.db.Query(q, args...)

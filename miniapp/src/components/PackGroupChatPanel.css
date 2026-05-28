@@ -15,6 +15,89 @@
   color: #e0a0a0;
 }
 
+.packroom__search {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+  padding: 7px 10px;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.packroom__search-ico {
+  font-size: 14px;
+  opacity: 0.6;
+  line-height: 1;
+}
+
+.packroom__search-input {
+  flex: 1;
+  min-width: 0;
+  border: none;
+  background: transparent;
+  color: inherit;
+  font-size: 0.92rem;
+  outline: none;
+  padding: 0;
+}
+
+.packroom__search-input::placeholder {
+  color: rgba(255, 255, 255, 0.4);
+}
+
+.packroom__search-nav {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
+.packroom__search-count {
+  font-size: 0.78rem;
+  color: rgba(255, 255, 255, 0.55);
+  min-width: 34px;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.packroom__search-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  border-radius: 8px;
+  border: none;
+  background: rgba(255, 255, 255, 0.08);
+  color: inherit;
+  font-size: 13px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.packroom__search-btn:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+
+.packroom__search-btn--clear {
+  font-size: 11px;
+  opacity: 0.8;
+}
+
+.packroom__hl {
+  background: rgba(255, 213, 79, 0.45);
+  color: inherit;
+  border-radius: 3px;
+  padding: 0 1px;
+}
+
+.packroom__row--search-current .packroom__bubble {
+  box-shadow: 0 0 0 2px rgba(96, 142, 255, 0.85);
+}
+
 .packroom__log {
   flex: 1;
   min-height: 0;
