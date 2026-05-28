@@ -4,14 +4,16 @@
      уезжал под поле ввода и просвечивал в зазоре. Те же опоры, что у композера и
      таббара → одинаково на iOS и Android. */
   position: fixed;
-  top: calc(var(--safe-top, 0px) + var(--feed-header-h, 220px) + 6px);
+  top: var(--feed-sticky-bottom, calc(var(--safe-top, 0px) + var(--feed-header-h, 220px)));
   bottom: var(--bottom-nav-stack, var(--bottom-nav-h, var(--feed-bottom-nav-h, 72px)));
   left: 0;
   right: 0;
   max-width: 520px;
   margin: 0 auto;
-  /* Боковые отступы раньше давал родитель .feed (padding: 0 8px) — fixed их теряет. */
-  padding: 0 8px;
+  /* Боковые отступы раньше давал родитель .feed (padding: 0 8px) — fixed их теряет.
+     padding-top — зазор между табами и поиском (как на макете). */
+  padding: 8px 8px 0;
+  background: var(--bg);
   display: flex;
   flex-direction: column;
   gap: 0;

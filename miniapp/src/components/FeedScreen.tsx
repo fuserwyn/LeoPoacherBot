@@ -629,6 +629,8 @@ export function FeedScreen({
       const headerBottom = sticky.getBoundingClientRect().bottom;
       const offset = headerBottom - feedTop;
       feedRoot.style.setProperty("--feed-header-h", `${Math.max(0, Math.ceil(offset))}px`);
+      // Абсолютный низ fixed-шапки от viewport — для position:fixed чата (без safe-top + offset).
+      feedRoot.style.setProperty("--feed-sticky-bottom", `${Math.max(0, Math.ceil(headerBottom))}px`);
     };
     write();
     const ro = new ResizeObserver(write);
@@ -640,6 +642,7 @@ export function FeedScreen({
       ro.disconnect();
       window.removeEventListener("load", onLoad);
       feedRoot.style.removeProperty("--feed-header-h");
+      feedRoot.style.removeProperty("--feed-sticky-bottom");
     };
   }, [sub, feedCategoryIds.length, feedOnlyMine]);
 
