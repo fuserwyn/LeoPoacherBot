@@ -92,19 +92,26 @@ export function ProfileScreen({
   const scrollHealthAboveKeyboard = useCallback(() => {
     const ta = healthTextareaRef.current;
     if (!ta) return;
-    const vv = window.visualViewport;
-    const visualH = vv?.height ?? window.innerHeight;
-    const offsetTop = vv?.offsetTop ?? 0;
-    const keyboardTop = offsetTop + visualH;
-    const bar = document.querySelector<HTMLElement>(".profile__health-actions--keyboard");
-    const barH = bar?.getBoundingClientRect().height ?? 44;
     const gap = 10;
+    // Граница, ниже которой поле нельзя опускать, — это РЕАЛЬНЫЙ верх зафиксированной
+    // панели с кнопкой «Отправить заявку». Привязка к её позиции даёт одинаковый
+    // результат на iOS и Android. Раньше граница считалась по visualViewport, который
+    // в Android TG WebView расходится с позицией панели → поле уезжало слишком вверх.
+    const bar = document.querySelector<HTMLElement>(".profile__health-actions--keyboard");
+    let limitBottom: number;
+    if (bar) {
+      limitBottom = bar.getBoundingClientRect().top - gap;
+    } else {
+      const vv = window.visualViewport;
+      const visualH = vv?.height ?? window.innerHeight;
+      const offsetTop = vv?.offsetTop ?? 0;
+      limitBottom = offsetTop + visualH - 44 - gap;
+    }
     const taRect = ta.getBoundingClientRect();
-    const maxBottom = keyboardTop - barH - gap;
-    const delta = taRect.bottom - maxBottom;
+    const delta = taRect.bottom - limitBottom;
     // Порог гасит дрожание/петлю обратной связи: прокручиваем только если поле реально
-    // перекрыто клавиатурой. behavior:"auto" — мгновенно, чтобы анимация плавного скролла
-    // не плодила новые scroll-события и не запускала прокрутку повторно.
+    // перекрыто панелью/клавиатурой. behavior:"auto" — мгновенно, чтобы плавный скролл
+    // не плодил новые scroll-события и не запускал прокрутку повторно.
     if (delta > 4) {
       window.scrollBy({ top: delta, behavior: "auto" });
     }
