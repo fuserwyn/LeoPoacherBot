@@ -96,6 +96,7 @@ export function App() {
 
   const clearLeoBadge = useCallback(() => setLeoPending(0), []);
   const clearPackGroupBadge = useCallback(() => setPackGroupUnread(0), []);
+  const clearFeedThreadBadge = useCallback(() => setFeedThreadUnread(0), []);
 
   const refreshProfileStats = useCallback(async () => {
     const apiBase = (import.meta.env.VITE_MINIAPP_API_URL as string | undefined)?.replace(/\/$/, "") ?? "";
@@ -218,6 +219,7 @@ export function App() {
             optimisticFeedItem={optimisticFeedItem}
             onOptimisticConsumed={() => setOptimisticFeedItem(null)}
             feedThreadUnreadCount={feedThreadUnread}
+            onFeedThreadRead={clearFeedThreadBadge}
             packGroupUnreadCount={packGroupUnread}
             onRefreshAll={async () => {
               await Promise.all([refreshProfileStats(), refreshTabBadges()]);

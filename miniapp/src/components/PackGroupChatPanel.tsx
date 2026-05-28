@@ -411,9 +411,8 @@ export function PackGroupChatPanel({
   const highlightTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const pendingUnreadScrollRef = useRef<number | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
-  const [searchIndex, setSearchIndex] = useState(0);
-  const searchMatchesRef = useRef<number[]>([]);
-  const jumpedForQueryRef = useRef("");
+  const [serverResults, setServerResults] = useState<PackGroupMessage[]>([]);
+  const [searching, setSearching] = useState(false);
 
   const isNearBottom = useCallback((el: HTMLDivElement, threshold = 96) => {
     return el.scrollHeight - el.scrollTop - el.clientHeight < threshold;
@@ -910,49 +909,69 @@ export function PackGroupChatPanel({
     return map;
   }, [items]);
 
-  // Поиск по загруженным сообщениям (текст + автор), в порядке отображения.
-  const searchMatches = useMemo(() => {
+  // Подсветка совпадений в загруженном окне (для тонировки строк).
+  const searchMatchSet = useMemo(() => {
     const q = searchQuery.trim().toLowerCase();
-    if (q === "") return [];
-    return items
-      .filter((m) => m.text.toLowerCase().includes(q) || (m.username || "").toLowerCase().includes(q))
-      .map((m) => m.id);
+    if (q === "") return new Set<number>();
+    const s = new Set<number>();
+    for (const m of items) {
+      if (m.text.toLowerCase().includes(q) || (m.username || "").toLowerCase().includes(q)) s.add(m.id);
+    }
+    return s;
   }, [items, searchQuery]);
-  searchMatchesRef.current = searchMatches;
-
-  const searchMatchSet = useMemo(() => new Set(searchMatches), [searchMatches]);
-  const currentMatchId = searchMatches.length > 0 ? searchMatches[Math.min(searchIndex, searchMatches.length - 1)] : -1;
-
-  const gotoMatch = useCallback(
-    (idx: number) => {
-      const len = searchMatchesRef.current.length;
-      if (len === 0) return;
-      const clamped = ((idx % len) + len) % len;
-      setSearchIndex(clamped);
-      scrollToQuotedMessage(searchMatchesRef.current[clamped]);
-    },
-    [scrollToQuotedMessage],
-  );
 
   const clearSearch = useCallback(() => {
     setSearchQuery("");
-    setSearchIndex(0);
-    jumpedForQueryRef.current = "";
+    setServerResults([]);
+    setSearching(false);
   }, []);
 
-  // При смене запроса один раз прыгаем к самому свежему (нижнему) совпадению.
-  // Поллинг (обновление items) повторный прыжок не вызывает — сверяем по тексту запроса.
+  // Серверный поиск по всей истории чата (debounce). Минимум 2 символа.
   useEffect(() => {
     const q = searchQuery.trim();
-    if (q === "") {
-      jumpedForQueryRef.current = "";
-      setSearchIndex(0);
+    if (q.length < 2 || !apiBase || !inTelegram || !initData) {
+      setServerResults([]);
+      setSearching(false);
       return;
     }
-    if (jumpedForQueryRef.current === q || searchMatches.length === 0) return;
-    jumpedForQueryRef.current = q;
-    gotoMatch(searchMatches.length - 1);
-  }, [searchQuery, searchMatches, gotoMatch]);
+    setSearching(true);
+    const ctrl = new AbortController();
+    const timer = window.setTimeout(() => {
+      void (async () => {
+        try {
+          const res = await fetch(`${apiBase}/api/miniapp/pack-group/search`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ init_data: initData, query: q, limit: 50 }),
+            signal: ctrl.signal,
+          });
+          const j = (await res.json().catch(() => ({}))) as { messages?: PackGroupMessage[] };
+          if (res.ok && Array.isArray(j.messages)) setServerResults(j.messages);
+          else setServerResults([]);
+        } catch {
+          // отменён/сеть — игнорируем
+        } finally {
+          setSearching(false);
+        }
+      })();
+    }, 280);
+    return () => {
+      ctrl.abort();
+      window.clearTimeout(timer);
+    };
+  }, [searchQuery, inTelegram, initData]);
+
+  const handleSearchResultTap = useCallback(
+    (m: PackGroupMessage) => {
+      if (itemsById.has(m.id)) {
+        clearSearch();
+        window.setTimeout(() => scrollToQuotedMessage(m.id), 40);
+      } else {
+        showAlert("Это сообщение в старой истории — оно вне загруженного окна чата, перейти к нему нельзя.");
+      }
+    },
+    [itemsById, clearSearch, scrollToQuotedMessage, showAlert],
+  );
 
   if (!apiBase) {
     return <p className="packroom__warn muted">Нет API URL в билде.</p>;
@@ -962,49 +981,23 @@ export function PackGroupChatPanel({
     <div className="packroom" ref={roomRef}>
       {err && <p className="packroom__err">{err}</p>}
       <div className="packroom__search">
-        <span className="packroom__search-ico" aria-hidden>
-          🔍
-        </span>
-        <input
-          className="packroom__search-input"
-          type="search"
-          value={searchQuery}
-          onChange={(e) => setSearchQuery(e.target.value)}
-          placeholder="Поиск по чату"
-          aria-label="Поиск по сообщениям чата"
-          autoComplete="off"
-          onKeyDown={(e) => {
-            if (e.key === "Enter") {
-              e.preventDefault();
-              gotoMatch(searchIndex + (e.shiftKey ? -1 : 1));
-            } else if (e.key === "Escape") {
-              clearSearch();
-            }
-          }}
-        />
-        {searchQuery.trim() !== "" && (
-          <div className="packroom__search-nav">
-            <span className="packroom__search-count">
-              {searchMatches.length > 0 ? `${Math.min(searchIndex, searchMatches.length - 1) + 1}/${searchMatches.length}` : "0/0"}
-            </span>
-            <button
-              type="button"
-              className="packroom__search-btn"
-              aria-label="Предыдущее совпадение"
-              disabled={searchMatches.length === 0}
-              onClick={() => gotoMatch(searchIndex - 1)}
-            >
-              ↑
-            </button>
-            <button
-              type="button"
-              className="packroom__search-btn"
-              aria-label="Следующее совпадение"
-              disabled={searchMatches.length === 0}
-              onClick={() => gotoMatch(searchIndex + 1)}
-            >
-              ↓
-            </button>
+        <div className="packroom__search-bar">
+          <span className="packroom__search-ico" aria-hidden>
+            🔍
+          </span>
+          <input
+            className="packroom__search-input"
+            type="search"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            placeholder="Поиск по всей истории чата"
+            aria-label="Поиск по сообщениям чата"
+            autoComplete="off"
+            onKeyDown={(e) => {
+              if (e.key === "Escape") clearSearch();
+            }}
+          />
+          {searchQuery.trim() !== "" && (
             <button
               type="button"
               className="packroom__search-btn packroom__search-btn--clear"
@@ -1013,6 +1006,42 @@ export function PackGroupChatPanel({
             >
               ✕
             </button>
+          )}
+        </div>
+        {searchQuery.trim() !== "" && (
+          <div className="packroom__search-results" role="listbox" aria-label="Результаты поиска">
+            {searching && serverResults.length === 0 ? (
+              <p className="packroom__search-empty muted">Поиск…</p>
+            ) : searchQuery.trim().length < 2 ? (
+              <p className="packroom__search-empty muted">Введите минимум 2 символа</p>
+            ) : serverResults.length === 0 ? (
+              <p className="packroom__search-empty muted">Ничего не найдено</p>
+            ) : (
+              <ul className="packroom__search-list">
+                {serverResults.map((m) => {
+                  const loaded = itemsById.has(m.id);
+                  return (
+                    <li key={m.id}>
+                      <button
+                        type="button"
+                        className={`packroom__search-result${loaded ? "" : " packroom__search-result--old"}`}
+                        onClick={() => handleSearchResultTap(m)}
+                      >
+                        <span className="packroom__search-result-head">
+                          <span className="packroom__search-result-author">
+                            {m.is_leo ? "Лео" : m.username || "Участник"}
+                          </span>
+                          <span className="packroom__search-result-time muted">{formatChatTime(m.created_at)}</span>
+                        </span>
+                        <span className="packroom__search-result-text">
+                          {highlightSearch(excerptText(m.text, 140), searchQuery)}
+                        </span>
+                      </button>
+                    </li>
+                  );
+                })}
+              </ul>
+            )}
           </div>
         )}
       </div>
@@ -1045,7 +1074,7 @@ export function PackGroupChatPanel({
                 highlightMessageId === m.id ? " packroom__row--highlight" : ""
               }${isUnread ? " packroom__row--unread" : ""}${
                 searchMatchSet.has(m.id) ? " packroom__row--search-match" : ""
-              }${currentMatchId === m.id ? " packroom__row--search-current" : ""}`}
+              }`}
             >
               <SwipeToReply onReply={() => startReply(m)}>
                 <div className="packroom__ava" aria-hidden>

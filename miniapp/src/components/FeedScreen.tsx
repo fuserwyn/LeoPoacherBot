@@ -63,6 +63,8 @@ type Props = {
   onPackGroupChatOpened?: () => void;
   /** Непрочитанные комментарии в ленте (бейдж подвкладки). */
   feedThreadUnreadCount?: number;
+  /** Мгновенно убрать бейдж «Лента» из UI (после просмотра подвкладки). */
+  onFeedThreadRead?: () => void;
   /** Непрочитанные ответы в общем чате (бейдж подвкладки). */
   packGroupUnreadCount?: number;
 };
@@ -104,6 +106,7 @@ export function FeedScreen({
   onRefreshTabBadges,
   onPackGroupChatOpened,
   feedThreadUnreadCount = 0,
+  onFeedThreadRead,
   packGroupUnreadCount = 0,
 }: Props) {
   const [sub, setSub] = useState<Sub>("activity");
@@ -127,7 +130,6 @@ export function FeedScreen({
   const [feedCategoryIds, setFeedCategoryIds] = useState<WorkoutCategoryId[]>([]);
   const [viewportStyle, setViewportStyle] = useState<FeedViewportStyle>({});
   const feedHeaderRef = useRef<HTMLDivElement>(null);
-  const feedListRef = useRef<HTMLDivElement>(null);
   const maxFeedIdRef = useRef(0);
   const loadedOnceRef = useRef(false);
   /** Идёт полный синк — чтобы не плодить дубли (двойной fetch на маунте, наложение поллинга и пост-экшн-синков). */
@@ -211,54 +213,29 @@ export function FeedScreen({
     [initData, onRefreshTabBadges, refreshUnreadFeedCards],
   );
 
-  // Карточки с непрочитанными комментариями к твоим тренировкам помечаем
-  // прочитанными, как только они появились в зоне видимости на подвкладке «Лента»
-  // (пользователь пролистал ленту — бейдж пропадает сам, без раскрытия треда).
+  // Бейдж «Лента» = непрочитанные комментарии к твоим отчётам. На подвкладке «Лента»
+  // считаем их просмотренными сразу — без скролла до карточки (она может быть вне
+  // окна последних 50 постов).
   useEffect(() => {
-    if (!active || sub !== "activity" || unreadFeedCardIds.size === 0) return;
-    const root = feedListRef.current;
-    if (!root || typeof IntersectionObserver === "undefined") return;
+    if (!active || sub !== "activity" || !inTelegram || !initData.trim()) return;
+    if (feedThreadUnreadCount <= 0 && unreadFeedCardIds.size === 0) return;
 
-    const dwellMs = 500;
-    const timers = new Map<number, ReturnType<typeof setTimeout>>();
-    const cleared = new Set<number>();
-
-    const observer = new IntersectionObserver(
-      (entries) => {
-        for (const entry of entries) {
-          const id = Number((entry.target as HTMLElement).dataset.feedCardId || 0);
-          if (id <= 0 || cleared.has(id) || !unreadFeedCardIds.has(id)) continue;
-          if (entry.isIntersecting) {
-            if (timers.has(id)) continue;
-            const t = setTimeout(() => {
-              timers.delete(id);
-              cleared.add(id);
-              observer.unobserve(entry.target);
-              markFeedCardThreadRead(id);
-            }, dwellMs);
-            timers.set(id, t);
-          } else {
-            const t = timers.get(id);
-            if (t != null) {
-              clearTimeout(t);
-              timers.delete(id);
-            }
-          }
-        }
-      },
-      { threshold: 0 },
-    );
-
-    root.querySelectorAll<HTMLElement>("[data-feed-card-id]").forEach((node) => {
-      const id = Number(node.dataset.feedCardId || 0);
-      if (id > 0 && unreadFeedCardIds.has(id)) observer.observe(node);
-    });
-
-    return () => {
-      timers.forEach((t) => clearTimeout(t));
-      observer.disconnect();
-    };
-  }, [active, sub, unreadFeedCardIds, markFeedCardThreadRead]);
+    onFeedThreadRead?.();
+    setUnreadFeedCardIds(new Set());
+    void (async () => {
+      await clearFeedThreadUnread(initData);
+      onRefreshTabBadges?.();
+    })();
+  }, [
+    active,
+    sub,
+    inTelegram,
+    initData,
+    feedThreadUnreadCount,
+    unreadFeedCardIds.size,
+    onFeedThreadRead,
+    onRefreshTabBadges,
+  ]);
 
   const feedSubtabBadge = (count: number) => (count > 9 ? "9+" : count > 0 ? String(count) : null);
 
@@ -886,7 +863,7 @@ export function FeedScreen({
           </div>
           {err && <p className="feed__err">{err}</p>}
           {loading && <p className="feed__load muted">Загрузка…</p>}
-          <div className="feed__list" ref={feedListRef}>
+          <div className="feed__list">
             {!loading && !useMockFeed && feedItems.length === 0 && !err && (
               <p className="feed__empty muted">Пока нет отчётов в базе (или нет MONETIZED_CHAT_ID).</p>
             )}
@@ -959,7 +936,7 @@ export function FeedScreen({
                 const canReportCard = !it.is_you && !isLeoSystemFeed;
                 if (!supportsThread) {
                   return (
-                    <div key={it.id} className={slotClass} data-feed-card-id={it.id}>
+                    <div key={it.id} className={slotClass}>
                       <ActivityCard
                         {...base}
                         reactions={supportsReactions ? mergeFeedReactionsForType(it.type, it.reactions) : undefined}
@@ -986,7 +963,7 @@ export function FeedScreen({
                   );
                 }
                 return (
-                  <div key={it.id} className={slotClass} data-feed-card-id={it.id}>
+                  <div key={it.id} className={slotClass}>
                     <ActivityCard
                       {...base}
                       poll={

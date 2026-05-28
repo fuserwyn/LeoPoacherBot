@@ -179,7 +179,7 @@
   flex-wrap: wrap;
   align-items: center;
   gap: 4px;
-  margin-bottom: 2px;
+  margin-bottom: 0;
 }
 
 .feed__filter-pill {
@@ -209,6 +209,7 @@
   flex-wrap: nowrap;
   gap: 6px;
   overflow-x: auto;
+  margin-bottom: 4px;
   padding-bottom: 1px;
   -webkit-overflow-scrolling: touch;
   scrollbar-width: thin;
