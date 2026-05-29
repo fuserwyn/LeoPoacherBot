@@ -264,6 +264,9 @@ export function App() {
             onProfileSaved={(displayName) => {
               setProfileDisplayName(displayName.trim());
             }}
+            onStreakSaved={() => {
+              void refreshProfileStats();
+            }}
             onSupport={() => {
               setWorkoutOpen(false);
               setSupportOpen(true);

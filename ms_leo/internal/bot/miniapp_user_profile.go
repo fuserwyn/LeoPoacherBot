@@ -281,7 +281,7 @@ func (b *Bot) GetMiniappProfileStatsForAPI(userID, packChatID int64) MiniappProf
 	out.StreakSaveAttemptsAvail = avail
 	storedStreak := out.StreakDays
 	out.StreakDays = EffectiveStreakDays(storedStreak, out.DaysSinceLastTraining)
-	if storedStreak > 0 && out.StreakDays == 0 && out.DaysSinceLastTraining >= 2 {
+	if storedStreak > 0 && out.StreakDays == 0 && out.DaysSinceLastTraining >= 3 {
 		b.reconcileExpiredStreakInDB(userID, packChatID)
 	}
 	b.reconcileAchievementsWithStreak(&out, userID, packChatID)
@@ -314,7 +314,7 @@ func (b *Bot) reconcileExpiredStreakInDB(userID, packChatID int64) {
 			return
 		}
 		days := int(math.Floor(today.Sub(last).Hours()/24 + 0.5))
-		if days < 2 {
+		if days < 3 {
 			return
 		}
 		if err := b.db.ResetStreakDays(userID, chatID); err != nil {
@@ -341,25 +341,59 @@ func (b *Bot) reconcileAchievementsWithStreak(out *MiniappProfileStats, userID, 
 	}
 }
 
-// UseStreakSaveAttemptForAPI пытается использовать одну попытку спасения стрика.
-// Возвращает обновлённый used или ошибку (если попыток нет).
-func (b *Bot) UseStreakSaveAttemptForAPI(userID, packChatID int64) (used, max, avail int, err error) {
+// UseStreakSaveAttemptForAPI использует одну попытку спасения стрика:
+// один пропущенный день (daysSinceLastTraining == 2) «закрывается» сдвигом last_training_date.
+// Возвращает обновлённый used и восстановленный streak_days или ошибку.
+func (b *Bot) UseStreakSaveAttemptForAPI(userID, packChatID int64) (used, max, avail, restoredStreak int, err error) {
 	if b == nil || b.db == nil || userID == 0 || packChatID == 0 {
-		return 0, 0, 0, errors.New("not_configured")
+		return 0, 0, 0, 0, errors.New("not_configured")
 	}
 	stats := b.GetMiniappProfileStatsForAPI(userID, packChatID)
 	if stats.StreakSaveAttemptsAvail <= 0 {
-		return stats.StreakSaveAttemptsUsed, stats.StreakSaveAttemptsMax, 0, errors.New("no_attempts")
+		return stats.StreakSaveAttemptsUsed, stats.StreakSaveAttemptsMax, 0, stats.StreakDays, errors.New("no_attempts")
 	}
+	if stats.DaysSinceLastTraining < 0 {
+		return stats.StreakSaveAttemptsUsed, stats.StreakSaveAttemptsMax, stats.StreakSaveAttemptsAvail, stats.StreakDays, errors.New("no_training_history")
+	}
+	if stats.DaysSinceLastTraining < 2 {
+		return stats.StreakSaveAttemptsUsed, stats.StreakSaveAttemptsMax, stats.StreakSaveAttemptsAvail, stats.StreakDays, errors.New("not_needed")
+	}
+	if stats.DaysSinceLastTraining > 2 {
+		return stats.StreakSaveAttemptsUsed, stats.StreakSaveAttemptsMax, stats.StreakSaveAttemptsAvail, stats.StreakDays, errors.New("too_late")
+	}
+
+	ml, mlErr := b.db.GetMessageLog(userID, packChatID)
+	if mlErr != nil || ml == nil {
+		return stats.StreakSaveAttemptsUsed, stats.StreakSaveAttemptsMax, stats.StreakSaveAttemptsAvail, stats.StreakDays, errors.New("user_not_found")
+	}
+	storedStreak := ml.StreakDays
+	maxStreak := ml.MaxStreakDays
+	if maxStreak < storedStreak {
+		maxStreak = storedStreak
+	}
+	restoreStreak := storedStreak
+	if restoreStreak <= 0 {
+		restoreStreak = maxStreak
+	}
+	if restoreStreak <= 0 {
+		return stats.StreakSaveAttemptsUsed, stats.StreakSaveAttemptsMax, stats.StreakSaveAttemptsAvail, stats.StreakDays, errors.New("nothing_to_save")
+	}
+
+	yesterday := b.getUserLocalNow(ml.TimezoneOffsetFromMoscow).AddDate(0, 0, -1).Format("2006-01-02")
+	if err := b.db.ApplyStreakSaveForUserScope(userID, packChatID, yesterday, restoreStreak); err != nil {
+		return stats.StreakSaveAttemptsUsed, stats.StreakSaveAttemptsMax, stats.StreakSaveAttemptsAvail, stats.StreakDays, err
+	}
+
 	newUsed, err := b.db.IncrementStreakSaveAttemptsUsed(userID, packChatID)
 	if err != nil {
-		return stats.StreakSaveAttemptsUsed, stats.StreakSaveAttemptsMax, stats.StreakSaveAttemptsAvail, err
+		return stats.StreakSaveAttemptsUsed, stats.StreakSaveAttemptsMax, stats.StreakSaveAttemptsAvail, stats.StreakDays, err
 	}
 	avail = stats.StreakSaveAttemptsMax - newUsed
 	if avail < 0 {
 		avail = 0
 	}
-	return newUsed, stats.StreakSaveAttemptsMax, avail, nil
+	restoredStreak = b.GetMiniappProfileStatsForAPI(userID, packChatID).StreakDays
+	return newUsed, stats.StreakSaveAttemptsMax, avail, restoredStreak, nil
 }
 
 // GetMiniappInactivityRemovalDeadlineRFC3339 — когда возможен кик за неактивность (если не будет отчёта), Europe/Moscow в RFC3339. Пусто — нет таймера, освобождён от кика или нет данных.

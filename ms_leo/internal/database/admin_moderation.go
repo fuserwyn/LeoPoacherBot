@@ -252,6 +252,36 @@ func (d *Database) ListPaywallPaymentsForUserAdmin(userID, packChatID int64, lim
 	return out, rows.Err()
 }
 
+// ApplyStreakSaveForUserScope — спасение стрика: сдвигает last_training_date и при необходимости
+// восстанавливает streak_days на pack-row и private-row (chat_id = user_id).
+func (d *Database) ApplyStreakSaveForUserScope(userID, packChatID int64, newLastTrainingDate string, restoreStreakDays int) error {
+	if userID == 0 || packChatID == 0 {
+		return nil
+	}
+	newLastTrainingDate = strings.TrimSpace(newLastTrainingDate)
+	if newLastTrainingDate == "" {
+		return fmt.Errorf("empty last training date")
+	}
+	if restoreStreakDays < 0 {
+		restoreStreakDays = 0
+	}
+	moscowTime := utils.FormatMoscowTime(utils.GetMoscowTime())
+	_, err := d.db.Exec(`
+		UPDATE training_state
+		SET last_training_date = $3,
+		    streak_days = CASE
+		        WHEN COALESCE(streak_days, 0) > 0 THEN streak_days
+		        ELSE $4
+		    END,
+		    updated_at = $5
+		WHERE user_id = $1 AND (chat_id = $2 OR chat_id = $1)
+	`, userID, packChatID, newLastTrainingDate, restoreStreakDays, moscowTime)
+	if err != nil {
+		return fmt.Errorf("apply streak save for user scope: %w", err)
+	}
+	return nil
+}
+
 // SubtractCupsForUserScope уменьшает кубки на pack-row и private-row (chat_id = user_id), не ниже 0.
 func (d *Database) SubtractCupsForUserScope(userID, packChatID int64, cups int) error {
 	if userID == 0 || packChatID == 0 || cups <= 0 {

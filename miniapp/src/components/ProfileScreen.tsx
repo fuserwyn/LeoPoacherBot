@@ -40,6 +40,7 @@ type Props = {
   userPhotoUrl?: string;
   showAlert: (m: string) => void;
   onProfileSaved?: (displayName: string) => void;
+  onStreakSaved?: () => void;
   onSupport?: () => void;
   /** Вкладка «Профиль» видима (keep-alive). */
   active?: boolean;
@@ -72,6 +73,7 @@ export function ProfileScreen({
   userPhotoUrl,
   showAlert,
   onProfileSaved,
+  onStreakSaved,
   onSupport,
   active = true,
 }: Props) {
@@ -295,6 +297,7 @@ export function ProfileScreen({
       const j = (await res.json().catch(() => ({}))) as {
         ok?: boolean;
         error?: string;
+        streak_days?: number;
         streak_save_attempts_used?: number;
         streak_save_attempts_max?: number;
       };
@@ -307,19 +310,30 @@ export function ProfileScreen({
       if (!res.ok || !j.ok) {
         if (j.error === "no_attempts") {
           showAlert("Попыток не осталось — расти по уровням, чтобы получить ещё.");
+        } else if (j.error === "not_needed") {
+          showAlert("Стрик ещё жив — спасение не нужно.");
+        } else if (j.error === "too_late") {
+          showAlert("Пропущено больше одного дня — одной попыткой не восстановить.");
+        } else if (j.error === "nothing_to_save") {
+          showAlert("Нечего восстанавливать — стрика не было.");
         } else {
           showAlert(j.error ?? `Ошибка ${res.status}`);
         }
         return;
       }
       void window.Telegram?.WebApp?.HapticFeedback?.notificationOccurred?.("success");
-      showAlert("Попытка использована — стрик защищён.");
+      onStreakSaved?.();
+      showAlert(
+        typeof j.streak_days === "number" && j.streak_days > 0
+          ? `Стрик восстановлен: ${j.streak_days} ${j.streak_days === 1 ? "день" : j.streak_days < 5 ? "дня" : "дней"}.`
+          : "Попытка использована — стрик защищён.",
+      );
     } catch (e) {
       showAlert(e instanceof Error ? e.message : "Сеть");
     } finally {
       setSaveStreakBusy(false);
     }
-  }, [inTelegram, initData, saveStreakAvail, saveStreakBusy, showAlert]);
+  }, [inTelegram, initData, saveStreakAvail, saveStreakBusy, showAlert, onStreakSaved]);
 
   const saveProfile = useCallback(async () => {
     if (!api || !inTelegram || !initData?.trim()) {

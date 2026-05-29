@@ -2007,13 +2007,15 @@ func (s *Server) handlePostStreakSaveUse(w http.ResponseWriter, r *http.Request)
 		s.jsonErr(w, http.StatusServiceUnavailable, "pack_not_configured")
 		return
 	}
-	used, max, avail, err := s.bot.UseStreakSaveAttemptForAPI(parsed.User.ID, packID)
+	used, max, avail, restoredStreak, err := s.bot.UseStreakSaveAttemptForAPI(parsed.User.ID, packID)
 	if err != nil {
-		if err.Error() == "no_attempts" {
+		switch err.Error() {
+		case "no_attempts", "not_needed", "too_late", "nothing_to_save", "no_training_history":
 			w.Header().Set("Content-Type", "application/json; charset=utf-8")
 			w.WriteHeader(http.StatusConflict)
 			_ = json.NewEncoder(w).Encode(map[string]any{
-				"error":                       "no_attempts",
+				"error":                       err.Error(),
+				"streak_days":                 restoredStreak,
 				"streak_save_attempts_used":   used,
 				"streak_save_attempts_max":    max,
 				"streak_save_attempts_avail":  avail,
@@ -2027,6 +2029,7 @@ func (s *Server) handlePostStreakSaveUse(w http.ResponseWriter, r *http.Request)
 	w.Header().Set("Content-Type", "application/json; charset=utf-8")
 	_ = json.NewEncoder(w).Encode(map[string]any{
 		"ok":                          true,
+		"streak_days":                 restoredStreak,
 		"streak_save_attempts_used":   used,
 		"streak_save_attempts_max":    max,
 		"streak_save_attempts_avail":  avail,
