@@ -20,8 +20,8 @@ func TestLevelFromTotalCups_boundaries(t *testing.T) {
 		{13019, 5},
 		{13020, 6},
 		{26459, 6},
-		{26460, 7},
-		{1000000, 7}, // верхний уровень не уходит за последний порог
+		{26460, 6},
+		{1000000, 6}, // макс. уровень не растёт выше Слона
 	}
 	for _, c := range cases {
 		if got := LevelFromTotalCups(c.total); got != c.want {

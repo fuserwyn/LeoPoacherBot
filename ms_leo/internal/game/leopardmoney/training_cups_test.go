@@ -51,7 +51,7 @@ func TestLevelFromTotalCups(t *testing.T) {
 	if LevelFromTotalCups(420) != 2 || LevelFromTotalCups(1259) != 2 {
 		t.Fatal("L2")
 	}
-	if LevelFromTotalCups(26460) != 7 {
-		t.Fatalf("L7 boundary got %d", LevelFromTotalCups(26460))
+	if LevelFromTotalCups(13020) != 6 || LevelFromTotalCups(50000) != 6 {
+		t.Fatal("L6 max")
 	}
 }

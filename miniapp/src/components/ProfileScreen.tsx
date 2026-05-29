@@ -430,7 +430,11 @@ export function ProfileScreen({
         </div>
         <div
           className="profile__xp"
-          aria-label={`Кубки в уровне: ${cupProgress.cupsInSegment} ${cupsWordRu(cupProgress.cupsInSegment)}, до следующего уровня ${cupProgress.cupsToNext - cupProgress.cupsInSegment}`}
+          aria-label={
+            cupProgress.nextLevelThreshold != null
+              ? `Кубки: ${xp}, до следующего уровня ${cupProgress.nextLevelThreshold - xp}`
+              : `Кубки: ${xp}`
+          }
         >
           <div className="profile__xp-meter">
             <span className="profile__xp-caption" aria-hidden>
@@ -441,7 +445,8 @@ export function ProfileScreen({
             </div>
           </div>
           <span className="profile__xp-txt">
-            {cupProgress.cupsInSegment} {cupsWordRu(cupProgress.cupsInSegment)} / {cupProgress.cupsToNext}
+            {xp} {cupsWordRu(xp)}
+            {cupProgress.nextLevelThreshold != null ? ` / ${cupProgress.nextLevelThreshold}` : null}
           </span>
         </div>
       </header>

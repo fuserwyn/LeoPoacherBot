@@ -182,18 +182,18 @@ type MiniappProfileStats struct {
 	DaysSinceLastTraining    int // -1, если тренировок ещё не было
 	LastTrainingDate         string // YYYY-MM-DD в локальном TZ; пусто, если не было отчётов
 	StreakSaveAttemptsUsed   int // сколько попыток спасения стрика использовано (lifetime)
-	StreakSaveAttemptsMax    int // кап = min(level, 7); +1 за каждый новый уровень
+	StreakSaveAttemptsMax    int // кап = min(level, 6); +1 за каждый новый уровень
 	StreakSaveAttemptsAvail  int // = max - used (не меньше 0)
 }
 
 // StreakSaveAttemptsMaxForLevel возвращает кап попыток спасения для данного уровня (1-based).
-// Правило: на старте 1 попытка, +1 за каждый новый уровень, максимум 7.
+// Правило: на старте 1 попытка, +1 за каждый новый уровень, максимум 6 (уровень Слон).
 func StreakSaveAttemptsMaxForLevel(level int) int {
 	if level < 1 {
 		level = 1
 	}
-	if level > 7 {
-		return 7
+	if level > leopardmoney.MaxLevel {
+		return leopardmoney.MaxLevel
 	}
 	return level
 }

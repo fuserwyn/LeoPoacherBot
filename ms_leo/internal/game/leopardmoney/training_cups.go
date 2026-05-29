@@ -7,8 +7,11 @@ import (
 	"strings"
 )
 
-// Пороги накопленных кубков (нижняя граница уровня): L1 с 0, L2 с 420, … (§2.5 спеки).
-var LevelStartCups = []int{0, 420, 1260, 2940, 6300, 13020, 26460}
+// Пороги накопленных кубков (нижняя граница уровня): L1 с 0, L2 с 420, … L6 Слон с 13 020 (§2.5 спеки).
+var LevelStartCups = []int{0, 420, 1260, 2940, 6300, 13020}
+
+// MaxLevel — максимальный уровень (6 — Слон).
+const MaxLevel = 6
 
 // StreakAchievementMilestones — пороги стрика (дней подряд) для получения ачивок в мини-аппе.
 var StreakAchievementMilestones = []int{7, 14, 30, 42, 60, 90, 180, 365, 420}
@@ -59,7 +62,7 @@ func LevelName(level int) string {
 	return LevelNames[level]
 }
 
-// LevelFromTotalCups — уровень 1…7+ по накопленным кубкам.
+// LevelFromTotalCups — уровень 1…6 по накопленным кубкам.
 func LevelFromTotalCups(total int) int {
 	if total < 0 {
 		total = 0
@@ -71,6 +74,9 @@ func LevelFromTotalCups(total int) int {
 		} else {
 			break
 		}
+	}
+	if lvl > MaxLevel {
+		lvl = MaxLevel
 	}
 	return lvl
 }

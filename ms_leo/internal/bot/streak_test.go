@@ -102,9 +102,10 @@ func TestStreakSaveAttemptsMaxForLevel(t *testing.T) {
 		{-3, 1}, // защита от отрицательных
 		{1, 1},
 		{2, 2},
-		{7, 7},
-		{8, 7},   // кап
-		{100, 7}, // кап
+		{6, 6},
+		{7, 6},   // кап = MaxLevel
+		{8, 6},   // кап
+		{100, 6}, // кап
 	}
 	for _, c := range cases {
 		if got := StreakSaveAttemptsMaxForLevel(c.level); got != c.want {
