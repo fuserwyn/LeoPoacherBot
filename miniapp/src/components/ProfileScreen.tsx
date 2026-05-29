@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { inactivityHighlight } from "../lib/inactivityHighlight";
-import { miniappCupsLevelProgress, miniappLevelFromCups, miniappLevelName } from "../lib/miniappLevel";
-import { cupsWordRu, daysWordRu, effectiveStreakDays, streakBurnLabel } from "../lib/streakLabel";
+import { formatCupsLevelProgressLabel, miniappCupsLevelProgress, miniappLevelFromCups, miniappLevelName } from "../lib/miniappLevel";
+import { daysWordRu, effectiveStreakDays, streakBurnLabel } from "../lib/streakLabel";
 import "./ProfileScreen.css";
 
 const api = (import.meta.env.VITE_MINIAPP_API_URL as string | undefined)?.replace(/\/$/, "") ?? "";
@@ -136,6 +136,7 @@ export function ProfileScreen({
   }, [active, burnLabel]);
 
   const cupProgress = miniappCupsLevelProgress(xp);
+  const cupProgressLabel = formatCupsLevelProgressLabel(cupProgress);
   const levelTitle = miniappLevelName(miniappLevelFromCups(xp)) || "—";
   const barPct = Math.min(100, (cupProgress.cupsInSegment / cupProgress.cupsToNext) * 100);
 
@@ -444,11 +445,7 @@ export function ProfileScreen({
         </div>
         <div
           className="profile__xp"
-          aria-label={
-            cupProgress.nextLevelThreshold != null
-              ? `Кубки: ${xp}, до следующего уровня ${cupProgress.nextLevelThreshold - xp}`
-              : `Кубки: ${xp}`
-          }
+          aria-label={`Кубки в уровне: ${cupProgressLabel}, всего ${xp}`}
         >
           <div className="profile__xp-meter">
             <span className="profile__xp-caption" aria-hidden>
@@ -458,10 +455,7 @@ export function ProfileScreen({
               <div className="profile__xp-fill" style={{ width: `${barPct}%` }} />
             </div>
           </div>
-          <span className="profile__xp-txt">
-            {xp} {cupsWordRu(xp)}
-            {cupProgress.nextLevelThreshold != null ? ` / ${cupProgress.nextLevelThreshold}` : null}
-          </span>
+          <span className="profile__xp-txt">{cupProgressLabel}</span>
         </div>
       </header>
 

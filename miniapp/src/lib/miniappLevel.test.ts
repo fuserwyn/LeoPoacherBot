@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { miniappCupsLevelProgress, miniappLevelFromCups } from "./miniappLevel";
+import { formatCupsLevelProgressLabel, miniappCupsLevelProgress, miniappLevelFromCups } from "./miniappLevel";
 
 describe("miniappLevelFromCups", () => {
   it("maps total cups to level intervals", () => {
@@ -84,5 +84,13 @@ describe("miniappCupsLevelProgress", () => {
       cupsToNext: 13440,
       nextLevelThreshold: null,
     });
+  });
+});
+
+describe("formatCupsLevelProgressLabel", () => {
+  it("shows in-level progress as current/target", () => {
+    expect(formatCupsLevelProgressLabel(miniappCupsLevelProgress(2000))).toBe("740/1680 кубков");
+    expect(formatCupsLevelProgressLabel(miniappCupsLevelProgress(200))).toBe("200/420 кубков");
+    expect(formatCupsLevelProgressLabel(miniappCupsLevelProgress(15000))).toBe("1980/13440 кубков");
   });
 });

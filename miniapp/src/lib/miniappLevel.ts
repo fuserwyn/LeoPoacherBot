@@ -47,6 +47,11 @@ export type CupsLevelProgress = {
   nextLevelThreshold: number | null;
 };
 
+/** Текст прогресса внутри уровня: «740/1680 кубков». */
+export function formatCupsLevelProgressLabel(progress: CupsLevelProgress): string {
+  return `${progress.cupsInSegment}/${progress.cupsToNext} кубков`;
+}
+
 /**
  * Прогресс внутри уровня для полоски «кубки / до следующего уровня».
  * На L6+ знаменатель полоски — фиксированный endgame-сегмент 13 440.
