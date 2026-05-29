@@ -27,8 +27,6 @@ type Props = {
   streak: number;
   recordStreak: number;
   xp: number;
-  level?: number;
-  levelName?: string;
   achievementCount: number;
   achievementsMax: number;
   workouts: number;
@@ -65,8 +63,6 @@ export function ProfileScreen({
   streak,
   recordStreak,
   xp,
-  level: levelProp,
-  levelName: levelNameProp,
   achievementCount,
   achievementsMax,
   workouts,
@@ -141,8 +137,8 @@ export function ProfileScreen({
 
   const cupProgress = miniappCupsLevelProgress(xp);
   const cupProgressLabel = formatCupsLevelProgressLabel(cupProgress);
-  const level = levelProp && levelProp > 0 ? levelProp : miniappLevelFromCups(xp);
-  const levelTitle = (levelNameProp && levelNameProp.trim()) || miniappLevelName(level) || "—";
+  const level = miniappLevelFromCups(xp);
+  const levelTitle = miniappLevelName(level) || "—";
   const barPct = Math.min(100, (cupProgress.cupsInSegment / cupProgress.cupsToNext) * 100);
 
   const load = useCallback(async () => {

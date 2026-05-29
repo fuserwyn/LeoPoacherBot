@@ -252,6 +252,27 @@ func (d *Database) ListPaywallPaymentsForUserAdmin(userID, packChatID int64, lim
 	return out, rows.Err()
 }
 
+// SyncPrivateRowCupsFromPack выравнивает cups_earned на private-row (chat_id = user_id) по pack-row.
+func (d *Database) SyncPrivateRowCupsFromPack(userID, packChatID int64) error {
+	if userID == 0 || packChatID == 0 || userID == packChatID {
+		return nil
+	}
+	moscowTime := utils.FormatMoscowTime(utils.GetMoscowTime())
+	_, err := d.db.Exec(`
+		UPDATE training_state AS priv
+		SET cups_earned = COALESCE(pack.cups_earned, 0),
+		    updated_at = $3
+		FROM training_state AS pack
+		WHERE priv.user_id = $1 AND priv.chat_id = $1
+		  AND pack.user_id = $1 AND pack.chat_id = $2
+		  AND COALESCE(priv.cups_earned, 0) <> COALESCE(pack.cups_earned, 0)
+	`, userID, packChatID, moscowTime)
+	if err != nil {
+		return fmt.Errorf("sync private row cups from pack: %w", err)
+	}
+	return nil
+}
+
 // ApplyStreakSaveForUserScope — спасение стрика: сдвигает last_training_date и при необходимости
 // восстанавливает streak_days на pack-row и private-row (chat_id = user_id).
 func (d *Database) ApplyStreakSaveForUserScope(userID, packChatID int64, newLastTrainingDate string, restoreStreakDays int) error {

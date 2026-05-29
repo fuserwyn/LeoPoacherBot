@@ -17,7 +17,6 @@ import { fetchFeedThreadUnreadSummary } from "./lib/feedThreadUnread";
 import { fetchPackGroupUnreadCount } from "./lib/packGroupUnread";
 import { ensureMiniappOnboarding } from "./lib/miniappOnboarding";
 import { syncDeviceTimezone } from "./lib/timezoneSync";
-import { miniappLevelFromCups } from "./lib/miniappLevel";
 import "./App.css";
 
 type Tab = "chat" | "feed" | "rules" | "profile";
@@ -56,8 +55,6 @@ export function App() {
   const [recordStreak, setRecordStreak] = useState(hookStreak);
   const [profileDisplayName, setProfileDisplayName] = useState("");
   const [xp, setXP] = useState(0);
-  const [level, setLevel] = useState(1);
-  const [levelName, setLevelName] = useState("");
   const [achievementCount, setAchievementCount] = useState(0);
   const [achievementsMax, setAchievementsMax] = useState(9);
   const [workouts, setWorkouts] = useState(0);
@@ -117,8 +114,6 @@ export function App() {
         streak_days?: number;
         max_streak_days?: number;
         xp?: number;
-        level?: number;
-        level_name?: string;
         achievement_count?: number;
         achievements_max?: number;
         workouts_total?: number;
@@ -135,8 +130,6 @@ export function App() {
       setStreak(typeof j.streak_days === "number" ? j.streak_days : 0);
       setRecordStreak(typeof j.max_streak_days === "number" ? j.max_streak_days : 0);
       setXP(typeof j.xp === "number" ? j.xp : 0);
-      setLevel(typeof j.level === "number" && j.level > 0 ? j.level : miniappLevelFromCups(typeof j.xp === "number" ? j.xp : 0));
-      setLevelName(typeof j.level_name === "string" ? j.level_name.trim() : "");
       setAchievementCount(typeof j.achievement_count === "number" ? j.achievement_count : 0);
       setAchievementsMax(typeof j.achievements_max === "number" ? j.achievements_max : 9);
       setWorkouts(typeof j.workouts_total === "number" ? j.workouts_total : 0);
@@ -262,8 +255,6 @@ export function App() {
             inTelegram={inTelegram}
             userPhotoUrl={photoUrl}
             xp={xp}
-            level={level}
-            levelName={levelName}
             recordStreak={recordStreak}
             achievementCount={achievementCount}
             achievementsMax={achievementsMax}

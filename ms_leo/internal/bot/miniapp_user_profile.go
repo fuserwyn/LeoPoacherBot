@@ -255,6 +255,9 @@ func (b *Bot) GetMiniappProfileStatsForAPI(userID, packChatID int64) MiniappProf
 
 	// В мини-аппе поле `xp` в JSON — накопленные кубки (шкала 1).
 	// Берём только pack-row: private-row — bookkeeping и может содержать устаревшие значения.
+	if err := b.db.SyncPrivateRowCupsFromPack(userID, packChatID); err != nil {
+		b.logger.Warnf("sync private cups user=%d pack=%d: %v", userID, packChatID, err)
+	}
 	if ml, err := b.db.GetMessageLog(userID, packChatID); err == nil && ml != nil {
 		out.XP = ml.CupsEarned
 	} else if ml, err := b.db.GetMessageLog(userID, userID); err == nil && ml != nil {
