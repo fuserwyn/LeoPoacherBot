@@ -88,9 +88,10 @@ describe("miniappCupsLevelProgress", () => {
 });
 
 describe("formatCupsLevelProgressLabel", () => {
-  it("shows in-level progress as current/target", () => {
-    expect(formatCupsLevelProgressLabel(miniappCupsLevelProgress(2000))).toBe("740/1680 кубков");
-    expect(formatCupsLevelProgressLabel(miniappCupsLevelProgress(200))).toBe("200/420 кубков");
-    expect(formatCupsLevelProgressLabel(miniappCupsLevelProgress(15000))).toBe("1980/13440 кубков");
+  it("shows in-level cups over total cups", () => {
+    expect(formatCupsLevelProgressLabel(miniappCupsLevelProgress(425))).toBe("5/425 кубков");
+    expect(formatCupsLevelProgressLabel(miniappCupsLevelProgress(200))).toBe("200/200 кубков");
+    expect(formatCupsLevelProgressLabel(miniappCupsLevelProgress(2000))).toBe("740/2000 кубков");
+    expect(formatCupsLevelProgressLabel(miniappCupsLevelProgress(15000))).toBe("1980/15000 кубков");
   });
 });

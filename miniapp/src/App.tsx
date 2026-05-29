@@ -267,6 +267,7 @@ export function App() {
             onStreakSaved={() => {
               void refreshProfileStats();
             }}
+            onRefreshStats={refreshProfileStats}
             onSupport={() => {
               setWorkoutOpen(false);
               setSupportOpen(true);

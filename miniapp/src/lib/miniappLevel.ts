@@ -47,9 +47,9 @@ export type CupsLevelProgress = {
   nextLevelThreshold: number | null;
 };
 
-/** Текст прогресса внутри уровня: «740/1680 кубков». */
+/** Текст прогресса: кубки в текущем уровне / всего накоплено, напр. «5/425 кубков». */
 export function formatCupsLevelProgressLabel(progress: CupsLevelProgress): string {
-  return `${progress.cupsInSegment}/${progress.cupsToNext} кубков`;
+  return `${progress.cupsInSegment}/${progress.totalCups} кубков`;
 }
 
 /**

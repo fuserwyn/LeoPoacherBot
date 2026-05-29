@@ -42,6 +42,8 @@ type Props = {
   onProfileSaved?: (displayName: string) => void;
   onStreakSaved?: () => void;
   onSupport?: () => void;
+  /** Перезагрузить кубки/уровень/стрик с сервера (из App). */
+  onRefreshStats?: () => void;
   /** Вкладка «Профиль» видима (keep-alive). */
   active?: boolean;
 };
@@ -75,8 +77,10 @@ export function ProfileScreen({
   onProfileSaved,
   onStreakSaved,
   onSupport,
+  onRefreshStats,
   active = true,
 }: Props) {
+  const [cups, setCups] = useState(xp);
   const [profile, setProfile] = useState<ProfileData>(EMPTY_PROFILE);
   const [savedProfile, setSavedProfile] = useState<ProfileData>(EMPTY_PROFILE);
   const [profileLoading, setProfileLoading] = useState(true);
@@ -93,6 +97,10 @@ export function ProfileScreen({
   const [saveStreakMax, setSaveStreakMax] = useState(1);
   const [saveStreakBusy, setSaveStreakBusy] = useState(false);
   const saveStreakAvail = Math.max(0, saveStreakMax - saveStreakUsed);
+
+  useEffect(() => {
+    setCups(xp);
+  }, [xp]);
 
   // Время, чтобы пересчитывать остаток до сгорания стрика. Тикает раз в минуту, пока вкладка видима.
   const [now, setNow] = useState(() => new Date());
@@ -135,9 +143,9 @@ export function ProfileScreen({
     return () => window.clearInterval(id);
   }, [active, burnLabel]);
 
-  const cupProgress = miniappCupsLevelProgress(xp);
+  const cupProgress = miniappCupsLevelProgress(cups);
   const cupProgressLabel = formatCupsLevelProgressLabel(cupProgress);
-  const level = miniappLevelFromCups(xp);
+  const level = miniappLevelFromCups(cups);
   const levelTitle = miniappLevelName(level) || "—";
   const barPct = Math.min(100, (cupProgress.cupsInSegment / cupProgress.cupsToNext) * 100);
 
@@ -159,6 +167,7 @@ export function ProfileScreen({
         gender?: string;
         display_name?: string;
         timezone_offset?: number;
+        xp?: number;
         streak_save_attempts_used?: number;
         streak_save_attempts_max?: number;
       };
@@ -180,6 +189,9 @@ export function ProfileScreen({
       };
       setProfile(nextProfile);
       setSavedProfile(normalizeProfileData(nextProfile));
+      if (typeof j.xp === "number") {
+        setCups(Math.max(0, j.xp));
+      }
       if (typeof j.streak_save_attempts_used === "number") {
         setSaveStreakUsed(Math.max(0, j.streak_save_attempts_used));
       }
@@ -196,7 +208,8 @@ export function ProfileScreen({
   useEffect(() => {
     if (!active) return;
     void load();
-  }, [load, active]);
+    onRefreshStats?.();
+  }, [load, active, onRefreshStats]);
 
   const loadHealth = useCallback(async () => {
     if (!api || !inTelegram || !initData?.trim()) {
@@ -446,7 +459,7 @@ export function ProfileScreen({
         </div>
         <div
           className="profile__xp"
-          aria-label={`Кубки в уровне: ${cupProgressLabel}, всего ${xp}`}
+          aria-label={`Кубки: ${cupProgressLabel}, уровень ${level}`}
         >
           <div className="profile__xp-meter">
             <span className="profile__xp-caption" aria-hidden>
