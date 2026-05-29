@@ -118,7 +118,11 @@ func (b *Bot) showAdminUserCard(chatID, targetUserID int64) {
 	rows := [][]tgbotapi.InlineKeyboardButton{
 		tgbotapi.NewInlineKeyboardRow(
 			tgbotapi.NewInlineKeyboardButtonData("➕ Кубки", "admin_user_cups_"+strconv.FormatInt(targetUserID, 10)),
+			tgbotapi.NewInlineKeyboardButtonData("➖ Кубки", "admin_user_cups_sub_"+strconv.FormatInt(targetUserID, 10)),
+		),
+		tgbotapi.NewInlineKeyboardRow(
 			tgbotapi.NewInlineKeyboardButtonData("➕ Стрик", "admin_user_streak_"+strconv.FormatInt(targetUserID, 10)),
+			tgbotapi.NewInlineKeyboardButtonData("➖ Стрик", "admin_user_streak_sub_"+strconv.FormatInt(targetUserID, 10)),
 		),
 		tgbotapi.NewInlineKeyboardRow(
 			tgbotapi.NewInlineKeyboardButtonData("🛟 +1 спасти стрик", "admin_user_save_"+strconv.FormatInt(targetUserID, 10)),
@@ -192,11 +196,27 @@ func (b *Bot) handleAdminUserMgmtCallback(callback *tgbotapi.CallbackQuery) bool
 		}
 		return true
 
+	case strings.HasPrefix(data, "admin_user_cups_sub_"):
+		targetID, ok := parseTarget("admin_user_cups_sub_")
+		if ok {
+			b.startAdminUserAction(adminID, targetID, "user_sub_cups", "await_amount")
+			b.api.Send(tgbotapi.NewMessage(chatID, fmt.Sprintf("➖ Сколько кубков убрать у пользователя %d? Отправь число (0 — не ниже нуля).", targetID)))
+		}
+		return true
+
 	case strings.HasPrefix(data, "admin_user_cups_"):
 		targetID, ok := parseTarget("admin_user_cups_")
 		if ok {
 			b.startAdminUserAction(adminID, targetID, "user_add_cups", "await_amount")
 			b.api.Send(tgbotapi.NewMessage(chatID, fmt.Sprintf("➕ Сколько кубков добавить пользователю %d? Отправь число.", targetID)))
+		}
+		return true
+
+	case strings.HasPrefix(data, "admin_user_streak_sub_"):
+		targetID, ok := parseTarget("admin_user_streak_sub_")
+		if ok {
+			b.startAdminUserAction(adminID, targetID, "user_sub_streak", "await_amount")
+			b.api.Send(tgbotapi.NewMessage(chatID, fmt.Sprintf("➖ На сколько дней уменьшить стрик пользователя %d? Отправь число (0 — не ниже нуля).", targetID)))
 		}
 		return true
 
@@ -461,6 +481,17 @@ func (b *Bot) handleAdminUserMgmtMessage(msg *tgbotapi.Message, session *adminSe
 				return true
 			}
 			b.api.Send(tgbotapi.NewMessage(msg.Chat.ID, fmt.Sprintf("✅ Добавлено %d кубков пользователю %d.", amount, targetID)))
+		case "user_sub_cups":
+			statsBefore := b.GetMiniappProfileStatsForAPI(targetID, packChatID)
+			if err := b.db.SubtractCupsForUserScope(targetID, packChatID, amount); err != nil {
+				b.api.Send(tgbotapi.NewMessage(msg.Chat.ID, "❌ Ошибка: "+err.Error()))
+				return true
+			}
+			statsAfter := b.GetMiniappProfileStatsForAPI(targetID, packChatID)
+			b.api.Send(tgbotapi.NewMessage(msg.Chat.ID, fmt.Sprintf(
+				"✅ Кубки пользователя %d: %d → %d (−%d).",
+				targetID, statsBefore.XP, statsAfter.XP, statsBefore.XP-statsAfter.XP,
+			)))
 		case "user_add_streak":
 			ml, err := b.db.GetMessageLogAnyState(targetID, packChatID)
 			if err != nil || ml == nil {
@@ -491,6 +522,17 @@ func (b *Bot) handleAdminUserMgmtMessage(msg *tgbotapi.Message, session *adminSe
 				achNote = fmt.Sprintf(" Ачивки: %d/%d.", achCount, leopardmoney.MaxAchievements)
 			}
 			b.api.Send(tgbotapi.NewMessage(msg.Chat.ID, fmt.Sprintf("✅ Стрик пользователя %d: %d → %d дней.%s", targetID, oldStreak, newStreak, achNote)))
+		case "user_sub_streak":
+			statsBefore := b.GetMiniappProfileStatsForAPI(targetID, packChatID)
+			if err := b.db.SubtractStreakDaysForUserScope(targetID, packChatID, amount); err != nil {
+				b.api.Send(tgbotapi.NewMessage(msg.Chat.ID, "❌ Ошибка: "+err.Error()))
+				return true
+			}
+			statsAfter := b.GetMiniappProfileStatsForAPI(targetID, packChatID)
+			b.api.Send(tgbotapi.NewMessage(msg.Chat.ID, fmt.Sprintf(
+				"✅ Стрик пользователя %d: %d → %d дней (рекорд %d).",
+				targetID, statsBefore.StreakDays, statsAfter.StreakDays, statsAfter.MaxStreakDays,
+			)))
 		}
 		b.showAdminUserCard(msg.Chat.ID, targetID)
 		return true

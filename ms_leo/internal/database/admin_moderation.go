@@ -252,6 +252,43 @@ func (d *Database) ListPaywallPaymentsForUserAdmin(userID, packChatID int64, lim
 	return out, rows.Err()
 }
 
+// SubtractCupsForUserScope уменьшает кубки на pack-row и private-row (chat_id = user_id), не ниже 0.
+func (d *Database) SubtractCupsForUserScope(userID, packChatID int64, cups int) error {
+	if userID == 0 || packChatID == 0 || cups <= 0 {
+		return nil
+	}
+	moscowTime := utils.FormatMoscowTime(utils.GetMoscowTime())
+	_, err := d.db.Exec(`
+		UPDATE training_state
+		SET cups_earned = GREATEST(COALESCE(cups_earned, 0) - $3, 0),
+		    updated_at = $4
+		WHERE user_id = $1 AND (chat_id = $2 OR chat_id = $1)
+	`, userID, packChatID, cups, moscowTime)
+	if err != nil {
+		return fmt.Errorf("subtract cups for user scope: %w", err)
+	}
+	return nil
+}
+
+// SubtractStreakDaysForUserScope уменьшает streak_days на pack-row и private-row, не ниже 0.
+// max_streak_days (рекорд) не трогаем.
+func (d *Database) SubtractStreakDaysForUserScope(userID, packChatID int64, days int) error {
+	if userID == 0 || packChatID == 0 || days <= 0 {
+		return nil
+	}
+	moscowTime := utils.FormatMoscowTime(utils.GetMoscowTime())
+	_, err := d.db.Exec(`
+		UPDATE training_state
+		SET streak_days = GREATEST(COALESCE(streak_days, 0) - $3, 0),
+		    updated_at = $4
+		WHERE user_id = $1 AND (chat_id = $2 OR chat_id = $1)
+	`, userID, packChatID, days, moscowTime)
+	if err != nil {
+		return fmt.Errorf("subtract streak for user scope: %w", err)
+	}
+	return nil
+}
+
 // SetAchievementsForUserScope выставляет ачивки на pack-row и private-row (chat_id = user_id).
 func (d *Database) SetAchievementsForUserScope(userID, packChatID int64, achievementCount, lastAchievementStreakLevel int) error {
 	if userID == 0 || packChatID == 0 {
