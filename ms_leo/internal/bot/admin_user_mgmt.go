@@ -91,6 +91,7 @@ func (b *Bot) showAdminUserCard(chatID, targetUserID int64) {
 	body.WriteString(fmt.Sprintf("ID: <code>%d</code>\n", targetUserID))
 	body.WriteString(fmt.Sprintf("Имя: %s\n", adminEscapeHTML(adminSupportTitle(ml.Username, targetUserID))))
 	body.WriteString(fmt.Sprintf("Кубки: %d\n", stats.XP))
+	body.WriteString(fmt.Sprintf("Уровень: %d · %s\n", stats.Level, adminEscapeHTML(stats.LevelName)))
 	body.WriteString(fmt.Sprintf("Стрик: %d (рекорд %d)\n", stats.StreakDays, stats.MaxStreakDays))
 	if stats.DaysSinceLastTraining >= 0 {
 		body.WriteString(fmt.Sprintf("Дней без тренировки: %d\n", stats.DaysSinceLastTraining))

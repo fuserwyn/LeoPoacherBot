@@ -173,6 +173,8 @@ func (b *Bot) GetMiniappUserProfileJSONForAPI(userID, packChatID int64) (gender,
 
 type MiniappProfileStats struct {
 	XP                       int
+	Level                    int
+	LevelName                string
 	StreakDays               int
 	MaxStreakDays            int
 	AchievementCount         int
@@ -212,8 +214,6 @@ func (b *Bot) GetMiniappProfileStatsForAPI(userID, packChatID int64) MiniappProf
 		if err != nil || ml == nil {
 			return
 		}
-		// В мини-аппе поле `xp` в JSON — накопленные кубки (шкала 1), не колонка training_state.xp.
-		out.XP = int(math.Max(float64(out.XP), float64(ml.CupsEarned)))
 		out.StreakDays = int(math.Max(float64(out.StreakDays), float64(ml.StreakDays)))
 		maxStreak := ml.MaxStreakDays
 		if maxStreak < ml.StreakDays {
@@ -253,6 +253,17 @@ func (b *Bot) GetMiniappProfileStatsForAPI(userID, packChatID int64) MiniappProf
 	applyLog(packChatID)
 	applyLog(userID)
 
+	// В мини-аппе поле `xp` в JSON — накопленные кубки (шкала 1).
+	// Берём только pack-row: private-row — bookkeeping и может содержать устаревшие значения.
+	if ml, err := b.db.GetMessageLog(userID, packChatID); err == nil && ml != nil {
+		out.XP = ml.CupsEarned
+	} else if ml, err := b.db.GetMessageLog(userID, userID); err == nil && ml != nil {
+		out.XP = ml.CupsEarned
+	}
+	if out.XP < 0 {
+		out.XP = 0
+	}
+
 	today := time.Now().UTC()
 	weekAgo := today.AddDate(0, 0, -6)
 	countAndMerge := func(chatID int64) {
@@ -268,9 +279,10 @@ func (b *Bot) GetMiniappProfileStatsForAPI(userID, packChatID int64) MiniappProf
 	countAndMerge(packChatID)
 	countAndMerge(userID)
 
-	// Streak save attempts: cap зависит от текущего уровня (по накопленным кубкам).
-	level := leopardmoney.LevelFromTotalCups(out.XP)
-	out.StreakSaveAttemptsMax = StreakSaveAttemptsMaxForLevel(level)
+	// Уровень и попытки спасения стрика — только от накопленных кубков (pack-row).
+	out.Level = leopardmoney.LevelFromTotalCups(out.XP)
+	out.LevelName = leopardmoney.LevelName(out.Level)
+	out.StreakSaveAttemptsMax = StreakSaveAttemptsMaxForLevel(out.Level)
 	if used, err := b.db.GetStreakSaveAttemptsUsed(userID, packChatID); err == nil {
 		out.StreakSaveAttemptsUsed = used
 	}
