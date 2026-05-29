@@ -230,6 +230,16 @@
   justify-content: center;
 }
 
+.stat-card__burn {
+  margin-top: 4px;
+  font-size: 9px;
+  font-weight: 700;
+  line-height: 1.1;
+  letter-spacing: 0.01em;
+  color: #ff7a45;
+  white-space: nowrap;
+}
+
 .stat-card--inactive-yellow {
   border-color: rgba(230, 178, 40, 0.55);
   background: color-mix(in srgb, rgba(230, 178, 40, 0.14) 100%, var(--card));

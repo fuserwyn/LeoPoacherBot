@@ -3,6 +3,7 @@ package bot
 import (
 	"fmt"
 	"strings"
+	"time"
 
 	"leo-bot/internal/domain"
 
@@ -27,25 +28,50 @@ type TrainingOutcome struct {
 	TwoHundredForty  bool // 240 дней
 }
 
+// ComputeStreakDays — единое правило пересчёта стрика при засчитанном отчёте о тренировке.
+// Используется и для предпросмотра (calculateTrainingDayOutcome), и для фактического обновления
+// (leopard_money_training_done.go), чтобы эти пути не расходились.
+//
+//	lastTrainingDate — дата последнего засчитанного отчёта (YYYY-MM-DD в локальном TZ пользователя),
+//	  nil или пустая строка, если отчётов ещё не было.
+//	prevStreak — текущее значение streak_days.
+//	today       — «сейчас» в локальном TZ пользователя.
+//
+// Возвращает новое значение стрика и sameDay=true, если отчёт повторный за тот же день
+// (стрик не меняется, начисления делать не нужно).
+func ComputeStreakDays(lastTrainingDate *string, prevStreak int, today time.Time) (newStreak int, sameDay bool) {
+	todayStr := today.Format("2006-01-02")
+	last := ""
+	if lastTrainingDate != nil {
+		last = strings.TrimSpace(*lastTrainingDate)
+	}
+
+	if last == todayStr {
+		return prevStreak, true
+	}
+	if last == "" {
+		// Отчётов ещё не было. Если стрик уже задан (например, начислен админом) — продолжаем его,
+		// иначе начинаем с 1.
+		if prevStreak > 0 {
+			return prevStreak + 1, false
+		}
+		return 1, false
+	}
+	if last == today.AddDate(0, 0, -1).Format("2006-01-02") {
+		return prevStreak + 1, false
+	}
+	// Пропуск ≥ 1 календарного дня — стрик сбрасывается.
+	return 1, false
+}
+
 // calculateTrainingDayOutcome описывает, что произойдёт при следующем засчитанном отчёте #training_done
 // в этот календарный день пользователя: первая тренировка дня — начисления и обновление стрика;
 // повтор в тот же день — без начислений (EarnRewards=false).
 func (b *Bot) calculateTrainingDayOutcome(messageLog *domain.MessageLog) TrainingOutcome {
 	localNow := b.getUserLocalNow(messageLog.TimezoneOffsetFromMoscow)
-	today := localNow.Format("2006-01-02")
-
-	if messageLog.LastTrainingDate != nil && *messageLog.LastTrainingDate == today {
-		return TrainingOutcome{EarnRewards: false, NewStreakDays: messageLog.StreakDays}
-	}
-
-	newStreak := 1
-	if messageLog.LastTrainingDate != nil {
-		yesterdayStr := localNow.AddDate(0, 0, -1).Format("2006-01-02")
-		if *messageLog.LastTrainingDate == yesterdayStr {
-			newStreak = messageLog.StreakDays + 1
-		}
-	} else if messageLog.StreakDays > 0 {
-		newStreak = messageLog.StreakDays + 1
+	newStreak, sameDay := ComputeStreakDays(messageLog.LastTrainingDate, messageLog.StreakDays, localNow)
+	if sameDay {
+		return TrainingOutcome{EarnRewards: false, NewStreakDays: newStreak}
 	}
 
 	return TrainingOutcome{

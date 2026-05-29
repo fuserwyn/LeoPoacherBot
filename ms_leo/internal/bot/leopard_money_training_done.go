@@ -315,17 +315,7 @@ func (b *Bot) handleLeopardMoneyTrainingDone(msg *tgbotapi.Message, personalRepl
 		}
 	}
 
-	newStreak := 1
-	if messageLog.LastTrainingDate != nil && *messageLog.LastTrainingDate == today {
-		newStreak = messageLog.StreakDays
-	} else if messageLog.LastTrainingDate != nil {
-		yesterdayStr := localNow.AddDate(0, 0, -1).Format("2006-01-02")
-		if *messageLog.LastTrainingDate == yesterdayStr {
-			newStreak = messageLog.StreakDays + 1
-		} else {
-			newStreak = 1
-		}
-	}
+	newStreak, _ := ComputeStreakDays(messageLog.LastTrainingDate, messageLog.StreakDays, localNow)
 
 	cupsAdd := leopardmoney.TrainingCupsFromReportText(text)
 	if err := b.db.AddCups(msg.From.ID, packChatID, cupsAdd); err != nil {

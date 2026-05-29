@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { inactivityHighlight } from "../lib/inactivityHighlight";
 import { miniappCupsLevelProgress, miniappLevelFromCups, miniappLevelName } from "../lib/miniappLevel";
-import { cupsWordRu, daysWordRu } from "../lib/streakLabel";
+import { cupsWordRu, daysWordRu, streakBurnLabel } from "../lib/streakLabel";
 import "./ProfileScreen.css";
 
 const api = (import.meta.env.VITE_MINIAPP_API_URL as string | undefined)?.replace(/\/$/, "") ?? "";
@@ -89,6 +89,10 @@ export function ProfileScreen({
   const [saveStreakBusy, setSaveStreakBusy] = useState(false);
   const saveStreakAvail = Math.max(0, saveStreakMax - saveStreakUsed);
 
+  // Время, чтобы пересчитывать остаток до сгорания стрика. Тикает раз в минуту, пока вкладка видима.
+  const [now, setNow] = useState(() => new Date());
+  const burnLabel = streakBurnLabel(streak, daysSinceLastTraining, now);
+
   const scrollHealthAboveKeyboard = useCallback(() => {
     const ta = healthTextareaRef.current;
     if (!ta) return;
@@ -116,6 +120,14 @@ export function ProfileScreen({
       window.scrollBy({ top: delta, behavior: "auto" });
     }
   }, []);
+
+  // Пока вкладка видима и есть что показывать — пересчитываем остаток до сгорания стрика раз в минуту.
+  useEffect(() => {
+    if (!active || burnLabel == null) return;
+    setNow(new Date()); // освежаем при возврате на вкладку, не дожидаясь первого тика
+    const id = window.setInterval(() => setNow(new Date()), 60_000);
+    return () => window.clearInterval(id);
+  }, [active, burnLabel]);
 
   const cupProgress = miniappCupsLevelProgress(xp);
   const levelTitle = miniappLevelName(miniappLevelFromCups(xp)) || "—";
@@ -438,6 +450,11 @@ export function ProfileScreen({
         >
           <div className="stat-card__label">Дней подряд</div>
           <div className="stat-card__val">{streak}</div>
+          {burnLabel && (
+            <div className="stat-card__burn" title={`Стрик ${burnLabel}`}>
+              🔥 {burnLabel}
+            </div>
+          )}
         </div>
         <div
           className={`stat-card${
