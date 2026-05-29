@@ -122,6 +122,9 @@ func (b *Bot) showAdminUserCard(chatID, targetUserID int64) {
 			tgbotapi.NewInlineKeyboardButtonData("➖ Кубки", "admin_user_cups_sub_"+strconv.FormatInt(targetUserID, 10)),
 		),
 		tgbotapi.NewInlineKeyboardRow(
+			tgbotapi.NewInlineKeyboardButtonData("🎯 Выставить кубки", "admin_user_cups_set_"+strconv.FormatInt(targetUserID, 10)),
+		),
+		tgbotapi.NewInlineKeyboardRow(
 			tgbotapi.NewInlineKeyboardButtonData("➕ Стрик", "admin_user_streak_"+strconv.FormatInt(targetUserID, 10)),
 			tgbotapi.NewInlineKeyboardButtonData("➖ Стрик", "admin_user_streak_sub_"+strconv.FormatInt(targetUserID, 10)),
 		),
@@ -194,6 +197,16 @@ func (b *Bot) handleAdminUserMgmtCallback(callback *tgbotapi.CallbackQuery) bool
 		targetID, ok := parseTarget("admin_user_open_")
 		if ok {
 			b.showAdminUserCard(chatID, targetID)
+		}
+		return true
+
+	case strings.HasPrefix(data, "admin_user_cups_set_"):
+		targetID, ok := parseTarget("admin_user_cups_set_")
+		if ok {
+			b.startAdminUserAction(adminID, targetID, "user_set_cups", "await_cups_set")
+			b.api.Send(tgbotapi.NewMessage(chatID, fmt.Sprintf(
+				"🎯 Сколько кубков выставить пользователю %d?\n\nОтправь точное число (например 425). Заменит текущее значение в БД.",
+				targetID)))
 		}
 		return true
 
@@ -463,6 +476,28 @@ func (b *Bot) handleAdminUserMgmtMessage(msg *tgbotapi.Message, session *adminSe
 		targetID := session.TargetUserID
 		b.clearAdminFlow(msg.From.ID)
 		b.adminSetDaysInactive(msg.Chat.ID, targetID, days)
+		return true
+
+	case "await_cups_set":
+		amount, err := strconv.Atoi(text)
+		if err != nil || amount < 0 || amount > 1000000 {
+			b.api.Send(tgbotapi.NewMessage(msg.Chat.ID, "⚠️ Нужно число от 0 до 1000000."))
+			return true
+		}
+		targetID := session.TargetUserID
+		b.clearAdminFlow(msg.From.ID)
+		packChatID := b.adminPackChatID()
+		statsBefore := b.GetMiniappProfileStatsForAPI(targetID, packChatID)
+		if err := b.db.SetCupsForUserScope(targetID, packChatID, amount); err != nil {
+			b.api.Send(tgbotapi.NewMessage(msg.Chat.ID, "❌ Ошибка: "+err.Error()))
+			return true
+		}
+		statsAfter := b.GetMiniappProfileStatsForAPI(targetID, packChatID)
+		b.api.Send(tgbotapi.NewMessage(msg.Chat.ID, fmt.Sprintf(
+			"✅ Кубки пользователя %d: %d → %d.\nУровень: %d · %s.",
+			targetID, statsBefore.XP, statsAfter.XP, statsAfter.Level, statsAfter.LevelName,
+		)))
+		b.showAdminUserCard(msg.Chat.ID, targetID)
 		return true
 
 	case "await_amount":

@@ -303,6 +303,27 @@ func (d *Database) ApplyStreakSaveForUserScope(userID, packChatID int64, newLast
 	return nil
 }
 
+// SetCupsForUserScope выставляет cups_earned на pack-row и private-row (chat_id = user_id).
+func (d *Database) SetCupsForUserScope(userID, packChatID int64, cups int) error {
+	if userID == 0 || packChatID == 0 {
+		return nil
+	}
+	if cups < 0 {
+		cups = 0
+	}
+	moscowTime := utils.FormatMoscowTime(utils.GetMoscowTime())
+	_, err := d.db.Exec(`
+		UPDATE training_state
+		SET cups_earned = $3,
+		    updated_at = $4
+		WHERE user_id = $1 AND (chat_id = $2 OR chat_id = $1)
+	`, userID, packChatID, cups, moscowTime)
+	if err != nil {
+		return fmt.Errorf("set cups for user scope: %w", err)
+	}
+	return nil
+}
+
 // SubtractCupsForUserScope уменьшает кубки на pack-row и private-row (chat_id = user_id), не ниже 0.
 func (d *Database) SubtractCupsForUserScope(userID, packChatID int64, cups int) error {
 	if userID == 0 || packChatID == 0 || cups <= 0 {
