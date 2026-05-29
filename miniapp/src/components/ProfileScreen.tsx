@@ -447,18 +447,20 @@ export function ProfileScreen({
       </header>
 
       <div className="profile__grid3">
-        <div
-          className={`stat-card${
-            inactiveHighlight !== "none" ? ` stat-card--inactive-${inactiveHighlight}` : ""
-          }`}
-        >
-          <div className="stat-card__label">Дней подряд</div>
-          <div className="stat-card__val">{displayStreak}</div>
-          {burnLabel && (
+        <div className="profile__stat-slot">
+          <div
+            className={`stat-card${
+              inactiveHighlight !== "none" ? ` stat-card--inactive-${inactiveHighlight}` : ""
+            }`}
+          >
+            <div className="stat-card__label">Дней подряд</div>
+            <div className="stat-card__val">{displayStreak}</div>
+          </div>
+          {burnLabel ? (
             <div className="stat-card__burn" title={`Стрик ${burnLabel}`}>
               🔥 {burnLabel}
             </div>
-          )}
+          ) : null}
         </div>
         <div
           className={`stat-card${
