@@ -329,12 +329,16 @@ func (b *Bot) handleLeopardMoneyTrainingDone(msg *tgbotapi.Message, personalRepl
 	achievementAwarded := false
 	msgLog2, _ := b.db.GetMessageLog(msg.From.ID, packChatID)
 	if msgLog2 != nil {
-		if idx := leopardmoney.StreakAchievementIndex(newStreak); idx >= 0 {
-			want := idx + 1
-			if msgLog2.AchievementCount < want && want <= leopardmoney.MaxAchievements {
-				msgLog2.AchievementCount = want
-				msgLog2.LastAchievementStreakLevel = newStreak
-				_ = b.db.SaveMessageLog(msgLog2)
+		recordStreak := msgLog2.MaxStreakDays
+		if recordStreak < newStreak {
+			recordStreak = newStreak
+		}
+		want := leopardmoney.AchievementsCountForStreak(recordStreak)
+		if want > msgLog2.AchievementCount && want <= leopardmoney.MaxAchievements {
+			msgLog2.AchievementCount = want
+			msgLog2.LastAchievementStreakLevel = leopardmoney.LastAchievementMilestoneForStreak(recordStreak)
+			_ = b.db.SaveMessageLog(msgLog2)
+			if leopardmoney.StreakAchievementIndex(newStreak) >= 0 {
 				achievementAwarded = true
 			}
 		}

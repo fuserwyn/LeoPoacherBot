@@ -65,6 +65,7 @@ export function App() {
   const [feedRefreshToken, setFeedRefreshToken] = useState(0);
   const [optimisticFeedItem, setOptimisticFeedItem] = useState<PackFeedItemDTO | null>(null);
   const [daysSinceLastTraining, setDaysSinceLastTraining] = useState<number>(-1);
+  const [lastTrainingDate, setLastTrainingDate] = useState("");
   const [accessGateStatus, setAccessGateStatus] = useState<AccessGateStatus>("checking");
   const tzSyncedRef = useRef(false);
 
@@ -120,10 +121,12 @@ export function App() {
         inactivity_removal_at?: string;
         timezone_offset?: number;
         days_since_last_training?: number;
+        last_training_date?: string;
       };
       if (!res.ok || !j.ok) return;
       setProfileDisplayName((j.display_name ?? "").trim());
       setDaysSinceLastTraining(typeof j.days_since_last_training === "number" ? j.days_since_last_training : -1);
+      setLastTrainingDate(typeof j.last_training_date === "string" ? j.last_training_date.trim() : "");
       setStreak(typeof j.streak_days === "number" ? j.streak_days : 0);
       setRecordStreak(typeof j.max_streak_days === "number" ? j.max_streak_days : 0);
       setXP(typeof j.xp === "number" ? j.xp : 0);
@@ -256,6 +259,7 @@ export function App() {
             achievementCount={achievementCount}
             achievementsMax={achievementsMax}
             daysSinceLastTraining={daysSinceLastTraining}
+            lastTrainingDate={lastTrainingDate || undefined}
             showAlert={showAlert}
             onProfileSaved={(displayName) => {
               setProfileDisplayName(displayName.trim());

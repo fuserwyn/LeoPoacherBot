@@ -72,6 +72,27 @@ func TestComputeStreakDays_DateBoundaries(t *testing.T) {
 	}
 }
 
+func TestEffectiveStreakDays(t *testing.T) {
+	cases := []struct {
+		stored     int
+		daysSince  int
+		want       int
+	}{
+		{0, 0, 0},
+		{420, -1, 420},  // дата неизвестна — показываем сохранённый
+		{420, 0, 420},   // тренировался сегодня
+		{420, 1, 420},   // вчера — ещё жив до полночи
+		{420, 2, 0},     // пропущен день после последней — сгорел
+		{420, 10, 0},
+		{1, 2, 0},
+	}
+	for _, c := range cases {
+		if got := EffectiveStreakDays(c.stored, c.daysSince); got != c.want {
+			t.Errorf("EffectiveStreakDays(%d, %d) = %d, want %d", c.stored, c.daysSince, got, c.want)
+		}
+	}
+}
+
 func TestStreakSaveAttemptsMaxForLevel(t *testing.T) {
 	cases := []struct {
 		level int

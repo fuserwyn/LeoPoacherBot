@@ -14,27 +14,55 @@ export function streakStreakAriaLabel(days: number): string {
   return `Стрик: ${days} ${daysWordRu(days)} подряд`;
 }
 
+/** Локальная полночь для YYYY-MM-DD. */
+export function parseLocalDateYMD(ymd: string): Date {
+  const [y, m, d] = ymd.split("-").map(Number);
+  return new Date(y, m - 1, d);
+}
+
+/** Дней с последней тренировки по дате YYYY-MM-DD и текущему локальному «сегодня». */
+export function daysSinceLastTrainingFromDate(
+  lastTrainingDate: string | null | undefined,
+  now: Date = new Date(),
+): number {
+  const ltd = lastTrainingDate?.trim();
+  if (!ltd) return -1;
+  const last = parseLocalDateYMD(ltd);
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const diff = Math.round((today.getTime() - last.getTime()) / 86_400_000);
+  return Math.max(0, diff);
+}
+
+/** Полночь после «догон»-дня: конец календарного дня, следующего за lastTrainingDate. */
+export function streakBurnDeadline(lastTrainingDate: string): Date {
+  const last = parseLocalDateYMD(lastTrainingDate.trim());
+  const deadline = new Date(last.getFullYear(), last.getMonth(), last.getDate());
+  deadline.setDate(deadline.getDate() + 2);
+  return deadline;
+}
+
 /**
  * Сколько миллисекунд осталось до сгорания стрика.
  *
  * Стрик жив, пока последняя тренировка была сегодня (`daysSinceLastTraining === 0`)
- * или вчера (`=== 1`). Сгорает он в конце дня, следующего за днём последней
- * тренировки (см. ComputeStreakDays на бэкенде: пропуск ≥1 полного дня сбрасывает
- * стрик). Считаем по локальному времени устройства — оно синхронизировано с TZ,
- * по которому бэкенд и определяет границы суток.
+ * или вчера (`=== 1`). Сгорает в полночь после «догон»-дня — см. streakBurnDeadline.
+ * Если передан `lastTrainingDate` (YYYY-MM-DD), считаем по нему (точнее при тиках UI без refresh API).
  *
- * Возвращает null, если стрика нет, дата последней тренировки неизвестна
- * (`daysSinceLastTraining < 0`) или стрик уже должен сгореть (`> 1`).
+ * Возвращает null, если стрика нет, дата неизвестна или дедлайн уже прошёл.
  */
 export function streakBurnRemainingMs(
   streak: number,
   daysSinceLastTraining: number,
   now: Date = new Date(),
+  lastTrainingDate?: string | null,
 ): number | null {
   if (streak <= 0) return null;
+  const ltd = lastTrainingDate?.trim();
+  if (ltd) {
+    const ms = streakBurnDeadline(ltd).getTime() - now.getTime();
+    return ms > 0 ? ms : null;
+  }
   if (daysSinceLastTraining < 0 || daysSinceLastTraining > 1) return null;
-  // Дедлайн = конец дня после последней тренировки = начало сегодняшнего дня + (2 − daysSince) суток.
-  // daysSince=1 (вчера) → конец сегодня; daysSince=0 (сегодня) → конец завтра.
   const deadline = new Date(now.getFullYear(), now.getMonth(), now.getDate());
   deadline.setDate(deadline.getDate() + (2 - daysSinceLastTraining));
   const ms = deadline.getTime() - now.getTime();
@@ -52,13 +80,35 @@ export function formatStreakBurnRemaining(ms: number): string {
   return `${mins} мин`;
 }
 
+/**
+ * Актуальный стрик для UI: 0 после полночи дня, следующего за последней тренировкой,
+ * если в этот «догон» не было отчёта (см. EffectiveStreakDays на бэкенде).
+ */
+export function effectiveStreakDays(
+  streak: number,
+  daysSinceLastTraining: number,
+  now: Date = new Date(),
+  lastTrainingDate?: string | null,
+): number {
+  if (streak <= 0) return 0;
+  const days = lastTrainingDate?.trim()
+    ? daysSinceLastTrainingFromDate(lastTrainingDate, now)
+    : daysSinceLastTraining;
+  if (days < 0) return streak;
+  if (days >= 2) return 0;
+  const ms = streakBurnRemainingMs(streak, daysSinceLastTraining, now, lastTrainingDate);
+  if (ms == null) return 0;
+  return streak;
+}
+
 /** Подпись под счётчиком стрика: «сгорит через 5 ч 20 мин» или null, если стрик не горит. */
 export function streakBurnLabel(
   streak: number,
   daysSinceLastTraining: number,
   now: Date = new Date(),
+  lastTrainingDate?: string | null,
 ): string | null {
-  const ms = streakBurnRemainingMs(streak, daysSinceLastTraining, now);
+  const ms = streakBurnRemainingMs(streak, daysSinceLastTraining, now, lastTrainingDate);
   if (ms == null) return null;
   return `сгорит через ${formatStreakBurnRemaining(ms)}`;
 }

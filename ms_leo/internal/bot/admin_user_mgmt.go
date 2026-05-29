@@ -12,13 +12,13 @@ import (
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 )
 
-// syncAchievementsFromStreak выставляет achievement_count по порогам стрика на pack-row и private-row.
-func (b *Bot) syncAchievementsFromStreak(userID, packChatID int64, streakDays int) (int, error) {
+// syncAchievementsFromStreak выставляет achievement_count по порогам рекорда стрика на pack-row и private-row.
+func (b *Bot) syncAchievementsFromStreak(userID, packChatID int64, maxStreakDays int) (int, error) {
 	if b == nil || b.db == nil || userID == 0 || packChatID == 0 {
 		return 0, nil
 	}
-	want := leopardmoney.AchievementsCountForStreak(streakDays)
-	last := leopardmoney.LastAchievementMilestoneForStreak(streakDays)
+	want := leopardmoney.AchievementsCountForStreak(maxStreakDays)
+	last := leopardmoney.LastAchievementMilestoneForStreak(maxStreakDays)
 	if err := b.db.SetAchievementsForUserScope(userID, packChatID, want, last); err != nil {
 		return 0, err
 	}
@@ -60,7 +60,11 @@ func (b *Bot) showAdminUserCard(chatID, targetUserID int64) {
 		b.api.Send(tgbotapi.NewMessage(chatID, fmt.Sprintf("❌ Пользователь %d не найден в стае.", targetUserID)))
 		return
 	}
-	if _, syncErr := b.syncAchievementsFromStreak(targetUserID, packChatID, ml.StreakDays); syncErr != nil {
+	maxStreak := ml.MaxStreakDays
+	if maxStreak < ml.StreakDays {
+		maxStreak = ml.StreakDays
+	}
+	if _, syncErr := b.syncAchievementsFromStreak(targetUserID, packChatID, maxStreak); syncErr != nil {
 		b.logger.Warnf("admin sync achievements user=%d: %v", targetUserID, syncErr)
 	} else {
 		ml, _ = b.db.GetMessageLogAnyState(targetUserID, packChatID)
@@ -476,7 +480,12 @@ func (b *Bot) handleAdminUserMgmtMessage(msg *tgbotapi.Message, session *adminSe
 				b.api.Send(tgbotapi.NewMessage(msg.Chat.ID, "❌ Ошибка: "+err.Error()))
 				return true
 			}
-			achCount, achErr := b.syncAchievementsFromStreak(targetID, packChatID, newStreak)
+			mlAfter, _ := b.db.GetMessageLogAnyState(targetID, packChatID)
+			maxStreak := newStreak
+			if mlAfter != nil && mlAfter.MaxStreakDays > maxStreak {
+				maxStreak = mlAfter.MaxStreakDays
+			}
+			achCount, achErr := b.syncAchievementsFromStreak(targetID, packChatID, maxStreak)
 			achNote := ""
 			if achErr == nil {
 				achNote = fmt.Sprintf(" Ачивки: %d/%d.", achCount, leopardmoney.MaxAchievements)

@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { inactivityHighlight } from "../lib/inactivityHighlight";
 import { miniappCupsLevelProgress, miniappLevelFromCups, miniappLevelName } from "../lib/miniappLevel";
-import { cupsWordRu, daysWordRu, streakBurnLabel } from "../lib/streakLabel";
+import { cupsWordRu, daysWordRu, effectiveStreakDays, streakBurnLabel } from "../lib/streakLabel";
 import "./ProfileScreen.css";
 
 const api = (import.meta.env.VITE_MINIAPP_API_URL as string | undefined)?.replace(/\/$/, "") ?? "";
@@ -32,6 +32,8 @@ type Props = {
   workouts: number;
   /** Дней с последней тренировки. -1 — тренировок ещё не было. */
   daysSinceLastTraining: number;
+  /** YYYY-MM-DD последней тренировки в локальном TZ пользователя. */
+  lastTrainingDate?: string;
   initData: string;
   inTelegram: boolean;
   /** Ссылка на аватар из Telegram WebApp (initDataUnsafe.user.photo_url), если бот открыл мини-апп. */
@@ -64,6 +66,7 @@ export function ProfileScreen({
   achievementsMax,
   workouts,
   daysSinceLastTraining,
+  lastTrainingDate,
   initData,
   inTelegram,
   userPhotoUrl,
@@ -91,7 +94,8 @@ export function ProfileScreen({
 
   // Время, чтобы пересчитывать остаток до сгорания стрика. Тикает раз в минуту, пока вкладка видима.
   const [now, setNow] = useState(() => new Date());
-  const burnLabel = streakBurnLabel(streak, daysSinceLastTraining, now);
+  const displayStreak = effectiveStreakDays(streak, daysSinceLastTraining, now, lastTrainingDate);
+  const burnLabel = streakBurnLabel(streak, daysSinceLastTraining, now, lastTrainingDate);
 
   const scrollHealthAboveKeyboard = useCallback(() => {
     const ta = healthTextareaRef.current;
@@ -426,7 +430,7 @@ export function ProfileScreen({
         </div>
         <div
           className="profile__xp"
-          aria-label={`Кубки: ${xp} ${cupsWordRu(xp)}, до следующего уровня ${cupProgress.cupsToNext - cupProgress.cupsInSegment}`}
+          aria-label={`Кубки в уровне: ${cupProgress.cupsInSegment} ${cupsWordRu(cupProgress.cupsInSegment)}, до следующего уровня ${cupProgress.cupsToNext - cupProgress.cupsInSegment}`}
         >
           <div className="profile__xp-meter">
             <span className="profile__xp-caption" aria-hidden>
@@ -437,7 +441,7 @@ export function ProfileScreen({
             </div>
           </div>
           <span className="profile__xp-txt">
-            {xp} {cupsWordRu(xp)} / {cupProgress.cupsToNext}
+            {cupProgress.cupsInSegment} {cupsWordRu(cupProgress.cupsInSegment)} / {cupProgress.cupsToNext}
           </span>
         </div>
       </header>
@@ -449,7 +453,7 @@ export function ProfileScreen({
           }`}
         >
           <div className="stat-card__label">Дней подряд</div>
-          <div className="stat-card__val">{streak}</div>
+          <div className="stat-card__val">{displayStreak}</div>
           {burnLabel && (
             <div className="stat-card__burn" title={`Стрик ${burnLabel}`}>
               🔥 {burnLabel}

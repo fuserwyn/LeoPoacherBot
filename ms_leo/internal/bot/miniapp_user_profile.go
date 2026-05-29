@@ -180,6 +180,7 @@ type MiniappProfileStats struct {
 	WorkoutsTotal            int
 	WorkoutsWeek             int
 	DaysSinceLastTraining    int // -1, если тренировок ещё не было
+	LastTrainingDate         string // YYYY-MM-DD в локальном TZ; пусто, если не было отчётов
 	StreakSaveAttemptsUsed   int // сколько попыток спасения стрика использовано (lifetime)
 	StreakSaveAttemptsMax    int // кап = min(level, 7); +1 за каждый новый уровень
 	StreakSaveAttemptsAvail  int // = max - used (не меньше 0)
@@ -227,6 +228,13 @@ func (b *Bot) GetMiniappProfileStatsForAPI(userID, packChatID int64) MiniappProf
 			ltd := strings.TrimSpace(*ml.LastTrainingDate)
 			if ltd != "" {
 				if last, parseErr := time.Parse("2006-01-02", ltd); parseErr == nil {
+					if out.LastTrainingDate == "" {
+						out.LastTrainingDate = ltd
+					} else if prev, prevErr := time.Parse("2006-01-02", out.LastTrainingDate); prevErr == nil && last.After(prev) {
+						out.LastTrainingDate = ltd
+					}
+				}
+				if last, parseErr := time.Parse("2006-01-02", ltd); parseErr == nil {
 					today, todayErr := time.Parse("2006-01-02", b.getUserLocalDate(ml.TimezoneOffsetFromMoscow))
 					if todayErr == nil {
 						days := int(math.Floor(today.Sub(last).Hours()/24 + 0.5))
@@ -271,23 +279,65 @@ func (b *Bot) GetMiniappProfileStatsForAPI(userID, packChatID int64) MiniappProf
 		avail = 0
 	}
 	out.StreakSaveAttemptsAvail = avail
+	storedStreak := out.StreakDays
+	out.StreakDays = EffectiveStreakDays(storedStreak, out.DaysSinceLastTraining)
+	if storedStreak > 0 && out.StreakDays == 0 && out.DaysSinceLastTraining >= 2 {
+		b.reconcileExpiredStreakInDB(userID, packChatID)
+	}
 	b.reconcileAchievementsWithStreak(&out, userID, packChatID)
 	return out
 }
 
-// reconcileAchievementsWithStreak — в профиле ачивки должны соответствовать текущему стрику (пороги 7, 14, 30…).
+// reconcileExpiredStreakInDB обнуляет streak_days в БД, если стрик уже сгорел по календарю.
+func (b *Bot) reconcileExpiredStreakInDB(userID, packChatID int64) {
+	if b == nil || b.db == nil {
+		return
+	}
+	resetIfExpired := func(chatID int64) {
+		ml, err := b.db.GetMessageLog(userID, chatID)
+		if err != nil || ml == nil || ml.StreakDays <= 0 {
+			return
+		}
+		if ml.LastTrainingDate == nil {
+			return
+		}
+		ltd := strings.TrimSpace(*ml.LastTrainingDate)
+		if ltd == "" {
+			return
+		}
+		last, parseErr := time.Parse("2006-01-02", ltd)
+		if parseErr != nil {
+			return
+		}
+		today, todayErr := time.Parse("2006-01-02", b.getUserLocalDate(ml.TimezoneOffsetFromMoscow))
+		if todayErr != nil {
+			return
+		}
+		days := int(math.Floor(today.Sub(last).Hours()/24 + 0.5))
+		if days < 2 {
+			return
+		}
+		if err := b.db.ResetStreakDays(userID, chatID); err != nil {
+			b.logger.Warnf("reconcile expired streak user=%d chat=%d: %v", userID, chatID, err)
+		}
+	}
+	resetIfExpired(packChatID)
+	resetIfExpired(userID)
+}
+
+// reconcileAchievementsWithStreak — в профиле ачивки должны соответствовать рекорду стрика (пороги 7, 14, 30…).
 func (b *Bot) reconcileAchievementsWithStreak(out *MiniappProfileStats, userID, packChatID int64) {
 	if b == nil || b.db == nil || out == nil || userID == 0 || packChatID == 0 {
 		return
 	}
-	want := leopardmoney.AchievementsCountForStreak(out.StreakDays)
+	want := leopardmoney.AchievementsCountForStreak(out.MaxStreakDays)
 	if want <= out.AchievementCount {
 		return
 	}
 	out.AchievementCount = want
-	last := leopardmoney.LastAchievementMilestoneForStreak(out.StreakDays)
+	last := leopardmoney.LastAchievementMilestoneForStreak(out.MaxStreakDays)
 	if err := b.db.SetAchievementsForUserScope(userID, packChatID, want, last); err != nil {
-		b.logger.Warnf("reconcile achievements user=%d pack=%d streak=%d: %v", userID, packChatID, out.StreakDays, err)
+		b.logger.Warnf("reconcile achievements user=%d pack=%d max_streak=%d: %v", userID, packChatID, out.MaxStreakDays, err)
 	}
 }
 

@@ -60,8 +60,23 @@ func ComputeStreakDays(lastTrainingDate *string, prevStreak int, today time.Time
 	if last == today.AddDate(0, 0, -1).Format("2006-01-02") {
 		return prevStreak + 1, false
 	}
-	// Пропуск ≥ 1 календарного дня — стрик сбрасывается.
+	// Пропуск ≥ 1 календарного дня — новый стрик начинается с 1 (см. EffectiveStreakDays для отображения 0 до отчёта).
 	return 1, false
+}
+
+// EffectiveStreakDays — текущий стрик с учётом сгорания без нового отчёта.
+//
+// После последней тренировки есть один полный календарный день «на догон»; если в него не
+// позанимались — в полночь следующего дня (daysSinceLastTraining >= 2) стрик = 0.
+// daysSinceLastTraining == -1 — дата последней тренировки неизвестна (например, стрик начислен админом).
+func EffectiveStreakDays(storedStreak, daysSinceLastTraining int) int {
+	if storedStreak <= 0 {
+		return 0
+	}
+	if daysSinceLastTraining >= 2 {
+		return 0
+	}
+	return storedStreak
 }
 
 // calculateTrainingDayOutcome описывает, что произойдёт при следующем засчитанном отчёте #training_done

@@ -6,6 +6,7 @@ import {
   streakBurnRemainingMs,
   formatStreakBurnRemaining,
   streakBurnLabel,
+  effectiveStreakDays,
 } from "./streakLabel";
 
 describe("daysWordRu", () => {
@@ -114,6 +115,29 @@ describe("formatStreakBurnRemaining", () => {
 
   it("отрицательное/ноль → 0 мин", () => {
     expect(formatStreakBurnRemaining(-5000)).toBe("0 мин");
+  });
+});
+
+describe("effectiveStreakDays", () => {
+  const now = new Date(2026, 4, 29, 18, 0, 0);
+
+  it("0 при сгорании по календарю (≥2 дня)", () => {
+    expect(effectiveStreakDays(420, 2, now)).toBe(0);
+    expect(effectiveStreakDays(420, 7, now)).toBe(0);
+  });
+
+  it("сохраняет стрик в grace-периоде", () => {
+    expect(effectiveStreakDays(420, 0, now)).toBe(420);
+    expect(effectiveStreakDays(420, 1, now)).toBe(420);
+  });
+
+  it("0 после дедлайна по lastTrainingDate", () => {
+    const pastDeadline = new Date(2026, 4, 30, 0, 1, 0);
+    expect(effectiveStreakDays(420, 1, pastDeadline, "2026-05-28")).toBe(0);
+  });
+
+  it("неизвестная дата — показываем сохранённый", () => {
+    expect(effectiveStreakDays(10, -1, now)).toBe(10);
   });
 });
 
