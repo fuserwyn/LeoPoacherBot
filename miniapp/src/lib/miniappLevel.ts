@@ -43,13 +43,30 @@ export type CupsLevelProgress = {
   cupsInSegment: number;
   /** Размер сегмента до следующего уровня (или endgame-цикл на L6). */
   cupsToNext: number;
-  /** Суммарный порог кубков до следующего уровня; null на макс. уровне. */
+  /** Суммарный порог кубков до следующего уровня; null на L6+ (см. nextLevelGoal). */
   nextLevelThreshold: number | null;
+  /** Кубков нужно всего для следующего уровня / endgame-рубежа (для UI «425/1260»). */
+  nextLevelGoal: number;
 };
 
-/** Текст прогресса: кубки в текущем уровне / всего накоплено, напр. «5/425 кубков». */
+/** Порог кубков для следующего уровня или endgame-рубежа на L6+. */
+export function nextLevelGoalCups(progress: CupsLevelProgress): number {
+  if (progress.nextLevelGoal > 0) {
+    return progress.nextLevelGoal;
+  }
+  return Math.max(progress.totalCups, 1);
+}
+
+/** Текст прогресса: текущие кубки в БД / порог следующего уровня, напр. «425/1260 кубков». */
 export function formatCupsLevelProgressLabel(progress: CupsLevelProgress): string {
-  return `${progress.cupsInSegment}/${progress.totalCups} кубков`;
+  return `${progress.totalCups}/${nextLevelGoalCups(progress)} кубков`;
+}
+
+/** Доля прогресса до следующего уровня (0…100) для полоски. */
+export function cupsLevelProgressBarPct(progress: CupsLevelProgress): number {
+  const goal = nextLevelGoalCups(progress);
+  if (goal <= 0) return 0;
+  return Math.min(100, (progress.totalCups / goal) * 100);
 }
 
 /**
@@ -71,9 +88,14 @@ export function miniappCupsLevelProgress(cups: number): CupsLevelProgress {
       cupsInSegment,
       cupsToNext: Math.max(1, segmentSize),
       nextLevelThreshold: nextThreshold,
+      nextLevelGoal: nextThreshold,
     };
   }
   const seg = CUPS_SEGMENT_MAX_LEVEL;
+  const elephant = CUP_LEVEL_STARTS[CUP_LEVEL_STARTS.length - 1] ?? 13020;
+  const beyond = Math.max(0, c - elephant);
+  const cycle = Math.floor(beyond / seg) + 1;
+  const nextGoal = elephant + seg * cycle;
   const inSeg = cupsInSegment % seg;
   return {
     level,
@@ -81,6 +103,7 @@ export function miniappCupsLevelProgress(cups: number): CupsLevelProgress {
     cupsInSegment: inSeg,
     cupsToNext: seg,
     nextLevelThreshold: null,
+    nextLevelGoal: nextGoal,
   };
 }
 

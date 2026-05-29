@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { inactivityHighlight } from "../lib/inactivityHighlight";
-import { formatCupsLevelProgressLabel, miniappCupsLevelProgress, miniappLevelFromCups, miniappLevelName } from "../lib/miniappLevel";
+import { cupsLevelProgressBarPct, formatCupsLevelProgressLabel, miniappCupsLevelProgress, miniappLevelFromCups, miniappLevelName } from "../lib/miniappLevel";
 import { daysWordRu, effectiveStreakDays, streakBurnLabel } from "../lib/streakLabel";
 import "./ProfileScreen.css";
 
@@ -147,7 +147,7 @@ export function ProfileScreen({
   const cupProgressLabel = formatCupsLevelProgressLabel(cupProgress);
   const level = miniappLevelFromCups(cups);
   const levelTitle = miniappLevelName(level) || "—";
-  const barPct = Math.min(100, (cupProgress.cupsInSegment / cupProgress.cupsToNext) * 100);
+  const barPct = cupsLevelProgressBarPct(cupProgress);
 
   const load = useCallback(async () => {
     if (!api || !inTelegram || !initData?.trim()) {
