@@ -2,6 +2,8 @@ import { useEffect, useRef, useState } from "react";
 
 type Status = "idle" | "pulling" | "ready" | "refreshing";
 
+const DEFAULT_EXCLUDE_SELECTOR = ".feed__sticky, .feed__filter-cats, .bottom-nav, [data-no-ptr]";
+
 type Options = {
   /** Когда выполнен — сбросить состояние. */
   onRefresh: () => Promise<void> | void;
@@ -11,22 +13,49 @@ type Options = {
   maxPull?: number;
   /** Если false — хук не подключается (например, не активная вкладка). */
   enabled?: boolean;
+  /** Элементы, касания по которым не должны запускать pull-to-refresh. */
+  excludeSelector?: string;
 };
+
+function isExcludedTouchTarget(target: EventTarget | null, selector: string): boolean {
+  if (!(target instanceof Element)) return false;
+  return target.closest(selector) != null;
+}
 
 /**
  * Pull-to-refresh поверх window.scroll. Работает только когда window.scrollY === 0
  * и палец движется вниз. Активный (non-passive) touchmove-листенер — чтобы зарубить
  * нативный iOS bounce и не давать странице ехать вниз во время оттяга.
  */
-export function usePullToRefresh({ onRefresh, threshold = 70, maxPull = 140, enabled = true }: Options) {
+export function usePullToRefresh({
+  onRefresh,
+  threshold = 70,
+  maxPull = 140,
+  enabled = true,
+  excludeSelector = DEFAULT_EXCLUDE_SELECTOR,
+}: Options) {
   const [status, setStatus] = useState<Status>("idle");
   const [pull, setPull] = useState(0);
   const startYRef = useRef<number | null>(null);
   const trackingRef = useRef(false);
   const refreshingRef = useRef(false);
+  const statusRef = useRef<Status>("idle");
+
+  useEffect(() => {
+    statusRef.current = status;
+  }, [status]);
 
   useEffect(() => {
     if (!enabled) return;
+
+    const resetPull = () => {
+      trackingRef.current = false;
+      startYRef.current = null;
+      if (!refreshingRef.current && statusRef.current !== "idle") {
+        setStatus("idle");
+        setPull(0);
+      }
+    };
 
     const isTextEntryFocused = (): boolean => {
       const a = document.activeElement as HTMLElement | null;
@@ -38,6 +67,7 @@ export function usePullToRefresh({ onRefresh, threshold = 70, maxPull = 140, ena
 
     const onTouchStart = (e: TouchEvent) => {
       if (refreshingRef.current) return;
+      if (isExcludedTouchTarget(e.target, excludeSelector)) return;
       // Когда пользователь печатает, не перехватываем тач — iOS ждёт нативного
       // scroll-into-view к фокусу и любые preventDefault на touchmove ломают это.
       if (isTextEntryFocused()) return;
@@ -50,12 +80,12 @@ export function usePullToRefresh({ onRefresh, threshold = 70, maxPull = 140, ena
 
     const onTouchMove = (e: TouchEvent) => {
       if (!trackingRef.current || refreshingRef.current) return;
+      if (isExcludedTouchTarget(e.target, excludeSelector)) {
+        resetPull();
+        return;
+      }
       if (isTextEntryFocused()) {
-        trackingRef.current = false;
-        if (status !== "idle") {
-          setStatus("idle");
-          setPull(0);
-        }
+        resetPull();
         return;
       }
       const t = e.touches[0];
@@ -63,18 +93,14 @@ export function usePullToRefresh({ onRefresh, threshold = 70, maxPull = 140, ena
       const dy = t.clientY - startYRef.current;
       if (dy <= 0) {
         // Палец вверх — не наша зона, передаём управление странице.
-        if (status !== "idle") {
+        if (statusRef.current !== "idle") {
           setStatus("idle");
           setPull(0);
         }
         return;
       }
       if (window.scrollY > 0) {
-        trackingRef.current = false;
-        if (status !== "idle") {
-          setStatus("idle");
-          setPull(0);
-        }
+        resetPull();
         return;
       }
       // Демпфирование, чтобы оттяг ощущался как «резинка».
@@ -130,7 +156,7 @@ export function usePullToRefresh({ onRefresh, threshold = 70, maxPull = 140, ena
       document.removeEventListener("touchcancel", onTouchCancel);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [enabled, threshold, maxPull, onRefresh]);
+  }, [enabled, threshold, maxPull, onRefresh, excludeSelector]);
 
   // Поддерживаем актуальный pull в ref для finish() без замыкания на старое значение.
   const pullRef = useRef(0);

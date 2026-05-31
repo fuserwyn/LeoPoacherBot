@@ -217,6 +217,7 @@
      вертикальный скролл ленты. */
   touch-action: pan-x;
   overscroll-behavior-x: contain;
+  overscroll-behavior-y: none;
 }
 
 .feed__filter-chip {
@@ -235,6 +236,7 @@
   cursor: pointer;
   white-space: nowrap;
   min-height: 32px;
+  touch-action: pan-x;
 }
 
 .feed__filter-chip.is-active {

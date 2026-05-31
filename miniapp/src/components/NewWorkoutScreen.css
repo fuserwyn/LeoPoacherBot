@@ -1,22 +1,23 @@
 /* Полноэкранная форма. Чипы/кнопки как лента: .feed__filter-chip; заголовки секций — .section-title; кнопка — .feed__btn */
 .nwo {
-  --nwo-chip-fs: 0.7rem;
-  --nwo-chip-lh: 1.2;
-  --nwo-chip-pad-y: 4px;
-  --nwo-chip-pad-x: 8px;
+  --nwo-chip-fs: 0.88rem;
+  --nwo-chip-lh: 1.25;
+  --nwo-chip-pad-y: 6px;
+  --nwo-chip-pad-x: 10px;
   --nwo-chip-bg: #14141c;
   --nwo-chip-on-border: rgba(255, 90, 31, 0.65);
   --nwo-chip-on-bg: rgba(255, 90, 31, 0.12);
   --nwo-chip-on-color: var(--accent, #ff7a45);
-  --nwo-emoji-fs: 0.88rem;
+  --nwo-emoji-fs: 1.05rem;
   --nwo-mi-font: 600 var(--nwo-chip-fs) / var(--nwo-chip-lh) var(--font);
-  --nwo-sec-fs: 11px;
+  --nwo-sec-fs: 13px;
   --nwo-sec-lh: 1.25;
-  --nwo-display-num-fs: 0.95rem;
-  --nwo-display-sub-fs: 0.72rem;
-  --nwo-title-fs: 0.82rem;
-  --nwo-pill-fs: 0.72rem;
-  --nwo-action-fs: 0.9rem;
+  --nwo-display-num-fs: 1.35rem;
+  --nwo-display-sub-fs: 0.92rem;
+  --nwo-title-fs: 1rem;
+  --nwo-pill-fs: 0.88rem;
+  --nwo-action-fs: 1.05rem;
+  --nwo-note-h: 72px;
   position: fixed;
   left: 0;
   right: 0;
@@ -73,8 +74,8 @@
 }
 
 .nwo__close {
-  width: 32px;
-  height: 32px;
+  width: 36px;
+  height: 36px;
   border-radius: 50%;
   display: flex;
   align-items: center;
@@ -104,8 +105,8 @@
   overscroll-behavior: contain;
   display: flex;
   flex-direction: column;
-  gap: 4px;
-  padding: 0 6px 2px;
+  gap: 12px;
+  padding: 4px 8px 6px;
   max-width: 100%;
   width: 100%;
   margin: 0 auto;
@@ -113,10 +114,12 @@
 }
 
 .nwo__upper {
-  flex-shrink: 0;
+  flex: 1 1 auto;
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 12px;
+  justify-content: space-evenly;
+  min-height: 0;
 }
 
 .nwo__sec {
@@ -126,7 +129,7 @@
   letter-spacing: 0.1em;
   text-transform: uppercase;
   color: var(--text-label);
-  margin: 0 0 6px;
+  margin: 0 0 8px;
 }
 
 .nwo__sec--inline {
@@ -137,7 +140,7 @@
 .nwo__types-scroll {
   display: flex;
   flex-wrap: wrap;
-  gap: 6px;
+  gap: 8px;
   align-content: flex-start;
   flex-shrink: 0;
   padding-bottom: 2px;
@@ -178,12 +181,11 @@
 .nwo__mid {
   display: flex;
   flex-direction: column;
-  flex: 0 0 auto;
+  flex: 1 1 auto;
   min-height: 0;
-  gap: 8px;
-  justify-content: flex-start;
+  gap: 14px;
+  justify-content: space-evenly;
   align-items: stretch;
-  flex-shrink: 0;
 }
 
 .nwo__dur {
@@ -195,9 +197,9 @@
   display: flex;
   align-items: center;
   flex-wrap: nowrap;
-  gap: 4px;
-  min-height: 1.35rem;
-  margin-bottom: 4px;
+  gap: 6px;
+  min-height: 1.6rem;
+  margin-bottom: 6px;
 }
 
 .nwo__big-min {
@@ -214,14 +216,14 @@
 .nwo__presets-row {
   display: flex;
   flex-direction: column;
-  gap: 6px;
-  margin-bottom: 4px;
+  gap: 8px;
+  margin-bottom: 2px;
 }
 
 .nwo__presets {
   display: flex;
   flex-wrap: wrap;
-  gap: 4px 6px;
+  gap: 6px 8px;
   justify-content: flex-start;
 }
 
@@ -239,10 +241,10 @@
 }
 
 .nwo__min-custom-input {
-  width: 4.75rem;
+  width: 5.25rem;
   min-width: 0;
   box-sizing: border-box;
-  padding: 4px 6px;
+  padding: 6px 8px;
   border-radius: 8px;
   border: 1px solid var(--border-subtle, #2a2a36);
   background: var(--nwo-chip-bg);
@@ -298,7 +300,7 @@
 
 .nwo__intensity-row {
   display: flex;
-  gap: 6px;
+  gap: 8px;
   align-items: stretch;
 }
 
@@ -381,9 +383,9 @@
   color: var(--text, #e8e8f0);
   font: 600 var(--nwo-chip-fs) / 1.35 var(--font);
   resize: none;
-  height: 116px;
-  min-height: 116px;
-  max-height: 116px;
+  height: var(--nwo-note-h);
+  min-height: var(--nwo-note-h);
+  max-height: var(--nwo-note-h);
   overflow-wrap: break-word;
   word-wrap: break-word;
 }
@@ -424,7 +426,7 @@
   flex: 0 0 auto;
   flex-shrink: 0;
   margin-top: auto;
-  padding: 4px 10px 2px;
+  padding: 8px 10px 4px;
   max-width: 100%;
   width: 100%;
   margin-left: auto;
@@ -436,7 +438,7 @@
 
 .nwo__save {
   width: 100%;
-  padding: 8px 16px;
+  padding: 12px 16px;
   border-radius: 10px;
   border: 1px solid rgba(255, 90, 31, 0.45);
   background: linear-gradient(180deg, #ff6a35, #e54a15);
@@ -483,7 +485,7 @@
   border: 1px solid rgba(255, 90, 31, 0.45);
   background: linear-gradient(180deg, #ff6a35, #e54a15);
   color: #fff;
-  font: 700 0.95rem / 1.2 var(--font);
+  font: 700 var(--nwo-action-fs) / 1.2 var(--font);
   letter-spacing: 0.04em;
   text-transform: uppercase;
   box-shadow: 0 3px 12px rgba(255, 90, 31, 0.22);
@@ -519,7 +521,7 @@
 .nwo__other-input {
   width: 100%;
   box-sizing: border-box;
-  padding: 6px 10px;
+  padding: 8px 10px;
   border-radius: var(--radius-sm);
   border: 1px solid var(--border-subtle, #2a2a36);
   background: var(--nwo-chip-bg);

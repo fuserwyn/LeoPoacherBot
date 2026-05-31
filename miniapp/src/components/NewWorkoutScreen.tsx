@@ -251,7 +251,7 @@ export function NewWorkoutScreen({ onClose, onSave, showAlert }: Props) {
             ref={noteTaRef}
             className="nwo__note"
             value={note}
-            rows={6}
+            rows={3}
             onChange={(e) => setNote(e.target.value.slice(0, NOTE_MAX))}
             maxLength={NOTE_MAX}
             placeholder="Жим, тяга, пресс…"

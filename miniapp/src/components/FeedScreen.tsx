@@ -130,6 +130,7 @@ export function FeedScreen({
   const [feedCategoryIds, setFeedCategoryIds] = useState<WorkoutCategoryId[]>([]);
   const [viewportStyle, setViewportStyle] = useState<FeedViewportStyle>({});
   const feedHeaderRef = useRef<HTMLDivElement>(null);
+  const filterCatsRef = useRef<HTMLDivElement>(null);
   const maxFeedIdRef = useRef(0);
   const loadedOnceRef = useRef(false);
   /** Идёт полный синк — чтобы не плодить дубли (двойной fetch на маунте, наложение поллинга и пост-экшн-синков). */
@@ -646,6 +647,55 @@ export function FeedScreen({
     };
   }, [sub, feedCategoryIds.length, feedOnlyMine]);
 
+  // Барабан фильтров: горизонтальный жест не должен «утекать» в вертикальный скролл ленты
+  // и в document-level pull-to-refresh (особенно когда scrollY === 0).
+  useEffect(() => {
+    const el = filterCatsRef.current;
+    if (!el || sub !== "activity") return;
+
+    let originX = 0;
+    let originY = 0;
+    let lockedHorizontal: boolean | null = null;
+
+    const clearLock = () => {
+      lockedHorizontal = null;
+    };
+
+    const onTouchStart = (e: TouchEvent) => {
+      const t = e.touches[0];
+      if (!t) return;
+      originX = t.clientX;
+      originY = t.clientY;
+      lockedHorizontal = null;
+    };
+
+    const onTouchMove = (e: TouchEvent) => {
+      const t = e.touches[0];
+      if (!t) return;
+      const dx = t.clientX - originX;
+      const dy = t.clientY - originY;
+      if (lockedHorizontal === null) {
+        if (Math.abs(dx) < 6 && Math.abs(dy) < 6) return;
+        lockedHorizontal = Math.abs(dx) >= Math.abs(dy);
+      }
+      if (lockedHorizontal) {
+        if (e.cancelable) e.preventDefault();
+        e.stopPropagation();
+      }
+    };
+
+    el.addEventListener("touchstart", onTouchStart, { passive: true });
+    el.addEventListener("touchmove", onTouchMove, { passive: false });
+    el.addEventListener("touchend", clearLock, { passive: true });
+    el.addEventListener("touchcancel", clearLock, { passive: true });
+    return () => {
+      el.removeEventListener("touchstart", onTouchStart);
+      el.removeEventListener("touchmove", onTouchMove);
+      el.removeEventListener("touchend", clearLock);
+      el.removeEventListener("touchcancel", clearLock);
+    };
+  }, [sub]);
+
   useEffect(() => {
     let raf = 0;
 
@@ -772,8 +822,13 @@ export function FeedScreen({
           </button>
         </div>
         {sub === "activity" && (
-          <div className="feed__filters" aria-label="Фильтры ленты">
-            <div className="feed__filter-cats" role="group" aria-label="Тип тренировки">
+          <div className="feed__filters" aria-label="Фильтры ленты" data-no-ptr>
+            <div
+              className="feed__filter-cats"
+              ref={filterCatsRef}
+              role="group"
+              aria-label="Тип тренировки"
+            >
               <button
                 type="button"
                 className={`feed__filter-chip${feedCategoryIds.length === 0 ? " is-active" : ""}`}
