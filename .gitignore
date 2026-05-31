@@ -75,4 +75,8 @@ postgres_data/
 ms_payments/.venv/
 ms_payments/.pytest_cache/
 __pycache__/
-*.py[cod] 
+*.py[cod]
+
+# Migration SQL with embedded legacy user IDs (local only)
+ms_leo/scripts/recalc_legacy_pack_users.sql
+ms_leo/scripts/sync_pack_users_from_legacy_csv.sql

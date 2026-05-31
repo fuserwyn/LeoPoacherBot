@@ -51,6 +51,9 @@ func (b *Bot) showAdminMenuForUser(chatID int64) {
 		tgbotapi.NewInlineKeyboardRow(
 			tgbotapi.NewInlineKeyboardButtonData("📊 Посещения бота", "admin_visit_stats"),
 		),
+		tgbotapi.NewInlineKeyboardRow(
+			tgbotapi.NewInlineKeyboardButtonData("🗑 Очистить ленту и чат", "admin_wipe_pack_prompt"),
+		),
 	}
 	rows = append(rows, tgbotapi.NewInlineKeyboardRow(
 		tgbotapi.NewInlineKeyboardButtonData("❎ Отмена", "admin_cancel"),
@@ -150,6 +153,10 @@ func (b *Bot) handleAdminCallbackQuery(callback *tgbotapi.CallbackQuery) {
 	case "admin_mode_poll":
 		b.startAdminFlow(callback.From.ID, "poll")
 		b.api.Send(tgbotapi.NewMessage(callback.Message.Chat.ID, "🗳 Напиши вопрос для опроса в ленте miniapp."))
+	case "admin_wipe_pack_prompt":
+		b.showAdminWipePackPrompt(callback.Message.Chat.ID)
+	case "admin_wipe_pack_yes":
+		b.executeAdminWipePack(callback.Message.Chat.ID)
 	case "admin_cancel":
 		b.clearAdminFlow(callback.From.ID)
 		b.api.Send(tgbotapi.NewMessage(callback.Message.Chat.ID, "❎ Действие отменено."))

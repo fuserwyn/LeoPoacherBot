@@ -751,3 +751,124 @@ func (d *Database) AdminDeleteAllPackGroupMessagesByUser(packChatID, userID int6
 	}
 	return n, nil
 }
+
+// AdminPackWipeCounts — сколько записей будет/было удалено при полной очистке ленты и чата стаи.
+type AdminPackWipeCounts struct {
+	FeedPosts        int64
+	FeedThreads      int64
+	FeedReports      int64
+	PackChatMessages int64
+}
+
+func (d *Database) countPackWipeTargets(tx *sql.Tx, packChatID int64) (AdminPackWipeCounts, error) {
+	var out AdminPackWipeCounts
+	if packChatID == 0 {
+		return out, nil
+	}
+	count := func(query string, dest *int64) error {
+		return tx.QueryRow(query, packChatID).Scan(dest)
+	}
+	if err := count(`SELECT COUNT(*) FROM user_messages WHERE chat_id = $1`, &out.FeedPosts); err != nil {
+		return out, err
+	}
+	if err := count(`SELECT COUNT(*) FROM miniapp_training_feed_thread WHERE pack_chat_id = $1`, &out.FeedThreads); err != nil {
+		return out, err
+	}
+	if err := count(`SELECT COUNT(*) FROM miniapp_feed_reports WHERE pack_chat_id = $1`, &out.FeedReports); err != nil {
+		return out, err
+	}
+	if err := count(`SELECT COUNT(*) FROM miniapp_pack_group_chat WHERE pack_chat_id = $1`, &out.PackChatMessages); err != nil {
+		return out, err
+	}
+	return out, nil
+}
+
+// AdminCountPackFeedAndChat — превью перед очисткой ленты и общего чата стаи.
+func (d *Database) AdminCountPackFeedAndChat(packChatID int64) (AdminPackWipeCounts, error) {
+	if d == nil || packChatID == 0 {
+		return AdminPackWipeCounts{}, nil
+	}
+	tx, err := d.db.Begin()
+	if err != nil {
+		return AdminPackWipeCounts{}, err
+	}
+	defer func() { _ = tx.Rollback() }()
+	out, err := d.countPackWipeTargets(tx, packChatID)
+	if err != nil {
+		return AdminPackWipeCounts{}, err
+	}
+	return out, nil
+}
+
+// AdminClearPackFeedAndChat — удаляет все посты ленты, треды, реакции, жалобы и общий чат стаи.
+// training_state / профили / paywall не трогает.
+func (d *Database) AdminClearPackFeedAndChat(packChatID int64) (AdminPackWipeCounts, error) {
+	if d == nil || packChatID == 0 {
+		return AdminPackWipeCounts{}, nil
+	}
+	tx, err := d.db.Begin()
+	if err != nil {
+		return AdminPackWipeCounts{}, err
+	}
+	defer func() { _ = tx.Rollback() }()
+
+	before, err := d.countPackWipeTargets(tx, packChatID)
+	if err != nil {
+		return AdminPackWipeCounts{}, err
+	}
+
+	exec := func(query string, args ...any) error {
+		_, err := tx.Exec(query, args...)
+		return err
+	}
+
+	if err := exec(`
+		DELETE FROM miniapp_training_thread_unread
+		WHERE thread_reply_id IN (
+			SELECT id FROM miniapp_training_feed_thread WHERE pack_chat_id = $1
+		)`, packChatID); err != nil {
+		return AdminPackWipeCounts{}, fmt.Errorf("del thread unread: %w", err)
+	}
+	if err := exec(`
+		DELETE FROM miniapp_training_feed_thread_likes
+		WHERE thread_reply_id IN (
+			SELECT id FROM miniapp_training_feed_thread WHERE pack_chat_id = $1
+		)`, packChatID); err != nil {
+		return AdminPackWipeCounts{}, fmt.Errorf("del thread likes: %w", err)
+	}
+	if err := exec(`DELETE FROM miniapp_training_feed_thread WHERE pack_chat_id = $1`, packChatID); err != nil {
+		return AdminPackWipeCounts{}, fmt.Errorf("del threads: %w", err)
+	}
+	if err := exec(`DELETE FROM miniapp_training_feed_reactions WHERE pack_chat_id = $1`, packChatID); err != nil {
+		return AdminPackWipeCounts{}, fmt.Errorf("del feed reactions: %w", err)
+	}
+	if err := exec(`
+		DELETE FROM miniapp_feed_poll_votes
+		WHERE user_message_id IN (SELECT id FROM user_messages WHERE chat_id = $1)
+	`, packChatID); err != nil {
+		return AdminPackWipeCounts{}, fmt.Errorf("del poll votes: %w", err)
+	}
+	if err := exec(`DELETE FROM miniapp_feed_reports WHERE pack_chat_id = $1`, packChatID); err != nil {
+		return AdminPackWipeCounts{}, fmt.Errorf("del feed reports: %w", err)
+	}
+	if err := exec(`DELETE FROM user_messages WHERE chat_id = $1`, packChatID); err != nil {
+		return AdminPackWipeCounts{}, fmt.Errorf("del user_messages: %w", err)
+	}
+	if err := exec(`
+		DELETE FROM miniapp_pack_group_unread
+		WHERE pack_message_id IN (SELECT id FROM miniapp_pack_group_chat WHERE pack_chat_id = $1)
+	`, packChatID); err != nil {
+		return AdminPackWipeCounts{}, fmt.Errorf("del pack unread: %w", err)
+	}
+	if err := exec(`DELETE FROM miniapp_pack_group_reactions WHERE pack_chat_id = $1`, packChatID); err != nil {
+		return AdminPackWipeCounts{}, fmt.Errorf("del pack reactions: %w", err)
+	}
+	if err := exec(`DELETE FROM miniapp_pack_group_chat WHERE pack_chat_id = $1`, packChatID); err != nil {
+		return AdminPackWipeCounts{}, fmt.Errorf("del pack chat: %w", err)
+	}
+
+	if err := tx.Commit(); err != nil {
+		return AdminPackWipeCounts{}, err
+	}
+	return before, nil
+}
