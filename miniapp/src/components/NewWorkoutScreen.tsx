@@ -136,7 +136,11 @@ export function NewWorkoutScreen({ onClose, onSave, showAlert }: Props) {
   }, []);
   const bodyRef = useRef<HTMLDivElement>(null);
   const noteTaRef = useRef<HTMLTextAreaElement>(null);
+  const otherInputRef = useRef<HTMLInputElement>(null);
   const noteFocusedRef = useRef(false);
+  // Какое поле сейчас в фокусе — чтобы подматывать над клавиатурой именно его
+  // (и «Что сделал», и «Свой тип»), а не только текстовую заметку.
+  const activeFieldRef = useRef<HTMLElement | null>(null);
   const [inputFocused, setInputFocused] = useState(false);
   const keyboardOpen = keyboardBottom > 0;
   const showKeyboardBar = inputFocused;
@@ -151,24 +155,34 @@ export function NewWorkoutScreen({ onClose, onSave, showAlert }: Props) {
   const [photo, setPhoto] = useState<File | null>(null);
   const [pendingCrop, setPendingCrop] = useState<File | null>(null);
 
-  /** Только если низ textarea ушёл под низ скролла — чуть увеличить scrollTop. Без scrollIntoView(start): иначе прыжок к началу формы. */
-  const nudgeTextareaIntoView = useCallback(() => {
-    const ta = noteTaRef.current;
+  /** Только если низ поля ушёл под низ скролла — чуть увеличить scrollTop. Без scrollIntoView(start): иначе прыжок к началу формы. */
+  const nudgeIntoView = useCallback((el: HTMLElement | null) => {
     const body = bodyRef.current;
-    if (!ta || !body) return;
+    if (!el || !body) return;
     const bodyRect = body.getBoundingClientRect();
-    const taRect = ta.getBoundingClientRect();
+    const elRect = el.getBoundingClientRect();
     const pad = 10;
-    if (taRect.bottom > bodyRect.bottom - pad) {
-      body.scrollTop += taRect.bottom - (bodyRect.bottom - pad);
+    if (elRect.bottom > bodyRect.bottom - pad) {
+      body.scrollTop += elRect.bottom - (bodyRect.bottom - pad);
     }
   }, []);
+  const nudgeActiveIntoView = useCallback(() => nudgeIntoView(activeFieldRef.current), [nudgeIntoView]);
 
   useEffect(() => {
-    if (!noteFocusedRef.current) return;
-    const t = window.setTimeout(nudgeTextareaIntoView, 120);
+    if (!activeFieldRef.current) return;
+    const t = window.setTimeout(nudgeActiveIntoView, 120);
     return () => window.clearTimeout(t);
-  }, [visualH, nudgeTextareaIntoView]);
+  }, [visualH, nudgeActiveIntoView]);
+
+  // При выборе «Другое» сразу ставим фокус в поле своего типа и подматываем его
+  // над клавиатурой — иначе оно появляется под клавиатурой и не видно, куда вводить.
+  useEffect(() => {
+    if (type !== "other") return;
+    const el = otherInputRef.current;
+    if (!el) return;
+    el.focus({ preventScroll: true });
+    window.setTimeout(nudgeActiveIntoView, 180);
+  }, [type, nudgeActiveIntoView]);
 
   const handleSubmit = useCallback(async () => {
     if (busy) return;
@@ -199,11 +213,11 @@ export function NewWorkoutScreen({ onClose, onSave, showAlert }: Props) {
   useEffect(() => {
     let raf = 0;
     const onVV = () => {
-      if (!noteFocusedRef.current) return;
+      if (!activeFieldRef.current) return;
       if (raf) cancelAnimationFrame(raf);
       raf = requestAnimationFrame(() => {
         raf = 0;
-        nudgeTextareaIntoView();
+        nudgeActiveIntoView();
       });
     };
     const vv = window.visualViewport;
@@ -218,7 +232,7 @@ export function NewWorkoutScreen({ onClose, onSave, showAlert }: Props) {
       const tgOff = window.Telegram?.WebApp as { offEvent?: (e: string, fn: () => void) => void } | undefined;
       tgOff?.offEvent?.("viewportChanged", onVV);
     };
-  }, [nudgeTextareaIntoView]);
+  }, [nudgeActiveIntoView]);
 
   const applyMinutes = useCallback((n: number) => {
     const m = clampWorkoutMinutes(n);
@@ -260,11 +274,13 @@ export function NewWorkoutScreen({ onClose, onSave, showAlert }: Props) {
             spellCheck
             onFocus={() => {
               noteFocusedRef.current = true;
+              activeFieldRef.current = noteTaRef.current;
               setInputFocused(true);
-              window.setTimeout(nudgeTextareaIntoView, 180);
+              window.setTimeout(nudgeActiveIntoView, 180);
             }}
             onBlur={() => {
               noteFocusedRef.current = false;
+              if (activeFieldRef.current === noteTaRef.current) activeFieldRef.current = null;
               window.setTimeout(() => {
                 if (!document.activeElement?.closest(".nwo")) setInputFocused(false);
               }, 80);
@@ -303,6 +319,7 @@ export function NewWorkoutScreen({ onClose, onSave, showAlert }: Props) {
               </label>
               <input
                 id="nwo-other-type"
+                ref={otherInputRef}
                 className="nwo__other-input"
                 type="text"
                 value={otherLabel}
@@ -311,8 +328,13 @@ export function NewWorkoutScreen({ onClose, onSave, showAlert }: Props) {
                 placeholder="Пилатес, скалолазанье…"
                 autoComplete="off"
                 enterKeyHint="done"
-                onFocus={() => setInputFocused(true)}
+                onFocus={() => {
+                  activeFieldRef.current = otherInputRef.current;
+                  setInputFocused(true);
+                  window.setTimeout(nudgeActiveIntoView, 180);
+                }}
                 onBlur={() => {
+                  if (activeFieldRef.current === otherInputRef.current) activeFieldRef.current = null;
                   window.setTimeout(() => {
                     if (!document.activeElement?.closest(".nwo")) setInputFocused(false);
                   }, 80);
