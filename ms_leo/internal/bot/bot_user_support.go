@@ -29,6 +29,11 @@ func (b *Bot) isAdminTelegramUser(userID int64) bool {
 	return ok
 }
 
+// IsMiniappViewerAdmin — экспорт для miniapp API (владелец, ADMIN_IDS, динамические админы).
+func (b *Bot) IsMiniappViewerAdmin(userID int64) bool {
+	return b.isAdminTelegramUser(userID)
+}
+
 // reloadDynamicAdmins — перезагружает кэш динамических администраторов из БД.
 func (b *Bot) reloadDynamicAdmins() {
 	if b == nil || b.db == nil {

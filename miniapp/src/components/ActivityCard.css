@@ -126,6 +126,10 @@
   background: rgba(255, 255, 255, 0.06);
 }
 
+.act-card__menu-item--danger {
+  color: #f87171;
+}
+
 .act-card__avatar {
   width: 34px;
   height: 34px;

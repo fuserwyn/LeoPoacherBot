@@ -67,6 +67,7 @@ export function App() {
   const [daysSinceLastTraining, setDaysSinceLastTraining] = useState<number>(-1);
   const [lastTrainingDate, setLastTrainingDate] = useState("");
   const [accessGateStatus, setAccessGateStatus] = useState<AccessGateStatus>("checking");
+  const [isAdmin, setIsAdmin] = useState(false);
   const tzSyncedRef = useRef(false);
 
   const refreshAccessStatus = useCallback(async () => {
@@ -122,8 +123,10 @@ export function App() {
         timezone_offset?: number;
         days_since_last_training?: number;
         last_training_date?: string;
+        is_admin?: boolean;
       };
       if (!res.ok || !j.ok) return;
+      setIsAdmin(Boolean(j.is_admin));
       setProfileDisplayName((j.display_name ?? "").trim());
       setDaysSinceLastTraining(typeof j.days_since_last_training === "number" ? j.days_since_last_training : -1);
       setLastTrainingDate(typeof j.last_training_date === "string" ? j.last_training_date.trim() : "");
@@ -229,6 +232,7 @@ export function App() {
             }}
             onRefreshTabBadges={refreshTabBadges}
             onPackGroupChatOpened={clearPackGroupBadge}
+            isAdmin={isAdmin}
           />
         </TabKeepAlive>
         <TabKeepAlive active={tab === "chat"} hidden={!tabsVisible}>

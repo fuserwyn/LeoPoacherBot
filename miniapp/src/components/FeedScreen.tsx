@@ -67,6 +67,8 @@ type Props = {
   onFeedThreadRead?: () => void;
   /** Непрочитанные ответы в общем чате (бейдж подвкладки). */
   packGroupUnreadCount?: number;
+  /** Админ может удалять любой пост ленты. */
+  isAdmin?: boolean;
 };
 
 type Sub = "activity" | "room";
@@ -108,6 +110,7 @@ export function FeedScreen({
   feedThreadUnreadCount = 0,
   onFeedThreadRead,
   packGroupUnreadCount = 0,
+  isAdmin = false,
 }: Props) {
   const [sub, setSub] = useState<Sub>("activity");
   const [unreadFeedCardIds, setUnreadFeedCardIds] = useState<Set<number>>(() => new Set());
@@ -120,6 +123,7 @@ export function FeedScreen({
   const [threadPosting, setThreadPosting] = useState<Record<number, boolean>>({});
   const [threadReplyDeleting, setThreadReplyDeleting] = useState<Record<number, boolean>>({});
   const [feedReportPosting, setFeedReportPosting] = useState<Record<number, boolean>>({});
+  const [feedDeletePosting, setFeedDeletePosting] = useState<Record<number, boolean>>({});
   const [threadReplyReporting, setThreadReplyReporting] = useState<Record<number, boolean>>({});
   /** Ответ на конкретное сообщение треда (reply_to_id) — ключ id отчёта user_messages. */
   const [threadReplyTargets, setThreadReplyTargets] = useState<
@@ -490,6 +494,43 @@ export function FeedScreen({
       }
     },
     [apiBase, initData, syncFeed, showAlert],
+  );
+
+  const deleteFeedPost = useCallback(
+    async (userMessageId: number) => {
+      if (!apiBase || !initData || !isAdmin) return;
+      setFeedDeletePosting((p) => ({ ...p, [userMessageId]: true }));
+      try {
+        const res = await fetch(`${apiBase}/api/miniapp/feed/delete`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ init_data: initData, user_message_id: userMessageId }),
+        });
+        const j = (await res.json().catch(() => ({}))) as { error?: string };
+        if (!res.ok) {
+          const errMap: Record<string, string> = {
+            not_found: "Пост не найден или уже удалён",
+            forbidden: "Нет прав на удаление",
+            chat_mismatch: "Открой мини-апп из чата стаи",
+            feed_delete_error: "Не удалось удалить",
+          };
+          showAlert(errMap[j.error ?? ""] ?? j.error ?? `Ошибка ${res.status}`);
+          return;
+        }
+        setFeedItems((prev) => prev.filter((it) => it.id !== userMessageId));
+        setUnreadFeedCardIds((prev) => {
+          if (!prev.has(userMessageId)) return prev;
+          const next = new Set(prev);
+          next.delete(userMessageId);
+          return next;
+        });
+      } catch (e) {
+        showAlert(e instanceof Error ? e.message : "Сеть");
+      } finally {
+        setFeedDeletePosting((p) => ({ ...p, [userMessageId]: false }));
+      }
+    },
+    [apiBase, initData, isAdmin, showAlert],
   );
 
   const reportFeedContent = useCallback(
@@ -956,6 +997,7 @@ export function FeedScreen({
                   };
                 });
                 const canReportCard = !it.is_you && !isLeoSystemFeed;
+                const canAdminDeleteCard = isAdmin;
                 if (!supportsThread) {
                   return (
                     <div key={it.id} className={slotClass}>
@@ -967,6 +1009,8 @@ export function FeedScreen({
                         }
                         onReport={canReportCard ? () => void reportFeedContent(it.id) : undefined}
                         reportPosting={feedReportPosting[it.id] ?? false}
+                        onAdminDelete={canAdminDeleteCard ? () => void deleteFeedPost(it.id) : undefined}
+                        adminDeletePosting={feedDeletePosting[it.id] ?? false}
                         poll={
                           it.poll
                             ? {
@@ -1032,6 +1076,8 @@ export function FeedScreen({
                       }}
                       onReport={canReportCard ? () => void reportFeedContent(it.id) : undefined}
                       reportPosting={feedReportPosting[it.id] ?? false}
+                      onAdminDelete={canAdminDeleteCard ? () => void deleteFeedPost(it.id) : undefined}
+                      adminDeletePosting={feedDeletePosting[it.id] ?? false}
                       onThreadReplyReport={(replyId) => void reportFeedContent(it.id, replyId)}
                       threadReplyReporting={threadReplyReporting}
                     />

@@ -89,6 +89,9 @@ export const SICK_LEAVE_FEED_EMOJIS = ["😢", "😔", "🥺", "🤒", "🫂", "
 /** Совпадает с ms_leo healthyAllowedEmojis. */
 export const HEALTHY_FEED_EMOJIS = ["🎉", "🥳", "😄", "💚", "❤️", "👏", "🙌", "✨", "🌟", "💪"] as const;
 
+/** Совпадает с ms_leo packJoinAllowedEmojis — только посты вступления/возвращения. */
+export const PACK_JOIN_FEED_EMOJIS = ["👋", "🎉", "❤️", "👏", "🙌"] as const;
+
 export type PackFeedReactionDTO = { emoji: string; count: number; me: boolean; voters?: string[] };
 
 export type PackFeedPollOptionDTO = {
@@ -151,8 +154,11 @@ export function mergeFeedReactionsForType(
   type: string,
   fromServer?: PackFeedReactionDTO[],
 ): { emoji: string; count: number; me: boolean; voters?: string[] }[] {
-  if (type === "training_done" || type === "pack_join" || type === "pack_rejoin" || type === "daily_wisdom") {
+  if (type === "training_done" || type === "daily_wisdom") {
     return mergeTrainingFeedReactions(fromServer);
+  }
+  if (type === "pack_join" || type === "pack_rejoin") {
+    return mergePackFeedReactions(PACK_JOIN_FEED_EMOJIS, fromServer);
   }
   if (type === "sick_leave") return mergePackFeedReactions(SICK_LEAVE_FEED_EMOJIS, fromServer);
   if (type === "healthy" || type === "admin_post" || type === "admin_poll") {

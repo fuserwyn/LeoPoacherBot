@@ -1,4 +1,4 @@
-import { useRef, useState, useEffect, useLayoutEffect, useCallback } from "react";
+import { useRef, useState, useEffect, useLayoutEffect, useCallback, useMemo } from "react";
 import { LEO_AVATAR_URL } from "../lib/leoAvatar";
 import { streakStreakAriaLabel } from "../lib/streakLabel";
 import "./ActivityCard.css";
@@ -172,13 +172,11 @@ export function TrainingReactionsBar({
 }
 
 export function ReportActionMenu({
-  menuItemLabel,
-  onReport,
+  items,
   posting = false,
   className = "",
 }: {
-  menuItemLabel: string;
-  onReport: () => void;
+  items: { label: string; onClick: () => void; danger?: boolean }[];
   posting?: boolean;
   className?: string;
 }) {
@@ -205,6 +203,8 @@ export function ReportActionMenu({
     };
   }, [open]);
 
+  if (items.length === 0) return null;
+
   return (
     <div className={`act-card__menu${className ? ` ${className}` : ""}`} ref={wrapRef}>
       <button
@@ -220,17 +220,20 @@ export function ReportActionMenu({
       </button>
       {open && !posting && (
         <div className="act-card__menu-popover" role="menu">
-          <button
-            type="button"
-            className="act-card__menu-item"
-            role="menuitem"
-            onClick={() => {
-              setOpen(false);
-              onReport();
-            }}
-          >
-            {menuItemLabel}
-          </button>
+          {items.map((item) => (
+            <button
+              key={item.label}
+              type="button"
+              className={`act-card__menu-item${item.danger ? " act-card__menu-item--danger" : ""}`}
+              role="menuitem"
+              onClick={() => {
+                setOpen(false);
+                item.onClick();
+              }}
+            >
+              {item.label}
+            </button>
+          ))}
         </div>
       )}
     </div>
@@ -277,6 +280,9 @@ export type ActivityCardProps = {
   /** Пожаловаться на пост (не свой). */
   onReport?: () => void;
   reportPosting?: boolean;
+  /** Удалить пост (админ). */
+  onAdminDelete?: () => void;
+  adminDeletePosting?: boolean;
   /** Пожаловаться на комментарий в треде. */
   onThreadReplyReport?: (threadReplyId: number) => void;
   threadReplyReporting?: Record<number, boolean>;
@@ -312,6 +318,8 @@ export function ActivityCard({
   trainingPhotoUrl,
   onReport,
   reportPosting = false,
+  onAdminDelete,
+  adminDeletePosting = false,
   onThreadReplyReport,
   threadReplyReporting = {},
   hasUnreadThread = false,
@@ -404,6 +412,17 @@ export function ActivityCard({
   const hasThread = threadReplies.length > 0 || threadComposer != null;
   const threadCount = threadReplies.length;
   const showStreak = !hideStreak && name.trim() !== "Админ";
+  const cardHeadMenuItems = useMemo(() => {
+    const items: { label: string; onClick: () => void; danger?: boolean }[] = [];
+    if (onAdminDelete) {
+      items.push({ label: "Удалить пост", onClick: onAdminDelete, danger: true });
+    }
+    if (onReport) {
+      items.push({ label: "Пожаловаться на публикацию", onClick: onReport });
+    }
+    return items;
+  }, [onAdminDelete, onReport]);
+  const cardHeadMenuPosting = reportPosting || adminDeletePosting;
   return (
     <article
       className={`act-card${hideStreak ? " act-card--leo" : ""}${lightTone ? " act-card--light" : ""}${threadOpen && hasThread ? " act-card--thread-open" : ""}${trainingPhotoUrl ? " act-card--has-photo" : ""}`}
@@ -434,12 +453,11 @@ export function ActivityCard({
             )}
           </div>
         </div>
-        {onReport != null && (
+        {cardHeadMenuItems.length > 0 && (
           <ReportActionMenu
             className="act-card__menu--head"
-            menuItemLabel="Пожаловаться на публикацию"
-            onReport={onReport}
-            posting={reportPosting}
+            items={cardHeadMenuItems}
+            posting={cardHeadMenuPosting}
           />
         )}
       </header>
@@ -562,8 +580,12 @@ export function ActivityCard({
                                     {!tr.isYou && !leo && onThreadReplyReport != null && (
                                       <ReportActionMenu
                                         className="act-card__menu--thread"
-                                        menuItemLabel="Пожаловаться на комментарий"
-                                        onReport={() => onThreadReplyReport(tr.id)}
+                                        items={[
+                                          {
+                                            label: "Пожаловаться на комментарий",
+                                            onClick: () => onThreadReplyReport(tr.id),
+                                          },
+                                        ]}
                                         posting={Boolean(threadReplyReporting[tr.id])}
                                       />
                                     )}

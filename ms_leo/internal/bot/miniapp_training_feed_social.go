@@ -20,6 +20,7 @@ var trainingFeedAllowedEmojis = []string{
 }
 var sickLeaveAllowedEmojis = []string{"😢", "😔", "🥺", "🤒", "🫂", "🙏", "❤️", "💙", "🌧️", "💤"}
 var healthyAllowedEmojis = []string{"🎉", "🥳", "😄", "💚", "❤️", "👏", "🙌", "✨", "🌟", "💪"}
+var packJoinAllowedEmojis = []string{"👋", "🎉", "❤️", "👏", "🙌"}
 
 var (
 	// ErrTrainingFeedSocialForbidden — нет доступа к ленте.
@@ -72,8 +73,10 @@ func allowedEmojiForType(messageType, emoji string) (string, bool) {
 	emoji = strings.TrimSpace(emoji)
 	var allowed []string
 	switch messageType {
-	case "training_done", userMessageTypePackJoin, userMessageTypePackRejoin, userMessageTypeDailyWisdom:
+	case "training_done", userMessageTypeDailyWisdom:
 		allowed = trainingFeedAllowedEmojis
+	case userMessageTypePackJoin, userMessageTypePackRejoin:
+		allowed = packJoinAllowedEmojis
 	case "sick_leave":
 		allowed = sickLeaveAllowedEmojis
 	case "healthy", userMessageTypeAdminPost, userMessageTypeAdminPoll:
@@ -504,8 +507,10 @@ func (b *Bot) PackFeedThreadRepliesForViewer(viewerUserID, userMessageID int64) 
 
 func allowedEmojiListForFeedType(messageType string) []string {
 	switch messageType {
-	case "training_done", userMessageTypePackJoin, userMessageTypePackRejoin, userMessageTypeDailyWisdom:
+	case "training_done", userMessageTypeDailyWisdom:
 		return trainingFeedAllowedEmojis
+	case userMessageTypePackJoin, userMessageTypePackRejoin:
+		return packJoinAllowedEmojis
 	case "sick_leave":
 		return sickLeaveAllowedEmojis
 	case "healthy", userMessageTypeAdminPost, userMessageTypeAdminPoll:
@@ -573,4 +578,32 @@ func (b *Bot) enrichPackFeedTrainingSocial(items []PackFeedItem, viewerUserID in
 		}
 	}
 	return items
+}
+
+// PackFeedAdminDeletePost — админ удаляет любой пост ленты стаи (user_messages).
+func (b *Bot) PackFeedAdminDeletePost(viewerUserID int64, initD initdata.InitData, userMessageID int64) error {
+	if err := b.AssertMiniAppPackChatAligns(initD); err != nil {
+		return err
+	}
+	if b == nil || b.db == nil {
+		return fmt.Errorf("bot unavailable")
+	}
+	if !b.isAdminTelegramUser(viewerUserID) {
+		return ErrPackFeedForbidden
+	}
+	if userMessageID <= 0 {
+		return ErrTrainingFeedParentNotFound
+	}
+	chatID := b.config.MonetizedChatID
+	if chatID == 0 {
+		return ErrTrainingFeedParentNotFound
+	}
+	ok, err := b.db.AdminDeleteFeedUserMessage(chatID, userMessageID)
+	if err != nil {
+		return err
+	}
+	if !ok {
+		return ErrTrainingFeedParentNotFound
+	}
+	return nil
 }

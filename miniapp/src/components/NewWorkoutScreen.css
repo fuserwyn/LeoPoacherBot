@@ -17,7 +17,7 @@
   --nwo-title-fs: 1rem;
   --nwo-pill-fs: 0.88rem;
   --nwo-action-fs: 1.05rem;
-  --nwo-note-h: 72px;
+  --nwo-note-h: 64px;
   position: fixed;
   left: 0;
   right: 0;
@@ -105,7 +105,7 @@
   overscroll-behavior: contain;
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 10px;
   padding: 4px 8px 6px;
   max-width: 100%;
   width: 100%;
@@ -117,7 +117,7 @@
   flex: 1 1 auto;
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 10px;
   justify-content: space-evenly;
   min-height: 0;
 }
@@ -140,7 +140,7 @@
 .nwo__types-scroll {
   display: flex;
   flex-wrap: wrap;
-  gap: 8px;
+  gap: 6px;
   align-content: flex-start;
   flex-shrink: 0;
   padding-bottom: 2px;
@@ -151,7 +151,9 @@
   display: inline-flex;
   align-items: center;
   gap: 3px;
-  padding: var(--nwo-chip-pad-y) var(--nwo-chip-pad-x);
+  /* Чуть компактнее по вертикали, чтобы 17 типов (с «Пилоном») не добавляли
+     лишний ряд и форма вписывалась в экран без прокрутки. */
+  padding: 5px 9px;
   font: var(--nwo-mi-font);
   border-radius: 999px;
   border: 1px solid var(--border-subtle, #2a2a36);
