@@ -5,7 +5,7 @@ import "time"
 
 const (
 	// EntryRub — стоимость доступа в Fat Leopard MiniApp (руб.).
-	EntryRub = 420
+	EntryRub = 99
 	// ReturnRub — повторный доступ после кика за неактивность (руб.).
 	ReturnRub = 210
 

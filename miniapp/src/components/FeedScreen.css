@@ -179,7 +179,7 @@
   flex-wrap: wrap;
   align-items: center;
   gap: 4px;
-  margin-bottom: 0;
+  margin-bottom: 4px;
 }
 
 .feed__filter-pill {
@@ -209,15 +209,25 @@
   flex-wrap: nowrap;
   gap: 6px;
   overflow-x: auto;
-  margin-bottom: 4px;
+  margin-bottom: 0;
   padding-bottom: 1px;
   -webkit-overflow-scrolling: touch;
-  scrollbar-width: thin;
-  /* Горизонтальный свайп по чипам остаётся горизонтальным и не «цепляет»
-     вертикальный скролл ленты. */
-  touch-action: pan-x;
+  scrollbar-width: none;
+  /* Вертикаль — странице, горизонталь — useHorizontalDragScroll (pan-x + кнопки ломают iOS). */
+  touch-action: pan-y;
   overscroll-behavior-x: contain;
   overscroll-behavior-y: none;
+  cursor: grab;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.feed__filter-cats.is-dragging {
+  cursor: grabbing;
+}
+
+.feed__filter-cats.is-dragging .feed__filter-chip {
+  pointer-events: none;
 }
 
 .feed__filter-chip {
@@ -236,7 +246,6 @@
   cursor: pointer;
   white-space: nowrap;
   min-height: 32px;
-  touch-action: pan-x;
 }
 
 .feed__filter-chip.is-active {

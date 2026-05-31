@@ -338,9 +338,9 @@ func paymentAmountMinorFromEnv(currency string) int {
 			}
 		}
 	}
-	amountMinor, _ := strconv.Atoi(getEnv("PAYMENT_AMOUNT_MINOR_UNITS", "10000"))
+	amountMinor, _ := strconv.Atoi(getEnv("PAYMENT_AMOUNT_MINOR_UNITS", "9900"))
 	if amountMinor <= 0 {
-		return 10000
+		return 9900
 	}
 	return amountMinor
 }

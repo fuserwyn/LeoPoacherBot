@@ -97,10 +97,10 @@ func TestPaymentStarsAddonAmountFromEnv(t *testing.T) {
 func TestPaymentAmountMinorFromEnv_RUB_defaultMinor(t *testing.T) {
 	t.Setenv("PAYMENT_AMOUNT_RUB", "")
 	t.Setenv("PAYMENT_AMOUNT_MINOR_UNITS", "")
-	// getEnv default 10000
+	// getEnv default 9900 (99 ₽)
 	got := paymentAmountMinorFromEnv("RUB")
-	if got != 10000 {
-		t.Fatalf("default minor: got %d want 10000", got)
+	if got != 9900 {
+		t.Fatalf("default minor: got %d want 9900", got)
 	}
 }
 
