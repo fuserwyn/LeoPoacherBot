@@ -235,6 +235,16 @@
   letter-spacing: 0.08em;
   color: var(--text-label);
   margin-bottom: 6px;
+  /* Резервируем под подпись две строки: «Всего тренировок» переносится, а
+     «Дней подряд» / «Рекорд стрика» — нет. Без фикс. высоты карточки
+     получаются разной высоты и ряд выглядит неровным. Центрируем, чтобы
+     однострочные подписи стояли по центру зарезервированной области, а
+     значения снизу легли на одну линию во всех трёх карточках. */
+  line-height: 1.2;
+  min-height: 2.4em;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .stat-card__val {
@@ -321,6 +331,11 @@
   padding-bottom: 4px;
   -webkit-overflow-scrolling: touch;
   scrollbar-width: none;
+  /* Сразу отдаём жест горизонтальной прокрутке: иначе браузер «думает»,
+     вертикальный это свайп или горизонтальный, и первый смах по барабану
+     теряется («залипает»). pan-x убирает эту задержку распознавания. */
+  touch-action: pan-x;
+  overscroll-behavior-x: contain;
 }
 
 .profile__achievements-strip::-webkit-scrollbar {

@@ -42,9 +42,21 @@ export function useTelegramWebApp() {
     requestFullscreenSafe();
     const t1 = isMobile ? window.setTimeout(requestFullscreenSafe, 120) : 0;
     const t2 = isMobile ? window.setTimeout(requestFullscreenSafe, 420) : 0;
+    // initData на части клиентов (особенно iOS) появляется в объекте WebApp не
+    // мгновенно после ready(), а спустя несколько тиков. Если считать его один
+    // раз и он окажется пустым — пустая строка «прилипает» в стейте и навсегда
+    // блокирует все запросы к API (добавление тренировки, бейджи, access-gate)
+    // с ошибкой «нужен initData». Поэтому дочитываем его, пока не появится
+    // непустая строка (или пока не истечёт пара секунд попыток).
+    const syncInitData = () => {
+      const fresh = w.initData ?? "";
+      if (fresh) setInitData(fresh);
+      return Boolean(fresh);
+    };
     const onViewportChanged = () => {
       requestFullscreenSafe();
       if (isMobile) w.expand();
+      syncInitData();
     };
     (w as { onEvent?: (eventType: string, eventHandler: () => void) => void }).onEvent?.(
       "viewportChanged",
@@ -60,7 +72,12 @@ export function useTelegramWebApp() {
     }
     w.setHeaderColor?.("#0d0d12");
     w.setBackgroundColor?.("#0d0d12");
-    setInitData(w.initData ?? "");
+    let initDataTries = 0;
+    const initDataTimer = window.setInterval(() => {
+      initDataTries += 1;
+      if (syncInitData() || initDataTries >= 20) window.clearInterval(initDataTimer);
+    }, 150);
+    syncInitData();
     const u = w.initDataUnsafe?.user;
     if (u) {
       setName(u.first_name || u.username || "друг");
@@ -69,6 +86,7 @@ export function useTelegramWebApp() {
       if (p && typeof p === "string") setPhotoUrl(p);
     }
     return () => {
+      window.clearInterval(initDataTimer);
       window.clearTimeout(t1);
       window.clearTimeout(t2);
       (w as { offEvent?: (eventType: string, eventHandler: () => void) => void }).offEvent?.(

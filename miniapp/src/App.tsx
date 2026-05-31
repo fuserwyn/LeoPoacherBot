@@ -340,6 +340,7 @@ export function App() {
               kettlebell: "гиря",
               strength: "силовая",
               jump_rope: "скакалка",
+              pole: "пилон",
               other: "другое",
             };
             let kind = labels[type] ?? type;

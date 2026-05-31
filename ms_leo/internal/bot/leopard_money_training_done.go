@@ -47,6 +47,8 @@ func trainingCategoryLabelRu(categoryID string) string {
 		return "силовая"
 	case "jump_rope":
 		return "скакалка"
+	case "pole":
+		return "пилон"
 	default:
 		return "другое"
 	}

@@ -15,6 +15,7 @@ export type WorkoutCategoryId =
   | "kettlebell"
   | "strength"
   | "jump_rope"
+  | "pole"
   | "other";
 
 export type WorkoutCategoryOption = { id: WorkoutCategoryId; label: string; emoji: string };
@@ -36,6 +37,7 @@ export const WORKOUT_CATEGORY_OPTIONS: WorkoutCategoryOption[] = [
   { id: "kettlebell", label: "Гиря", emoji: "🏋️" },
   { id: "strength", label: "Силовая", emoji: "🏋️" },
   { id: "jump_rope", label: "Скакалка", emoji: "🪢" },
+  { id: "pole", label: "Пилон", emoji: "🤸" },
   { id: "other", label: "Другое", emoji: "✨" },
 ];
 

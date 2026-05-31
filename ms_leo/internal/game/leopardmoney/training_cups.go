@@ -88,7 +88,7 @@ func ActivityCoeff(categoryID string) float64 {
 		return 0.8
 	case "walk":
 		return 0.8
-	case "rowing", "workout", "strength", "kettlebell", "dance", "other":
+	case "rowing", "workout", "strength", "kettlebell", "dance", "pole", "other":
 		return 1.0
 	case "swim", "bike", "run", "cardio", "jump_rope":
 		return 1.2
@@ -107,24 +107,25 @@ var (
 
 // labelToCategoryID — русские подписи из UI (нижний регистр) → id.
 var labelToCategoryID = map[string]string{
-	"бег":         "run",
-	"ходьба":      "walk",
-	"велосипед":   "bike",
-	"плавание":    "swim",
-	"йога":        "yoga",
-	"гребля":      "rowing",
-	"воркаут":     "workout",
-	"кроссфит":    "crossfit",
-	"растяжка":    "stretch",
-	"танцы":       "dance",
-	"hiit":        "hiit",
-	"кардио":      "cardio",
-	"гиря":        "kettlebell",
-	"силовая":     "strength",
-	"скакалка":    "jump_rope",
-	"другое":      "other",
-	"отжимания":   "other",
-	"отжимание":   "other",
+	"бег":       "run",
+	"ходьба":    "walk",
+	"велосипед": "bike",
+	"плавание":  "swim",
+	"йога":      "yoga",
+	"гребля":    "rowing",
+	"воркаут":   "workout",
+	"кроссфит":  "crossfit",
+	"растяжка":  "stretch",
+	"танцы":     "dance",
+	"hiit":      "hiit",
+	"кардио":    "cardio",
+	"гиря":      "kettlebell",
+	"силовая":   "strength",
+	"скакалка":  "jump_rope",
+	"пилон":     "pole",
+	"другое":    "other",
+	"отжимания": "other",
+	"отжимание": "other",
 }
 
 // IsTrainingReportLine — первая строка похожа на отчёт о тренировке из мини-аппа.
