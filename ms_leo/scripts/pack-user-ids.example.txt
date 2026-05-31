@@ -1,0 +1,10 @@
+# Telegram user_id — по одному на строку (для справки; импорт — scripts/import_pack_users.sql).
+# Опционально второй столбец — отображаемое имя.
+#
+# 123456789
+# 987654321 Стас
+# 555000111 Мария
+#
+# Запуск SQL:
+#   psql "$DATABASE_URL" -f scripts/import_pack_users.sql
+# (список ID правь в секции INSERT INTO _import_users внутри .sql)
