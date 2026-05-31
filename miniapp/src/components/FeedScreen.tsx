@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import { usePullToRefresh } from "../hooks/usePullToRefresh";
-import { useHorizontalDragScroll } from "../hooks/useHorizontalDragScroll";
 import { ActivityCard, type ActivityCardProps } from "./ActivityCard";
 import { PackGroupChatPanel } from "./PackGroupChatPanel";
 import {
@@ -131,7 +130,6 @@ export function FeedScreen({
   const [feedCategoryIds, setFeedCategoryIds] = useState<WorkoutCategoryId[]>([]);
   const [viewportStyle, setViewportStyle] = useState<FeedViewportStyle>({});
   const feedHeaderRef = useRef<HTMLDivElement>(null);
-  const filterCatsRef = useHorizontalDragScroll<HTMLDivElement>();
   const maxFeedIdRef = useRef(0);
   const loadedOnceRef = useRef(false);
   /** Идёт полный синк — чтобы не плодить дубли (двойной fetch на маунте, наложение поллинга и пост-экшн-синков). */
@@ -791,33 +789,47 @@ export function FeedScreen({
                 Мои тренировки
               </button>
             </div>
-            <div
-              className="feed__filter-cats"
-              ref={filterCatsRef}
-              role="group"
-              aria-label="Тип тренировки"
-            >
-              <button
-                type="button"
+            <div className="feed__filter-cats" role="group" aria-label="Тип тренировки">
+              <div
+                role="button"
+                tabIndex={0}
                 className={`feed__filter-chip${feedCategoryIds.length === 0 ? " is-active" : ""}`}
+                aria-pressed={feedCategoryIds.length === 0}
                 onClick={() => void clearFeedCategories()}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" || e.key === " ") {
+                    e.preventDefault();
+                    void clearFeedCategories();
+                  }
+                }}
               >
                 Все типы
-              </button>
-              {WORKOUT_CATEGORY_OPTIONS_ALPHABETICAL.map((c) => (
-                <button
-                  key={c.id}
-                  type="button"
-                  className={`feed__filter-chip${feedCategoryIds.includes(c.id) ? " is-active" : ""}`}
-                  onClick={() => toggleFeedCategory(c.id)}
-                  title={c.label}
-                >
-                  <span className="feed__filter-chip-emoji" aria-hidden>
-                    {c.emoji}
-                  </span>
-                  <span className="feed__filter-chip-label">{c.label}</span>
-                </button>
-              ))}
+              </div>
+              {WORKOUT_CATEGORY_OPTIONS_ALPHABETICAL.map((c) => {
+                const active = feedCategoryIds.includes(c.id);
+                return (
+                  <div
+                    key={c.id}
+                    role="button"
+                    tabIndex={0}
+                    className={`feed__filter-chip${active ? " is-active" : ""}`}
+                    aria-pressed={active}
+                    onClick={() => toggleFeedCategory(c.id)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" || e.key === " ") {
+                        e.preventDefault();
+                        toggleFeedCategory(c.id);
+                      }
+                    }}
+                    title={c.label}
+                  >
+                    <span className="feed__filter-chip-emoji" aria-hidden>
+                      {c.emoji}
+                    </span>
+                    <span className="feed__filter-chip-label">{c.label}</span>
+                  </div>
+                );
+              })}
             </div>
           </div>
         )}

@@ -213,21 +213,10 @@
   padding-bottom: 1px;
   -webkit-overflow-scrolling: touch;
   scrollbar-width: none;
-  /* Вертикаль — странице, горизонталь — useHorizontalDragScroll (pan-x + кнопки ломают iOS). */
-  touch-action: pan-y;
+  /* Нативная инерция iOS; pan-x не отдаёт вертикаль ленте. Чипы — div, не button. */
+  touch-action: pan-x;
   overscroll-behavior-x: contain;
   overscroll-behavior-y: none;
-  cursor: grab;
-  user-select: none;
-  -webkit-user-select: none;
-}
-
-.feed__filter-cats.is-dragging {
-  cursor: grabbing;
-}
-
-.feed__filter-cats.is-dragging .feed__filter-chip {
-  pointer-events: none;
 }
 
 .feed__filter-chip {
@@ -246,6 +235,8 @@
   cursor: pointer;
   white-space: nowrap;
   min-height: 32px;
+  touch-action: pan-x;
+  -webkit-tap-highlight-color: transparent;
 }
 
 .feed__filter-chip.is-active {
