@@ -1,5 +1,6 @@
 import { useRef, useState, useEffect, useLayoutEffect, useCallback, useMemo } from "react";
-import { LikersPopover, useChipPress, useLikersPopover, type LikerGroup } from "./Likers";
+import { createPortal } from "react-dom";
+import { LikersPopover, useChipPress, useLikersPopover, useLongPress, type LikerGroup } from "./Likers";
 import { LEO_AVATAR_URL } from "../lib/leoAvatar";
 import { streakStreakAriaLabel } from "../lib/streakLabel";
 import "./ActivityCard.css";
@@ -126,8 +127,9 @@ export function TrainingReactionsBar({
   const rowRef = useRef<HTMLDivElement>(null);
   const moreRef = useRef<HTMLDivElement>(null);
   const [visibleCount, setVisibleCount] = useState(reactions.length);
-  const [menuOpen, setMenuOpen] = useState(false);
   const { open: likersOpen, setOpen: setLikersOpen, style: likersStyle, popRef } = useLikersPopover(rowRef);
+  // Меню доп. реакций «⋯» — портал с тем же позиционированием (не обрезается экраном).
+  const { open: menuOpen, setOpen: setMenuOpen, style: menuStyle, popRef: menuPopRef } = useLikersPopover(moreRef);
 
   // Группы «кто отреагировал»: только эмодзи с реальными голосами.
   const likerGroups: LikerGroup[] = reactions
@@ -148,26 +150,6 @@ export function TrainingReactionsBar({
     ro.observe(el);
     return () => ro.disconnect();
   }, [reactions.length]);
-
-  useEffect(() => {
-    if (!menuOpen) return;
-    const close = (e: MouseEvent | TouchEvent) => {
-      const t = e.target as Node;
-      if (moreRef.current?.contains(t)) return;
-      setMenuOpen(false);
-    };
-    const esc = (e: KeyboardEvent) => {
-      if (e.key === "Escape") setMenuOpen(false);
-    };
-    document.addEventListener("mousedown", close);
-    document.addEventListener("touchstart", close);
-    document.addEventListener("keydown", esc);
-    return () => {
-      document.removeEventListener("mousedown", close);
-      document.removeEventListener("touchstart", close);
-      document.removeEventListener("keydown", esc);
-    };
-  }, [menuOpen]);
 
   const n = reactions.length;
   const showAll = visibleCount >= n;
@@ -203,23 +185,25 @@ export function TrainingReactionsBar({
               aria-expanded={menuOpen}
               aria-haspopup="menu"
               aria-label="Ещё реакции"
-              onClick={() => setMenuOpen((v) => !v)}
+              onClick={() => setMenuOpen(!menuOpen)}
             >
               ⋯
             </button>
-            {menuOpen && (
-              <div className="act-card__react-popover" role="menu">
-                {hidden.map((r) => (
-                  <ReactionChip
-                    key={r.emoji}
-                    r={r}
-                    disabled={onReactionClick == null}
-                    onPick={pick}
-                    onLongPress={hasLikers ? openLikers : undefined}
-                  />
-                ))}
-              </div>
-            )}
+            {menuOpen &&
+              createPortal(
+                <div className="act-card__react-popover" role="menu" ref={menuPopRef} style={menuStyle}>
+                  {hidden.map((r) => (
+                    <ReactionChip
+                      key={r.emoji}
+                      r={r}
+                      disabled={onReactionClick == null}
+                      onPick={pick}
+                      onLongPress={hasLikers ? openLikers : undefined}
+                    />
+                  ))}
+                </div>,
+                document.body,
+              )}
           </div>
         )}
       </div>
@@ -480,10 +464,26 @@ export function ActivityCard({
     return items;
   }, [onAdminDelete, onReport]);
   const cardHeadMenuPosting = reportPosting || adminDeletePosting;
+
+  // Долгое нажатие на весь пост — показать, кто его лайкнул (все реакции).
+  const cardRef = useRef<HTMLElement>(null);
+  const cardLikers = useLikersPopover(cardRef);
+  const cardLikerGroups: LikerGroup[] = reactions
+    .filter((r) => r.count > 0 && Array.isArray(r.voters) && r.voters.length > 0)
+    .map((r) => ({ emoji: r.emoji, voters: r.voters! }));
+  const cardPress = useLongPress(() => {
+    if (cardLikerGroups.length > 0) cardLikers.setOpen(true);
+  });
+
   return (
     <article
+      ref={cardRef}
+      {...cardPress}
       className={`act-card${hideStreak ? " act-card--leo" : ""}${lightTone ? " act-card--light" : ""}${threadOpen && hasThread ? " act-card--thread-open" : ""}${trainingPhotoUrl ? " act-card--has-photo" : ""}`}
     >
+      {cardLikers.open && cardLikerGroups.length > 0 && (
+        <LikersPopover groups={cardLikerGroups} popRef={cardLikers.popRef} style={cardLikers.style} />
+      )}
       <header className="act-card__head">
         <div className="act-card__avatar" aria-hidden>
           {avatarLooksLikeImageSrc(avatar) ? (

@@ -478,20 +478,15 @@
 }
 
 .act-card__react-popover {
-  position: absolute;
-  z-index: 30;
-  right: 0;
-  left: auto;
-  top: calc(100% + 6px);
+  z-index: 1000;
   width: max-content;
-  min-width: min(260px, 100%);
-  max-width: min(calc(100vw - 32px), 300px);
+  min-width: 200px;
+  max-width: min(calc(100vw - 16px), 300px);
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
   justify-content: flex-start;
   padding: 10px;
-  max-height: min(320px, 52vh);
   overflow-y: auto;
   background: var(--card);
   border: 1px solid var(--border-subtle);

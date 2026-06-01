@@ -4,6 +4,7 @@ import {
   useRef,
   useState,
   type CSSProperties,
+  type MouseEvent as ReactMouseEvent,
   type RefObject,
   type TouchEvent as ReactTouchEvent,
 } from "react";
@@ -74,7 +75,9 @@ export function useLikersPopover(anchorRef: RefObject<HTMLElement | null>) {
       let left = a.left + a.width / 2 - pw / 2;
       left = Math.max(margin, Math.min(left, vw - margin - pw));
 
-      const top = placeAbove ? Math.max(margin, a.top - gap - h) : a.bottom + gap;
+      let top = placeAbove ? a.top - gap - h : a.bottom + gap;
+      // Финальный зажим по вертикали: окно всегда целиком на экране.
+      top = Math.max(margin, Math.min(top, vh - margin - h));
 
       setStyle({ position: "fixed", left: `${left}px`, top: `${top}px`, maxHeight: `${maxHeight}px` });
     };
@@ -152,6 +155,7 @@ export function useChipPress(onTap: () => void, onLongPress?: () => void, disabl
       if (!disabled) onTap();
     },
     onTouchStart: (e: ReactTouchEvent) => {
+      e.stopPropagation(); // чтобы тач по чипу не запускал long-press всего поста
       longPressed.current = false;
       moved.current = false;
       const t = e.touches[0];
@@ -187,6 +191,51 @@ export function useChipPress(onTap: () => void, onLongPress?: () => void, disabl
     onMouseEnter: () => {
       if (Date.now() - recentTouch.current < 600) return;
       onLongPress?.();
+    },
+  };
+}
+
+/**
+ * Долгое нажатие на крупный элемент (например, на весь пост), не мешающее обычным
+ * тапам и скроллу: тап проходит как обычно, скролл отменяет удержание, а после
+ * сработавшего long-press следующий click подавляется (onClickCapture).
+ */
+export function useLongPress(onLongPress: () => void) {
+  const timer = useRef<number | null>(null);
+  const startXY = useRef<{ x: number; y: number } | null>(null);
+  const fired = useRef(false);
+
+  const clear = () => {
+    if (timer.current != null) {
+      window.clearTimeout(timer.current);
+      timer.current = null;
+    }
+  };
+
+  return {
+    onTouchStart: (e: ReactTouchEvent) => {
+      fired.current = false;
+      const t = e.touches[0];
+      startXY.current = t ? { x: t.clientX, y: t.clientY } : null;
+      clear();
+      timer.current = window.setTimeout(() => {
+        fired.current = true;
+        onLongPress();
+      }, 450);
+    },
+    onTouchMove: (e: ReactTouchEvent) => {
+      const t = e.touches[0];
+      const s = startXY.current;
+      if (t && s && (Math.abs(t.clientX - s.x) > 10 || Math.abs(t.clientY - s.y) > 10)) clear();
+    },
+    onTouchEnd: clear,
+    onTouchCancel: clear,
+    onClickCapture: (e: ReactMouseEvent) => {
+      if (fired.current) {
+        e.preventDefault();
+        e.stopPropagation();
+        fired.current = false;
+      }
     },
   };
 }
