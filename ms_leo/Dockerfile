@@ -1,5 +1,5 @@
 # Контекст сборки — эта папка (Railway Root Directory = ms_leo, или docker compose context: ./ms_leo).
-FROM golang:1.21
+FROM golang:1.25
 
 WORKDIR /app
 
