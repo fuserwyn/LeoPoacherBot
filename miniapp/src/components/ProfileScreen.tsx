@@ -75,6 +75,16 @@ const WORKOUT_ACHIEVEMENTS = [
   { count: 1000, variant: "paw" },
 ] as const;
 
+// Правильное склонение: 1 тренировка, 2-4 тренировки, 5-20 тренировок.
+function workoutsWordRu(n: number): string {
+  const mod100 = n % 100;
+  if (mod100 >= 11 && mod100 <= 14) return "тренировок";
+  const mod10 = n % 10;
+  if (mod10 === 1) return "тренировка";
+  if (mod10 >= 2 && mod10 <= 4) return "тренировки";
+  return "тренировок";
+}
+
 export function ProfileScreen({
   name,
   streak,
@@ -665,7 +675,7 @@ export function ProfileScreen({
                 {count}
               </span>
             </div>
-            <div className="profile__achievement-label">тренировок {count}</div>
+            <div className="profile__achievement-label">{count} {workoutsWordRu(count)}</div>
           </div>
         ))}
         </div>

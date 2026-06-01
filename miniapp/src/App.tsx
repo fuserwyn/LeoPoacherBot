@@ -181,6 +181,16 @@ export function App() {
     };
   }, [accessGateStatus, refreshTabBadges]);
 
+  // Перепроверяем непрочитанные при каждой смене вкладки, чтобы бейдж появлялся
+  // сразу при навигации, а не ждал 30-секундный тик. Вход в личный чат с Лео
+  // пропускаем: там бейдж гасится оптимистично (clearLeoBadge), и повторный
+  // запрос мог бы вернуть его обратно, пока бэкенд не пометил входящие прочитанными.
+  useEffect(() => {
+    if (accessGateStatus !== "ok") return;
+    if (tab === "chat") return;
+    void refreshTabBadges();
+  }, [tab, accessGateStatus, refreshTabBadges]);
+
   useEffect(() => {
     if (accessGateStatus !== "ok") return;
     void refreshProfileStats();

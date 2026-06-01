@@ -69,17 +69,89 @@ function ReactionChip({
   disabled?: boolean;
   onPick: (emoji: string) => void;
 }) {
+  const [open, setOpen] = useState(false);
+  const wrapRef = useRef<HTMLSpanElement>(null);
+  const lpTimer = useRef<number | null>(null);
+  const suppressClick = useRef(false);
+  const voters = Array.isArray(r.voters) ? r.voters : [];
+  const hasVoters = voters.length > 0;
+
+  const clearLongPress = () => {
+    if (lpTimer.current != null) {
+      window.clearTimeout(lpTimer.current);
+      lpTimer.current = null;
+    }
+  };
+
+  // На тач список открываем долгим нажатием, чтобы обычный тап остался «лайкнуть».
+  const onTouchStart = () => {
+    if (!hasVoters) return;
+    clearLongPress();
+    lpTimer.current = window.setTimeout(() => {
+      suppressClick.current = true;
+      setOpen(true);
+    }, 400);
+  };
+
+  const onClick = () => {
+    if (suppressClick.current) {
+      suppressClick.current = false;
+      return;
+    }
+    onPick(r.emoji);
+  };
+
+  // Закрытие поповера на тач: тап вне чипа.
+  useEffect(() => {
+    if (!open) return;
+    const close = (e: MouseEvent | TouchEvent) => {
+      if (wrapRef.current?.contains(e.target as Node)) return;
+      setOpen(false);
+    };
+    document.addEventListener("mousedown", close);
+    document.addEventListener("touchstart", close);
+    return () => {
+      document.removeEventListener("mousedown", close);
+      document.removeEventListener("touchstart", close);
+    };
+  }, [open]);
+
   return (
-    <button
-      type="button"
-      className={`act-card__react-btn${r.me ? " act-card__react-btn--mine" : ""}`}
-      disabled={disabled}
-      onClick={() => onPick(r.emoji)}
-      title={Array.isArray(r.voters) && r.voters.length > 0 ? `Лайкнули: ${r.voters.join(", ")}` : undefined}
+    <span
+      className="act-card__react-chip"
+      ref={wrapRef}
+      onMouseEnter={() => hasVoters && setOpen(true)}
+      onMouseLeave={() => setOpen(false)}
     >
-      {r.emoji}
-      {r.count > 0 && <span className="act-card__react-cnt">{r.count}</span>}
-    </button>
+      <button
+        type="button"
+        className={`act-card__react-btn${r.me ? " act-card__react-btn--mine" : ""}`}
+        disabled={disabled}
+        onClick={onClick}
+        onTouchStart={onTouchStart}
+        onTouchEnd={clearLongPress}
+        onTouchMove={clearLongPress}
+        onTouchCancel={clearLongPress}
+      >
+        {r.emoji}
+        {r.count > 0 && <span className="act-card__react-cnt">{r.count}</span>}
+      </button>
+      {open && hasVoters && (
+        <div className="act-card__likers" role="tooltip">
+          <div className="act-card__likers-head">
+            <span>{r.emoji}</span>
+            <span className="act-card__likers-count">{voters.length}</span>
+          </div>
+          <ul className="act-card__likers-list">
+            {voters.map((name, i) => (
+              <li key={`${name}-${i}`} className="act-card__likers-item">
+                {name}
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+    </span>
   );
 }
 
