@@ -666,7 +666,14 @@ export function FeedScreen({
     if (!sticky || !feedRoot) return;
     // Реальный зазор: низ fixed-шапки минус верх .feed (учитывает safe-area, app padding, border).
     const write = () => {
-      const feedTop = feedRoot.getBoundingClientRect().top;
+      // .feed в обычном потоке, поэтому его top «уезжает» вверх (в минус) при скролле,
+      // а fixed-шапка стоит на месте. Если write() сработает, пока лента прокручена
+      // (ResizeObserver на смене высоты шапки — бейдж подвкладки, ширина числа стрика,
+      // перенос чипов-фильтров), offset раздувается ровно на величину скролла и над
+      // лентой остаётся огромный пустой блок. Компенсируем текущим скроллом, чтобы
+      // зазор не зависел от позиции прокрутки.
+      const scrollY = window.scrollY || document.documentElement.scrollTop || 0;
+      const feedTop = feedRoot.getBoundingClientRect().top + scrollY;
       const headerBottom = sticky.getBoundingClientRect().bottom;
       const offset = headerBottom - feedTop;
       feedRoot.style.setProperty("--feed-header-h", `${Math.max(0, Math.ceil(offset))}px`);

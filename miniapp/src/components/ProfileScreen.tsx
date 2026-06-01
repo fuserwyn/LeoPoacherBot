@@ -64,16 +64,6 @@ const STREAK_ACHIEVEMENTS = [
 // бэкенд про эти пороги не знает (это чисто визуальная витрина в профиле).
 const WORKOUT_ACHIEVEMENTS = [10, 20, 42, 50, 100, 200, 420, 500, 1000] as const;
 
-// Правильное склонение: 1 тренировка, 2-4 тренировки, 5-20 тренировок.
-function workoutsWordRu(n: number): string {
-  const mod100 = n % 100;
-  if (mod100 >= 11 && mod100 <= 14) return "тренировок";
-  const mod10 = n % 10;
-  if (mod10 === 1) return "тренировка";
-  if (mod10 >= 2 && mod10 <= 4) return "тренировки";
-  return "тренировок";
-}
-
 export function ProfileScreen({
   name,
   streak,
@@ -613,23 +603,32 @@ export function ProfileScreen({
             <div className="profile__achievement-badge" aria-hidden>
               <svg className="profile__achievement-star-svg" viewBox="0 0 64 64">
                 <circle className="profile__achievement-bg" cx="32" cy="32" r="28" />
-                {/* пятиконечная звезда — плотный корпус ачивки */}
+                {/* пятиконечная звезда — корпус ачивки */}
                 <path
                   className="profile__achievement-star"
                   d="M32 2 L40.23 20.67 L60.53 22.73 L45.32 36.33 L49.63 56.27 L32 46 L14.37 56.27 L18.68 36.33 L3.47 22.73 L23.77 20.67 Z"
                 />
-                {/* крупный кубок — на его чаше «выгравировано» число */}
-                <path className="profile__achievement-cup-handle" d="M23 22.5 C17.5 22.5 17.5 30 24 30" />
-                <path className="profile__achievement-cup-handle" d="M41 22.5 C46.5 22.5 46.5 30 40 30" />
-                <path
-                  className="profile__achievement-cup-bowl"
-                  d="M22.5 21 L41.5 21 L39 30 C39 33.5 36 35 32 35 C28 35 25 33.5 25 30 Z"
-                />
-                <rect className="profile__achievement-cup-stem" x="30" y="35" width="4" height="2.6" rx="0.5" />
-                <path
-                  className="profile__achievement-cup-base"
-                  d="M26.5 40.5 Q26.5 37.6 29.2 37.6 L34.8 37.6 Q37.5 37.6 37.5 40.5 L37.5 41.6 L26.5 41.6 Z"
-                />
+                {/* маленькая лапка внутри звезды — число «на подушечке» */}
+                <g className="profile__achievement-minipaw" transform="translate(32 31.5) scale(0.5) translate(-32 -34)">
+                  <ellipse className="profile__achievement-toe-shell" cx="15.5" cy="26" rx="8" ry="9.5" transform="rotate(-16 15.5 26)" />
+                  <ellipse className="profile__achievement-toe-shell" cx="27.5" cy="19.5" rx="8.6" ry="10.5" transform="rotate(-6 27.5 19.5)" />
+                  <ellipse className="profile__achievement-toe-shell" cx="40.5" cy="19.5" rx="8.6" ry="10.5" transform="rotate(6 40.5 19.5)" />
+                  <ellipse className="profile__achievement-toe-shell" cx="52.5" cy="26" rx="8" ry="9.5" transform="rotate(16 52.5 26)" />
+
+                  <ellipse className="profile__achievement-toe-bean" cx="15.5" cy="27" rx="4.7" ry="5.9" transform="rotate(-16 15.5 27)" />
+                  <ellipse className="profile__achievement-toe-bean" cx="27.5" cy="20.5" rx="4.9" ry="6.3" transform="rotate(-6 27.5 20.5)" />
+                  <ellipse className="profile__achievement-toe-bean" cx="40.5" cy="20.5" rx="4.9" ry="6.3" transform="rotate(6 40.5 20.5)" />
+                  <ellipse className="profile__achievement-toe-bean" cx="52.5" cy="27" rx="4.7" ry="5.9" transform="rotate(16 52.5 27)" />
+
+                  <path
+                    className="profile__achievement-pad-shell"
+                    d="M32 34 C22 34 16 41 16 50 C16 57 22 61 32 61 C42 61 48 57 48 50 C48 41 42 34 32 34 Z"
+                  />
+                  <path
+                    className="profile__achievement-pad-bean"
+                    d="M32 39 C25 39 21 44 21 50 C21 55 25 58 32 58 C39 58 43 55 43 50 C43 44 39 39 32 39 Z"
+                  />
+                </g>
               </svg>
               <span
                 className={`profile__achievement-num${count >= 1000 ? " profile__achievement-num--quad" : count >= 100 ? " profile__achievement-num--triple" : count >= 10 ? " profile__achievement-num--double" : ""}`}
@@ -637,7 +636,7 @@ export function ProfileScreen({
                 {count}
               </span>
             </div>
-            <div className="profile__achievement-label">{count} {workoutsWordRu(count)}</div>
+            <div className="profile__achievement-label">тренировок {count}</div>
           </div>
         ))}
         </div>
