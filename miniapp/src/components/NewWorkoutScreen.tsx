@@ -139,7 +139,7 @@ export function NewWorkoutScreen({ onClose, onSave, showAlert }: Props) {
   const otherInputRef = useRef<HTMLInputElement>(null);
   const noteFocusedRef = useRef(false);
   // Какое поле сейчас в фокусе — чтобы подматывать над клавиатурой именно его
-  // (и «Что сделал», и «Свой тип»), а не только текстовую заметку.
+  // (и «Описание», и «Свой тип»), а не только текстовую заметку.
   const activeFieldRef = useRef<HTMLElement | null>(null);
   const [inputFocused, setInputFocused] = useState(false);
   const keyboardOpen = keyboardBottom > 0;
@@ -260,7 +260,7 @@ export function NewWorkoutScreen({ onClose, onSave, showAlert }: Props) {
 
       <div className="nwo__body" ref={bodyRef}>
         <div className="nwo__note-block">
-          <h2 className="nwo__sec">Что сделал</h2>
+          <h2 className="nwo__sec">Описание</h2>
           <textarea
             ref={noteTaRef}
             className="nwo__note"

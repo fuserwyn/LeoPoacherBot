@@ -1,23 +1,26 @@
 /* Полноэкранная форма. Чипы/кнопки как лента: .feed__filter-chip; заголовки секций — .section-title; кнопка — .feed__btn */
 .nwo {
-  --nwo-chip-fs: 0.88rem;
-  --nwo-chip-lh: 1.25;
-  --nwo-chip-pad-y: 6px;
-  --nwo-chip-pad-x: 10px;
+  /* Размеры подобраны так, чтобы вся форма (заметка + 17 типов + минуты +
+     интенсивность + кнопка) помещалась без прокрутки даже на Android, где
+     метрики шрифта шире и чипы переносятся в больше рядов. */
+  --nwo-chip-fs: 0.84rem;
+  --nwo-chip-lh: 1.2;
+  --nwo-chip-pad-y: 5px;
+  --nwo-chip-pad-x: 9px;
   --nwo-chip-bg: #14141c;
   --nwo-chip-on-border: rgba(255, 90, 31, 0.65);
   --nwo-chip-on-bg: rgba(255, 90, 31, 0.12);
   --nwo-chip-on-color: var(--accent, #ff7a45);
-  --nwo-emoji-fs: 1.05rem;
+  --nwo-emoji-fs: 1rem;
   --nwo-mi-font: 600 var(--nwo-chip-fs) / var(--nwo-chip-lh) var(--font);
-  --nwo-sec-fs: 13px;
-  --nwo-sec-lh: 1.25;
-  --nwo-display-num-fs: 1.35rem;
-  --nwo-display-sub-fs: 0.92rem;
+  --nwo-sec-fs: 12px;
+  --nwo-sec-lh: 1.2;
+  --nwo-display-num-fs: 1.2rem;
+  --nwo-display-sub-fs: 0.9rem;
   --nwo-title-fs: 1rem;
-  --nwo-pill-fs: 0.88rem;
-  --nwo-action-fs: 1.05rem;
-  --nwo-note-h: 64px;
+  --nwo-pill-fs: 0.84rem;
+  --nwo-action-fs: 1.02rem;
+  --nwo-note-h: 54px;
   position: fixed;
   left: 0;
   right: 0;
@@ -105,7 +108,7 @@
   overscroll-behavior: contain;
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 8px;
   padding: 4px 8px 6px;
   max-width: 100%;
   width: 100%;
@@ -117,7 +120,7 @@
   flex: 1 1 auto;
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 8px;
   justify-content: space-evenly;
   min-height: 0;
 }
@@ -129,7 +132,7 @@
   letter-spacing: 0.1em;
   text-transform: uppercase;
   color: var(--text-label);
-  margin: 0 0 8px;
+  margin: 0 0 5px;
 }
 
 .nwo__sec--inline {
@@ -140,7 +143,7 @@
 .nwo__types-scroll {
   display: flex;
   flex-wrap: wrap;
-  gap: 6px;
+  gap: 5px;
   align-content: flex-start;
   flex-shrink: 0;
   padding-bottom: 2px;
@@ -153,7 +156,7 @@
   gap: 3px;
   /* Чуть компактнее по вертикали, чтобы 17 типов (с «Пилоном») не добавляли
      лишний ряд и форма вписывалась в экран без прокрутки. */
-  padding: 5px 9px;
+  padding: 4px 9px;
   font: var(--nwo-mi-font);
   border-radius: 999px;
   border: 1px solid var(--border-subtle, #2a2a36);
@@ -185,7 +188,7 @@
   flex-direction: column;
   flex: 1 1 auto;
   min-height: 0;
-  gap: 14px;
+  gap: 10px;
   justify-content: space-evenly;
   align-items: stretch;
 }
@@ -200,8 +203,8 @@
   align-items: center;
   flex-wrap: nowrap;
   gap: 6px;
-  min-height: 1.6rem;
-  margin-bottom: 6px;
+  min-height: 1.3rem;
+  margin-bottom: 4px;
 }
 
 .nwo__big-min {
@@ -218,14 +221,14 @@
 .nwo__presets-row {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 6px;
   margin-bottom: 2px;
 }
 
 .nwo__presets {
   display: flex;
   flex-wrap: wrap;
-  gap: 6px 8px;
+  gap: 5px 6px;
   justify-content: flex-start;
 }
 
