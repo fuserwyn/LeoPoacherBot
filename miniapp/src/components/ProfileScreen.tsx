@@ -64,6 +64,16 @@ const STREAK_ACHIEVEMENTS = [
 // бэкенд про эти пороги не знает (это чисто визуальная витрина в профиле).
 const WORKOUT_ACHIEVEMENTS = [10, 20, 42, 50, 100, 200, 420, 500, 1000] as const;
 
+// Правильное склонение: 1 тренировка, 2-4 тренировки, 5-20 тренировок.
+function workoutsWordRu(n: number): string {
+  const mod100 = n % 100;
+  if (mod100 >= 11 && mod100 <= 14) return "тренировок";
+  const mod10 = n % 10;
+  if (mod10 === 1) return "тренировка";
+  if (mod10 >= 2 && mod10 <= 4) return "тренировки";
+  return "тренировок";
+}
+
 export function ProfileScreen({
   name,
   streak,
@@ -602,22 +612,23 @@ export function ProfileScreen({
           >
             <div className="profile__achievement-badge" aria-hidden>
               <svg className="profile__achievement-star-svg" viewBox="0 0 64 64">
-                {/* пятиконечная звезда — корпус ачивки */}
+                <circle className="profile__achievement-bg" cx="32" cy="32" r="28" />
+                {/* пятиконечная звезда — плотный корпус ачивки */}
                 <path
                   className="profile__achievement-star"
-                  d="M32 2 L38.5 23.1 L60.5 22.7 L42.5 35.4 L49.6 56.3 L32 43 L14.4 56.3 L21.5 35.4 L3.5 22.7 L25.5 23.1 Z"
+                  d="M32 2 L40.23 20.67 L60.53 22.73 L45.32 36.33 L49.63 56.27 L32 46 L14.37 56.27 L18.68 36.33 L3.47 22.73 L23.77 20.67 Z"
                 />
-                {/* кубок внутри звезды */}
-                <path className="profile__achievement-cup-handle" d="M24 23 C19 23 19 30 25 30" />
-                <path className="profile__achievement-cup-handle" d="M40 23 C45 23 45 30 39 30" />
+                {/* крупный кубок — на его чаше «выгравировано» число */}
+                <path className="profile__achievement-cup-handle" d="M23 22.5 C17.5 22.5 17.5 30 24 30" />
+                <path className="profile__achievement-cup-handle" d="M41 22.5 C46.5 22.5 46.5 30 40 30" />
                 <path
                   className="profile__achievement-cup-bowl"
-                  d="M24 22 L40 22 L38 30 C38 33 35.5 34.5 32 34.5 C28.5 34.5 26 33 26 30 Z"
+                  d="M22.5 21 L41.5 21 L39 30 C39 33.5 36 35 32 35 C28 35 25 33.5 25 30 Z"
                 />
-                <rect className="profile__achievement-cup-stem" x="30.5" y="34.3" width="3" height="3" />
+                <rect className="profile__achievement-cup-stem" x="30" y="35" width="4" height="2.6" rx="0.5" />
                 <path
                   className="profile__achievement-cup-base"
-                  d="M27 39.5 Q27 37 29.5 37 L34.5 37 Q37 37 37 39.5 L37 40.6 L27 40.6 Z"
+                  d="M26.5 40.5 Q26.5 37.6 29.2 37.6 L34.8 37.6 Q37.5 37.6 37.5 40.5 L37.5 41.6 L26.5 41.6 Z"
                 />
               </svg>
               <span
@@ -626,7 +637,7 @@ export function ProfileScreen({
                 {count}
               </span>
             </div>
-            <div className="profile__achievement-label">тренировок {count}</div>
+            <div className="profile__achievement-label">{count} {workoutsWordRu(count)}</div>
           </div>
         ))}
         </div>
