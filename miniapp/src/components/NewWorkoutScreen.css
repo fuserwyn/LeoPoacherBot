@@ -51,11 +51,6 @@
   font-family: var(--font);
 }
 
-.nwo .nwo__file::file-selector-button,
-.nwo .nwo__file::-webkit-file-upload-button {
-  font: 600 var(--nwo-pill-fs) / var(--nwo-chip-lh) var(--font);
-}
-
 .nwo__head {
   display: flex;
   align-items: center;
@@ -321,13 +316,45 @@
   flex-wrap: wrap;
   flex-shrink: 0;
   min-height: 0;
-  padding: 2px 0 2px;
+  margin-top: 6px;
+  padding: 0;
 }
 
-.nwo__file {
-  font: 600 var(--nwo-pill-fs) / var(--nwo-chip-lh) var(--font);
-  max-width: min(48vw, 10rem);
-  flex: 0 1 auto;
+/* Нативный input прячем, но оставляем кликабельным внутри label (sr-only). */
+.nwo__file-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.nwo__photo-add {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font: var(--nwo-mi-font);
+  padding: 5px 12px;
+  border-radius: 8px;
+  border: 1px solid var(--border-subtle, #2a2a36);
+  background: var(--nwo-chip-bg);
+  color: var(--text, #e8e8f0);
+  cursor: pointer;
+  flex: 0 0 auto;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.nwo__photo-add:active {
+  opacity: 0.85;
+}
+
+.nwo__photo-add-ico {
+  font-size: var(--nwo-emoji-fs);
+  line-height: 1;
 }
 
 .nwo__photo-name {
