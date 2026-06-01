@@ -521,7 +521,6 @@ export function ProfileScreen({
             {achievementCount + workoutAchEarned}/{achievementsMax + WORKOUT_ACHIEVEMENTS.length}
           </span>
         </div>
-        <div className="profile__achievements-group">За стрик</div>
         <div className="profile__achievements-strip">
         {STREAK_ACHIEVEMENTS.map(({ days, colorClass, variant }, i) => (
           <div key={days} className={`profile__achievement ${colorClass}${i < achievementCount ? " is-earned" : ""}`}>
@@ -596,9 +595,6 @@ export function ProfileScreen({
             <div className="profile__achievement-label">стрик {days}</div>
           </div>
         ))}
-        </div>
-        <div className="profile__achievements-group">За тренировки</div>
-        <div className="profile__achievements-strip">
         {WORKOUT_ACHIEVEMENTS.map((count, i) => (
           <div
             key={count}
