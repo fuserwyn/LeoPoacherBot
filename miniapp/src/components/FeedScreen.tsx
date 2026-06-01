@@ -748,7 +748,11 @@ export function FeedScreen({
 
   const ptr = usePullToRefresh({
     onRefresh: handlePullRefresh,
-    enabled: sub === "activity",
+    // Важно завязать и на active: FeedScreen остаётся смонтированным (TabKeepAlive),
+    // а touchmove-листенер PTR висит на document. Без проверки active он продолжал
+    // глушить горизонтальные свайпы на других вкладках (барабан ачивок в профиле
+    // «залипал» — preventDefault съедал первый свайп при scrollY===0).
+    enabled: active && sub === "activity",
   });
 
   const ptrStatusText =
