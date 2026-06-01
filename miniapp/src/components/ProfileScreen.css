@@ -324,6 +324,15 @@
   font-weight: 700;
 }
 
+.profile__achievements-group {
+  color: var(--text-muted);
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  margin: 12px 0 7px;
+}
+
 .profile__achievements-strip {
   display: flex;
   gap: 8px;
@@ -463,9 +472,10 @@
   stroke-linejoin: round;
 }
 
-/* Контур маленькой лапки не должен утончаться при scale(0.5). */
+/* Контур маленькой лапки/сердца не должен утончаться при scale(~0.5). */
 .profile__achievement-minipaw .profile__achievement-toe-shell,
-.profile__achievement-minipaw .profile__achievement-pad-shell {
+.profile__achievement-minipaw .profile__achievement-pad-shell,
+.profile__achievement-miniheart .profile__achievement-heart-shell {
   vector-effect: non-scaling-stroke;
   stroke-width: 1.4;
 }
@@ -482,6 +492,13 @@
   color: var(--achievement-day-color);
   letter-spacing: -0.03em;
   text-shadow: 0 1px 0 rgba(255, 255, 255, 0.35);
+}
+
+/* В сердце число по центру и белое (как у стрика на 42). */
+.profile__achievement-num--heart {
+  top: 50%;
+  color: #fff;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.35);
 }
 
 .profile__achievement-num--double {
@@ -645,73 +662,84 @@
 }
 
 /* ===== Тиры ачивок за тренировки: бронза → серебро → золото → платина → бриллиант ===== */
+/* Все тиры цветные (без серого), кульминация — золото на 1000.
+   Звезда = --achievement-bean (насыщенный), лапка/сердце сверху светлые. */
 .profile__wach--t1 {
-  --achievement-outline: #8a5a2b;
-  --achievement-shell: #f0cba4;
-  --achievement-bean: #cf8a4a;
-  --achievement-day-color: #6e431c;
+  /* 10 — изумруд */
+  --achievement-outline: #1f7a4d;
+  --achievement-shell: #d7f5e3;
+  --achievement-bean: #2fbf71;
+  --achievement-day-color: #135c38;
 }
 
 .profile__wach--t2 {
-  --achievement-outline: #7d4a1f;
-  --achievement-shell: #e8b486;
-  --achievement-bean: #b9702f;
-  --achievement-day-color: #5e3815;
+  /* 20 — бирюза */
+  --achievement-outline: #167a86;
+  --achievement-shell: #d3f3f7;
+  --achievement-bean: #1fc0cf;
+  --achievement-day-color: #0d5a63;
 }
 
 .profile__wach--t3 {
-  --achievement-outline: #6b7280;
-  --achievement-shell: #eef1f5;
-  --achievement-bean: #aab3bf;
-  --achievement-day-color: #4b5563;
+  /* 42 — алое сердце */
+  --achievement-outline: #b81e3e;
+  --achievement-shell: #ffd9e0;
+  --achievement-bean: #f43e5f;
+  --achievement-day-color: #8a1027;
 }
 
 .profile__wach--t4 {
-  --achievement-outline: #5b626c;
-  --achievement-shell: #dde3ea;
-  --achievement-bean: #98a2b0;
-  --achievement-day-color: #3f4651;
+  /* 50 — небесно-синий */
+  --achievement-outline: #1d5fb8;
+  --achievement-shell: #d6e6ff;
+  --achievement-bean: #3b82f6;
+  --achievement-day-color: #163f7a;
 }
 
 .profile__wach--t5 {
-  --achievement-outline: #9a7209;
-  --achievement-shell: #ffe7a3;
-  --achievement-bean: #f0b429;
-  --achievement-day-color: #6b4f05;
+  /* 100 — фиолет */
+  --achievement-outline: #6b28b0;
+  --achievement-shell: #ece0ff;
+  --achievement-bean: #9a4dff;
+  --achievement-day-color: #491c7a;
 }
 
 .profile__wach--t6 {
-  --achievement-outline: #8a6510;
-  --achievement-shell: #ffd86b;
-  --achievement-bean: #e09b1a;
-  --achievement-day-color: #5e4408;
+  /* 200 — маджента */
+  --achievement-outline: #b01e7a;
+  --achievement-shell: #ffdcf0;
+  --achievement-bean: #ec3fa0;
+  --achievement-day-color: #7a1052;
 }
 
 .profile__wach--t7 {
-  --achievement-outline: #5a7d83;
-  --achievement-shell: #e8f0f2;
-  --achievement-bean: #9fc6cd;
-  --achievement-day-color: #3d5a5f;
+  /* 420 — оранж */
+  --achievement-outline: #c2611a;
+  --achievement-shell: #ffe6cc;
+  --achievement-bean: #ff8a2b;
+  --achievement-day-color: #8a4410;
 }
 
 .profile__wach--t8 {
-  --achievement-outline: #2f4d8a;
-  --achievement-shell: #cfe0ff;
-  --achievement-bean: #6f9be6;
-  --achievement-day-color: #28406f;
+  /* 500 — индиго */
+  --achievement-outline: #3b2f9a;
+  --achievement-shell: #e2ddff;
+  --achievement-bean: #6a5cff;
+  --achievement-day-color: #2a2070;
 }
 
 .profile__wach--t9 {
-  --achievement-outline: #1f8aa0;
-  --achievement-shell: #d9fbff;
-  --achievement-bean: #6fe0f0;
-  --achievement-day-color: #0f6478;
+  /* 1000 — самое крутое золото */
+  --achievement-outline: #9a7209;
+  --achievement-shell: #fff3c2;
+  --achievement-bean: #ffc62b;
+  --achievement-day-color: #6b4f05;
 }
 
 .profile__wach--t9.is-earned .profile__achievement-badge {
   box-shadow:
-    0 6px 14px rgba(31, 138, 160, 0.3),
-    0 0 0 1px rgba(111, 224, 240, 0.4);
+    0 6px 16px rgba(255, 198, 43, 0.4),
+    0 0 0 1px rgba(255, 224, 130, 0.55);
 }
 
 .profile__hint {

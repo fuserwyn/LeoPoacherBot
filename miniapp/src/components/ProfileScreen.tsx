@@ -62,7 +62,18 @@ const STREAK_ACHIEVEMENTS = [
 
 // Ачивки за общее число тренировок. «Заработано» считаем на фронте из total workouts —
 // бэкенд про эти пороги не знает (это чисто визуальная витрина в профиле).
-const WORKOUT_ACHIEVEMENTS = [10, 20, 42, 50, 100, 200, 420, 500, 1000] as const;
+// variant: внутри звезды лапка ("paw") или сердце ("heart", для 42 — как у стрика).
+const WORKOUT_ACHIEVEMENTS = [
+  { count: 10, variant: "paw" },
+  { count: 20, variant: "paw" },
+  { count: 42, variant: "heart" },
+  { count: 50, variant: "paw" },
+  { count: 100, variant: "paw" },
+  { count: 200, variant: "paw" },
+  { count: 420, variant: "paw" },
+  { count: 500, variant: "paw" },
+  { count: 1000, variant: "paw" },
+] as const;
 
 export function ProfileScreen({
   name,
@@ -112,7 +123,7 @@ export function ProfileScreen({
   const burnLabel = streakBurnLabel(streak, daysSinceLastTraining, now, lastTrainingDate);
 
   // Сколько ачивок за тренировки уже открыто = число порогов, не превышающих total.
-  const workoutAchEarned = WORKOUT_ACHIEVEMENTS.filter((n) => workouts >= n).length;
+  const workoutAchEarned = WORKOUT_ACHIEVEMENTS.filter(({ count }) => workouts >= count).length;
 
   const scrollHealthAboveKeyboard = useCallback(() => {
     const ta = healthTextareaRef.current;
@@ -521,6 +532,7 @@ export function ProfileScreen({
             {achievementCount + workoutAchEarned}/{achievementsMax + WORKOUT_ACHIEVEMENTS.length}
           </span>
         </div>
+        <div className="profile__achievements-group">Ачивки за стрики</div>
         <div className="profile__achievements-strip">
         {STREAK_ACHIEVEMENTS.map(({ days, colorClass, variant }, i) => (
           <div key={days} className={`profile__achievement ${colorClass}${i < achievementCount ? " is-earned" : ""}`}>
@@ -595,7 +607,10 @@ export function ProfileScreen({
             <div className="profile__achievement-label">стрик {days}</div>
           </div>
         ))}
-        {WORKOUT_ACHIEVEMENTS.map((count, i) => (
+        </div>
+        <div className="profile__achievements-group">Ачивки за тренировки</div>
+        <div className="profile__achievements-strip">
+        {WORKOUT_ACHIEVEMENTS.map(({ count, variant }, i) => (
           <div
             key={count}
             className={`profile__achievement profile__wach profile__wach--t${i + 1}${i < workoutAchEarned ? " is-earned" : ""}`}
@@ -608,30 +623,44 @@ export function ProfileScreen({
                   className="profile__achievement-star"
                   d="M32 2 L40.23 20.67 L60.53 22.73 L45.32 36.33 L49.63 56.27 L32 46 L14.37 56.27 L18.68 36.33 L3.47 22.73 L23.77 20.67 Z"
                 />
-                {/* маленькая лапка внутри звезды — число «на подушечке» */}
-                <g className="profile__achievement-minipaw" transform="translate(32 31.5) scale(0.5) translate(-32 -34)">
-                  <ellipse className="profile__achievement-toe-shell" cx="15.5" cy="26" rx="8" ry="9.5" transform="rotate(-16 15.5 26)" />
-                  <ellipse className="profile__achievement-toe-shell" cx="27.5" cy="19.5" rx="8.6" ry="10.5" transform="rotate(-6 27.5 19.5)" />
-                  <ellipse className="profile__achievement-toe-shell" cx="40.5" cy="19.5" rx="8.6" ry="10.5" transform="rotate(6 40.5 19.5)" />
-                  <ellipse className="profile__achievement-toe-shell" cx="52.5" cy="26" rx="8" ry="9.5" transform="rotate(16 52.5 26)" />
+                {variant === "heart" ? (
+                  /* маленькое сердце внутри звезды (как у стрика на 42) */
+                  <g className="profile__achievement-miniheart" transform="translate(32 31) scale(0.46) translate(-32 -34)">
+                    <path
+                      className="profile__achievement-heart-shell"
+                      d="M32 56 C18 46 8 38 8 26 C8 18 14 12 22 12 C26 12 30 14 32 18 C34 14 38 12 42 12 C50 12 56 18 56 26 C56 38 46 46 32 56 Z"
+                    />
+                    <path
+                      className="profile__achievement-heart-bean"
+                      d="M32 49 C22 41 14 35 14 26 C14 21 18 17 23 17 C27 17 30 19 32 23 C34 19 37 17 41 17 C46 17 50 21 50 26 C50 35 42 41 32 49 Z"
+                    />
+                  </g>
+                ) : (
+                  /* маленькая лапка внутри звезды — число «на подушечке» */
+                  <g className="profile__achievement-minipaw" transform="translate(32 31.5) scale(0.5) translate(-32 -34)">
+                    <ellipse className="profile__achievement-toe-shell" cx="15.5" cy="26" rx="8" ry="9.5" transform="rotate(-16 15.5 26)" />
+                    <ellipse className="profile__achievement-toe-shell" cx="27.5" cy="19.5" rx="8.6" ry="10.5" transform="rotate(-6 27.5 19.5)" />
+                    <ellipse className="profile__achievement-toe-shell" cx="40.5" cy="19.5" rx="8.6" ry="10.5" transform="rotate(6 40.5 19.5)" />
+                    <ellipse className="profile__achievement-toe-shell" cx="52.5" cy="26" rx="8" ry="9.5" transform="rotate(16 52.5 26)" />
 
-                  <ellipse className="profile__achievement-toe-bean" cx="15.5" cy="27" rx="4.7" ry="5.9" transform="rotate(-16 15.5 27)" />
-                  <ellipse className="profile__achievement-toe-bean" cx="27.5" cy="20.5" rx="4.9" ry="6.3" transform="rotate(-6 27.5 20.5)" />
-                  <ellipse className="profile__achievement-toe-bean" cx="40.5" cy="20.5" rx="4.9" ry="6.3" transform="rotate(6 40.5 20.5)" />
-                  <ellipse className="profile__achievement-toe-bean" cx="52.5" cy="27" rx="4.7" ry="5.9" transform="rotate(16 52.5 27)" />
+                    <ellipse className="profile__achievement-toe-bean" cx="15.5" cy="27" rx="4.7" ry="5.9" transform="rotate(-16 15.5 27)" />
+                    <ellipse className="profile__achievement-toe-bean" cx="27.5" cy="20.5" rx="4.9" ry="6.3" transform="rotate(-6 27.5 20.5)" />
+                    <ellipse className="profile__achievement-toe-bean" cx="40.5" cy="20.5" rx="4.9" ry="6.3" transform="rotate(6 40.5 20.5)" />
+                    <ellipse className="profile__achievement-toe-bean" cx="52.5" cy="27" rx="4.7" ry="5.9" transform="rotate(16 52.5 27)" />
 
-                  <path
-                    className="profile__achievement-pad-shell"
-                    d="M32 34 C22 34 16 41 16 50 C16 57 22 61 32 61 C42 61 48 57 48 50 C48 41 42 34 32 34 Z"
-                  />
-                  <path
-                    className="profile__achievement-pad-bean"
-                    d="M32 39 C25 39 21 44 21 50 C21 55 25 58 32 58 C39 58 43 55 43 50 C43 44 39 39 32 39 Z"
-                  />
-                </g>
+                    <path
+                      className="profile__achievement-pad-shell"
+                      d="M32 34 C22 34 16 41 16 50 C16 57 22 61 32 61 C42 61 48 57 48 50 C48 41 42 34 32 34 Z"
+                    />
+                    <path
+                      className="profile__achievement-pad-bean"
+                      d="M32 39 C25 39 21 44 21 50 C21 55 25 58 32 58 C39 58 43 55 43 50 C43 44 39 39 32 39 Z"
+                    />
+                  </g>
+                )}
               </svg>
               <span
-                className={`profile__achievement-num${count >= 1000 ? " profile__achievement-num--quad" : count >= 100 ? " profile__achievement-num--triple" : count >= 10 ? " profile__achievement-num--double" : ""}`}
+                className={`profile__achievement-num${variant === "heart" ? " profile__achievement-num--heart" : ""}${count >= 1000 ? " profile__achievement-num--quad" : count >= 100 ? " profile__achievement-num--triple" : count >= 10 ? " profile__achievement-num--double" : ""}`}
               >
                 {count}
               </span>
