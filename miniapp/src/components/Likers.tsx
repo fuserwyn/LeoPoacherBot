@@ -7,24 +7,29 @@ import {
   type RefObject,
   type TouchEvent as ReactTouchEvent,
 } from "react";
+import { createPortal } from "react-dom";
 
 /** Группа отреагировавших по одной эмодзи. */
 export type LikerGroup = { emoji: string; voters: string[] };
 
+const OFFSCREEN: CSSProperties = { position: "fixed", top: "-9999px", left: "0px" };
+
 /**
- * Управляет поповером «кто отреагировал»: открытие/закрытие, закрытие по тапу вне
- * (кроме якоря), Esc и горизонтальный сдвиг, чтобы окно целиком влезало в экран.
- * `anchorRef` — контейнер-триггер (на нём должен быть position: relative).
+ * Управляет поповером «кто отреагировал». Поповер рендерится порталом в body
+ * (чтобы не обрезался overflow-ом карточки) и позиционируется position: fixed
+ * относительно якоря: над ним, либо под ним — туда, где больше места; высота
+ * ограничена, внутри скролл. Закрытие — тап вне (кроме якоря и самого окна) / Esc.
  */
 export function useLikersPopover(anchorRef: RefObject<HTMLElement | null>) {
   const [open, setOpen] = useState(false);
-  const [shift, setShift] = useState(0);
+  const [style, setStyle] = useState<CSSProperties>(OFFSCREEN);
   const popRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
     if (!open) return;
     const close = (e: MouseEvent | TouchEvent) => {
-      if (anchorRef.current?.contains(e.target as Node)) return;
+      const t = e.target as Node;
+      if (anchorRef.current?.contains(t) || popRef.current?.contains(t)) return;
       setOpen(false);
     };
     const esc = (e: KeyboardEvent) => {
@@ -42,42 +47,63 @@ export function useLikersPopover(anchorRef: RefObject<HTMLElement | null>) {
 
   useLayoutEffect(() => {
     if (!open) {
-      setShift(0);
+      setStyle(OFFSCREEN);
       return;
     }
-    const el = popRef.current;
-    if (!el) return;
-    const rect = el.getBoundingClientRect();
-    const margin = 8;
-    let s = 0;
-    if (rect.left < margin) s = margin - rect.left;
-    else if (rect.right > window.innerWidth - margin) s = window.innerWidth - margin - rect.right;
-    if (s !== 0) setShift(s);
-  }, [open]);
+    const position = () => {
+      const anchor = anchorRef.current;
+      const pop = popRef.current;
+      if (!anchor || !pop) return;
+      const a = anchor.getBoundingClientRect();
+      const margin = 8;
+      const gap = 6;
+      const vw = window.innerWidth;
+      const vh = window.innerHeight;
 
-  return { open, setOpen, shift, popRef };
+      // По вертикали выбираем сторону с бóльшим запасом; высоту ограничиваем.
+      const spaceAbove = a.top - margin - gap;
+      const spaceBelow = vh - a.bottom - margin - gap;
+      const placeAbove = spaceAbove >= spaceBelow;
+      const avail = Math.max(0, placeAbove ? spaceAbove : spaceBelow);
+      const maxHeight = Math.max(96, Math.min(260, avail));
+      const contentH = pop.scrollHeight;
+      const h = Math.min(contentH, maxHeight);
+
+      // По горизонтали — центр по якорю, прижатый к экрану.
+      const pw = pop.offsetWidth;
+      let left = a.left + a.width / 2 - pw / 2;
+      left = Math.max(margin, Math.min(left, vw - margin - pw));
+
+      const top = placeAbove ? Math.max(margin, a.top - gap - h) : a.bottom + gap;
+
+      setStyle({ position: "fixed", left: `${left}px`, top: `${top}px`, maxHeight: `${maxHeight}px` });
+    };
+    position();
+    window.addEventListener("scroll", position, true);
+    window.addEventListener("resize", position);
+    return () => {
+      window.removeEventListener("scroll", position, true);
+      window.removeEventListener("resize", position);
+    };
+  }, [open, anchorRef]);
+
+  return { open, setOpen, style, popRef };
 }
 
-/** Поповер со списком отреагировавших (сгруппирован по эмодзи, со скроллом). */
+/** Поповер со списком отреагировавших (портал в body, сгруппирован по эмодзи, со скроллом). */
 export function LikersPopover({
   groups,
   popRef,
-  shift,
+  style,
   label = "Кто отреагировал",
 }: {
   groups: LikerGroup[];
   popRef: RefObject<HTMLDivElement | null>;
-  shift: number;
+  style: CSSProperties;
   label?: string;
 }) {
-  return (
-    <div
-      className="act-card__likers"
-      role="dialog"
-      aria-label={label}
-      ref={popRef}
-      style={{ "--pop-shift": `${shift}px` } as CSSProperties}
-    >
+  return createPortal(
+    <div className="act-card__likers" role="dialog" aria-label={label} ref={popRef} style={style}>
       <div className="act-card__likers-head">{label}</div>
       <div className="act-card__likers-scroll">
         {groups.map((g) => (
@@ -94,7 +120,8 @@ export function LikersPopover({
           </div>
         ))}
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }
 

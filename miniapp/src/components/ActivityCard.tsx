@@ -102,16 +102,16 @@ function ThreadLikeButton({
   onToggle: () => void;
 }) {
   const anchorRef = useRef<HTMLSpanElement>(null);
-  const { open, setOpen, shift, popRef } = useLikersPopover(anchorRef);
+  const { open, setOpen, style, popRef } = useLikersPopover(anchorRef);
   const hasVoters = Array.isArray(voters) && voters.length > 0;
   const groups: LikerGroup[] = hasVoters ? [{ emoji: "❤️", voters: voters! }] : [];
   const press = useChipPress(onToggle, hasVoters ? () => setOpen(true) : undefined);
   return (
-    <span className="act-card__thread-like-wrap" ref={anchorRef} onMouseLeave={() => setOpen(false)}>
+    <span className="act-card__thread-like-wrap" ref={anchorRef}>
       <button type="button" className={`act-card__thread-like${mine ? " act-card__thread-like--mine" : ""}`} {...press}>
         ❤️ {count}
       </button>
-      {open && hasVoters && <LikersPopover groups={groups} popRef={popRef} shift={shift} label="Кто лайкнул" />}
+      {open && hasVoters && <LikersPopover groups={groups} popRef={popRef} style={style} label="Кто лайкнул" />}
     </span>
   );
 }
@@ -127,7 +127,7 @@ export function TrainingReactionsBar({
   const moreRef = useRef<HTMLDivElement>(null);
   const [visibleCount, setVisibleCount] = useState(reactions.length);
   const [menuOpen, setMenuOpen] = useState(false);
-  const { open: likersOpen, setOpen: setLikersOpen, shift: likersShift, popRef } = useLikersPopover(rowRef);
+  const { open: likersOpen, setOpen: setLikersOpen, style: likersStyle, popRef } = useLikersPopover(rowRef);
 
   // Группы «кто отреагировал»: только эмодзи с реальными голосами.
   const likerGroups: LikerGroup[] = reactions
@@ -184,7 +184,7 @@ export function TrainingReactionsBar({
   };
 
   return (
-    <div className="act-card__react-inner" ref={rowRef} onMouseLeave={() => setLikersOpen(false)}>
+    <div className="act-card__react-inner" ref={rowRef}>
       <div className="act-card__react-inline">
         {visible.map((r) => (
           <ReactionChip
@@ -223,7 +223,7 @@ export function TrainingReactionsBar({
           </div>
         )}
       </div>
-      {likersOpen && hasLikers && <LikersPopover groups={likerGroups} popRef={popRef} shift={likersShift} />}
+      {likersOpen && hasLikers && <LikersPopover groups={likerGroups} popRef={popRef} style={likersStyle} />}
     </div>
   );
 }

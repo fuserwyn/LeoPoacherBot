@@ -386,15 +386,12 @@
   min-width: 0;
 }
 
-/* Список реакций «кто отреагировал» — поповер над баром, со скроллом внутри.
-   --pop-shift двигает окно по горизонтали, чтобы оно целиком влезло в экран. */
+/* Список реакций «кто отреагировал» — портал в body, position: fixed (координаты
+   и max-height задаются инлайн из JS), внутри скролл. Не обрезается карточкой. */
 .act-card__likers {
-  --pop-shift: 0px;
-  position: absolute;
-  bottom: calc(100% + 6px);
-  left: 50%;
-  transform: translateX(calc(-50% + var(--pop-shift)));
-  z-index: 30;
+  z-index: 1000;
+  display: flex;
+  flex-direction: column;
   width: max-content;
   min-width: 150px;
   max-width: min(280px, calc(100vw - 16px));
@@ -402,21 +399,11 @@
   border-radius: 12px;
   background: var(--popover, #1e1f24);
   border: 1px solid var(--border-subtle);
-  box-shadow: 0 10px 26px rgba(0, 0, 0, 0.4);
-}
-
-/* Стрелка указывает на бар; компенсируем сдвиг окна, чтобы оставаться по центру бара. */
-.act-card__likers::after {
-  content: "";
-  position: absolute;
-  top: 100%;
-  left: calc(50% - var(--pop-shift));
-  transform: translateX(-50%);
-  border: 6px solid transparent;
-  border-top-color: var(--popover, #1e1f24);
+  box-shadow: 0 10px 26px rgba(0, 0, 0, 0.45);
 }
 
 .act-card__likers-head {
+  flex-shrink: 0;
   padding: 0 2px 6px;
   margin-bottom: 6px;
   border-bottom: 1px solid var(--border-subtle);
@@ -426,7 +413,8 @@
 }
 
 .act-card__likers-scroll {
-  max-height: 200px;
+  flex: 1;
+  min-height: 0;
   overflow-y: auto;
   -webkit-overflow-scrolling: touch;
   overscroll-behavior: contain;

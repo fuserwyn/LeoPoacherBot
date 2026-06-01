@@ -59,7 +59,7 @@ function PackMessageReactions({
   onReact: (emoji: string) => void;
 }) {
   const anchorRef = useRef<HTMLDivElement>(null);
-  const { open, setOpen, shift, popRef } = useLikersPopover(anchorRef);
+  const { open, setOpen, style, popRef } = useLikersPopover(anchorRef);
   const groups: LikerGroup[] = reactions
     .filter((r) => r.count > 0 && Array.isArray(r.voters) && r.voters.length > 0)
     .map((r) => ({ emoji: r.emoji, voters: r.voters! }));
@@ -68,17 +68,11 @@ function PackMessageReactions({
     if (hasLikers) setOpen(true);
   };
   return (
-    <div
-      className="packroom__react-chips"
-      role="group"
-      aria-label="Реакции на сообщение"
-      ref={anchorRef}
-      onMouseLeave={() => setOpen(false)}
-    >
+    <div className="packroom__react-chips" role="group" aria-label="Реакции на сообщение" ref={anchorRef}>
       {reactions.map((r) => (
         <PackReactionChip key={r.emoji} r={r} onReact={onReact} onLongPress={hasLikers ? openLikers : undefined} />
       ))}
-      {open && hasLikers && <LikersPopover groups={groups} popRef={popRef} shift={shift} />}
+      {open && hasLikers && <LikersPopover groups={groups} popRef={popRef} style={style} />}
     </div>
   );
 }
