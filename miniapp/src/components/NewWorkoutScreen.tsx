@@ -24,7 +24,7 @@ function useViewportMetrics(): ViewportMetrics {
   });
 
   useEffect(() => {
-    let t: ReturnType<typeof setTimeout> | undefined;
+    let raf = 0;
 
     const read = () => {
       const vv = window.visualViewport;
@@ -50,9 +50,9 @@ function useViewportMetrics(): ViewportMetrics {
 
       setM((prev) => {
         if (
-          Math.abs(prev.visualH - visualH) < 12 &&
-          Math.abs(prev.layoutH - layoutH) < 12 &&
-          Math.abs(prev.keyboardBottom - keyboardBottom) < 8
+          Math.abs(prev.visualH - visualH) < 4 &&
+          Math.abs(prev.layoutH - layoutH) < 4 &&
+          Math.abs(prev.keyboardBottom - keyboardBottom) < 4
         ) {
           return prev;
         }
@@ -60,9 +60,16 @@ function useViewportMetrics(): ViewportMetrics {
       });
     };
 
+    // Throttle через rAF, а не debounce 100мс: iOS анимирует клавиатуру ~250мс
+    // и шлёт серию resize — при дебаунсе замер происходил только после её конца,
+    // поэтому кнопка-панель «не сразу» вставала над клавиатурой. Замер на каждом
+    // кадре даёт панели отслеживать вьюпорт почти в реальном времени (быстро и плавно).
     const schedule = () => {
-      if (t) window.clearTimeout(t);
-      t = window.setTimeout(read, 100);
+      if (raf) cancelAnimationFrame(raf);
+      raf = requestAnimationFrame(() => {
+        raf = 0;
+        read();
+      });
     };
 
     read();
@@ -73,7 +80,7 @@ function useViewportMetrics(): ViewportMetrics {
     const tg = window.Telegram?.WebApp as { onEvent?: (e: string, fn: () => void) => void } | undefined;
     tg?.onEvent?.("viewportChanged", schedule);
     return () => {
-      if (t) window.clearTimeout(t);
+      if (raf) cancelAnimationFrame(raf);
       vv?.removeEventListener("resize", schedule);
       vv?.removeEventListener("scroll", schedule);
       window.removeEventListener("orientationchange", read);
