@@ -127,7 +127,7 @@ const OTHER_LABEL_MAX = 80;
 const PHOTO_ENABLED = false;
 
 export function NewWorkoutScreen({ onClose, onSave, showAlert }: Props) {
-  const { visualH, keyboardBottom } = useViewportMetrics();
+  const { visualH } = useViewportMetrics();
 
   useEffect(() => {
     window.scrollTo(0, 0);
@@ -142,7 +142,6 @@ export function NewWorkoutScreen({ onClose, onSave, showAlert }: Props) {
   // (и «Описание», и «Свой тип»), а не только текстовую заметку.
   const activeFieldRef = useRef<HTMLElement | null>(null);
   const [inputFocused, setInputFocused] = useState(false);
-  const keyboardOpen = keyboardBottom > 0;
   const showKeyboardBar = inputFocused;
 
   const [type, setType] = useState<WorkoutCategoryId | "">("");
@@ -244,7 +243,11 @@ export function NewWorkoutScreen({ onClose, onSave, showAlert }: Props) {
     <div
       className={`nwo${showKeyboardBar ? " nwo--keyboard" : ""}`}
       style={
-        keyboardOpen
+        // Высоту клампим строго пока показана клавиатурная панель (showKeyboardBar),
+        // тем же флагом, что футер/класс .nwo--keyboard. Иначе при тапе по чипу
+        // inputFocused слетает раньше, чем дебаунс-метрики keyboardBottom, и кнопка
+        // «Отправить» на миг зависает посередине, пока .nwo ещё зажат высотой клавиатуры.
+        showKeyboardBar
           ? { height: `${visualH}px`, maxHeight: `${visualH}px` }
           : undefined
       }
