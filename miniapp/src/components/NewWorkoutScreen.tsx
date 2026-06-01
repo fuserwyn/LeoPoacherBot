@@ -130,8 +130,8 @@ type Props = {
 const NOTE_MAX = 1500;
 const OTHER_LABEL_MAX = 80;
 
-/** Временно скрыть возможность прикреплять фото. Поменяй на true, чтобы включить обратно. */
-const PHOTO_ENABLED = false;
+/** Прикрепление фото к отчёту. Фото грузятся в Cloudflare R2 (см. R2_* в env). */
+const PHOTO_ENABLED = true;
 
 export function NewWorkoutScreen({ onClose, onSave, showAlert }: Props) {
   const { visualH } = useViewportMetrics();

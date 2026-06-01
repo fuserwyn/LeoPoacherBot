@@ -164,27 +164,35 @@ export function PhotoCropper({ file, onCancel, onConfirm }: Props) {
         onCancel();
         return;
       }
+      // Ужимаем по длинной стороне, чтобы фото в ленте не весило мегабайты
+      // (экономит R2-хранилище и ускоряет загрузку в Telegram WebView).
+      const MAX_SIDE = 1280;
+      const downscale = Math.min(1, MAX_SIDE / Math.max(sw, sh));
+      const outW = Math.max(1, Math.round(sw * downscale));
+      const outH = Math.max(1, Math.round(sh * downscale));
       const canvas = document.createElement("canvas");
-      canvas.width = sw;
-      canvas.height = sh;
+      canvas.width = outW;
+      canvas.height = outH;
       const ctx = canvas.getContext("2d");
       if (!ctx) {
         onCancel();
         return;
       }
-      ctx.drawImage(img, sx, sy, sw, sh, 0, 0, sw, sh);
-      const mime = file.type === "image/png" ? "image/png" : "image/jpeg";
-      const ext = mime === "image/png" ? "png" : "jpg";
-      const quality = mime === "image/jpeg" ? 0.92 : undefined;
+      // Белая подложка: на случай прозрачного PNG, который мы кодируем в JPEG.
+      ctx.fillStyle = "#ffffff";
+      ctx.fillRect(0, 0, outW, outH);
+      ctx.imageSmoothingQuality = "high";
+      ctx.drawImage(img, sx, sy, sw, sh, 0, 0, outW, outH);
+      // Фото тренировки кодируем в JPEG — заметно легче PNG при том же качестве.
       const blob: Blob | null = await new Promise((resolve) =>
-        canvas.toBlob((b) => resolve(b), mime, quality),
+        canvas.toBlob((b) => resolve(b), "image/jpeg", 0.82),
       );
       if (!blob) {
         onCancel();
         return;
       }
       const baseName = file.name.replace(/\.[^.]+$/, "") || "photo";
-      const cropped = new File([blob], `${baseName}_cropped.${ext}`, { type: mime });
+      const cropped = new File([blob], `${baseName}_cropped.jpg`, { type: "image/jpeg" });
       onConfirm(cropped);
     } finally {
       setBusy(false);

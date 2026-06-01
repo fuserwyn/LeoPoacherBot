@@ -324,6 +324,19 @@
   font-weight: 700;
 }
 
+.profile__achievements-group {
+  color: var(--text-muted);
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  margin: 10px 0 6px;
+}
+
+.profile__achievements-group:first-of-type {
+  margin-top: 0;
+}
+
 .profile__achievements-strip {
   display: flex;
   gap: 8px;
@@ -446,6 +459,62 @@
   font-weight: 700;
   line-height: 1.2;
   text-align: center;
+}
+
+/* ===== Ачивки за тренировки: звезда с кубком внутри ===== */
+.profile__achievement-star-svg {
+  width: 50px;
+  height: 50px;
+  overflow: visible;
+}
+
+.profile__achievement-star {
+  fill: var(--achievement-shell);
+  stroke: var(--achievement-outline);
+  stroke-width: 1.7;
+  stroke-linejoin: round;
+}
+
+.profile__achievement-cup-bowl,
+.profile__achievement-cup-stem,
+.profile__achievement-cup-base {
+  fill: var(--achievement-bean);
+  stroke: var(--achievement-outline);
+  stroke-width: 1;
+  stroke-linejoin: round;
+}
+
+.profile__achievement-cup-handle {
+  fill: none;
+  stroke: var(--achievement-outline);
+  stroke-width: 1.6;
+  stroke-linecap: round;
+}
+
+.profile__achievement-num {
+  position: absolute;
+  left: 50%;
+  top: 43%;
+  transform: translate(-50%, -50%);
+  font-size: 9px;
+  font-weight: 900;
+  line-height: 1;
+  color: var(--achievement-day-color);
+  letter-spacing: -0.03em;
+  text-shadow: 0 1px 0 rgba(255, 255, 255, 0.35);
+}
+
+.profile__achievement-num--double {
+  font-size: 8px;
+}
+
+.profile__achievement-num--triple {
+  font-size: 7px;
+}
+
+.profile__achievement-num--quad {
+  font-size: 6px;
+  letter-spacing: -0.05em;
 }
 
 .profile__achievement:not(.is-earned) {
@@ -593,6 +662,76 @@
   box-shadow:
     0 6px 14px rgba(154, 114, 9, 0.28),
     0 0 0 1px rgba(255, 229, 102, 0.35);
+}
+
+/* ===== Тиры ачивок за тренировки: бронза → серебро → золото → платина → бриллиант ===== */
+.profile__wach--t1 {
+  --achievement-outline: #8a5a2b;
+  --achievement-shell: #f0cba4;
+  --achievement-bean: #cf8a4a;
+  --achievement-day-color: #6e431c;
+}
+
+.profile__wach--t2 {
+  --achievement-outline: #7d4a1f;
+  --achievement-shell: #e8b486;
+  --achievement-bean: #b9702f;
+  --achievement-day-color: #5e3815;
+}
+
+.profile__wach--t3 {
+  --achievement-outline: #6b7280;
+  --achievement-shell: #eef1f5;
+  --achievement-bean: #aab3bf;
+  --achievement-day-color: #4b5563;
+}
+
+.profile__wach--t4 {
+  --achievement-outline: #5b626c;
+  --achievement-shell: #dde3ea;
+  --achievement-bean: #98a2b0;
+  --achievement-day-color: #3f4651;
+}
+
+.profile__wach--t5 {
+  --achievement-outline: #9a7209;
+  --achievement-shell: #ffe7a3;
+  --achievement-bean: #f0b429;
+  --achievement-day-color: #6b4f05;
+}
+
+.profile__wach--t6 {
+  --achievement-outline: #8a6510;
+  --achievement-shell: #ffd86b;
+  --achievement-bean: #e09b1a;
+  --achievement-day-color: #5e4408;
+}
+
+.profile__wach--t7 {
+  --achievement-outline: #5a7d83;
+  --achievement-shell: #e8f0f2;
+  --achievement-bean: #9fc6cd;
+  --achievement-day-color: #3d5a5f;
+}
+
+.profile__wach--t8 {
+  --achievement-outline: #2f4d8a;
+  --achievement-shell: #cfe0ff;
+  --achievement-bean: #6f9be6;
+  --achievement-day-color: #28406f;
+}
+
+.profile__wach--t9 {
+  --achievement-outline: #1f8aa0;
+  --achievement-shell: #d9fbff;
+  --achievement-bean: #6fe0f0;
+  --achievement-day-color: #0f6478;
+}
+
+.profile__wach--t9.is-earned .profile__achievement-badge {
+  box-shadow:
+    0 6px 14px rgba(31, 138, 160, 0.3),
+    0 0 0 1px rgba(111, 224, 240, 0.4);
 }
 
 .profile__hint {

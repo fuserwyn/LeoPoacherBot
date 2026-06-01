@@ -1,11 +1,29 @@
 package database
 
 import (
+	"database/sql"
 	"time"
 
 	"leo-bot/internal/domain"
 	"leo-bot/internal/utils"
 )
+
+// GetTrainingPhotoURLByMessageID возвращает URL фото тренировки поста ленты (пусто, если фото нет).
+// Нужен, чтобы удалить объект из хранилища при удалении поста.
+func (d *Database) GetTrainingPhotoURLByMessageID(chatID, messageID int64) (string, error) {
+	var url sql.NullString
+	err := d.db.QueryRow(
+		`SELECT training_photo_url FROM user_messages WHERE id = $1 AND chat_id = $2`,
+		messageID, chatID,
+	).Scan(&url)
+	if err == sql.ErrNoRows {
+		return "", nil
+	}
+	if err != nil {
+		return "", err
+	}
+	return url.String, nil
+}
 
 // SaveUserMessage сохраняет сообщение пользователя для RAG контекста
 func (d *Database) SaveUserMessage(msg *domain.UserMessage) error {

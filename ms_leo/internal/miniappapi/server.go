@@ -23,17 +23,20 @@ type Server struct {
 	logger           logger.Logger
 	publicMediaBase  string
 	mediaDirAbsolute string
+	r2               *R2Storage // если != nil — фото грузятся в Cloudflare R2, иначе на локальный диск
 }
 
 // New — HTTP-оболочка для мини-апpa: валидация initData и тот же обработчик, что getUpdates.
 // publicMediaBase — публичная база этого сервиса (HTTPS в проде), нужна для URL фото тренировки; mediaDirAbsolute — каталог для файлов.
-func New(b *bot.Bot, token string, log logger.Logger, publicMediaBase, mediaDirAbsolute string) http.Handler {
+// r2 — опциональное объектное хранилище (nil = локальный диск).
+func New(b *bot.Bot, token string, log logger.Logger, publicMediaBase, mediaDirAbsolute string, r2 *R2Storage) http.Handler {
 	s := &Server{
 		bot:              b,
 		token:            token,
 		logger:           log,
 		publicMediaBase:  strings.TrimRight(strings.TrimSpace(publicMediaBase), "/"),
 		mediaDirAbsolute: strings.TrimSpace(mediaDirAbsolute),
+		r2:               r2,
 	}
 	return withCORS(http.HandlerFunc(s.serve))
 }
@@ -838,7 +841,8 @@ func (s *Server) handlePostFeedDelete(w http.ResponseWriter, r *http.Request) {
 		s.jsonErr(w, http.StatusBadRequest, "user_missing")
 		return
 	}
-	if err := s.bot.PackFeedAdminDeletePost(parsed.User.ID, parsed, body.UserMessageID); err != nil {
+	deletedPhotoURL, err := s.bot.PackFeedAdminDeletePost(parsed.User.ID, parsed, body.UserMessageID)
+	if err != nil {
 		if errors.Is(err, bot.ErrMiniAppChatMismatch) {
 			s.jsonErr(w, http.StatusConflict, "chat_mismatch")
 			return
@@ -854,6 +858,12 @@ func (s *Server) handlePostFeedDelete(w http.ResponseWriter, r *http.Request) {
 		s.logger.Errorf("feed delete: %v", err)
 		s.jsonErr(w, http.StatusInternalServerError, "feed_delete_error")
 		return
+	}
+	// Пост удалён — best-effort подчищаем фото в R2 (ошибку только логируем).
+	if s.r2 != nil && deletedPhotoURL != "" {
+		if delErr := s.r2.DeleteByURL(r.Context(), deletedPhotoURL); delErr != nil {
+			s.logger.Warnf("miniapp R2 delete on feed delete: %v", delErr)
+		}
 	}
 	w.Header().Set("Content-Type", "application/json; charset=utf-8")
 	_ = json.NewEncoder(w).Encode(map[string]any{"ok": true})

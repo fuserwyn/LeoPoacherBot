@@ -66,61 +66,58 @@ func sniffImageExt(header []byte) (ext string, ok bool) {
 	return "", false
 }
 
-func saveWorkoutPhotoFile(mediaDirAbsolute string, file io.ReadSeeker) (baseName string, errCode string) {
-	snippet := make([]byte, 32)
-	n, readErr := io.ReadFull(file, snippet)
-	if readErr != nil && !errors.Is(readErr, io.ErrUnexpectedEOF) && readErr != io.EOF {
-		return "", "photo_read_error"
+func contentTypeForExt(ext string) string {
+	switch ext {
+	case ".jpg":
+		return "image/jpeg"
+	case ".png":
+		return "image/png"
+	case ".webp":
+		return "image/webp"
+	case ".gif":
+		return "image/gif"
+	default:
+		return "application/octet-stream"
 	}
-	snippet = snippet[:n]
-	ext, mimeOK := sniffImageExt(snippet)
+}
+
+// validateWorkoutPhoto читает фото целиком в память (лимит 6 МиБ), проверяет формат по сигнатуре
+// и генерирует случайное имя файла. Выбор хранилища (диск/R2) — на стороне вызывающего.
+func validateWorkoutPhoto(file io.Reader) (baseName, contentType string, data []byte, errCode string) {
+	// Читаем не более лимита+1, чтобы отличить «ровно по лимиту» от «больше лимита».
+	data, err := io.ReadAll(io.LimitReader(file, maxWorkoutPhotoBytes+1))
+	if err != nil {
+		return "", "", nil, "photo_read_error"
+	}
+	if len(data) > maxWorkoutPhotoBytes {
+		return "", "", nil, "photo_too_large"
+	}
+	header := data
+	if len(header) > 32 {
+		header = header[:32]
+	}
+	ext, mimeOK := sniffImageExt(header)
 	if !mimeOK {
-		return "", "unsupported_image"
+		return "", "", nil, "unsupported_image"
 	}
 	var token [16]byte
 	if _, err := rand.Read(token[:]); err != nil {
-		return "", "random_error"
+		return "", "", nil, "random_error"
 	}
-	baseName = hex.EncodeToString(token[:]) + ext
-	destAbs := filepath.Join(mediaDirAbsolute, baseName)
+	return hex.EncodeToString(token[:]) + ext, contentTypeForExt(ext), data, ""
+}
+
+func saveWorkoutPhotoFile(mediaDirAbsolute string, file io.Reader) (baseName string, errCode string) {
+	baseName, _, data, errCode := validateWorkoutPhoto(file)
+	if errCode != "" {
+		return "", errCode
+	}
 	if err := os.MkdirAll(mediaDirAbsolute, 0750); err != nil {
 		return "", "media_dir_error"
 	}
-	out, err := os.Create(destAbs)
-	if err != nil {
+	destAbs := filepath.Join(mediaDirAbsolute, baseName)
+	if err := os.WriteFile(destAbs, data, 0640); err != nil {
 		return "", "media_write_error"
-	}
-	if _, err := out.Write(snippet); err != nil {
-		out.Close()
-		_ = os.Remove(destAbs)
-		return "", "media_write_error"
-	}
-	written := int64(n)
-	left := int64(maxWorkoutPhotoBytes - n)
-	// file уже стоит сразу после sniffed-заголовка. Пишем snippet один раз и копируем
-	// только остаток, иначе сохранённое изображение получает продублированный header.
-	nw64, cpErr := io.Copy(out, io.LimitReader(file, left))
-	out.Close()
-	if cpErr != nil {
-		_ = os.Remove(destAbs)
-		return "", "photo_copy_error"
-	}
-	written += nw64
-	// Важно: io.LimitReader просто обрезает поток на лимите.
-	// Проверяем, не осталось ли ещё байтов во входном файле, чтобы не сохранить битое изображение.
-	extra := make([]byte, 1)
-	extraN, extraErr := file.Read(extra)
-	if extraN > 0 {
-		_ = os.Remove(destAbs)
-		return "", "photo_too_large"
-	}
-	if extraErr != nil && extraErr != io.EOF {
-		_ = os.Remove(destAbs)
-		return "", "photo_read_error"
-	}
-	if written > maxWorkoutPhotoBytes {
-		_ = os.Remove(destAbs)
-		return "", "photo_too_large"
 	}
 	return baseName, ""
 }
@@ -131,21 +128,26 @@ func (s *Server) handlePostWorkoutWithPhoto(w http.ResponseWriter, r *http.Reque
 		s.jsonErr(w, http.StatusServiceUnavailable, "server_unavailable")
 		return
 	}
-	if s.mediaDirAbsolute == "" {
+	useR2 := s.r2 != nil
+	if !useR2 && s.mediaDirAbsolute == "" {
 		s.jsonErr(w, http.StatusBadRequest, "media_not_configured")
 		return
 	}
-	publicBase := strings.TrimRight(strings.TrimSpace(s.publicMediaBase), "/")
-	// Не перетираем явно заданный публичный base (обычно HTTPS),
-	// иначе можно случайно записать внутренний/HTTP host и сломать показ фото в мини-аппе.
-	if publicBase == "" {
-		if reqBase := absolutePublicBaseFromRequest(r); reqBase != "" {
-			publicBase = strings.TrimRight(reqBase, "/")
+	// publicBase нужен только для локального диска: R2 отдаёт полный публичный URL сам.
+	var publicBase string
+	if !useR2 {
+		publicBase = strings.TrimRight(strings.TrimSpace(s.publicMediaBase), "/")
+		// Не перетираем явно заданный публичный base (обычно HTTPS),
+		// иначе можно случайно записать внутренний/HTTP host и сломать показ фото в мини-аппе.
+		if publicBase == "" {
+			if reqBase := absolutePublicBaseFromRequest(r); reqBase != "" {
+				publicBase = strings.TrimRight(reqBase, "/")
+			}
 		}
-	}
-	if publicBase == "" {
-		s.jsonErr(w, http.StatusBadRequest, "media_not_configured")
-		return
+		if publicBase == "" {
+			s.jsonErr(w, http.StatusBadRequest, "media_not_configured")
+			return
+		}
 	}
 	if err := r.ParseMultipartForm(maxWorkoutPhotoBytes + 65536); err != nil {
 		s.jsonErr(w, http.StatusBadRequest, "invalid_multipart")
@@ -187,21 +189,40 @@ func (s *Server) handlePostWorkoutWithPhoto(w http.ResponseWriter, r *http.Reque
 	}
 	defer file.Close()
 
-	baseName, saveErrCode := saveWorkoutPhotoFile(s.mediaDirAbsolute, file)
-	if saveErrCode != "" {
-		if saveErrCode == "media_dir_error" {
-			s.logger.Errorf("miniapp media mkdir: %s", s.mediaDirAbsolute)
+	var publicURL string
+	if useR2 {
+		baseName, contentType, data, vErrCode := validateWorkoutPhoto(file)
+		if vErrCode != "" {
+			status := http.StatusBadRequest
+			if vErrCode == "random_error" || vErrCode == "photo_read_error" {
+				status = http.StatusInternalServerError
+			}
+			s.jsonErr(w, status, vErrCode)
+			return
 		}
-		status := http.StatusBadRequest
-		switch saveErrCode {
-		case "random_error", "media_dir_error", "media_write_error":
-			status = http.StatusInternalServerError
+		url, upErr := s.r2.Upload(r.Context(), baseName, contentType, data)
+		if upErr != nil {
+			s.logger.Errorf("miniapp R2 upload: %v", upErr)
+			s.jsonErr(w, http.StatusInternalServerError, "media_write_error")
+			return
 		}
-		s.jsonErr(w, status, saveErrCode)
-		return
+		publicURL = url
+	} else {
+		baseName, saveErrCode := saveWorkoutPhotoFile(s.mediaDirAbsolute, file)
+		if saveErrCode != "" {
+			if saveErrCode == "media_dir_error" {
+				s.logger.Errorf("miniapp media mkdir: %s", s.mediaDirAbsolute)
+			}
+			status := http.StatusBadRequest
+			switch saveErrCode {
+			case "random_error", "media_dir_error", "media_write_error":
+				status = http.StatusInternalServerError
+			}
+			s.jsonErr(w, status, saveErrCode)
+			return
+		}
+		publicURL = publicBase + "/api/miniapp/media/" + baseName
 	}
-
-	publicURL := publicBase + "/api/miniapp/media/" + baseName
 	miniRes := s.bot.ProcessMiniAppPrivateTextWithTrainingPhoto(parsed, line, publicURL)
 	if miniRes.Blocked {
 		code := miniRes.BlockCode

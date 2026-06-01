@@ -99,6 +99,18 @@ SCAN_HISTORY_ON_START=false
 # DB_CONNECT_MAX_ATTEMPTS=30
 # DB_CONNECT_RETRY_DELAY_SEC=2
 
+# Фото тренировок — Cloudflare R2 (S3-совместимое хранилище).
+# Если заданы ВСЕ пять переменных — фото грузятся в бакет R2, иначе на локальный диск (эфемерный на Railway!).
+# R2_ACCOUNT_ID — Account ID из дашборда R2.
+# R2_ACCESS_KEY_ID / R2_SECRET_ACCESS_KEY — из R2 API Token (Object Read & Write).
+# R2_BUCKET — имя бакета, например leo-workout-photos.
+# R2_PUBLIC_BASE_URL — публичный адрес бакета без / на конце (pub-xxxx.r2.dev или свой домен).
+# R2_ACCOUNT_ID=
+# R2_ACCESS_KEY_ID=
+# R2_SECRET_ACCESS_KEY=
+# R2_BUCKET=leo-workout-photos
+# R2_PUBLIC_BASE_URL=https://pub-xxxxxxxx.r2.dev
+
 # RAG / Qdrant — изолированные сессии: личка с Лео (personal:…) и общий чат стаи (pack_group:…). Комментарии в ленте — только Postgres.
 # Railway: QDRANT_URL=https://qdrant-main.up.railway.app:6333
 # RAG_ENABLED=true

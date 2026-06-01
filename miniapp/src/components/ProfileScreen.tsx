@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { inactivityHighlight } from "../lib/inactivityHighlight";
 import { cupsLevelProgressBarPct, formatCupsLevelProgressLabel, miniappCupsLevelProgress, miniappLevelFromCups, miniappLevelName } from "../lib/miniappLevel";
-import { daysWordRu, effectiveStreakDays, streakBurnLabel } from "../lib/streakLabel";
+import { effectiveStreakDays, streakBurnLabel } from "../lib/streakLabel";
 import "./ProfileScreen.css";
 
 const api = (import.meta.env.VITE_MINIAPP_API_URL as string | undefined)?.replace(/\/$/, "") ?? "";
@@ -48,7 +48,7 @@ type Props = {
   active?: boolean;
 };
 
-const ACHIEVEMENTS = [
+const STREAK_ACHIEVEMENTS = [
   { days: 7, colorClass: "profile__achievement--7", variant: "paw" },
   { days: 14, colorClass: "profile__achievement--14", variant: "paw" },
   { days: 30, colorClass: "profile__achievement--30", variant: "paw" },
@@ -59,6 +59,10 @@ const ACHIEVEMENTS = [
   { days: 365, colorClass: "profile__achievement--365", variant: "paw" },
   { days: 420, colorClass: "profile__achievement--420", variant: "paw-crown" },
 ] as const;
+
+// Ачивки за общее число тренировок. «Заработано» считаем на фронте из total workouts —
+// бэкенд про эти пороги не знает (это чисто визуальная витрина в профиле).
+const WORKOUT_ACHIEVEMENTS = [10, 20, 42, 50, 100, 200, 420, 500, 1000] as const;
 
 export function ProfileScreen({
   name,
@@ -106,6 +110,9 @@ export function ProfileScreen({
   const [now, setNow] = useState(() => new Date());
   const displayStreak = effectiveStreakDays(streak, daysSinceLastTraining, now, lastTrainingDate);
   const burnLabel = streakBurnLabel(streak, daysSinceLastTraining, now, lastTrainingDate);
+
+  // Сколько ачивок за тренировки уже открыто = число порогов, не превышающих total.
+  const workoutAchEarned = WORKOUT_ACHIEVEMENTS.filter((n) => workouts >= n).length;
 
   const scrollHealthAboveKeyboard = useCallback(() => {
     const ta = healthTextareaRef.current;
@@ -507,15 +514,16 @@ export function ProfileScreen({
         </div>
       </div>
 
-      <section className="profile__achievements" aria-label="Достижения">
+      <section className="profile__achievements" aria-label="Ачивки">
         <div className="profile__achievements-head">
-          <h2 className="section-title profile__achievements-title">Ачивки за стрик</h2>
+          <h2 className="section-title profile__achievements-title">Ачивки</h2>
           <span className="profile__achievements-count">
-            {achievementCount}/{achievementsMax}
+            {achievementCount + workoutAchEarned}/{achievementsMax + WORKOUT_ACHIEVEMENTS.length}
           </span>
         </div>
+        <div className="profile__achievements-group">За стрик</div>
         <div className="profile__achievements-strip">
-        {ACHIEVEMENTS.map(({ days, colorClass, variant }, i) => (
+        {STREAK_ACHIEVEMENTS.map(({ days, colorClass, variant }, i) => (
           <div key={days} className={`profile__achievement ${colorClass}${i < achievementCount ? " is-earned" : ""}`}>
             <div className="profile__achievement-badge" aria-hidden>
               {variant === "heart" ? (
@@ -585,9 +593,44 @@ export function ProfileScreen({
                 {days}
               </span>
             </div>
-            <div className="profile__achievement-label">
-              {days} {daysWordRu(days)}
+            <div className="profile__achievement-label">стрик {days}</div>
+          </div>
+        ))}
+        </div>
+        <div className="profile__achievements-group">За тренировки</div>
+        <div className="profile__achievements-strip">
+        {WORKOUT_ACHIEVEMENTS.map((count, i) => (
+          <div
+            key={count}
+            className={`profile__achievement profile__wach profile__wach--t${i + 1}${i < workoutAchEarned ? " is-earned" : ""}`}
+          >
+            <div className="profile__achievement-badge" aria-hidden>
+              <svg className="profile__achievement-star-svg" viewBox="0 0 64 64">
+                {/* пятиконечная звезда — корпус ачивки */}
+                <path
+                  className="profile__achievement-star"
+                  d="M32 2 L38.5 23.1 L60.5 22.7 L42.5 35.4 L49.6 56.3 L32 43 L14.4 56.3 L21.5 35.4 L3.5 22.7 L25.5 23.1 Z"
+                />
+                {/* кубок внутри звезды */}
+                <path className="profile__achievement-cup-handle" d="M24 23 C19 23 19 30 25 30" />
+                <path className="profile__achievement-cup-handle" d="M40 23 C45 23 45 30 39 30" />
+                <path
+                  className="profile__achievement-cup-bowl"
+                  d="M24 22 L40 22 L38 30 C38 33 35.5 34.5 32 34.5 C28.5 34.5 26 33 26 30 Z"
+                />
+                <rect className="profile__achievement-cup-stem" x="30.5" y="34.3" width="3" height="3" />
+                <path
+                  className="profile__achievement-cup-base"
+                  d="M27 39.5 Q27 37 29.5 37 L34.5 37 Q37 37 37 39.5 L37 40.6 L27 40.6 Z"
+                />
+              </svg>
+              <span
+                className={`profile__achievement-num${count >= 1000 ? " profile__achievement-num--quad" : count >= 100 ? " profile__achievement-num--triple" : count >= 10 ? " profile__achievement-num--double" : ""}`}
+              >
+                {count}
+              </span>
             </div>
+            <div className="profile__achievement-label">тренировок {count}</div>
           </div>
         ))}
         </div>

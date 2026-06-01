@@ -58,6 +58,14 @@ type Config struct {
 	// Используется для канонизации URL фото тренировки в ленте; должен совпадать с тем, что в VITE_MINIAPP_API_URL.
 	MiniappPublicBaseURL string
 
+	// R2 (Cloudflare) — объектное хранилище для фото тренировок. Если заданы все поля,
+	// фото грузятся в бакет, иначе — на локальный диск (как раньше). S3-совместимый API.
+	R2AccountID       string
+	R2AccessKeyID     string
+	R2SecretAccessKey string
+	R2Bucket          string
+	R2PublicBaseURL   string // публичный адрес бакета (pub-xxx.r2.dev или свой домен), без / на конце
+
 	// RAG (Qdrant): изолированные сессии personal_leo и pack_group.
 	RAGEnabled          bool
 	QdrantURL           string
@@ -150,6 +158,12 @@ func Load() (*Config, error) {
 		YookassaCurrency:        ykCur,
 
 		MiniappPublicBaseURL: strings.TrimSpace(getEnv("MINIAPP_PUBLIC_BASE_URL", "")),
+
+		R2AccountID:       strings.TrimSpace(getEnv("R2_ACCOUNT_ID", "")),
+		R2AccessKeyID:     strings.TrimSpace(getEnv("R2_ACCESS_KEY_ID", "")),
+		R2SecretAccessKey: strings.TrimSpace(getEnv("R2_SECRET_ACCESS_KEY", "")),
+		R2Bucket:          strings.TrimSpace(getEnv("R2_BUCKET", "")),
+		R2PublicBaseURL:   strings.TrimRight(strings.TrimSpace(getEnv("R2_PUBLIC_BASE_URL", "")), "/"),
 
 		RAGEnabled:        parseEnvBool(getEnv("RAG_ENABLED", "false")),
 		QdrantURL:         strings.TrimSpace(getEnv("QDRANT_URL", "")),

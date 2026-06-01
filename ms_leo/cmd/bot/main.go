@@ -64,7 +64,18 @@ func main() {
 		// Берём base из конфигурации; если пусто — miniappapi/workout_upload сам
 		// вычислит публичный origin из X-Forwarded-* / Host (вместо localhost).
 		publicBase := strings.TrimSpace(cfg.MiniappPublicBaseURL)
-		h := miniappapi.New(bot, cfg.APIToken, logger, publicBase, mediaDir)
+		// R2 (Cloudflare): если заданы все R2_* — фото грузятся в бакет, иначе на локальный диск.
+		r2, err := miniappapi.NewR2Storage(cfg.R2AccountID, cfg.R2AccessKeyID, cfg.R2SecretAccessKey, cfg.R2Bucket, cfg.R2PublicBaseURL)
+		if err != nil {
+			logger.Errorf("R2 init failed, fallback to local disk: %v", err)
+			r2 = nil
+		}
+		if r2 != nil {
+			logger.Infof("Workout photos: Cloudflare R2 bucket=%s", cfg.R2Bucket)
+		} else {
+			logger.Infof("Workout photos: local disk %s", mediaDir)
+		}
+		h := miniappapi.New(bot, cfg.APIToken, logger, publicBase, mediaDir, r2)
 		// Долгий ответ ИИ: WriteTimeout 0 = без лимита на запись тела ответа (иначе обрыв посреди JSON).
 		srv := &http.Server{
 			Addr:              addr,
