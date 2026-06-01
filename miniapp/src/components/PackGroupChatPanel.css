@@ -408,6 +408,7 @@ html.app-keyboard-open .packroom {
 }
 
 .packroom__react-chips {
+  position: relative;
   display: inline-flex;
   flex-wrap: nowrap;
   align-items: center;

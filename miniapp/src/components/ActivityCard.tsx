@@ -1,4 +1,5 @@
 import { useRef, useState, useEffect, useLayoutEffect, useCallback, useMemo } from "react";
+import { LikersPopover, useChipPress, useLikersPopover, type LikerGroup } from "./Likers";
 import { LEO_AVATAR_URL } from "../lib/leoAvatar";
 import { streakStreakAriaLabel } from "../lib/streakLabel";
 import "./ActivityCard.css";
@@ -23,6 +24,8 @@ export type ActivityCardThreadReply = {
   replyTo?: { author: string; text: string; isLeo?: boolean };
   likeCount?: number;
   likeMe?: boolean;
+  /** Имена лайкнувших комментарий (для поповера «кто лайкнул»). */
+  likeVoters?: string[];
 };
 
 export type ActivityCardThreadComposer = {
@@ -64,93 +67,51 @@ function ReactionChip({
   r,
   disabled,
   onPick,
+  onLongPress,
 }: {
   r: { emoji: string; count: number; me?: boolean; voters?: string[] };
   disabled?: boolean;
   onPick: (emoji: string) => void;
+  /** Зажатие чипа (или hover на десктопе) — показать список всех отреагировавших. */
+  onLongPress?: () => void;
 }) {
-  const [open, setOpen] = useState(false);
-  const wrapRef = useRef<HTMLSpanElement>(null);
-  const lpTimer = useRef<number | null>(null);
-  const suppressClick = useRef(false);
-  const voters = Array.isArray(r.voters) ? r.voters : [];
-  const hasVoters = voters.length > 0;
-
-  const clearLongPress = () => {
-    if (lpTimer.current != null) {
-      window.clearTimeout(lpTimer.current);
-      lpTimer.current = null;
-    }
-  };
-
-  // На тач список открываем долгим нажатием, чтобы обычный тап остался «лайкнуть».
-  const onTouchStart = () => {
-    if (!hasVoters) return;
-    clearLongPress();
-    lpTimer.current = window.setTimeout(() => {
-      suppressClick.current = true;
-      setOpen(true);
-    }, 400);
-  };
-
-  const onClick = () => {
-    if (suppressClick.current) {
-      suppressClick.current = false;
-      return;
-    }
-    onPick(r.emoji);
-  };
-
-  // Закрытие поповера на тач: тап вне чипа.
-  useEffect(() => {
-    if (!open) return;
-    const close = (e: MouseEvent | TouchEvent) => {
-      if (wrapRef.current?.contains(e.target as Node)) return;
-      setOpen(false);
-    };
-    document.addEventListener("mousedown", close);
-    document.addEventListener("touchstart", close);
-    return () => {
-      document.removeEventListener("mousedown", close);
-      document.removeEventListener("touchstart", close);
-    };
-  }, [open]);
-
+  const press = useChipPress(() => onPick(r.emoji), onLongPress, disabled);
   return (
-    <span
-      className="act-card__react-chip"
-      ref={wrapRef}
-      onMouseEnter={() => hasVoters && setOpen(true)}
-      onMouseLeave={() => setOpen(false)}
+    <button
+      type="button"
+      className={`act-card__react-btn${r.me ? " act-card__react-btn--mine" : ""}`}
+      disabled={disabled}
+      {...press}
     >
-      <button
-        type="button"
-        className={`act-card__react-btn${r.me ? " act-card__react-btn--mine" : ""}`}
-        disabled={disabled}
-        onClick={onClick}
-        onTouchStart={onTouchStart}
-        onTouchEnd={clearLongPress}
-        onTouchMove={clearLongPress}
-        onTouchCancel={clearLongPress}
-      >
-        {r.emoji}
-        {r.count > 0 && <span className="act-card__react-cnt">{r.count}</span>}
+      {r.emoji}
+      {r.count > 0 && <span className="act-card__react-cnt">{r.count}</span>}
+    </button>
+  );
+}
+
+/** Лайк комментария: тап = поставить/снять, зажатие = показать, кто лайкнул. */
+function ThreadLikeButton({
+  count,
+  mine,
+  voters,
+  onToggle,
+}: {
+  count: number;
+  mine?: boolean;
+  voters?: string[];
+  onToggle: () => void;
+}) {
+  const anchorRef = useRef<HTMLSpanElement>(null);
+  const { open, setOpen, shift, popRef } = useLikersPopover(anchorRef);
+  const hasVoters = Array.isArray(voters) && voters.length > 0;
+  const groups: LikerGroup[] = hasVoters ? [{ emoji: "❤️", voters: voters! }] : [];
+  const press = useChipPress(onToggle, hasVoters ? () => setOpen(true) : undefined);
+  return (
+    <span className="act-card__thread-like-wrap" ref={anchorRef} onMouseLeave={() => setOpen(false)}>
+      <button type="button" className={`act-card__thread-like${mine ? " act-card__thread-like--mine" : ""}`} {...press}>
+        ❤️ {count}
       </button>
-      {open && hasVoters && (
-        <div className="act-card__likers" role="tooltip">
-          <div className="act-card__likers-head">
-            <span>{r.emoji}</span>
-            <span className="act-card__likers-count">{voters.length}</span>
-          </div>
-          <ul className="act-card__likers-list">
-            {voters.map((name, i) => (
-              <li key={`${name}-${i}`} className="act-card__likers-item">
-                {name}
-              </li>
-            ))}
-          </ul>
-        </div>
-      )}
+      {open && hasVoters && <LikersPopover groups={groups} popRef={popRef} shift={shift} label="Кто лайкнул" />}
     </span>
   );
 }
@@ -166,6 +127,13 @@ export function TrainingReactionsBar({
   const moreRef = useRef<HTMLDivElement>(null);
   const [visibleCount, setVisibleCount] = useState(reactions.length);
   const [menuOpen, setMenuOpen] = useState(false);
+  const { open: likersOpen, setOpen: setLikersOpen, shift: likersShift, popRef } = useLikersPopover(rowRef);
+
+  // Группы «кто отреагировал»: только эмодзи с реальными голосами.
+  const likerGroups: LikerGroup[] = reactions
+    .filter((r) => r.count > 0 && Array.isArray(r.voters) && r.voters.length > 0)
+    .map((r) => ({ emoji: r.emoji, voters: r.voters! }));
+  const hasLikers = likerGroups.length > 0;
 
   useLayoutEffect(() => {
     const el = rowRef.current;
@@ -211,11 +179,21 @@ export function TrainingReactionsBar({
     setMenuOpen(false);
   };
 
+  const openLikers = () => {
+    if (hasLikers) setLikersOpen(true);
+  };
+
   return (
-    <div className="act-card__react-inner" ref={rowRef}>
+    <div className="act-card__react-inner" ref={rowRef} onMouseLeave={() => setLikersOpen(false)}>
       <div className="act-card__react-inline">
         {visible.map((r) => (
-          <ReactionChip key={r.emoji} r={r} disabled={onReactionClick == null} onPick={pick} />
+          <ReactionChip
+            key={r.emoji}
+            r={r}
+            disabled={onReactionClick == null}
+            onPick={pick}
+            onLongPress={hasLikers ? openLikers : undefined}
+          />
         ))}
         {hidden.length > 0 && (
           <div className="act-card__react-more" ref={moreRef}>
@@ -232,13 +210,20 @@ export function TrainingReactionsBar({
             {menuOpen && (
               <div className="act-card__react-popover" role="menu">
                 {hidden.map((r) => (
-                  <ReactionChip key={r.emoji} r={r} disabled={onReactionClick == null} onPick={pick} />
+                  <ReactionChip
+                    key={r.emoji}
+                    r={r}
+                    disabled={onReactionClick == null}
+                    onPick={pick}
+                    onLongPress={hasLikers ? openLikers : undefined}
+                  />
                 ))}
               </div>
             )}
           </div>
         )}
       </div>
+      {likersOpen && hasLikers && <LikersPopover groups={likerGroups} popRef={popRef} shift={likersShift} />}
     </div>
   );
 }
@@ -688,13 +673,12 @@ export function ActivityCard({
                                 {(onThreadReplyLike != null || onThreadReplyIntent != null) && (
                                   <div className="act-card__thread-actions">
                                     {onThreadReplyLike != null && (
-                                      <button
-                                        type="button"
-                                        className={`act-card__thread-like${tr.likeMe ? " act-card__thread-like--mine" : ""}`}
-                                        onClick={() => onThreadReplyLike(tr.id)}
-                                      >
-                                        ❤️ {tr.likeCount ?? 0}
-                                      </button>
+                                      <ThreadLikeButton
+                                        count={tr.likeCount ?? 0}
+                                        mine={tr.likeMe}
+                                        voters={tr.likeVoters}
+                                        onToggle={() => onThreadReplyLike(tr.id)}
+                                      />
                                     )}
                                     {onThreadReplyIntent != null && (
                                       <button

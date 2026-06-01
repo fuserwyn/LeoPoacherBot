@@ -25,8 +25,63 @@ import {
   resolveFeedAvatarUrl,
   type PackFeedReactionDTO,
 } from "../lib/packFeed";
+import { LikersPopover, useChipPress, useLikersPopover, type LikerGroup } from "./Likers";
 import "./ActivityCard.css";
 import "./PackGroupChatPanel.css";
+
+type ChatReaction = { emoji: string; count: number; me?: boolean; voters?: string[] };
+
+/** Чип реакции в чате: тап = поставить/снять, зажатие = показать список отреагировавших. */
+function PackReactionChip({
+  r,
+  onReact,
+  onLongPress,
+}: {
+  r: ChatReaction;
+  onReact: (emoji: string) => void;
+  onLongPress?: () => void;
+}) {
+  const press = useChipPress(() => onReact(r.emoji), onLongPress);
+  return (
+    <button type="button" className={`act-card__react-btn${r.me ? " act-card__react-btn--mine" : ""}`} {...press}>
+      {r.emoji}
+      {r.count > 0 && <span className="act-card__react-cnt">{r.count}</span>}
+    </button>
+  );
+}
+
+/** Активные реакции на сообщение чата + поповер «кто отреагировал» (зажатие). */
+function PackMessageReactions({
+  reactions,
+  onReact,
+}: {
+  reactions: ChatReaction[];
+  onReact: (emoji: string) => void;
+}) {
+  const anchorRef = useRef<HTMLDivElement>(null);
+  const { open, setOpen, shift, popRef } = useLikersPopover(anchorRef);
+  const groups: LikerGroup[] = reactions
+    .filter((r) => r.count > 0 && Array.isArray(r.voters) && r.voters.length > 0)
+    .map((r) => ({ emoji: r.emoji, voters: r.voters! }));
+  const hasLikers = groups.length > 0;
+  const openLikers = () => {
+    if (hasLikers) setOpen(true);
+  };
+  return (
+    <div
+      className="packroom__react-chips"
+      role="group"
+      aria-label="Реакции на сообщение"
+      ref={anchorRef}
+      onMouseLeave={() => setOpen(false)}
+    >
+      {reactions.map((r) => (
+        <PackReactionChip key={r.emoji} r={r} onReact={onReact} onLongPress={hasLikers ? openLikers : undefined} />
+      ))}
+      {open && hasLikers && <LikersPopover groups={groups} popRef={popRef} shift={shift} />}
+    </div>
+  );
+}
 
 function PackGroupMessageMenu({
   reactions,
@@ -1135,24 +1190,10 @@ export function PackGroupChatPanel({
                         </button>
                       )}
                       {activeReactions.length > 0 && (
-                        <div className="packroom__react-chips" role="group" aria-label="Реакции на сообщение">
-                          {activeReactions.map((r) => (
-                            <button
-                              key={r.emoji}
-                              type="button"
-                              className={`act-card__react-btn${r.me ? " act-card__react-btn--mine" : ""}`}
-                              onClick={() => postReaction(m.id, r.emoji)}
-                              title={
-                                Array.isArray(r.voters) && r.voters.length > 0
-                                  ? `Лайкнули: ${r.voters.join(", ")}`
-                                  : undefined
-                              }
-                            >
-                              {r.emoji}
-                              {r.count > 0 && <span className="act-card__react-cnt">{r.count}</span>}
-                            </button>
-                          ))}
-                        </div>
+                        <PackMessageReactions
+                          reactions={activeReactions}
+                          onReact={(emoji) => postReaction(m.id, emoji)}
+                        />
                       )}
                     </div>
                   </div>

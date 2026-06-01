@@ -1005,6 +1005,7 @@ export function FeedScreen({
                     replyTo: rq,
                     likeCount: tr.like_count ?? 0,
                     likeMe: Boolean(tr.like_me),
+                    likeVoters: Array.isArray(tr.like_voters) ? tr.like_voters : undefined,
                   };
                 });
                 const canReportCard = !it.is_you && !isLeoSystemFeed;

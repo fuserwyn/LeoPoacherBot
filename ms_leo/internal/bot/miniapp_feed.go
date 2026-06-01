@@ -33,8 +33,9 @@ type PackFeedThreadReply struct {
 	ReplyToUsername string `json:"reply_to_username,omitempty"`
 	ReplyToText     string `json:"reply_to_text,omitempty"`
 	ReplyToIsLeo    bool   `json:"reply_to_is_leo,omitempty"`
-	LikeCount       int    `json:"like_count,omitempty"`
-	LikeMe          bool   `json:"like_me,omitempty"`
+	LikeCount       int      `json:"like_count,omitempty"`
+	LikeMe          bool     `json:"like_me,omitempty"`
+	LikeVoters      []string `json:"like_voters,omitempty"`
 }
 
 type PackFeedPollOption struct {

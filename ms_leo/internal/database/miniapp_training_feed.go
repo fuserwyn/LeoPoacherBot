@@ -419,8 +419,9 @@ func (d *Database) ToggleTrainingFeedThreadLike(packChatID, threadReplyID, userI
 
 // ThreadLikeAgg — лайки по id комментария треда.
 type ThreadLikeAgg struct {
-	Count int
-	Me    bool
+	Count  int
+	Me     bool
+	Voters []string // имена лайкнувших (display_name из профиля, иначе «Участник <id>»)
 }
 
 // ListTrainingFeedThreadLikeAggs — агрегаты лайков для списка thread reply id.
@@ -451,6 +452,36 @@ func (d *Database) ListTrainingFeedThreadLikeAggs(packChatID int64, threadReplyI
 	if err := rows.Err(); err != nil {
 		return nil, err
 	}
+
+	// Имена лайкнувших: профиль мини-аппа (display_name), иначе «Участник <id>».
+	rvoters, err := d.db.Query(
+		`SELECT l.thread_reply_id,
+		        COALESCE(NULLIF(BTRIM(p.display_name), ''), CONCAT('Участник ', l.user_id::text)) AS voter
+		 FROM miniapp_training_feed_thread_likes l
+		 LEFT JOIN miniapp_user_profile p
+		   ON p.user_id = l.user_id AND p.pack_chat_id = l.pack_chat_id
+		 WHERE l.pack_chat_id = $1 AND l.thread_reply_id = ANY($2)
+		 ORDER BY l.thread_reply_id, voter`,
+		packChatID, pq.Array(threadReplyIDs),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("list training thread like voters: %w", err)
+	}
+	defer rvoters.Close()
+	for rvoters.Next() {
+		var id int64
+		var voter string
+		if err := rvoters.Scan(&id, &voter); err != nil {
+			return nil, err
+		}
+		agg := out[id]
+		agg.Voters = append(agg.Voters, voter)
+		out[id] = agg
+	}
+	if err := rvoters.Err(); err != nil {
+		return nil, err
+	}
+
 	if viewerUserID == 0 {
 		return out, nil
 	}

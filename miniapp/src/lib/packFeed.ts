@@ -123,6 +123,8 @@ export type PackFeedThreadReplyDTO = {
   reply_to_is_leo?: boolean;
   like_count?: number;
   like_me?: boolean;
+  /** Имена лайкнувших комментарий (для поповера «кто лайкнул»). */
+  like_voters?: string[];
 };
 
 export type PackFeedItemDTO = {

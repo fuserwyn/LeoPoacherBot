@@ -486,6 +486,7 @@ func (b *Bot) threadRowsToPackReplies(rows []database.TrainingFeedThreadRow, vie
 		if l, ok := likeMap[t.ID]; ok {
 			pr.LikeCount = l.Count
 			pr.LikeMe = l.Me
+			pr.LikeVoters = l.Voters
 		}
 		out = append(out, pr)
 	}
