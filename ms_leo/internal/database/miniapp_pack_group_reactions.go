@@ -12,7 +12,7 @@ import (
 type PackGroupReactionAgg struct {
 	Emoji  string
 	Count  int
-	Voters []string
+	Voters []Voter
 }
 
 // ListPackGroupReactionAggs — подсчёт реакций по списку id сообщений; viewerID для флага «моя».
@@ -47,10 +47,14 @@ func (d *Database) ListPackGroupReactionAggs(packChatID int64, messageIDs []int6
 		return nil, nil, err
 	}
 	qVoters := `
-		SELECT pack_message_id, emoji, COALESCE(NULLIF(TRIM(username), ''), CONCAT('Участник ', user_id::text)) AS voter
-		FROM miniapp_pack_group_reactions
-		WHERE pack_chat_id = $1 AND pack_message_id = ANY($2)
-		ORDER BY pack_message_id, emoji, created_at ASC, id ASC
+		SELECT r.pack_message_id, r.emoji,
+		       COALESCE(NULLIF(TRIM(r.username), ''), CONCAT('Участник ', r.user_id::text)) AS voter,
+		       COALESCE(p.telegram_photo_url, '') AS photo
+		FROM miniapp_pack_group_reactions r
+		LEFT JOIN miniapp_user_profile p
+			ON p.user_id = r.user_id AND p.pack_chat_id = r.pack_chat_id
+		WHERE r.pack_chat_id = $1 AND r.pack_message_id = ANY($2)
+		ORDER BY r.pack_message_id, r.emoji, r.created_at ASC, r.id ASC
 	`
 	rv, err := d.db.Query(qVoters, packChatID, pq.Array(messageIDs))
 	if err != nil {
@@ -59,14 +63,14 @@ func (d *Database) ListPackGroupReactionAggs(packChatID int64, messageIDs []int6
 	defer rv.Close()
 	for rv.Next() {
 		var mid int64
-		var emoji, voter string
-		if err := rv.Scan(&mid, &emoji, &voter); err != nil {
+		var emoji, voter, photo string
+		if err := rv.Scan(&mid, &emoji, &voter, &photo); err != nil {
 			return nil, nil, err
 		}
 		aggs := out[mid]
 		for i := range aggs {
 			if aggs[i].Emoji == emoji {
-				aggs[i].Voters = append(aggs[i].Voters, voter)
+				aggs[i].Voters = append(aggs[i].Voters, Voter{Name: voter, PhotoURL: photo})
 				break
 			}
 		}

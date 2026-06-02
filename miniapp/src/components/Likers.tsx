@@ -10,8 +10,11 @@ import {
 } from "react";
 import { createPortal } from "react-dom";
 
+/** Один отреагировавший: имя + (опц.) уже отрезолвленный URL аватара. */
+export type Liker = { name: string; photoUrl?: string };
+
 /** Группа отреагировавших по одной эмодзи. */
-export type LikerGroup = { emoji: string; voters: string[] };
+export type LikerGroup = { emoji: string; voters: Liker[] };
 
 const OFFSCREEN: CSSProperties = { position: "fixed", top: "-9999px", left: "0px" };
 
@@ -24,7 +27,7 @@ const OFFSCREEN: CSSProperties = { position: "fixed", top: "-9999px", left: "0px
 export function useLikersPopover(anchorRef: RefObject<HTMLElement | null>) {
   const [open, setOpen] = useState(false);
   const [style, setStyle] = useState<CSSProperties>(OFFSCREEN);
-  const popRef = useRef<HTMLDivElement | null>(null);
+  const popRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (!open) return;
@@ -101,7 +104,7 @@ export function LikersPopover({
   label = "Кто отреагировал",
 }: {
   groups: LikerGroup[];
-  popRef: RefObject<HTMLDivElement | null>;
+  popRef: RefObject<HTMLDivElement>;
   style: CSSProperties;
   label?: string;
 }) {
@@ -115,9 +118,16 @@ export function LikersPopover({
               <span className="act-card__likers-grp-emoji">{g.emoji}</span>
               <span className="act-card__likers-count">{g.voters.length}</span>
             </div>
-            {g.voters.map((name, i) => (
-              <div key={`${name}-${i}`} className="act-card__likers-item">
-                {name}
+            {g.voters.map((v, i) => (
+              <div key={`${v.name}-${i}`} className="act-card__likers-item">
+                <span className="act-card__likers-ava" aria-hidden>
+                  {v.photoUrl ? (
+                    <img className="act-card__likers-ava-img" src={v.photoUrl} alt="" loading="lazy" />
+                  ) : (
+                    (v.name.trim()[0] || "?").toUpperCase()
+                  )}
+                </span>
+                <span className="act-card__likers-name">{v.name}</span>
               </div>
             ))}
           </div>

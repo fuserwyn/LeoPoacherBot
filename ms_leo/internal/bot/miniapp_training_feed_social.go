@@ -486,7 +486,7 @@ func (b *Bot) threadRowsToPackReplies(rows []database.TrainingFeedThreadRow, vie
 		if l, ok := likeMap[t.ID]; ok {
 			pr.LikeCount = l.Count
 			pr.LikeMe = l.Me
-			pr.LikeVoters = l.Voters
+			pr.LikeVoters = votersToPack(l.Voters)
 		}
 		out = append(out, pr)
 	}
@@ -566,7 +566,7 @@ func (b *Bot) enrichPackFeedTrainingSocial(items []PackFeedItem, viewerUserID in
 						Emoji:  a.Emoji,
 						Count:  a.Count,
 						Me:     meEmoji == a.Emoji,
-						Voters: a.Voters,
+						Voters: votersToPack(a.Voters),
 					})
 				}
 			}

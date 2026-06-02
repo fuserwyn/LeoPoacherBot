@@ -5,18 +5,37 @@ import (
 
 	initdata "github.com/telegram-mini-apps/init-data-golang"
 
+	"leo-bot/internal/database"
 	"leo-bot/internal/domain"
 )
 
 // ErrPackFeedForbidden — смотрящему нельзя видеть ленту (нет в стае / не оплачено).
 var ErrPackFeedForbidden = errors.New("pack feed forbidden")
 
+// PackVoter — кто отреагировал/лайкнул: имя + аватар (для поповера «кто лайкнул»).
+type PackVoter struct {
+	Name     string `json:"name"`
+	PhotoURL string `json:"photo_url,omitempty"`
+}
+
+// votersToPack — конвертация голосов из database в DTO.
+func votersToPack(in []database.Voter) []PackVoter {
+	if len(in) == 0 {
+		return nil
+	}
+	out := make([]PackVoter, len(in))
+	for i, v := range in {
+		out[i] = PackVoter{Name: v.Name, PhotoURL: v.PhotoURL}
+	}
+	return out
+}
+
 // PackFeedReaction — агрегат реакций на отчёт в мини-аппе.
 type PackFeedReaction struct {
-	Emoji  string   `json:"emoji"`
-	Count  int      `json:"count"`
-	Me     bool     `json:"me"`
-	Voters []string `json:"voters,omitempty"`
+	Emoji  string      `json:"emoji"`
+	Count  int         `json:"count"`
+	Me     bool        `json:"me"`
+	Voters []PackVoter `json:"voters,omitempty"`
 }
 
 // PackFeedThreadReply — реплика в треде под training_done.
@@ -33,9 +52,9 @@ type PackFeedThreadReply struct {
 	ReplyToUsername string `json:"reply_to_username,omitempty"`
 	ReplyToText     string `json:"reply_to_text,omitempty"`
 	ReplyToIsLeo    bool   `json:"reply_to_is_leo,omitempty"`
-	LikeCount       int      `json:"like_count,omitempty"`
-	LikeMe          bool     `json:"like_me,omitempty"`
-	LikeVoters      []string `json:"like_voters,omitempty"`
+	LikeCount       int         `json:"like_count,omitempty"`
+	LikeMe          bool        `json:"like_me,omitempty"`
+	LikeVoters      []PackVoter `json:"like_voters,omitempty"`
 }
 
 type PackFeedPollOption struct {

@@ -1,9 +1,18 @@
 import { useRef, useState, useEffect, useLayoutEffect, useCallback, useMemo } from "react";
 import { createPortal } from "react-dom";
-import { LikersPopover, useChipPress, useLikersPopover, useLongPress, type LikerGroup } from "./Likers";
+import { LikersPopover, useChipPress, useLikersPopover, useLongPress, type Liker, type LikerGroup } from "./Likers";
 import { LEO_AVATAR_URL } from "../lib/leoAvatar";
+import { resolveFeedAvatarUrl, type VoterDTO } from "../lib/packFeed";
 import { streakStreakAriaLabel } from "../lib/streakLabel";
 import "./ActivityCard.css";
+
+/** Голоса с бэкенда → строки списка лайкнувших (имя + отрезолвленный URL аватара). */
+function votersToLikers(voters?: VoterDTO[]): Liker[] {
+  return (voters ?? []).map((v) => ({
+    name: v.name,
+    photoUrl: v.photo_url ? resolveFeedAvatarUrl(v.photo_url) : undefined,
+  }));
+}
 
 function avatarLooksLikeImageSrc(avatar: string): boolean {
   const t = avatar.trim();
@@ -26,7 +35,7 @@ export type ActivityCardThreadReply = {
   likeCount?: number;
   likeMe?: boolean;
   /** Имена лайкнувших комментарий (для поповера «кто лайкнул»). */
-  likeVoters?: string[];
+  likeVoters?: VoterDTO[];
 };
 
 export type ActivityCardThreadComposer = {
@@ -70,7 +79,7 @@ function ReactionChip({
   onPick,
   onLongPress,
 }: {
-  r: { emoji: string; count: number; me?: boolean; voters?: string[] };
+  r: { emoji: string; count: number; me?: boolean; voters?: VoterDTO[] };
   disabled?: boolean;
   onPick: (emoji: string) => void;
   /** Зажатие чипа (или hover на десктопе) — показать список всех отреагировавших. */
@@ -99,13 +108,13 @@ function ThreadLikeButton({
 }: {
   count: number;
   mine?: boolean;
-  voters?: string[];
+  voters?: VoterDTO[];
   onToggle: () => void;
 }) {
   const anchorRef = useRef<HTMLSpanElement>(null);
   const { open, setOpen, style, popRef } = useLikersPopover(anchorRef);
   const hasVoters = Array.isArray(voters) && voters.length > 0;
-  const groups: LikerGroup[] = hasVoters ? [{ emoji: "❤️", voters: voters! }] : [];
+  const groups: LikerGroup[] = hasVoters ? [{ emoji: "❤️", voters: votersToLikers(voters) }] : [];
   const press = useChipPress(onToggle, hasVoters ? () => setOpen(true) : undefined);
   return (
     <span className="act-card__thread-like-wrap" ref={anchorRef}>
@@ -121,7 +130,7 @@ export function TrainingReactionsBar({
   reactions,
   onReactionClick,
 }: {
-  reactions: { emoji: string; count: number; me?: boolean; voters?: string[] }[];
+  reactions: { emoji: string; count: number; me?: boolean; voters?: VoterDTO[] }[];
   onReactionClick?: (emoji: string) => void;
 }) {
   const rowRef = useRef<HTMLDivElement>(null);
@@ -134,7 +143,7 @@ export function TrainingReactionsBar({
   // Группы «кто отреагировал»: только эмодзи с реальными голосами.
   const likerGroups: LikerGroup[] = reactions
     .filter((r) => r.count > 0 && Array.isArray(r.voters) && r.voters.length > 0)
-    .map((r) => ({ emoji: r.emoji, voters: r.voters! }));
+    .map((r) => ({ emoji: r.emoji, voters: votersToLikers(r.voters) }));
   const hasLikers = likerGroups.length > 0;
 
   useLayoutEffect(() => {
@@ -300,7 +309,7 @@ export type ActivityCardProps = {
     onVote?: (optionIndex: number) => void;
   };
   aiText?: string;
-  reactions?: { emoji: string; count: number; me?: boolean; voters?: string[] }[];
+  reactions?: { emoji: string; count: number; me?: boolean; voters?: VoterDTO[] }[];
   /** Клик по эмодзи (лента training_done). */
   onReactionClick?: (emoji: string) => void;
   /** Тред под отчётом о тренировке. */
@@ -470,7 +479,7 @@ export function ActivityCard({
   const cardLikers = useLikersPopover(cardRef);
   const cardLikerGroups: LikerGroup[] = reactions
     .filter((r) => r.count > 0 && Array.isArray(r.voters) && r.voters.length > 0)
-    .map((r) => ({ emoji: r.emoji, voters: r.voters! }));
+    .map((r) => ({ emoji: r.emoji, voters: votersToLikers(r.voters) }));
   const cardPress = useLongPress(() => {
     if (cardLikerGroups.length > 0) cardLikers.setOpen(true);
   });

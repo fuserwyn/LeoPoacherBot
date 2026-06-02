@@ -53,11 +53,17 @@ func (d *Database) GetUserMessageTextByIDForChat(id, chatID int64) (string, erro
 	return t, nil
 }
 
+// Voter — кто поставил реакцию/лайк: имя + аватар (telegram_photo_url из профиля).
+type Voter struct {
+	Name     string
+	PhotoURL string
+}
+
 // TrainingFeedReactionAgg — агрегат реакций по одному user_message_id.
 type TrainingFeedReactionAgg struct {
 	Emoji  string
 	Count  int
-	Voters []string
+	Voters []Voter
 }
 
 // ListTrainingFeedReactionAggs — подсчёт реакций по списку parent id; viewerID для флага «моя».
@@ -92,10 +98,14 @@ func (d *Database) ListTrainingFeedReactionAggs(packChatID int64, userMessageIDs
 		return nil, nil, err
 	}
 	qVoters := `
-		SELECT user_message_id, emoji, COALESCE(NULLIF(TRIM(username), ''), CONCAT('Участник ', user_id::text)) AS voter
-		FROM miniapp_training_feed_reactions
-		WHERE pack_chat_id = $1 AND user_message_id = ANY($2)
-		ORDER BY user_message_id, emoji, created_at ASC, id ASC
+		SELECT r.user_message_id, r.emoji,
+		       COALESCE(NULLIF(TRIM(r.username), ''), CONCAT('Участник ', r.user_id::text)) AS voter,
+		       COALESCE(p.telegram_photo_url, '') AS photo
+		FROM miniapp_training_feed_reactions r
+		LEFT JOIN miniapp_user_profile p
+			ON p.user_id = r.user_id AND p.pack_chat_id = r.pack_chat_id
+		WHERE r.pack_chat_id = $1 AND r.user_message_id = ANY($2)
+		ORDER BY r.user_message_id, r.emoji, r.created_at ASC, r.id ASC
 	`
 	rv, err := d.db.Query(qVoters, packChatID, pq.Array(userMessageIDs))
 	if err != nil {
@@ -104,14 +114,14 @@ func (d *Database) ListTrainingFeedReactionAggs(packChatID int64, userMessageIDs
 	defer rv.Close()
 	for rv.Next() {
 		var mid int64
-		var emoji, voter string
-		if err := rv.Scan(&mid, &emoji, &voter); err != nil {
+		var emoji, voter, photo string
+		if err := rv.Scan(&mid, &emoji, &voter, &photo); err != nil {
 			return nil, nil, err
 		}
 		aggs := out[mid]
 		for i := range aggs {
 			if aggs[i].Emoji == emoji {
-				aggs[i].Voters = append(aggs[i].Voters, voter)
+				aggs[i].Voters = append(aggs[i].Voters, Voter{Name: voter, PhotoURL: photo})
 				break
 			}
 		}
@@ -421,7 +431,7 @@ func (d *Database) ToggleTrainingFeedThreadLike(packChatID, threadReplyID, userI
 type ThreadLikeAgg struct {
 	Count  int
 	Me     bool
-	Voters []string // имена лайкнувших (display_name из профиля, иначе «Участник <id>»)
+	Voters []Voter // лайкнувшие: имя (display_name, иначе «Участник <id>») + аватар
 }
 
 // ListTrainingFeedThreadLikeAggs — агрегаты лайков для списка thread reply id.
@@ -453,10 +463,11 @@ func (d *Database) ListTrainingFeedThreadLikeAggs(packChatID int64, threadReplyI
 		return nil, err
 	}
 
-	// Имена лайкнувших: профиль мини-аппа (display_name), иначе «Участник <id>».
+	// Лайкнувшие: профиль мини-аппа (display_name + аватар), иначе «Участник <id>».
 	rvoters, err := d.db.Query(
 		`SELECT l.thread_reply_id,
-		        COALESCE(NULLIF(BTRIM(p.display_name), ''), CONCAT('Участник ', l.user_id::text)) AS voter
+		        COALESCE(NULLIF(BTRIM(p.display_name), ''), CONCAT('Участник ', l.user_id::text)) AS voter,
+		        COALESCE(p.telegram_photo_url, '') AS photo
 		 FROM miniapp_training_feed_thread_likes l
 		 LEFT JOIN miniapp_user_profile p
 		   ON p.user_id = l.user_id AND p.pack_chat_id = l.pack_chat_id
@@ -470,12 +481,12 @@ func (d *Database) ListTrainingFeedThreadLikeAggs(packChatID int64, threadReplyI
 	defer rvoters.Close()
 	for rvoters.Next() {
 		var id int64
-		var voter string
-		if err := rvoters.Scan(&id, &voter); err != nil {
+		var voter, photo string
+		if err := rvoters.Scan(&id, &voter, &photo); err != nil {
 			return nil, err
 		}
 		agg := out[id]
-		agg.Voters = append(agg.Voters, voter)
+		agg.Voters = append(agg.Voters, Voter{Name: voter, PhotoURL: photo})
 		out[id] = agg
 	}
 	if err := rvoters.Err(); err != nil {

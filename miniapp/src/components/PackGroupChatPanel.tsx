@@ -24,12 +24,20 @@ import {
   optimisticTogglePackFeedReaction,
   resolveFeedAvatarUrl,
   type PackFeedReactionDTO,
+  type VoterDTO,
 } from "../lib/packFeed";
-import { LikersPopover, useChipPress, useLikersPopover, type LikerGroup } from "./Likers";
+import { LikersPopover, useChipPress, useLikersPopover, type Liker, type LikerGroup } from "./Likers";
 import "./ActivityCard.css";
 import "./PackGroupChatPanel.css";
 
-type ChatReaction = { emoji: string; count: number; me?: boolean; voters?: string[] };
+type ChatReaction = { emoji: string; count: number; me?: boolean; voters?: VoterDTO[] };
+
+function votersToLikers(voters?: VoterDTO[]): Liker[] {
+  return (voters ?? []).map((v) => ({
+    name: v.name,
+    photoUrl: v.photo_url ? resolveFeedAvatarUrl(v.photo_url) : undefined,
+  }));
+}
 
 /** Чип реакции в чате: тап = поставить/снять, зажатие = показать список отреагировавших. */
 function PackReactionChip({
@@ -62,7 +70,7 @@ function PackMessageReactions({
   const { open, setOpen, style, popRef } = useLikersPopover(anchorRef);
   const groups: LikerGroup[] = reactions
     .filter((r) => r.count > 0 && Array.isArray(r.voters) && r.voters.length > 0)
-    .map((r) => ({ emoji: r.emoji, voters: r.voters! }));
+    .map((r) => ({ emoji: r.emoji, voters: votersToLikers(r.voters) }));
   const hasLikers = groups.length > 0;
   const openLikers = () => {
     if (hasLikers) setOpen(true);

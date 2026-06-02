@@ -85,10 +85,16 @@ type PackActivityRow struct {
 
 // PackGroupChatReaction — эмодзи-реакция на сообщение общего чата.
 type PackGroupChatReaction struct {
-	Emoji  string   `json:"emoji"`
-	Count  int      `json:"count"`
-	Me     bool     `json:"me,omitempty"`
-	Voters []string `json:"voters,omitempty"`
+	Emoji  string               `json:"emoji"`
+	Count  int                  `json:"count"`
+	Me     bool                 `json:"me,omitempty"`
+	Voters []PackGroupChatVoter `json:"voters,omitempty"`
+}
+
+// PackGroupChatVoter — кто поставил реакцию в чате: имя + аватар.
+type PackGroupChatVoter struct {
+	Name     string `json:"name"`
+	PhotoURL string `json:"photo_url,omitempty"`
 }
 
 // PackGroupChatMessage — общий чат мини-апpa «Стая» (все участники; Лео — при @leo / @бот).

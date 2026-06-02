@@ -92,7 +92,10 @@ export const HEALTHY_FEED_EMOJIS = ["🎉", "🥳", "😄", "💚", "❤️", "�
 /** Совпадает с ms_leo packJoinAllowedEmojis — только посты вступления/возвращения. */
 export const PACK_JOIN_FEED_EMOJIS = ["👋", "🎉", "❤️", "👏", "🙌"] as const;
 
-export type PackFeedReactionDTO = { emoji: string; count: number; me: boolean; voters?: string[] };
+/** Кто отреагировал/лайкнул: имя + аватар (для поповера «кто лайкнул»). */
+export type VoterDTO = { name: string; photo_url?: string };
+
+export type PackFeedReactionDTO = { emoji: string; count: number; me: boolean; voters?: VoterDTO[] };
 
 export type PackFeedPollOptionDTO = {
   label: string;
@@ -124,7 +127,7 @@ export type PackFeedThreadReplyDTO = {
   like_count?: number;
   like_me?: boolean;
   /** Имена лайкнувших комментарий (для поповера «кто лайкнул»). */
-  like_voters?: string[];
+  like_voters?: VoterDTO[];
 };
 
 export type PackFeedItemDTO = {
@@ -147,7 +150,7 @@ export type PackFeedItemDTO = {
 };
 
 /** Полная строка эмодзи для кнопок реакций (с нулевыми счётчиками). Собственная реакция (`me`) показывается первой — в т.ч. если её выбрали в меню «⋯». */
-export function mergeTrainingFeedReactions(fromServer?: PackFeedReactionDTO[]): { emoji: string; count: number; me: boolean; voters?: string[] }[] {
+export function mergeTrainingFeedReactions(fromServer?: PackFeedReactionDTO[]): { emoji: string; count: number; me: boolean; voters?: VoterDTO[] }[] {
   return mergePackFeedReactions(TRAINING_FEED_EMOJIS, fromServer);
 }
 
@@ -155,7 +158,7 @@ export function mergeTrainingFeedReactions(fromServer?: PackFeedReactionDTO[]): 
 export function mergeFeedReactionsForType(
   type: string,
   fromServer?: PackFeedReactionDTO[],
-): { emoji: string; count: number; me: boolean; voters?: string[] }[] {
+): { emoji: string; count: number; me: boolean; voters?: VoterDTO[] }[] {
   if (type === "training_done" || type === "daily_wisdom") {
     return mergeTrainingFeedReactions(fromServer);
   }
@@ -219,7 +222,7 @@ export function optimisticToggleThreadReplyLike(
 export function mergePackFeedReactions(
   allowedEmojis: readonly string[],
   fromServer?: PackFeedReactionDTO[],
-): { emoji: string; count: number; me: boolean; voters?: string[] }[] {
+): { emoji: string; count: number; me: boolean; voters?: VoterDTO[] }[] {
   const byEmoji = new Map<string, PackFeedReactionDTO>();
   for (const r of fromServer ?? []) {
     byEmoji.set(r.emoji, r);
