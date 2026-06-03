@@ -21,21 +21,22 @@ type PackGroupChatRow struct {
 	CreatedAt   time.Time
 	ReplyToID   sql.NullInt64
 	EditedAt    sql.NullTime
+	PhotoURL    string
 }
 
-// InsertMiniappPackGroupMessage — одно сообщение в общем чате мини-аппа.
-func (d *Database) InsertMiniappPackGroupMessage(packChatID, fromUserID int64, username string, isLeo bool, messageText string, replyToID int64) (int64, error) {
+// InsertMiniappPackGroupMessage — одно сообщение в общем чате мини-аппа (photoURL — опц. вложение).
+func (d *Database) InsertMiniappPackGroupMessage(packChatID, fromUserID int64, username string, isLeo bool, messageText string, replyToID int64, photoURL string) (int64, error) {
 	var replyArg interface{}
 	if replyToID > 0 {
 		replyArg = replyToID
 	}
 	const q = `
-		INSERT INTO miniapp_pack_group_chat (pack_chat_id, from_user_id, username, is_leo, message_text, reply_to_id)
-		VALUES ($1, $2, $3, $4, $5, $6)
+		INSERT INTO miniapp_pack_group_chat (pack_chat_id, from_user_id, username, is_leo, message_text, reply_to_id, photo_url)
+		VALUES ($1, $2, $3, $4, $5, $6, $7)
 		RETURNING id
 	`
 	var id int64
-	err := d.db.QueryRow(q, packChatID, fromUserID, username, isLeo, messageText, replyArg).Scan(&id)
+	err := d.db.QueryRow(q, packChatID, fromUserID, username, isLeo, messageText, replyArg, strings.TrimSpace(photoURL)).Scan(&id)
 	if err != nil {
 		return 0, fmt.Errorf("insert miniapp pack group: %w", err)
 	}
@@ -46,11 +47,11 @@ func (d *Database) InsertMiniappPackGroupMessage(packChatID, fromUserID int64, u
 func (d *Database) GetMiniappPackGroupMessageInPack(packChatID, messageID int64) (PackGroupChatRow, bool, error) {
 	var row PackGroupChatRow
 	err := d.db.QueryRow(`
-		SELECT id, from_user_id, COALESCE(username, ''), is_leo, message_text, created_at, reply_to_id, edited_at
+		SELECT id, from_user_id, COALESCE(username, ''), is_leo, message_text, created_at, reply_to_id, edited_at, COALESCE(photo_url, '')
 		FROM miniapp_pack_group_chat
 		WHERE id = $1 AND pack_chat_id = $2
 	`, messageID, packChatID).Scan(
-		&row.ID, &row.FromUserID, &row.Username, &row.IsLeo, &row.MessageText, &row.CreatedAt, &row.ReplyToID, &row.EditedAt,
+		&row.ID, &row.FromUserID, &row.Username, &row.IsLeo, &row.MessageText, &row.CreatedAt, &row.ReplyToID, &row.EditedAt, &row.PhotoURL,
 	)
 	if err == sql.ErrNoRows {
 		return PackGroupChatRow{}, false, nil
@@ -80,7 +81,7 @@ func (d *Database) ListMiniappPackGroupChatRows(packChatID int64, limit int, sin
 	// новое сообщение с «отстающим» временем уезжало наверх ленты. id всегда отражает
 	// реальный порядок вставки → новые сообщения гарантированно внизу.
 	q := `
-		SELECT id, from_user_id, COALESCE(username, ''), is_leo, message_text, created_at, reply_to_id, edited_at
+		SELECT id, from_user_id, COALESCE(username, ''), is_leo, message_text, created_at, reply_to_id, edited_at, COALESCE(photo_url, '')
 		FROM miniapp_pack_group_chat
 		WHERE pack_chat_id = $1
 		  AND COALESCE(is_hidden, FALSE) = FALSE
@@ -96,7 +97,7 @@ func (d *Database) ListMiniappPackGroupChatRows(packChatID int64, limit int, sin
 	var items []PackGroupChatRow
 	for rows.Next() {
 		var m PackGroupChatRow
-		if err := rows.Scan(&m.ID, &m.FromUserID, &m.Username, &m.IsLeo, &m.MessageText, &m.CreatedAt, &m.ReplyToID, &m.EditedAt); err != nil {
+		if err := rows.Scan(&m.ID, &m.FromUserID, &m.Username, &m.IsLeo, &m.MessageText, &m.CreatedAt, &m.ReplyToID, &m.EditedAt, &m.PhotoURL); err != nil {
 			return nil, err
 		}
 		items = append(items, m)
@@ -125,7 +126,7 @@ func (d *Database) SearchMiniappPackGroupChatRows(packChatID int64, query string
 	esc := strings.NewReplacer(`\`, `\\`, `%`, `\%`, `_`, `\_`).Replace(query)
 	pattern := "%" + esc + "%"
 	const q = `
-		SELECT id, from_user_id, COALESCE(username, ''), is_leo, message_text, created_at, reply_to_id, edited_at
+		SELECT id, from_user_id, COALESCE(username, ''), is_leo, message_text, created_at, reply_to_id, edited_at, COALESCE(photo_url, '')
 		FROM miniapp_pack_group_chat
 		WHERE pack_chat_id = $1
 		  AND COALESCE(is_hidden, FALSE) = FALSE
@@ -141,7 +142,7 @@ func (d *Database) SearchMiniappPackGroupChatRows(packChatID int64, query string
 	var items []PackGroupChatRow
 	for rows.Next() {
 		var m PackGroupChatRow
-		if err := rows.Scan(&m.ID, &m.FromUserID, &m.Username, &m.IsLeo, &m.MessageText, &m.CreatedAt, &m.ReplyToID, &m.EditedAt); err != nil {
+		if err := rows.Scan(&m.ID, &m.FromUserID, &m.Username, &m.IsLeo, &m.MessageText, &m.CreatedAt, &m.ReplyToID, &m.EditedAt, &m.PhotoURL); err != nil {
 			return nil, err
 		}
 		items = append(items, m)
@@ -177,6 +178,7 @@ func packGroupRowToDomain(r PackGroupChatRow) domain.PackGroupChatMessage {
 		Text:      r.MessageText,
 		CreatedAt: r.CreatedAt.UTC().Format("2006-01-02T15:04:05Z07:00"),
 		IsLeo:     r.IsLeo,
+		PhotoURL:  r.PhotoURL,
 	}
 	if r.ReplyToID.Valid && r.ReplyToID.Int64 > 0 {
 		m.ReplyToID = r.ReplyToID.Int64
@@ -194,7 +196,7 @@ func (d *Database) ListMiniappPackGroupMessagesByIDs(packChatID int64, ids []int
 		return out, nil
 	}
 	rows, err := d.db.Query(`
-		SELECT id, from_user_id, COALESCE(username, ''), is_leo, message_text, created_at, reply_to_id, edited_at
+		SELECT id, from_user_id, COALESCE(username, ''), is_leo, message_text, created_at, reply_to_id, edited_at, COALESCE(photo_url, '')
 		FROM miniapp_pack_group_chat
 		WHERE pack_chat_id = $1 AND id = ANY($2)
 	`, packChatID, pq.Array(ids))
@@ -204,7 +206,7 @@ func (d *Database) ListMiniappPackGroupMessagesByIDs(packChatID int64, ids []int
 	defer rows.Close()
 	for rows.Next() {
 		var m PackGroupChatRow
-		if err := rows.Scan(&m.ID, &m.FromUserID, &m.Username, &m.IsLeo, &m.MessageText, &m.CreatedAt, &m.ReplyToID, &m.EditedAt); err != nil {
+		if err := rows.Scan(&m.ID, &m.FromUserID, &m.Username, &m.IsLeo, &m.MessageText, &m.CreatedAt, &m.ReplyToID, &m.EditedAt, &m.PhotoURL); err != nil {
 			return nil, err
 		}
 		out[m.ID] = m

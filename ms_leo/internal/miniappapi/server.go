@@ -86,6 +86,8 @@ func (s *Server) serve(w http.ResponseWriter, r *http.Request) {
 		s.handlePostFeedTrainingThreadUnreadClear(w, r)
 	case path == "/api/miniapp/pack-group/feed" && r.Method == http.MethodPost:
 		s.handlePostPackGroupFeed(w, r)
+	case path == "/api/miniapp/pack-group/messages/photo" && r.Method == http.MethodPost:
+		s.handlePostPackGroupMessageWithPhoto(w, r)
 	case path == "/api/miniapp/pack-group/messages" && r.Method == http.MethodPost:
 		s.handlePostPackGroupMessage(w, r)
 	case path == "/api/miniapp/pack-group/messages/delete" && r.Method == http.MethodPost:
@@ -1223,7 +1225,7 @@ func (s *Server) handlePostPackGroupMessage(w http.ResponseWriter, r *http.Reque
 		s.jsonErr(w, http.StatusInternalServerError, "assert_chat_error")
 		return
 	}
-	miniRes, perr := s.bot.ProcessMiniAppPackGroupMessage(parsed, text, body.ReplyToID)
+	miniRes, perr := s.bot.ProcessMiniAppPackGroupMessage(parsed, text, body.ReplyToID, "")
 	if perr != nil {
 		if errors.Is(perr, bot.ErrMiniAppChatMismatch) {
 			s.jsonErr(w, http.StatusConflict, "chat_mismatch")

@@ -1087,6 +1087,17 @@ var Migrations = []Migration{
 			ALTER TABLE miniapp_pack_group_chat DROP COLUMN IF EXISTS edited_at;
 		`,
 	},
+	{
+		Version:     54,
+		Description: "Pack group chat: photo attachments (photo_url)",
+		UpSQL: `
+			ALTER TABLE miniapp_pack_group_chat
+				ADD COLUMN IF NOT EXISTS photo_url TEXT NOT NULL DEFAULT '';
+		`,
+		DownSQL: `
+			ALTER TABLE miniapp_pack_group_chat DROP COLUMN IF EXISTS photo_url;
+		`,
+	},
 }
 
 // MigrationRecord представляет запись о выполненной миграции

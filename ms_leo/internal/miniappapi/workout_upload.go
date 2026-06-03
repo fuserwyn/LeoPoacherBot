@@ -9,8 +9,10 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	"leo-bot/internal/bot"
 
@@ -128,27 +130,6 @@ func (s *Server) handlePostWorkoutWithPhoto(w http.ResponseWriter, r *http.Reque
 		s.jsonErr(w, http.StatusServiceUnavailable, "server_unavailable")
 		return
 	}
-	useR2 := s.r2 != nil
-	if !useR2 && s.mediaDirAbsolute == "" {
-		s.jsonErr(w, http.StatusBadRequest, "media_not_configured")
-		return
-	}
-	// publicBase нужен только для локального диска: R2 отдаёт полный публичный URL сам.
-	var publicBase string
-	if !useR2 {
-		publicBase = strings.TrimRight(strings.TrimSpace(s.publicMediaBase), "/")
-		// Не перетираем явно заданный публичный base (обычно HTTPS),
-		// иначе можно случайно записать внутренний/HTTP host и сломать показ фото в мини-аппе.
-		if publicBase == "" {
-			if reqBase := absolutePublicBaseFromRequest(r); reqBase != "" {
-				publicBase = strings.TrimRight(reqBase, "/")
-			}
-		}
-		if publicBase == "" {
-			s.jsonErr(w, http.StatusBadRequest, "media_not_configured")
-			return
-		}
-	}
 	if err := r.ParseMultipartForm(maxWorkoutPhotoBytes + 65536); err != nil {
 		s.jsonErr(w, http.StatusBadRequest, "invalid_multipart")
 		return
@@ -189,39 +170,9 @@ func (s *Server) handlePostWorkoutWithPhoto(w http.ResponseWriter, r *http.Reque
 	}
 	defer file.Close()
 
-	var publicURL string
-	if useR2 {
-		baseName, contentType, data, vErrCode := validateWorkoutPhoto(file)
-		if vErrCode != "" {
-			status := http.StatusBadRequest
-			if vErrCode == "random_error" || vErrCode == "photo_read_error" {
-				status = http.StatusInternalServerError
-			}
-			s.jsonErr(w, status, vErrCode)
-			return
-		}
-		url, upErr := s.r2.Upload(r.Context(), baseName, contentType, data)
-		if upErr != nil {
-			s.logger.Errorf("miniapp R2 upload: %v", upErr)
-			s.jsonErr(w, http.StatusInternalServerError, "media_write_error")
-			return
-		}
-		publicURL = url
-	} else {
-		baseName, saveErrCode := saveWorkoutPhotoFile(s.mediaDirAbsolute, file)
-		if saveErrCode != "" {
-			if saveErrCode == "media_dir_error" {
-				s.logger.Errorf("miniapp media mkdir: %s", s.mediaDirAbsolute)
-			}
-			status := http.StatusBadRequest
-			switch saveErrCode {
-			case "random_error", "media_dir_error", "media_write_error":
-				status = http.StatusInternalServerError
-			}
-			s.jsonErr(w, status, saveErrCode)
-			return
-		}
-		publicURL = publicBase + "/api/miniapp/media/" + baseName
+	publicURL, ok := s.storeUploadedPhoto(w, r, file)
+	if !ok {
+		return
 	}
 	miniRes := s.bot.ProcessMiniAppPrivateTextWithTrainingPhoto(parsed, line, publicURL)
 	if miniRes.Blocked {
@@ -243,6 +194,152 @@ func (s *Server) handlePostWorkoutWithPhoto(w http.ResponseWriter, r *http.Reque
 		outm["reply_text"] = miniRes.ReplyText
 	}
 	_ = json.NewEncoder(w).Encode(outm)
+}
+
+// storeUploadedPhoto валидирует и сохраняет фото (R2 или локальный диск) и возвращает
+// публичный URL. При любой ошибке сам пишет JSON-ошибку в w и возвращает ok=false.
+func (s *Server) storeUploadedPhoto(w http.ResponseWriter, r *http.Request, file io.Reader) (publicURL string, ok bool) {
+	useR2 := s.r2 != nil
+	if useR2 {
+		baseName, contentType, data, vErrCode := validateWorkoutPhoto(file)
+		if vErrCode != "" {
+			status := http.StatusBadRequest
+			if vErrCode == "random_error" || vErrCode == "photo_read_error" {
+				status = http.StatusInternalServerError
+			}
+			s.jsonErr(w, status, vErrCode)
+			return "", false
+		}
+		url, upErr := s.r2.Upload(r.Context(), baseName, contentType, data)
+		if upErr != nil {
+			s.logger.Errorf("miniapp R2 upload: %v", upErr)
+			s.jsonErr(w, http.StatusInternalServerError, "media_write_error")
+			return "", false
+		}
+		return url, true
+	}
+	if s.mediaDirAbsolute == "" {
+		s.jsonErr(w, http.StatusBadRequest, "media_not_configured")
+		return "", false
+	}
+	// publicBase нужен только для локального диска: R2 отдаёт полный публичный URL сам.
+	// Не перетираем явно заданный публичный base (обычно HTTPS), иначе можно случайно
+	// записать внутренний/HTTP host и сломать показ фото в мини-аппе.
+	publicBase := strings.TrimRight(strings.TrimSpace(s.publicMediaBase), "/")
+	if publicBase == "" {
+		if reqBase := absolutePublicBaseFromRequest(r); reqBase != "" {
+			publicBase = strings.TrimRight(reqBase, "/")
+		}
+	}
+	if publicBase == "" {
+		s.jsonErr(w, http.StatusBadRequest, "media_not_configured")
+		return "", false
+	}
+	baseName, saveErrCode := saveWorkoutPhotoFile(s.mediaDirAbsolute, file)
+	if saveErrCode != "" {
+		if saveErrCode == "media_dir_error" {
+			s.logger.Errorf("miniapp media mkdir: %s", s.mediaDirAbsolute)
+		}
+		status := http.StatusBadRequest
+		switch saveErrCode {
+		case "random_error", "media_dir_error", "media_write_error":
+			status = http.StatusInternalServerError
+		}
+		s.jsonErr(w, status, saveErrCode)
+		return "", false
+	}
+	return publicBase + "/api/miniapp/media/" + baseName, true
+}
+
+// handlePostPackGroupMessageWithPhoto — отправка сообщения в чат стаи с фото (multipart).
+// text может быть пустым (сообщение только с фото). reply_to_id — опц. ответ.
+func (s *Server) handlePostPackGroupMessageWithPhoto(w http.ResponseWriter, r *http.Request) {
+	corsWriteHeaders(w, r)
+	if s.bot == nil || s.token == "" {
+		s.jsonErr(w, http.StatusServiceUnavailable, "server_unavailable")
+		return
+	}
+	if err := r.ParseMultipartForm(maxWorkoutPhotoBytes + 65536); err != nil {
+		s.jsonErr(w, http.StatusBadRequest, "invalid_multipart")
+		return
+	}
+	initD := strings.TrimSpace(r.FormValue("init_data"))
+	text := strings.TrimSpace(r.FormValue("text"))
+	if initD == "" {
+		s.jsonErr(w, http.StatusBadRequest, "missing_init_data")
+		return
+	}
+	if utf8.RuneCountInString(text) > maxTextRunes {
+		s.jsonErr(w, http.StatusBadRequest, "text_too_long")
+		return
+	}
+	var replyToID int64
+	if rid := strings.TrimSpace(r.FormValue("reply_to_id")); rid != "" {
+		if v, perr := strconv.ParseInt(rid, 10, 64); perr == nil {
+			replyToID = v
+		}
+	}
+	if err := initdata.Validate(initD, s.token, 24*time.Hour); err != nil {
+		s.logger.Warnf("miniapp pack group photo init_data invalid: %v", err)
+		s.jsonErr(w, http.StatusUnauthorized, "invalid_init_data")
+		return
+	}
+	parsed, err := initdata.Parse(initD)
+	if err != nil || parsed.User.ID == 0 {
+		s.jsonErr(w, http.StatusBadRequest, "parse_init_data")
+		return
+	}
+	if err := s.bot.AssertMiniAppPackChatAligns(parsed); err != nil {
+		if errors.Is(err, bot.ErrMiniAppChatMismatch) {
+			s.jsonErr(w, http.StatusConflict, "chat_mismatch")
+			return
+		}
+		s.jsonErr(w, http.StatusInternalServerError, "assert_chat_error")
+		return
+	}
+	fs := r.MultipartForm.File["photo"]
+	if len(fs) == 0 {
+		s.jsonErr(w, http.StatusBadRequest, "missing_photo")
+		return
+	}
+	file, err := fs[0].Open()
+	if err != nil {
+		s.jsonErr(w, http.StatusBadRequest, "photo_open_error")
+		return
+	}
+	defer file.Close()
+
+	publicURL, ok := s.storeUploadedPhoto(w, r, file)
+	if !ok {
+		return
+	}
+	miniRes, perr := s.bot.ProcessMiniAppPackGroupMessage(parsed, text, replyToID, publicURL)
+	if perr != nil {
+		if errors.Is(perr, bot.ErrMiniAppChatMismatch) {
+			s.jsonErr(w, http.StatusConflict, "chat_mismatch")
+			return
+		}
+		if errors.Is(perr, bot.ErrPackFeedForbidden) {
+			s.jsonErr(w, http.StatusForbidden, "forbidden")
+			return
+		}
+		if errors.Is(perr, bot.ErrPackGroupInvalidReply) {
+			s.jsonErr(w, http.StatusBadRequest, "invalid_reply")
+			return
+		}
+		if s.jsonModerationErr(w, perr) {
+			return
+		}
+		s.logger.Errorf("pack group photo message: %v", perr)
+		s.jsonErr(w, http.StatusInternalServerError, "pack_group_error")
+		return
+	}
+	w.Header().Set("Content-Type", "application/json; charset=utf-8")
+	out := map[string]any{"ok": true, "photo_url": publicURL}
+	if miniRes.ReplyText != "" {
+		out["reply_text"] = miniRes.ReplyText
+	}
+	_ = json.NewEncoder(w).Encode(out)
 }
 
 func (s *Server) handleGetMiniappMedia(w http.ResponseWriter, r *http.Request) {

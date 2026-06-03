@@ -106,6 +106,7 @@ type PackGroupChatMessage struct {
 	CreatedAt       string                  `json:"created_at"`
 	IsLeo           bool                    `json:"is_leo"`
 	AuthorPhotoURL  string                  `json:"author_photo_url,omitempty"`
+	PhotoURL        string                  `json:"photo_url,omitempty"`
 	ReplyToID       int64                   `json:"reply_to_id,omitempty"`
 	ReplyToUsername string                  `json:"reply_to_username,omitempty"`
 	ReplyToText     string                  `json:"reply_to_text,omitempty"`

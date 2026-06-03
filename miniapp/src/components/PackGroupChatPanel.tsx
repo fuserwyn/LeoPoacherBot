@@ -5,6 +5,7 @@ import {
   useMemo,
   useRef,
   useState,
+  type ChangeEvent,
   type ReactNode,
   type RefObject,
   type TouchEvent as ReactTouchEvent,
@@ -23,6 +24,7 @@ import {
   mergeTrainingFeedReactions,
   optimisticTogglePackFeedReaction,
   resolveFeedAvatarUrl,
+  resolveTrainingPhotoUrl,
   type PackFeedReactionDTO,
   type VoterDTO,
 } from "../lib/packFeed";
@@ -381,6 +383,8 @@ export type PackGroupMessage = {
   reply_to_is_leo?: boolean;
   edited_at?: string;
   reactions?: PackFeedReactionDTO[];
+  /** Фото-вложение (полный публичный URL; для оптимистичной вставки — локальный blob:). */
+  photo_url?: string;
 };
 
 type ReplyIntent = {
@@ -478,6 +482,10 @@ export function PackGroupChatPanel({
   const [replyIntent, setReplyIntent] = useState<ReplyIntent | null>(null);
   const [editIntent, setEditIntent] = useState<EditIntent | null>(null);
   const [sending, setSending] = useState(false);
+  const [photo, setPhoto] = useState<File | null>(null);
+  const [photoPreview, setPhotoPreview] = useState<string | null>(null);
+  const [lightboxUrl, setLightboxUrl] = useState<string | null>(null);
+  const photoInputRef = useRef<HTMLInputElement | null>(null);
   const [reportPosting, setReportPosting] = useState<Record<number, boolean>>({});
   const [err, setErr] = useState<string | null>(null);
   const endRef = useRef<HTMLDivElement | null>(null);
@@ -722,7 +730,7 @@ export function PackGroupChatPanel({
 
   const send = useCallback(async () => {
     const t = text.trim();
-    if (!t || sending) return;
+    if ((!t && !photo) || sending) return;
     if (!apiBase) {
       showAlert("Сборка без VITE_MINIAPP_API_URL.");
       return;
@@ -777,8 +785,14 @@ export function PackGroupChatPanel({
     const replyToId = replyIntent?.replyToMessageId ?? 0;
     const replyLabel = replyIntent?.authorLabel ?? "";
     const replyExcerpt = replyIntent?.excerpt ?? "";
+    const sentPhoto = photo;
+    const localPhotoUrl = photoPreview;
     setText("");
     setReplyIntent(null);
+    // Снимаем фото из формы, но не ревокаем blob: он ещё нужен для оптимистичного превью.
+    setPhoto(null);
+    setPhotoPreview(null);
+    if (photoInputRef.current) photoInputRef.current.value = "";
     forceScrollRef.current = true;
     userScrolledUpRef.current = false;
 
@@ -795,6 +809,7 @@ export function PackGroupChatPanel({
         text: t,
         created_at: new Date().toISOString(),
         is_leo: false,
+        photo_url: localPhotoUrl ?? undefined,
       };
       if (replyToId > 0) {
         optimistic.reply_to_id = replyToId;
@@ -805,35 +820,64 @@ export function PackGroupChatPanel({
       return [...prev, optimistic];
     });
 
+    const cleanupLocalPhoto = () => {
+      if (localPhotoUrl) URL.revokeObjectURL(localPhotoUrl);
+    };
+
     try {
-      const body: { init_data: string; text: string; reply_to_id?: number } = {
-        init_data: initData,
-        text: t,
-      };
-      if (replyToId > 0) body.reply_to_id = replyToId;
-      const res = await fetch(`${apiBase}/api/miniapp/pack-group/messages`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(body),
-      });
+      let res: Response;
+      if (sentPhoto) {
+        const fd = new FormData();
+        fd.append("init_data", initData);
+        fd.append("text", t);
+        if (replyToId > 0) fd.append("reply_to_id", String(replyToId));
+        fd.append("photo", sentPhoto, sentPhoto.name || "photo.jpg");
+        res = await fetch(`${apiBase}/api/miniapp/pack-group/messages/photo`, {
+          method: "POST",
+          body: fd,
+        });
+      } else {
+        const body: { init_data: string; text: string; reply_to_id?: number } = {
+          init_data: initData,
+          text: t,
+        };
+        if (replyToId > 0) body.reply_to_id = replyToId;
+        res = await fetch(`${apiBase}/api/miniapp/pack-group/messages`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(body),
+        });
+      }
       const j = (await res.json().catch(() => ({}))) as { error?: string; message?: string; ok?: boolean; reply_text?: string };
       if (!res.ok) {
         setItems((prev) => prev.filter((m) => m.id !== tempId));
+        cleanupLocalPhoto();
         if (isModerationError(j.error)) {
           showAlert(moderationUserMessage(j.error, j.message));
           return;
         }
-        showAlert(j.error ?? `Ошибка ${res.status}`);
+        const errMap: Record<string, string> = {
+          media_not_configured: "Загрузка фото на сервере не настроена.",
+          unsupported_image: "Не удалось прочитать фото. Попробуй JPG, PNG, WEBP или GIF.",
+          photo_too_large: "Фото слишком большое. Максимум 6 МБ.",
+          invalid_multipart: "Не удалось отправить фото. Выбери снимок заново.",
+          missing_photo: "Фото не приложено.",
+          chat_mismatch: "Открой мини-апп из чата стаи",
+          forbidden: "Нет доступа",
+        };
+        showAlert(errMap[j.error ?? ""] ?? j.error ?? `Ошибка ${res.status}`);
         return;
       }
       await load();
+      cleanupLocalPhoto();
     } catch (e) {
       setItems((prev) => prev.filter((m) => m.id !== tempId));
+      cleanupLocalPhoto();
       showAlert(e instanceof Error ? e.message : "Сеть");
     } finally {
       setSending(false);
     }
-  }, [text, sending, inTelegram, initData, showAlert, load, onHaptic, replyIntent, editIntent, meId]);
+  }, [text, photo, photoPreview, sending, inTelegram, initData, showAlert, load, onHaptic, replyIntent, editIntent, meId]);
 
   const reportMessage = useCallback(
     async (messageID: number) => {
@@ -894,6 +938,61 @@ export function PackGroupChatPanel({
     setEditIntent(null);
     setText("");
   }, []);
+
+  const clearPhoto = useCallback(() => {
+    setPhoto(null);
+    setPhotoPreview((prev) => {
+      if (prev) URL.revokeObjectURL(prev);
+      return null;
+    });
+    if (photoInputRef.current) photoInputRef.current.value = "";
+  }, []);
+
+  const onPickPhoto = useCallback(
+    (e: ChangeEvent<HTMLInputElement>) => {
+      const f = e.target.files?.[0] ?? null;
+      if (!f) return;
+      if (!/^image\//.test(f.type)) {
+        showAlert("Можно прикрепить только изображение (JPG, PNG, WEBP, GIF).");
+        if (photoInputRef.current) photoInputRef.current.value = "";
+        return;
+      }
+      if (f.size > 6 * 1024 * 1024) {
+        showAlert("Фото слишком большое. Максимум 6 МБ.");
+        if (photoInputRef.current) photoInputRef.current.value = "";
+        return;
+      }
+      setPhoto(f);
+      setPhotoPreview((prev) => {
+        if (prev) URL.revokeObjectURL(prev);
+        return URL.createObjectURL(f);
+      });
+      setEditIntent(null);
+    },
+    [showAlert],
+  );
+
+  // Подчищаем blob превью на размонтировании, чтобы не текла память.
+  useEffect(() => {
+    return () => {
+      if (photoPreview) URL.revokeObjectURL(photoPreview);
+    };
+  }, [photoPreview]);
+
+  // Лайтбокс: Esc закрывает, фон не скроллится.
+  useEffect(() => {
+    if (!lightboxUrl) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setLightboxUrl(null);
+    };
+    document.addEventListener("keydown", onKey);
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.removeEventListener("keydown", onKey);
+      document.body.style.overflow = prev;
+    };
+  }, [lightboxUrl]);
 
   useEffect(
     () => () => {
@@ -1127,6 +1226,8 @@ export function PackGroupChatPanel({
           const reactions = mergeTrainingFeedReactions(m.reactions);
           const activeReactions = reactions.filter((r) => r.count > 0);
           const avatarUrl = resolveFeedAvatarUrl(m.author_photo_url);
+          const photoUrl = m.photo_url ? resolveTrainingPhotoUrl(m.photo_url) : undefined;
+          const hasText = m.text.trim() !== "";
           return (
             <div
               key={m.id}
@@ -1176,9 +1277,27 @@ export function PackGroupChatPanel({
                           )}
                         </button>
                       )}
-                      <p className="packroom__bubble-text">
-                        {searchQuery.trim() !== "" ? highlightSearch(m.text, searchQuery) : m.text}
-                      </p>
+                      {photoUrl && (
+                        <button
+                          type="button"
+                          className="packroom__photo-wrap"
+                          aria-label="Открыть фото"
+                          onClick={() => setLightboxUrl(photoUrl)}
+                        >
+                          <img
+                            className="packroom__photo"
+                            src={photoUrl}
+                            alt=""
+                            loading="lazy"
+                            referrerPolicy="no-referrer"
+                          />
+                        </button>
+                      )}
+                      {hasText && (
+                        <p className="packroom__bubble-text">
+                          {searchQuery.trim() !== "" ? highlightSearch(m.text, searchQuery) : m.text}
+                        </p>
+                      )}
                     </div>
                     <div className="packroom__bubble-actions">
                       <button type="button" className="packroom__reply" onClick={() => startReply(m)}>
@@ -1260,7 +1379,41 @@ export function PackGroupChatPanel({
             )}
           </div>
         )}
+        {photoPreview != null && editIntent == null && (
+          <div className="packroom__photo-pending">
+            <img className="packroom__photo-pending-img" src={photoPreview} alt="" />
+            <span className="packroom__photo-pending-name">{photo?.name ?? "Фото"}</span>
+            <button
+              type="button"
+              className="packroom__photo-pending-remove"
+              aria-label="Убрать фото"
+              onClick={clearPhoto}
+            >
+              ✕
+            </button>
+          </div>
+        )}
         <div className="packroom__form-row">
+        <input
+          ref={photoInputRef}
+          type="file"
+          accept="image/*"
+          className="packroom__photo-input"
+          onChange={onPickPhoto}
+          tabIndex={-1}
+          aria-hidden
+        />
+        {editIntent == null && (
+          <button
+            type="button"
+            className="packroom__attach"
+            aria-label="Прикрепить фото"
+            disabled={sending}
+            onClick={() => photoInputRef.current?.click()}
+          >
+            📎
+          </button>
+        )}
         <input
           ref={inputRef}
           className="packroom__input"
@@ -1286,13 +1439,40 @@ export function PackGroupChatPanel({
         <button
           type="submit"
           className="packroom__send"
-          disabled={sending || !text.trim()}
+          disabled={sending || (!text.trim() && !photo)}
           aria-label={editIntent != null ? "Сохранить изменения" : "Отправить"}
         >
           {sending ? "…" : editIntent != null ? "✓" : "➤"}
         </button>
         </div>
       </form>
+      {lightboxUrl != null && (
+        <div
+          className="act-card__lightbox"
+          role="dialog"
+          aria-modal="true"
+          onClick={() => setLightboxUrl(null)}
+        >
+          <button
+            type="button"
+            className="act-card__lightbox-close"
+            aria-label="Закрыть"
+            onClick={(e) => {
+              e.stopPropagation();
+              setLightboxUrl(null);
+            }}
+          >
+            ✕
+          </button>
+          <img
+            className="act-card__lightbox-img"
+            src={lightboxUrl}
+            alt=""
+            referrerPolicy="no-referrer"
+            onClick={(e) => e.stopPropagation()}
+          />
+        </div>
+      )}
     </div>
   );
 }

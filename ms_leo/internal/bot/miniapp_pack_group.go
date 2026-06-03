@@ -78,6 +78,11 @@ func (b *Bot) PackGroupChatForViewer(viewerUserID int64, initD initdata.InitData
 		return nil, err
 	}
 	msgs := b.packGroupRowsToMessages(rows)
+	for _, m := range msgs {
+		if m != nil && m.PhotoURL != "" {
+			m.PhotoURL = b.canonicalMiniappTrainingPhotoURL(m.PhotoURL)
+		}
+	}
 	msgs = b.enrichPackGroupChatAuthorPhotos(msgs, chatID, initDataRaw)
 	return b.enrichPackGroupChatReactions(msgs, viewerUserID, chatID), nil
 }
@@ -170,6 +175,7 @@ func packGroupRowToMessage(r database.PackGroupChatRow) domain.PackGroupChatMess
 		Text:      r.MessageText,
 		CreatedAt: r.CreatedAt.UTC().Format("2006-01-02T15:04:05Z07:00"),
 		IsLeo:     r.IsLeo,
+		PhotoURL:  r.PhotoURL,
 	}
 	if r.ReplyToID.Valid && r.ReplyToID.Int64 > 0 {
 		m.ReplyToID = r.ReplyToID.Int64
@@ -180,10 +186,12 @@ func packGroupRowToMessage(r database.PackGroupChatRow) domain.PackGroupChatMess
 	return m
 }
 
-// ProcessMiniAppPackGroupMessage — сохраняет реплику; при @leo / @бот вызывает ИИ, без отправки в Telegram.
-func (b *Bot) ProcessMiniAppPackGroupMessage(d initdata.InitData, text string, replyToID int64) (MiniAppTextProcessResult, error) {
+// ProcessMiniAppPackGroupMessage — сохраняет реплику (photoURL — опц. вложение);
+// при @leo / @бот вызывает ИИ, без отправки в Telegram. Допускается сообщение только с фото (пустой текст).
+func (b *Bot) ProcessMiniAppPackGroupMessage(d initdata.InitData, text string, replyToID int64, photoURL string) (MiniAppTextProcessResult, error) {
 	out := MiniAppTextProcessResult{}
-	if b == nil || strings.TrimSpace(text) == "" {
+	photoURL = strings.TrimSpace(photoURL)
+	if b == nil || (strings.TrimSpace(text) == "" && photoURL == "") {
 		return out, nil
 	}
 	if d.User.ID == 0 {
@@ -208,8 +216,10 @@ func (b *Bot) ProcessMiniAppPackGroupMessage(d initdata.InitData, text string, r
 		}
 	}
 	text = strings.TrimSpace(text)
-	if _, err := b.enforceUGC(text, moderation.SurfacePackGroupChat, d.User.ID); err != nil {
-		return out, err
+	if text != "" {
+		if _, err := b.enforceUGC(text, moderation.SurfacePackGroupChat, d.User.ID); err != nil {
+			return out, err
+		}
 	}
 	if replyToID > 0 {
 		parent, ok, err := b.db.GetMiniappPackGroupMessageInPack(chatID, replyToID)
@@ -223,14 +233,16 @@ func (b *Bot) ProcessMiniAppPackGroupMessage(d initdata.InitData, text string, r
 	}
 	uname := displayNameFromInitData(d)
 
-	userMsgID, err := b.db.InsertMiniappPackGroupMessage(chatID, d.User.ID, uname, false, text, replyToID)
+	userMsgID, err := b.db.InsertMiniappPackGroupMessage(chatID, d.User.ID, uname, false, text, replyToID, photoURL)
 	if err != nil {
 		// Раньше ошибка проглатывалась и наружу отдавался успех — сообщение «терялось»
 		// без уведомления. Теперь возвращаем ошибку, чтобы miniapp показал её пользователю.
 		b.logger.Errorf("pack miniapp insert user row: %v", err)
 		return out, err
 	}
-	b.indexPackGroupChatRAG(chatID, d.User.ID, "user", text, userMsgID)
+	if text != "" {
+		b.indexPackGroupChatRAG(chatID, d.User.ID, "user", text, userMsgID)
+	}
 	if replyToID > 0 && userMsgID > 0 {
 		b.afterPackGroupReplyInserted(chatID, d.User.ID, uname, text, userMsgID, replyToID)
 	}
@@ -276,7 +288,7 @@ func (b *Bot) ProcessMiniAppPackGroupMessage(d initdata.InitData, text string, r
 	if userMsgID > 0 {
 		leoReplyToID = userMsgID
 	}
-	if id, err := b.db.InsertMiniappPackGroupMessage(chatID, 0, leoName, true, reply, leoReplyToID); err != nil {
+	if id, err := b.db.InsertMiniappPackGroupMessage(chatID, 0, leoName, true, reply, leoReplyToID, ""); err != nil {
 		b.logger.Warnf("pack miniapp insert Leo row: %v", err)
 	} else {
 		b.indexPackGroupChatRAG(chatID, 0, "leo", reply, id)
