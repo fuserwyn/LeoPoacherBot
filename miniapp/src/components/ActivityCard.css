@@ -208,8 +208,9 @@
 }
 
 .act-card__row--sub {
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   justify-content: flex-start;
+  gap: 6px;
 }
 
 .act-card__name {
@@ -225,12 +226,18 @@
   font-size: 11px;
   color: var(--text-muted);
   margin: 0;
-  flex-shrink: 0;
+  /* Сжимаемся с многоточием, чтобы пилюля стрика (в т.ч. 3-значного) оставалась
+     на одной строке со временем, а не уезжала вниз в узкой колонке meta. */
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .act-card__row--sub .pill--streak {
   flex-shrink: 0;
   margin-left: auto;
+  padding-inline: 8px;
 }
 
 .act-card__type {
