@@ -21,6 +21,19 @@
   box-sizing: border-box;
 }
 
+/* Десктоп: чат растягивается во весь экран, как лента (FeedScreen.css ≥600px). */
+@media (min-width: 600px) {
+  .packroom {
+    max-width: none;
+    padding-left: 16px;
+    padding-right: 16px;
+  }
+  /* Пузыри не растягиваем во всю ширину — текст остаётся читаемым. */
+  .packroom__row {
+    max-width: min(680px, 75%);
+  }
+}
+
 .packroom__warn,
 .packroom__err {
   font-size: 0.85rem;
