@@ -146,7 +146,7 @@ function ThreadLikeButton({
 }: {
   count: number;
   mine?: boolean;
-  voters?: VoterDTO[];
+  voters?: VoterDTO[] | string[];
   onToggle: () => void;
 }) {
   const anchorRef = useRef<HTMLSpanElement>(null);
@@ -347,7 +347,7 @@ export type ActivityCardProps = {
     onVote?: (optionIndex: number) => void;
   };
   aiText?: string;
-  reactions?: { emoji: string; count: number; me?: boolean; voters?: VoterDTO[] }[];
+  reactions?: { emoji: string; count: number; me: boolean; voters?: VoterDTO[] | string[] }[];
   /** Клик по эмодзи (лента training_done). */
   onReactionClick?: (emoji: string) => void;
   /** Тред под отчётом о тренировке. */

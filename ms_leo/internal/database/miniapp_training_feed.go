@@ -53,8 +53,9 @@ func (d *Database) GetUserMessageTextByIDForChat(id, chatID int64) (string, erro
 	return t, nil
 }
 
-// Voter — кто поставил реакцию/лайк: имя + аватар (telegram_photo_url из профиля).
+// Voter — кто поставил реакцию/лайк: id (для прокси-аватара) + имя + аватар (telegram_photo_url из профиля).
 type Voter struct {
+	UserID   int64
 	Name     string
 	PhotoURL string
 }
@@ -98,7 +99,7 @@ func (d *Database) ListTrainingFeedReactionAggs(packChatID int64, userMessageIDs
 		return nil, nil, err
 	}
 	qVoters := `
-		SELECT r.user_message_id, r.emoji,
+		SELECT r.user_message_id, r.emoji, r.user_id,
 		       COALESCE(NULLIF(TRIM(r.username), ''), CONCAT('Участник ', r.user_id::text)) AS voter,
 		       COALESCE(p.telegram_photo_url, '') AS photo
 		FROM miniapp_training_feed_reactions r
@@ -113,15 +114,15 @@ func (d *Database) ListTrainingFeedReactionAggs(packChatID int64, userMessageIDs
 	}
 	defer rv.Close()
 	for rv.Next() {
-		var mid int64
+		var mid, uid int64
 		var emoji, voter, photo string
-		if err := rv.Scan(&mid, &emoji, &voter, &photo); err != nil {
+		if err := rv.Scan(&mid, &emoji, &uid, &voter, &photo); err != nil {
 			return nil, nil, err
 		}
 		aggs := out[mid]
 		for i := range aggs {
 			if aggs[i].Emoji == emoji {
-				aggs[i].Voters = append(aggs[i].Voters, Voter{Name: voter, PhotoURL: photo})
+				aggs[i].Voters = append(aggs[i].Voters, Voter{UserID: uid, Name: voter, PhotoURL: photo})
 				break
 			}
 		}
@@ -465,7 +466,7 @@ func (d *Database) ListTrainingFeedThreadLikeAggs(packChatID int64, threadReplyI
 
 	// Лайкнувшие: профиль мини-аппа (display_name + аватар), иначе «Участник <id>».
 	rvoters, err := d.db.Query(
-		`SELECT l.thread_reply_id,
+		`SELECT l.thread_reply_id, l.user_id,
 		        COALESCE(NULLIF(BTRIM(p.display_name), ''), CONCAT('Участник ', l.user_id::text)) AS voter,
 		        COALESCE(p.telegram_photo_url, '') AS photo
 		 FROM miniapp_training_feed_thread_likes l
@@ -480,13 +481,13 @@ func (d *Database) ListTrainingFeedThreadLikeAggs(packChatID int64, threadReplyI
 	}
 	defer rvoters.Close()
 	for rvoters.Next() {
-		var id int64
+		var id, uid int64
 		var voter, photo string
-		if err := rvoters.Scan(&id, &voter, &photo); err != nil {
+		if err := rvoters.Scan(&id, &uid, &voter, &photo); err != nil {
 			return nil, err
 		}
 		agg := out[id]
-		agg.Voters = append(agg.Voters, Voter{Name: voter, PhotoURL: photo})
+		agg.Voters = append(agg.Voters, Voter{UserID: uid, Name: voter, PhotoURL: photo})
 		out[id] = agg
 	}
 	if err := rvoters.Err(); err != nil {

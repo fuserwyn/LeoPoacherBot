@@ -419,7 +419,7 @@ func (b *Bot) PackTrainingFeedThreadLikeToggle(viewerUserID int64, initD initdat
 	return row.UserMessageID, nil
 }
 
-func (b *Bot) threadRowsToPackReplies(rows []database.TrainingFeedThreadRow, viewerUserID, packChatID int64) []PackFeedThreadReply {
+func (b *Bot) threadRowsToPackReplies(rows []database.TrainingFeedThreadRow, viewerUserID, packChatID int64, initDataRaw string) []PackFeedThreadReply {
 	out := make([]PackFeedThreadReply, 0, len(rows))
 	if len(rows) == 0 {
 		return out
@@ -486,7 +486,7 @@ func (b *Bot) threadRowsToPackReplies(rows []database.TrainingFeedThreadRow, vie
 		if l, ok := likeMap[t.ID]; ok {
 			pr.LikeCount = l.Count
 			pr.LikeMe = l.Me
-			pr.LikeVoters = votersToPack(l.Voters)
+			pr.LikeVoters = b.packVoters(l.Voters, initDataRaw)
 		}
 		out = append(out, pr)
 	}
@@ -494,7 +494,8 @@ func (b *Bot) threadRowsToPackReplies(rows []database.TrainingFeedThreadRow, vie
 }
 
 // PackFeedThreadRepliesForViewer — полный тред под одним отчётом (после POST комментария и для согласованности с лентой).
-func (b *Bot) PackFeedThreadRepliesForViewer(viewerUserID, userMessageID int64) ([]PackFeedThreadReply, error) {
+// initDataRaw — для прокси-аватаров лайкнувших комментарий.
+func (b *Bot) PackFeedThreadRepliesForViewer(viewerUserID, userMessageID int64, initDataRaw string) ([]PackFeedThreadReply, error) {
 	if b == nil || b.db == nil {
 		return nil, fmt.Errorf("bot unavailable")
 	}
@@ -503,7 +504,7 @@ func (b *Bot) PackFeedThreadRepliesForViewer(viewerUserID, userMessageID int64) 
 		return nil, err
 	}
 	chatID := b.config.MonetizedChatID
-	return b.threadRowsToPackReplies(m[userMessageID], viewerUserID, chatID), nil
+	return b.threadRowsToPackReplies(m[userMessageID], viewerUserID, chatID, initDataRaw), nil
 }
 
 func allowedEmojiListForFeedType(messageType string) []string {
@@ -522,7 +523,8 @@ func allowedEmojiListForFeedType(messageType string) []string {
 }
 
 // enrichPackFeedTrainingSocial — реакции и треды для карточек ленты с соц. активностью.
-func (b *Bot) enrichPackFeedTrainingSocial(items []PackFeedItem, viewerUserID int64, chatID int64) []PackFeedItem {
+// initDataRaw — для прокси-аватаров отреагировавших/лайкнувших.
+func (b *Bot) enrichPackFeedTrainingSocial(items []PackFeedItem, viewerUserID int64, chatID int64, initDataRaw string) []PackFeedItem {
 	socialIDs := make([]int64, 0)
 	reactionIDs := make([]int64, 0)
 	for _, it := range items {
@@ -566,7 +568,7 @@ func (b *Bot) enrichPackFeedTrainingSocial(items []PackFeedItem, viewerUserID in
 						Emoji:  a.Emoji,
 						Count:  a.Count,
 						Me:     meEmoji == a.Emoji,
-						Voters: votersToPack(a.Voters),
+						Voters: b.packVoters(a.Voters, initDataRaw),
 					})
 				}
 			}
@@ -575,7 +577,7 @@ func (b *Bot) enrichPackFeedTrainingSocial(items []PackFeedItem, viewerUserID in
 			continue
 		}
 		if thr, ok := threadMap[id]; ok {
-			items[i].Thread = b.threadRowsToPackReplies(thr, viewerUserID, chatID)
+			items[i].Thread = b.threadRowsToPackReplies(thr, viewerUserID, chatID, initDataRaw)
 		}
 	}
 	return items

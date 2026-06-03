@@ -23,7 +23,7 @@ const OFFSCREEN: CSSProperties = { position: "fixed", top: "-9999px", left: "0px
  * hover-указателем (мышь). На тач-вебвью Telegram (мобильный) синтетический mouseenter
  * срабатывает при скролле/тапе и спорадически открывает поповер — там используем long-press.
  */
-function pointerCanHover(): boolean {
+export function pointerCanHover(): boolean {
   if (typeof window === "undefined" || typeof window.matchMedia !== "function") return false;
   return window.matchMedia("(hover: hover) and (pointer: fine)").matches;
 }
@@ -106,6 +106,31 @@ export function useLikersPopover(anchorRef: RefObject<HTMLElement | null>) {
   return { open, setOpen, style, popRef };
 }
 
+/** Аватар голосующего: при ошибке загрузки фото показывает инициал, а не «битую картинку». */
+function LikerAvatar({ photoUrl, name }: { photoUrl?: string; name: string }) {
+  const [failed, setFailed] = useState(false);
+  useEffect(() => setFailed(false), [photoUrl]);
+  const initial = (name[0] || "?").toUpperCase();
+  if (!photoUrl || failed) {
+    return (
+      <span className="act-card__likers-ava" aria-hidden>
+        {initial}
+      </span>
+    );
+  }
+  return (
+    <span className="act-card__likers-ava" aria-hidden>
+      <img
+        className="act-card__likers-ava-img"
+        src={photoUrl}
+        alt=""
+        loading="lazy"
+        onError={() => setFailed(true)}
+      />
+    </span>
+  );
+}
+
 /** Поповер со списком отреагировавших (портал в body, сгруппирован по эмодзи, со скроллом). */
 export function LikersPopover({
   groups,
@@ -132,13 +157,7 @@ export function LikersPopover({
               const name = String(v.name ?? "").trim();
               return (
                 <div key={`${name}-${i}`} className="act-card__likers-item">
-                  <span className="act-card__likers-ava" aria-hidden>
-                    {v.photoUrl ? (
-                      <img className="act-card__likers-ava-img" src={v.photoUrl} alt="" loading="lazy" />
-                    ) : (
-                      (name[0] || "?").toUpperCase()
-                    )}
-                  </span>
+                  <LikerAvatar photoUrl={v.photoUrl} name={name} />
                   <span className="act-card__likers-name">{name || "Участник"}</span>
                 </div>
               );

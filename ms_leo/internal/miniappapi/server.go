@@ -727,7 +727,7 @@ func (s *Server) handlePostFeedTrainingThread(w http.ResponseWriter, r *http.Req
 		s.jsonErr(w, http.StatusInternalServerError, "thread_error")
 		return
 	}
-	replies, rerr := s.bot.PackFeedThreadRepliesForViewer(parsed.User.ID, body.UserMessageID)
+	replies, rerr := s.bot.PackFeedThreadRepliesForViewer(parsed.User.ID, body.UserMessageID, body.InitData)
 	if rerr != nil {
 		s.logger.Warnf("feed training thread: list after insert: %v", rerr)
 	}
@@ -793,7 +793,7 @@ func (s *Server) handlePostFeedTrainingThreadDelete(w http.ResponseWriter, r *ht
 		s.jsonErr(w, http.StatusInternalServerError, "thread_delete_error")
 		return
 	}
-	replies, rerr := s.bot.PackFeedThreadRepliesForViewer(parsed.User.ID, parentID)
+	replies, rerr := s.bot.PackFeedThreadRepliesForViewer(parsed.User.ID, parentID, body.InitData)
 	if rerr != nil {
 		s.logger.Warnf("feed training thread delete: list after delete: %v", rerr)
 	}
@@ -923,7 +923,7 @@ func (s *Server) handlePostFeedTrainingThreadLike(w http.ResponseWriter, r *http
 		s.jsonErr(w, http.StatusInternalServerError, "thread_like_error")
 		return
 	}
-	replies, rerr := s.bot.PackFeedThreadRepliesForViewer(parsed.User.ID, parentID)
+	replies, rerr := s.bot.PackFeedThreadRepliesForViewer(parsed.User.ID, parentID, body.InitData)
 	if rerr != nil {
 		s.logger.Warnf("feed training thread like: list after toggle: %v", rerr)
 	}

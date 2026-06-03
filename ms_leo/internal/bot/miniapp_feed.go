@@ -2,6 +2,7 @@ package bot
 
 import (
 	"errors"
+	"strings"
 
 	initdata "github.com/telegram-mini-apps/init-data-golang"
 
@@ -18,14 +19,22 @@ type PackVoter struct {
 	PhotoURL string `json:"photo_url,omitempty"`
 }
 
-// votersToPack — конвертация голосов из database в DTO.
-func votersToPack(in []database.Voter) []PackVoter {
+// packVoters — конвертация голосов в DTO с отрезолвленным аватаром: безопасный
+// публичный photo_url из профиля или прокси через Bot API (как у авторов карточек).
+func (b *Bot) packVoters(in []database.Voter, initDataRaw string) []PackVoter {
 	if len(in) == 0 {
 		return nil
 	}
+	publicBase := ""
+	if b != nil && b.config != nil {
+		publicBase = strings.TrimSpace(b.config.MiniappPublicBaseURL)
+	}
 	out := make([]PackVoter, len(in))
 	for i, v := range in {
-		out[i] = PackVoter{Name: v.Name, PhotoURL: v.PhotoURL}
+		out[i] = PackVoter{
+			Name:     v.Name,
+			PhotoURL: packFeedResolveAuthorPhoto(v.PhotoURL, publicBase, v.UserID, initDataRaw),
+		}
 	}
 	return out
 }
@@ -133,7 +142,7 @@ func (b *Bot) PackFeedForViewer(viewerUserID int64, initD initdata.InitData, ini
 			TrainingPhotoURL: b.canonicalMiniappTrainingPhotoURL(r.TrainingPhotoURL),
 		})
 	}
-	out = b.enrichPackFeedTrainingSocial(out, viewerUserID, chatID)
+	out = b.enrichPackFeedTrainingSocial(out, viewerUserID, chatID, initDataRaw)
 	out = b.enrichPackFeedPolls(out, viewerUserID, chatID)
 	out = b.enrichPackFeedAuthorPhotos(out, chatID, initDataRaw)
 	return out, nil

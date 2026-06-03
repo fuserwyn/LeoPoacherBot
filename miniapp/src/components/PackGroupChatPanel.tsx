@@ -26,17 +26,23 @@ import {
   type PackFeedReactionDTO,
   type VoterDTO,
 } from "../lib/packFeed";
-import { LikersPopover, useChipPress, useLikersPopover, type Liker, type LikerGroup } from "./Likers";
+import { LikersPopover, pointerCanHover, useChipPress, useLikersPopover, type Liker, type LikerGroup } from "./Likers";
 import "./ActivityCard.css";
 import "./PackGroupChatPanel.css";
 
-type ChatReaction = { emoji: string; count: number; me?: boolean; voters?: VoterDTO[] };
+type ChatReaction = { emoji: string; count: number; me: boolean; voters?: VoterDTO[] | string[] };
 
-function votersToLikers(voters?: VoterDTO[]): Liker[] {
-  return (voters ?? []).map((v) => ({
-    name: v.name,
-    photoUrl: v.photo_url ? resolveFeedAvatarUrl(v.photo_url) : undefined,
-  }));
+function votersToLikers(voters?: VoterDTO[] | string[]): Liker[] {
+  if (!voters) return [];
+  return voters.map((v) => {
+    if (typeof v === "string") {
+      return { name: v, photoUrl: undefined };
+    }
+    return {
+      name: v.name,
+      photoUrl: v.photo_url ? resolveFeedAvatarUrl(v.photo_url) : undefined,
+    };
+  });
 }
 
 /** Чип реакции в чате: тап = поставить/снять, зажатие = показать список отреагировавших. */
@@ -75,8 +81,20 @@ function PackMessageReactions({
   const openLikers = () => {
     if (hasLikers) setOpen(true);
   };
+  // На десктопе показываем «кто отреагировал» как полноценный hover-тултип:
+  // наведение на чипы открывает поповер, уход курсора — закрывает. На тач-устройствах
+  // (где hover синтетический) обработчики не подключаем — там просмотр через зажатие.
+  const hoverProps = pointerCanHover()
+    ? { onMouseEnter: openLikers, onMouseLeave: () => setOpen(false) }
+    : undefined;
   return (
-    <div className="packroom__react-chips" role="group" aria-label="Реакции на сообщение" ref={anchorRef}>
+    <div
+      className="packroom__react-chips"
+      role="group"
+      aria-label="Реакции на сообщение"
+      ref={anchorRef}
+      {...hoverProps}
+    >
       {reactions.map((r) => (
         <PackReactionChip key={r.emoji} r={r} onReact={onReact} onLongPress={hasLikers ? openLikers : undefined} />
       ))}
