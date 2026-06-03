@@ -6,18 +6,56 @@ import { resolveFeedAvatarUrl, type VoterDTO } from "../lib/packFeed";
 import { streakStreakAriaLabel } from "../lib/streakLabel";
 import "./ActivityCard.css";
 
-/** Голоса с бэкенда → строки списка лайкнувших (имя + отрезолвленный URL аватара). */
-function votersToLikers(voters?: VoterDTO[]): Liker[] {
-  return (voters ?? []).map((v) => ({
-    name: v.name,
-    photoUrl: v.photo_url ? resolveFeedAvatarUrl(v.photo_url) : undefined,
-  }));
+/** Голоса с бэкенда → строки списка лайкнувших (имя + отрезолвленный URL аватара).
+    Работает с обоими форматами: новый {name, photo_url} и старый строка. */
+function votersToLikers(voters?: VoterDTO[] | string[]): Liker[] {
+  if (!voters) return [];
+  return voters.map((v) => {
+    if (typeof v === "string") {
+      return { name: v, photoUrl: undefined };
+    }
+    return {
+      name: v.name,
+      photoUrl: v.photo_url ? resolveFeedAvatarUrl(v.photo_url) : undefined,
+    };
+  });
 }
 
 function avatarLooksLikeImageSrc(avatar: string): boolean {
   const t = avatar.trim();
   if (t.startsWith("/") || t.startsWith("http://") || t.startsWith("https://")) return true;
   return /\.[a-z0-9]{2,4}(\?|$)/i.test(t);
+}
+
+/** Запасной глиф, когда фото профиля не загрузилось (нет аватара в Telegram / приватность). */
+function avatarFallbackGlyph(name: string): string {
+  const t = (name || "").trim();
+  const first = t[0] ?? "";
+  if (first && /[a-zA-Zа-яА-Я0-9]/.test(first)) return first.toUpperCase();
+  if (first && !/[@#]/.test(first)) return first; // уже эмодзи
+  return "🐾";
+}
+
+/** Аватар участника в треде: при ошибке загрузки фото показывает инициал, а не «битую картинку». */
+function ThreadMemberAvatar({ src, name }: { src: string; name: string }) {
+  const [failed, setFailed] = useState(false);
+  useEffect(() => setFailed(false), [src]);
+  if (failed) {
+    return (
+      <span className="act-card__thread-avatar act-card__thread-avatar--member act-card__thread-avatar--fallback" aria-hidden>
+        {avatarFallbackGlyph(name)}
+      </span>
+    );
+  }
+  return (
+    <img
+      className="act-card__thread-avatar act-card__thread-avatar--member"
+      src={src}
+      alt=""
+      loading="lazy"
+      onError={() => setFailed(true)}
+    />
+  );
 }
 
 export type ActivityCardThreadReply = {
@@ -35,7 +73,7 @@ export type ActivityCardThreadReply = {
   likeCount?: number;
   likeMe?: boolean;
   /** Имена лайкнувших комментарий (для поповера «кто лайкнул»). */
-  likeVoters?: VoterDTO[];
+  likeVoters?: VoterDTO[] | string[];
 };
 
 export type ActivityCardThreadComposer = {
@@ -79,7 +117,7 @@ function ReactionChip({
   onPick,
   onLongPress,
 }: {
-  r: { emoji: string; count: number; me?: boolean; voters?: VoterDTO[] };
+  r: { emoji: string; count: number; me?: boolean; voters?: VoterDTO[] | string[] };
   disabled?: boolean;
   onPick: (emoji: string) => void;
   /** Зажатие чипа (или hover на десктопе) — показать список всех отреагировавших. */
@@ -130,7 +168,7 @@ export function TrainingReactionsBar({
   reactions,
   onReactionClick,
 }: {
-  reactions: { emoji: string; count: number; me?: boolean; voters?: VoterDTO[] }[];
+  reactions: { emoji: string; count: number; me: boolean; voters?: VoterDTO[] | string[] }[];
   onReactionClick?: (emoji: string) => void;
 }) {
   const rowRef = useRef<HTMLDivElement>(null);
@@ -382,6 +420,7 @@ export function ActivityCard({
   const [threadInputFocused, setThreadInputFocused] = useState(false);
   const [lightboxOpen, setLightboxOpen] = useState(false);
   const [photoFailed, setPhotoFailed] = useState(false);
+  const [avatarFailed, setAvatarFailed] = useState(false);
   const prevThreadLen = useRef(threadReplies.length);
   const prevThreadOpenRef = useRef(false);
 
@@ -433,6 +472,10 @@ export function ActivityCard({
   useEffect(() => {
     setPhotoFailed(false);
   }, [trainingPhotoUrl]);
+
+  useEffect(() => {
+    setAvatarFailed(false);
+  }, [avatar]);
 
   useEffect(() => {
     if (threadOpen && threadReplies.length > prevThreadLen.current) {
@@ -495,8 +538,16 @@ export function ActivityCard({
       )}
       <header className="act-card__head">
         <div className="act-card__avatar" aria-hidden>
-          {avatarLooksLikeImageSrc(avatar) ? (
-            <img className="act-card__avatar-img" src={avatar.trim()} alt="" loading="lazy" />
+          {avatarLooksLikeImageSrc(avatar) && !avatarFailed ? (
+            <img
+              className="act-card__avatar-img"
+              src={avatar.trim()}
+              alt=""
+              loading="lazy"
+              onError={() => setAvatarFailed(true)}
+            />
+          ) : avatarLooksLikeImageSrc(avatar) ? (
+            avatarFallbackGlyph(name)
           ) : (
             avatar
           )}
@@ -629,12 +680,7 @@ export function ActivityCard({
                                   loading="lazy"
                                 />
                               ) : tr.authorPhotoUrl?.trim() ? (
-                                <img
-                                  className="act-card__thread-avatar act-card__thread-avatar--member"
-                                  src={tr.authorPhotoUrl.trim()}
-                                  alt=""
-                                  loading="lazy"
-                                />
+                                <ThreadMemberAvatar src={tr.authorPhotoUrl.trim()} name={displayAuthor} />
                               ) : null}
                               <div className="act-card__thread-item-main">
                                 <div className="act-card__thread-item-head">

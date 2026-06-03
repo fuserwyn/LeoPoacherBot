@@ -154,6 +154,15 @@
   border: 1px solid rgba(180, 180, 210, 0.25);
 }
 
+.act-card__thread-avatar--fallback {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--card-inner);
+  font-size: 13px;
+  line-height: 1;
+}
+
 .pill--streak {
   gap: 4px;
   justify-content: center;

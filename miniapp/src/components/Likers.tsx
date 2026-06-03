@@ -19,6 +19,16 @@ export type LikerGroup = { emoji: string; voters: Liker[] };
 const OFFSCREEN: CSSProperties = { position: "fixed", top: "-9999px", left: "0px" };
 
 /**
+ * Открывать поповер «кто отреагировал» по наведению только на устройствах с настоящим
+ * hover-указателем (мышь). На тач-вебвью Telegram (мобильный) синтетический mouseenter
+ * срабатывает при скролле/тапе и спорадически открывает поповер — там используем long-press.
+ */
+function pointerCanHover(): boolean {
+  if (typeof window === "undefined" || typeof window.matchMedia !== "function") return false;
+  return window.matchMedia("(hover: hover) and (pointer: fine)").matches;
+}
+
+/**
  * Управляет поповером «кто отреагировал». Поповер рендерится порталом в body
  * (чтобы не обрезался overflow-ом карточки) и позиционируется position: fixed
  * относительно якоря: над ним, либо под ним — туда, где больше места; высота
@@ -118,18 +128,21 @@ export function LikersPopover({
               <span className="act-card__likers-grp-emoji">{g.emoji}</span>
               <span className="act-card__likers-count">{g.voters.length}</span>
             </div>
-            {g.voters.map((v, i) => (
-              <div key={`${v.name}-${i}`} className="act-card__likers-item">
-                <span className="act-card__likers-ava" aria-hidden>
-                  {v.photoUrl ? (
-                    <img className="act-card__likers-ava-img" src={v.photoUrl} alt="" loading="lazy" />
-                  ) : (
-                    (v.name.trim()[0] || "?").toUpperCase()
-                  )}
-                </span>
-                <span className="act-card__likers-name">{v.name}</span>
-              </div>
-            ))}
+            {g.voters.map((v, i) => {
+              const name = String(v.name ?? "").trim();
+              return (
+                <div key={`${name}-${i}`} className="act-card__likers-item">
+                  <span className="act-card__likers-ava" aria-hidden>
+                    {v.photoUrl ? (
+                      <img className="act-card__likers-ava-img" src={v.photoUrl} alt="" loading="lazy" />
+                    ) : (
+                      (name[0] || "?").toUpperCase()
+                    )}
+                  </span>
+                  <span className="act-card__likers-name">{name || "Участник"}</span>
+                </div>
+              );
+            })}
           </div>
         ))}
       </div>
@@ -199,6 +212,9 @@ export function useChipPress(onTap: () => void, onLongPress?: () => void, disabl
     },
     onTouchCancel: clearTimer,
     onMouseEnter: () => {
+      // Только мышь (desktop). На тач-устройствах синтетический mouseenter игнорируем —
+      // просмотр списка там через зажатие (long-press).
+      if (!pointerCanHover()) return;
       if (Date.now() - recentTouch.current < 600) return;
       onLongPress?.();
     },
