@@ -78,5 +78,13 @@ func (g *Gate) checkContent(text string, surface Surface) Result {
 			false,
 		)
 	}
+	if (surface == SurfaceFeedComment || surface == SurfacePackGroupChat) && hasExcessiveWordRepetition(text) {
+		return blocked(
+			ReasonSpam,
+			warningFor(ReasonSpam, max),
+			apiCodeFor(ReasonSpam),
+			false,
+		)
+	}
 	return allowed()
 }

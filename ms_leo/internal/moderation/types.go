@@ -25,6 +25,7 @@ const (
 	ReasonRateLimited Reason = "rate_limited"
 	ReasonMuted       Reason = "muted"
 	ReasonLeoDaily    Reason = "leo_daily_limited"
+	ReasonSpam        Reason = "spam_repetition"
 )
 
 // Result — итог синхронной PRE-проверки.
