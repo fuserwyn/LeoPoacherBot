@@ -825,7 +825,7 @@ export function ProfileScreen({
         <h2 className="section-title">Поддержка</h2>
         <p className="profile__hint muted">Если что-то сломалось или нужен ответ от человека — напиши сюда.</p>
         <button type="button" className="profile__save profile__support-btn" onClick={onSupport}>
-          Поддержка
+          Сообщить о проблеме
         </button>
       </div>
 
