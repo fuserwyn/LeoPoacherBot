@@ -1098,6 +1098,34 @@ var Migrations = []Migration{
 			ALTER TABLE miniapp_pack_group_chat DROP COLUMN IF EXISTS photo_url;
 		`,
 	},
+	{
+		Version:     55,
+		Description: "Analytics: events table (analytics_BT_v1) — funnel/KPI event log",
+		UpSQL: `
+			CREATE TABLE IF NOT EXISTS events (
+				id              BIGSERIAL PRIMARY KEY,
+				event_name      VARCHAR(64) NOT NULL,
+				user_id         BIGINT,
+				telegram_id     BIGINT,
+				occurred_at     TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT (NOW() AT TIME ZONE 'Europe/Moscow'),
+				payload         JSONB,
+				session_id      UUID,
+				source          VARCHAR(32),
+				app_version     VARCHAR(16),
+				idempotency_key VARCHAR(128),
+				created_at      TIMESTAMP WITH TIME ZONE DEFAULT (NOW() AT TIME ZONE 'Europe/Moscow')
+			);
+			CREATE INDEX IF NOT EXISTS idx_events_name_time ON events (event_name, occurred_at);
+			CREATE INDEX IF NOT EXISTS idx_events_user_time ON events (user_id, occurred_at);
+			CREATE INDEX IF NOT EXISTS idx_events_tg_name  ON events (telegram_id, event_name);
+			-- Идемпотентность финансовых событий (§9.2): payment_id и т.п. в idempotency_key.
+			CREATE UNIQUE INDEX IF NOT EXISTS uq_events_idempotency
+				ON events (idempotency_key) WHERE idempotency_key IS NOT NULL;
+		`,
+		DownSQL: `
+			DROP TABLE IF EXISTS events;
+		`,
+	},
 }
 
 // MigrationRecord представляет запись о выполненной миграции

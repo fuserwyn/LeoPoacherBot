@@ -8,6 +8,7 @@ import (
 	"strings"
 	"time"
 
+	"leo-bot/internal/database"
 	"leo-bot/internal/yookassa"
 
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
@@ -250,6 +251,8 @@ func (b *Bot) sendPaywallUnpaidPrivateScreen(chatID int64) error {
 			return err
 		}
 	}
+	// Воронка 1: юзер увидел экран выбора способа оплаты.
+	b.db.TrackEvent(database.AnalyticsEvent{Name: database.EventPaywallViewed, TelegramID: chatID})
 	return nil
 }
 
@@ -632,6 +635,12 @@ func (b *Bot) handlePaywallPayStarsCallback(callback *tgbotapi.CallbackQuery) {
 		_, _ = b.api.Request(tgbotapi.NewCallbackWithAlert(callback.ID, "Счёт на звёзды сейчас недоступен."))
 		return
 	}
+	// Воронка 1: выбран способ оплаты «Звёзды».
+	b.db.TrackEvent(database.AnalyticsEvent{
+		Name:       database.EventPaymentMethodSelected,
+		TelegramID: uid,
+		Payload:    map[string]any{"provider": "stars"},
+	})
 	if b.config.PaywallYookassaReady() && b.paywallTrySyncYookassaPayment(uid) {
 		_, _ = b.api.Request(tgbotapi.NewCallback(callback.ID, "Оплата уже учтена. Нажми /start."))
 		return
@@ -652,6 +661,12 @@ func (b *Bot) handlePaywallPayStarsCallback(callback *tgbotapi.CallbackQuery) {
 		_, _ = b.api.Request(tgbotapi.NewCallbackWithAlert(callback.ID, h))
 		return
 	}
+	// Воронка 1: счёт показан → переход к оплате.
+	b.db.TrackEvent(database.AnalyticsEvent{
+		Name:       database.EventPaymentInitiated,
+		TelegramID: uid,
+		Payload:    map[string]any{"provider": "stars"},
+	})
 	_, _ = b.api.Request(tgbotapi.NewCallback(callback.ID, "Нажми «Оплатить» в счёте выше."))
 }
 
@@ -665,6 +680,12 @@ func (b *Bot) handlePaywallPayYookassaCallback(callback *tgbotapi.CallbackQuery)
 		_, _ = b.api.Request(tgbotapi.NewCallbackWithAlert(callback.ID, "Оплата картой сейчас недоступна."))
 		return
 	}
+	// Воронка 1: выбран способ оплаты «Карта РФ» (ЮKassa).
+	b.db.TrackEvent(database.AnalyticsEvent{
+		Name:       database.EventPaymentMethodSelected,
+		TelegramID: uid,
+		Payload:    map[string]any{"provider": "yukassa"},
+	})
 	if b.paywallTrySyncYookassaPayment(uid) {
 		_, _ = b.api.Request(tgbotapi.NewCallback(callback.ID, "Оплата уже учтена. Нажми /start."))
 		return
@@ -698,6 +719,12 @@ func (b *Bot) handlePaywallPayYookassaCallback(callback *tgbotapi.CallbackQuery)
 		_, _ = b.api.Request(tgbotapi.NewCallbackWithAlert(callback.ID, "Не удалось открыть оплату. Попробуй /start."))
 		return
 	}
+	// Воронка 1: ссылка ЮKassa создана → переход к форме оплаты.
+	b.db.TrackEvent(database.AnalyticsEvent{
+		Name:       database.EventPaymentInitiated,
+		TelegramID: uid,
+		Payload:    map[string]any{"provider": "yukassa"},
+	})
 	_, _ = b.api.Request(tgbotapi.NewCallback(callback.ID, ""))
 }
 
@@ -851,6 +878,17 @@ func (b *Bot) paywallTrySyncYookassaPayment(userID int64) bool {
 	}
 	st := strings.ToLower(strings.TrimSpace(info.Status))
 	if st != "succeeded" || !info.Paid {
+		// canceled — терминальный отказ ЮKassa. Воронка 1: payment_failed.
+		// Idempotency по payment_id: опрос при /start повторяется, дубли не плодим (§9.2).
+		if st == "canceled" {
+			b.db.TrackEvent(database.AnalyticsEvent{
+				Name:           database.EventPaymentFailed,
+				UserID:         userID,
+				TelegramID:     userID,
+				Payload:        map[string]any{"provider": "yukassa", "reason": "canceled", "payment_id": pending.YookassaPaymentID.String},
+				IdempotencyKey: "payment_failed:" + pending.YookassaPaymentID.String,
+			})
+		}
 		return false
 	}
 	meta := info.Metadata
@@ -949,54 +987,73 @@ func (b *Bot) paywallAfterPaywallAccessGranted(userID, requestID int64) {
 }
 
 func (b *Bot) handlePaywallPreCheckout(q *tgbotapi.PreCheckoutQuery) {
+	// reject — единая точка отказа в pre_checkout: фиксирует payment_failed (воронка 1, §3) и
+	// отвечает Telegram OK:false. provider определяем по валюте счёта (XTR = звёзды, иначе карта).
+	reject := func(reason, userMsg string) {
+		provider := "stars"
+		if q.Currency != "XTR" {
+			provider = "card"
+		}
+		var tgID int64
+		if q.From != nil {
+			tgID = q.From.ID
+		}
+		b.db.TrackEvent(database.AnalyticsEvent{
+			Name:       database.EventPaymentFailed,
+			UserID:     tgID,
+			TelegramID: tgID,
+			Payload:    map[string]any{"provider": provider, "reason": reason, "stage": "pre_checkout"},
+		})
+		_, _ = b.api.Request(tgbotapi.PreCheckoutConfig{PreCheckoutQueryID: q.ID, OK: false, ErrorMessage: userMsg})
+	}
 	if q.From == nil {
-		_, _ = b.api.Request(tgbotapi.PreCheckoutConfig{PreCheckoutQueryID: q.ID, OK: false, ErrorMessage: "Оплата недоступна."})
+		reject("no_sender", "Оплата недоступна.")
 		return
 	}
 	telegramInvoice := b.config.PaywallUsesTelegramInvoice()
 	if !b.paywallActive() || !telegramInvoice {
-		_, _ = b.api.Request(tgbotapi.PreCheckoutConfig{PreCheckoutQueryID: q.ID, OK: false, ErrorMessage: "Оплата недоступна."})
+		reject("unavailable", "Оплата недоступна.")
 		return
 	}
 	switch q.Currency {
 	case "XTR":
 		if !b.config.PaywallUsesStars() || q.TotalAmount != b.config.PaywallStarsInvoiceAmount() {
 			b.logger.Warnf("paywall pre_checkout stars mismatch: got %s %d want XTR %d", q.Currency, q.TotalAmount, b.config.PaywallStarsInvoiceAmount())
-			_, _ = b.api.Request(tgbotapi.PreCheckoutConfig{PreCheckoutQueryID: q.ID, OK: false, ErrorMessage: "Неверная сумма (звёзды). Обнови заявку /start."})
+			reject("amount_mismatch", "Неверная сумма (звёзды). Обнови заявку /start.")
 			return
 		}
 	default:
 		if !b.config.PaywallUsesTelegramProviderInvoice() {
-			_, _ = b.api.Request(tgbotapi.PreCheckoutConfig{PreCheckoutQueryID: q.ID, OK: false, ErrorMessage: "Оплата недоступна."})
+			reject("unavailable", "Оплата недоступна.")
 			return
 		}
 		if strings.TrimSpace(b.config.PaymentProviderToken) == "" {
-			_, _ = b.api.Request(tgbotapi.PreCheckoutConfig{PreCheckoutQueryID: q.ID, OK: false, ErrorMessage: "Оплата недоступна."})
+			reject("unavailable", "Оплата недоступна.")
 			return
 		}
 		if q.Currency != b.config.PaymentCurrency || q.TotalAmount != b.config.PaymentAmountMinorUnits {
 			b.logger.Warnf("paywall pre_checkout amount mismatch: got %s %d want %s %d", q.Currency, q.TotalAmount, b.config.PaymentCurrency, b.config.PaymentAmountMinorUnits)
-			_, _ = b.api.Request(tgbotapi.PreCheckoutConfig{PreCheckoutQueryID: q.ID, OK: false, ErrorMessage: "Неверная сумма. Обнови заявку и попробуй снова."})
+			reject("amount_mismatch", "Неверная сумма. Обнови заявку и попробуй снова.")
 			return
 		}
 	}
 	reqID, ok := parsePaywallPayload(q.InvoicePayload)
 	if !ok {
-		_, _ = b.api.Request(tgbotapi.PreCheckoutConfig{PreCheckoutQueryID: q.ID, OK: false, ErrorMessage: "Некорректный платёж."})
+		reject("invalid_payload", "Некорректный платёж.")
 		return
 	}
 	rec, err := b.db.GetPaywallAccessRequestByID(reqID)
 	if err != nil || rec == nil {
 		b.logger.Errorf("paywall pre_checkout load request: %v", err)
-		_, _ = b.api.Request(tgbotapi.PreCheckoutConfig{PreCheckoutQueryID: q.ID, OK: false, ErrorMessage: "Заявка не найдена. Нажми /start снова."})
+		reject("request_not_found", "Заявка не найдена. Нажми /start снова.")
 		return
 	}
 	if rec.Status != "pending" {
-		_, _ = b.api.Request(tgbotapi.PreCheckoutConfig{PreCheckoutQueryID: q.ID, OK: false, ErrorMessage: "Этот счёт уже неактуален."})
+		reject("stale_invoice", "Этот счёт уже неактуален.")
 		return
 	}
 	if rec.UserID != q.From.ID || rec.MonetizedChatID != b.config.MonetizedChatID {
-		_, _ = b.api.Request(tgbotapi.PreCheckoutConfig{PreCheckoutQueryID: q.ID, OK: false, ErrorMessage: "Платёж не для этого аккаунта."})
+		reject("account_mismatch", "Платёж не для этого аккаунта.")
 		return
 	}
 	_, _ = b.api.Request(tgbotapi.PreCheckoutConfig{PreCheckoutQueryID: q.ID, OK: true})
@@ -1113,6 +1170,8 @@ func (b *Bot) paywallDeliverAccessAfterPayment(userID int64, paywallRequestID in
 		if !ok {
 			return fmt.Errorf("paywall deliver: no active paywall access for user=%d chat=%d", userID, chatID)
 		}
+		// Воронка 1: payment_completed. Idempotency key по заявке — ретраи outbox/Telegram не плодят дубли (§9.2).
+		b.trackPaymentCompleted(userID, rec)
 	}
 
 	// Сначала текст в ЛС — чтобы юзер не «пропал» после оплаты даже если ниже БД займёт время или ошибётся.
@@ -1136,6 +1195,12 @@ func (b *Bot) paywallDeliverAccessAfterPayment(userID int64, paywallRequestID in
 			}
 		}
 		b.logger.Infof("paywall post-payment welcome sent user=%d req=%d", userID, paywallRequestID)
+		// Воронка 1: «Ура, ты в Стае» отправлено.
+		b.db.TrackEvent(database.AnalyticsEvent{
+			Name:           database.EventWelcomeMessageSent,
+			TelegramID:     userID,
+			IdempotencyKey: welcomeEventIdempotencyKey(paywallRequestID),
+		})
 	}
 
 	resolvedName := strings.TrimSpace(b.resolveUsernameForPaywallDeliver(userID, payer))

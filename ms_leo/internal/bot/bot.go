@@ -890,6 +890,12 @@ func (b *Bot) handleStart(msg *tgbotapi.Message) {
 				b.logger.Warnf("RecordBotVisit: %v", err)
 			}
 		}()
+		// Воронка 1: bot_started с channel attribution из deep-link (?start=src-...).
+		b.db.TrackEvent(database.AnalyticsEvent{
+			Name:       database.EventBotStarted,
+			TelegramID: msg.From.ID,
+			Source:     parseStartSource(msg.CommandArguments()),
+		})
 	}
 	// После оплаты ЮKassa вебхук может опоздать — подтягиваем succeeded и выдаём доступ до проверки paywall.
 	if msg.From != nil && msg.Chat.IsPrivate() && b.paywallActive() {

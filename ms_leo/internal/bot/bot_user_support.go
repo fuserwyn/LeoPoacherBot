@@ -3,6 +3,8 @@ package bot
 import (
 	"strings"
 
+	"leo-bot/internal/database"
+
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 )
 
@@ -195,6 +197,11 @@ func (b *Bot) handleBotSupportCallback(callback *tgbotapi.CallbackQuery) {
 		b.startUserSupportSession(callback.From.ID)
 		b.sendUserSupportPrompt(callback.Message.Chat.ID)
 		answer.Text = "Напиши вопрос в чат"
+		b.db.TrackEvent(database.AnalyticsEvent{
+			Name:       database.EventSupportButtonClicked,
+			TelegramID: callback.From.ID,
+			Payload:    map[string]any{"from": "bot"},
+		})
 	case botSupportCallbackCancel:
 		if b.clearUserSupportSession(callback.From.ID) {
 			answer.Text = "Вышли из поддержки"

@@ -9,6 +9,7 @@ import (
 
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 
+	"leo-bot/internal/database"
 	"leo-bot/internal/game/leopardmoney"
 	"leo-bot/internal/moderation"
 )
@@ -102,6 +103,7 @@ func (b *Bot) processMiniAppPrivateCore(d initdata.InitData, text string, traini
 				out.ReplyText = moderation.UserWarnings[moderation.ReasonProfanity]
 				out.BlockCode = "moderation_blocked"
 			}
+			b.trackModerationBlocked("workout_note", out.BlockCode, d.User.ID)
 			return out
 		}
 	} else {
@@ -115,8 +117,11 @@ func (b *Bot) processMiniAppPrivateCore(d initdata.InitData, text string, traini
 				out.ReplyText = moderation.UserWarnings[moderation.ReasonProfanity]
 				out.BlockCode = "moderation_blocked"
 			}
+			b.trackModerationBlocked("leo_chat", out.BlockCode, d.User.ID)
 			return out
 		}
+		// Воронка UGC: сообщение юзера Лео прошло гейт.
+		b.db.TrackEvent(database.AnalyticsEvent{Name: database.EventLeoChatMessageSent, TelegramID: d.User.ID})
 	}
 
 	_ = PrivateTextMessageFromInitUser(d, text)
@@ -153,7 +158,15 @@ func (b *Bot) processMiniAppPrivateCore(d initdata.InitData, text string, traini
 				}
 			}
 		}()
+		// Воронка 2 (активация): тренировка из мини-аппа залогирована.
+		b.db.TrackEvent(database.AnalyticsEvent{
+			Name:       database.EventWorkoutLogged,
+			TelegramID: d.User.ID,
+			Payload:    map[string]any{"has_photo": strings.TrimSpace(trainingPhotoURL) != "", "surface": "miniapp"},
+		})
 		if strings.TrimSpace(syncReply) != "" {
+			// Комментарий Лео вернулся синхронно (промт 1).
+			b.db.TrackEvent(database.AnalyticsEvent{Name: database.EventLeoCommentReceived, TelegramID: d.User.ID})
 			out.ReplyText = syncReply
 			return out
 		}

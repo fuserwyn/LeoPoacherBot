@@ -10,6 +10,7 @@ import (
 	"unicode/utf8"
 
 	"leo-bot/internal/bot"
+	"leo-bot/internal/database"
 	"leo-bot/internal/logger"
 
 	initdata "github.com/telegram-mini-apps/init-data-golang"
@@ -1684,6 +1685,14 @@ func (s *Server) handlePostSupportChatFeed(w http.ResponseWriter, r *http.Reques
 		s.logger.Errorf("miniapp support feed assert: %v", err)
 		s.jsonErr(w, http.StatusInternalServerError, "assert_chat_error")
 		return
+	}
+	// Первая загрузка ленты (since_id=0) = открытие экрана «Сообщить о проблеме».
+	if body.SinceID == 0 {
+		s.bot.TrackEvent(database.AnalyticsEvent{
+			Name:       database.EventSupportButtonClicked,
+			TelegramID: parsed.User.ID,
+			Payload:    map[string]any{"from": "miniapp"},
+		})
 	}
 	items, err := s.bot.MiniappSupportChatHistory(parsed.User.ID, body.SinceID)
 	if err != nil {
