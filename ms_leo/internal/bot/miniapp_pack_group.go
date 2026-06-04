@@ -349,11 +349,11 @@ func (b *Bot) buildPackGroupLeoQuestion(chatID int64, text, photoURL string, rep
 
 	// 2) Анализ фото: текущее сообщение и/или фото родителя реплая.
 	if b.aiClient != nil && b.aiClient.HasVision() {
-		if desc := b.describePackGroupPhoto(strings.TrimSpace(photoURL), text); desc != "" {
+		if desc := b.describeImageForLeo(strings.TrimSpace(photoURL), text); desc != "" {
 			sb.WriteString("[Фото, приложенное к сообщению участника — что на нём: " + desc + "]\n")
 		}
 		if parentPhotoURL != "" {
-			if desc := b.describePackGroupPhoto(parentPhotoURL, ""); desc != "" {
+			if desc := b.describeImageForLeo(parentPhotoURL, ""); desc != "" {
 				lbl := parentLabel
 				if lbl == "" {
 					lbl = "участника"
@@ -371,9 +371,9 @@ func (b *Bot) buildPackGroupLeoQuestion(chatID int64, text, photoURL string, rep
 	return sb.String()
 }
 
-// describePackGroupPhoto просит vision-модель кратко описать фото для контекста ответа Лео.
-// userText — текст участника рядом с фото (помогает модели понять, на что смотреть). Ошибки гасим.
-func (b *Bot) describePackGroupPhoto(photoURL, userText string) string {
+// describeImageForLeo просит vision-модель кратко описать фото для контекста ответа Лео
+// (чат стаи и лента). userText — текст рядом с фото (помогает понять, на что смотреть). Ошибки гасим.
+func (b *Bot) describeImageForLeo(photoURL, userText string) string {
 	if photoURL == "" || b.aiClient == nil || !b.aiClient.HasVision() {
 		return ""
 	}

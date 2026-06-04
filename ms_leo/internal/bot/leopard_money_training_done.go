@@ -144,6 +144,7 @@ func (b *Bot) generateLeoTrainingFeedEncouragement(
 	wasOnSickLeave bool,
 	profileName string,
 	profileAge *int,
+	photoDesc string,
 ) string {
 	if b.aiClient == nil {
 		return ""
@@ -201,6 +202,9 @@ func (b *Bot) generateLeoTrainingFeedEncouragement(
 	ctxBuilder.WriteString(sickHint + "\n")
 	ctxBuilder.WriteString(polHint + "\n")
 	ctxBuilder.WriteString(trainingReportSemanticHint(reportText))
+	if strings.TrimSpace(photoDesc) != "" {
+		ctxBuilder.WriteString("\nФото, приложенное к отчёту (что на нём, по данным vision — можно мягко обыграть, но не выдумывай лишнего): " + strings.TrimSpace(photoDesc) + "\n")
+	}
 	if wrapped := moderation.WrapUserContent("training_report", moderation.TextForTrainingModeration(reportText)); wrapped != "" {
 		ctxBuilder.WriteString(wrapped)
 	}
@@ -469,8 +473,15 @@ func (b *Bot) handleLeopardMoneyTrainingDone(msg *tgbotapi.Message, personalRepl
 		go func() {
 			threadText := ""
 			profName, profAge := b.LeoUserProfileForFeedPrompt(uid)
+			// Фото отчёта (если есть) анализируем vision-моделью и даём Лео в контекст.
+			photoDesc := ""
+			if b.aiClient != nil && b.aiClient.HasVision() {
+				if purl, perr := b.db.GetTrainingPhotoURLByMessageID(packID, tid); perr == nil && strings.TrimSpace(purl) != "" {
+					photoDesc = b.describeImageForLeo(strings.TrimSpace(purl), txt)
+				}
+			}
 			if extra := b.generateLeoTrainingFeedEncouragement(
-				un, txt, ns, tc, a, gap, ug, was, profName, profAge,
+				un, txt, ns, tc, a, gap, ug, was, profName, profAge, photoDesc,
 			); extra != "" {
 				threadText = extra
 			}
@@ -504,6 +515,13 @@ func (b *Bot) LeoBanterReplyToUserTrainingFeedThread(
 	leoCtx := truncateForDM(leoMessageBeingRepliedTo, 1400)
 	userCtx := truncateForDM(userReplyText, 1400)
 	reportCtx := truncateForDM(reportText, 900)
+	// Фото отчёта, под которым идёт диалог — анализируем vision-моделью.
+	photoDesc := ""
+	if b.aiClient != nil && b.aiClient.HasVision() {
+		if purl, perr := b.db.GetTrainingPhotoURLByMessageID(packChatID, trainingUserMessageID); perr == nil && strings.TrimSpace(purl) != "" {
+			photoDesc = b.describeImageForLeo(strings.TrimSpace(purl), reportText)
+		}
+	}
 
 	qb := strings.Builder{}
 	qb.WriteString("Ты Лео — Fat Leopard. Пользователь ответил на ТВОЁ сообщение в комментариях под его отчётом о тренировке в ленте стаи (мини-апп).\n\n")
@@ -523,6 +541,9 @@ func (b *Bot) LeoBanterReplyToUserTrainingFeedThread(
 	ctxBody.WriteString("Выдержка из текста отчёта пользователя (контекст, не цитируй дословно целиком):\n")
 	if wrapped := moderation.WrapUserContent("training_report", reportCtx); wrapped != "" {
 		ctxBody.WriteString(wrapped)
+	}
+	if strings.TrimSpace(photoDesc) != "" {
+		ctxBody.WriteString("\nФото, приложенное к отчёту (по данным vision — можно обыграть, если участник про него спрашивает; не выдумывай): " + strings.TrimSpace(photoDesc) + "\n")
 	}
 
 	reply, err := b.aiClient.AnswerUserQuestion(qb.String(), ctxBody.String())
