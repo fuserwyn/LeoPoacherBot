@@ -107,7 +107,8 @@ func New(cfg *config.Config, db *database.Database, log logger.Logger) (*Bot, er
 	var aiClient *ai.OpenRouterClient
 	if cfg.OpenRouterAPIKey != "" {
 		aiClient = ai.NewOpenRouterClient(cfg.OpenRouterAPIKey, cfg.OpenRouterModel, cfg.Prompts, log, cfg.OpenRouterTimeout)
-		log.Infof("OpenRouter AI client initialized with model: %s", cfg.OpenRouterModel)
+		aiClient.SetVisionModel(cfg.OpenRouterVisionModel)
+		log.Infof("OpenRouter AI client initialized with model: %s (vision: %s)", cfg.OpenRouterModel, cfg.OpenRouterVisionModel)
 	} else {
 		log.Warn("OpenRouter API key not provided, AI features will be disabled")
 	}

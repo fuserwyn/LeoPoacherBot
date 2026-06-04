@@ -13,15 +13,16 @@ import (
 )
 
 type Config struct {
-	APIToken           string
-	OwnerID            int64
-	AdminIDs           []int64
-	DatabaseURL        string
-	LogLevel           string
-	OpenRouterAPIKey   string
-	OpenRouterModel    string        // Модель OpenRouter (по умолчанию deepseek/deepseek-chat)
-	OpenRouterTimeout  time.Duration // HTTP-таймаут к OpenRouter (весь запрос + чтение тела)
-	ScanHistoryOnStart bool          // Сканировать историю при старте (по умолчанию false)
+	APIToken              string
+	OwnerID               int64
+	AdminIDs              []int64
+	DatabaseURL           string
+	LogLevel              string
+	OpenRouterAPIKey      string
+	OpenRouterModel       string        // Модель OpenRouter (по умолчанию deepseek/deepseek-chat)
+	OpenRouterVisionModel string        // Vision-модель для анализа фото (основная — текстовая); пусто = vision выключен
+	OpenRouterTimeout     time.Duration // HTTP-таймаут к OpenRouter (весь запрос + чтение тела)
+	ScanHistoryOnStart    bool          // Сканировать историю при старте (по умолчанию false)
 
 	// Платный доступ к Fat Leopard MiniApp (Telegram Payments + ЮKassa).
 	// Архитектура mini-app-only: TG-группы как сущности больше нет, MonetizedChatID
@@ -67,11 +68,11 @@ type Config struct {
 	R2PublicBaseURL   string // публичный адрес бакета (pub-xxx.r2.dev или свой домен), без / на конце
 
 	// RAG (Qdrant): изолированные сессии personal_leo и pack_group.
-	RAGEnabled          bool
-	QdrantURL           string
-	QdrantAPIKey        string
-	QdrantCollection    string
-	RAGEmbeddingModel   string
+	RAGEnabled        bool
+	QdrantURL         string
+	QdrantAPIKey      string
+	QdrantCollection  string
+	RAGEmbeddingModel string
 }
 
 func Load() (*Config, error) {
@@ -127,16 +128,17 @@ func Load() (*Config, error) {
 	ykMinor, ykCur := yookassaAmountAndCurrencyFromEnv(currency, amountMinor)
 
 	return &Config{
-		APIToken:           apiToken,
-		OwnerID:            ownerID,
-		AdminIDs:           adminIDs,
-		DatabaseURL:        getEnv("DATABASE_URL", "postgresql://postgres:password@localhost:5432/leo_bot_db?sslmode=disable"),
-		LogLevel:           getEnv("LOG_LEVEL", "info"),
-		OpenRouterAPIKey:   getEnv("OPENROUTER_API_KEY", ""),
-		OpenRouterModel:    getEnv("OPENROUTER_MODEL", "deepseek/deepseek-chat"),
-		OpenRouterTimeout:  orTimeout,
-		ScanHistoryOnStart: scanHistoryOnStart,
-		Prompts:            prompts.DefaultBundle(),
+		APIToken:              apiToken,
+		OwnerID:               ownerID,
+		AdminIDs:              adminIDs,
+		DatabaseURL:           getEnv("DATABASE_URL", "postgresql://postgres:password@localhost:5432/leo_bot_db?sslmode=disable"),
+		LogLevel:              getEnv("LOG_LEVEL", "info"),
+		OpenRouterAPIKey:      getEnv("OPENROUTER_API_KEY", ""),
+		OpenRouterModel:       getEnv("OPENROUTER_MODEL", "deepseek/deepseek-chat"),
+		OpenRouterVisionModel: getEnv("OPENROUTER_VISION_MODEL", "openai/gpt-4o-mini"),
+		OpenRouterTimeout:     orTimeout,
+		ScanHistoryOnStart:    scanHistoryOnStart,
+		Prompts:               prompts.DefaultBundle(),
 
 		PaywallEnabled:                  paywallEnabled,
 		MonetizedChatID:                 monetizedChatID,

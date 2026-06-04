@@ -124,16 +124,38 @@ func (b *Bot) appendPackGroupSQLContext(packChatID int64, contextText *strings.B
 			who = "@" + who
 		}
 		txt := strings.TrimSpace(m.Text)
+		if len(txt) > 400 {
+			txt = txt[:400] + "…"
+		}
+		// Фото-вложение помечаем явно, чтобы Лео знал о картинке даже без текста.
+		if strings.TrimSpace(m.PhotoURL) != "" {
+			if txt == "" {
+				txt = "[фото]"
+			} else {
+				txt += " [фото]"
+			}
+		}
 		if txt == "" {
 			continue
 		}
-		if len(txt) > 400 {
-			txt = txt[:400] + "…"
+		// Связь реплая: на чьё сообщение отвечают.
+		replyMark := ""
+		if m.ReplyToID != 0 {
+			rwho := strings.TrimSpace(m.ReplyToUsername)
+			if m.ReplyToIsLeo {
+				rwho = "Лео"
+			}
+			if rwho != "" {
+				if rwho != "Лео" && !strings.HasPrefix(rwho, "@") {
+					rwho = "@" + rwho
+				}
+				replyMark = " (в ответ на " + rwho + ")"
+			}
 		}
 		ts := strings.TrimSpace(m.CreatedAt)
 		if ts == "" {
 			ts = "—"
 		}
-		contextText.WriteString("• [" + ts + "] " + who + ": " + txt + "\n")
+		contextText.WriteString("• [" + ts + "] " + who + replyMark + ": " + txt + "\n")
 	}
 }

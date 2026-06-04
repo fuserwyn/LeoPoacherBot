@@ -247,7 +247,7 @@ func (b *Bot) ProcessMiniAppPackGroupMessage(d initdata.InitData, text string, r
 		b.afterPackGroupReplyInserted(chatID, d.User.ID, uname, text, userMsgID, replyToID)
 	}
 
-	if reply := b.answerLeoInPackGroupChatIfMentioned(d, chatID, text, userMsgID); reply != "" {
+	if reply := b.answerLeoInPackGroupChatIfMentioned(d, chatID, text, userMsgID, photoURL, replyToID); reply != "" {
 		out.ReplyText = reply
 	}
 	return out, nil
@@ -256,7 +256,9 @@ func (b *Bot) ProcessMiniAppPackGroupMessage(d initdata.InitData, text string, r
 // answerLeoInPackGroupChatIfMentioned — если текст призывает Лео (@leo/@бот), генерирует ответ ИИ,
 // вставляет строку Лео (reply на userMsgID) и возвращает текст. Иначе — пустая строка.
 // Вынесено из ProcessMiniAppPackGroupMessage, чтобы вызывать и при правке сообщения (дописали @leo).
-func (b *Bot) answerLeoInPackGroupChatIfMentioned(d initdata.InitData, chatID int64, text string, userMsgID int64) string {
+// photoURL — фото текущего сообщения (опц.); replyToID — id сообщения, на которое отвечают (опц.),
+// нужны, чтобы Лео видел родителя реплая и анализировал прикреплённые фото (vision).
+func (b *Bot) answerLeoInPackGroupChatIfMentioned(d initdata.InitData, chatID int64, text string, userMsgID int64, photoURL string, replyToID int64) string {
 	botName := ""
 	if b.api != nil && b.api.Self.ID != 0 {
 		botName = b.api.Self.UserName
@@ -268,6 +270,9 @@ func (b *Bot) answerLeoInPackGroupChatIfMentioned(d initdata.InitData, chatID in
 	if tgU == nil {
 		return ""
 	}
+	// Контекст реплая + анализ фото добавляем прямо в текст вопроса — handleAIQuestion
+	// уже подмешивает историю чата, но точного родителя и картинок у него нет.
+	question := b.buildPackGroupLeoQuestion(chatID, text, photoURL, replyToID)
 	msg := &tgbotapi.Message{
 		MessageID: 0,
 		From:      tgU,
@@ -276,11 +281,11 @@ func (b *Bot) answerLeoInPackGroupChatIfMentioned(d initdata.InitData, chatID in
 			Type:  "supergroup",
 			Title: "Staya",
 		},
-		Text: text,
+		Text: question,
 		Date: int(time.Now().Unix()),
 	}
 	ch := make(chan string, 2)
-	b.handleAIQuestion(msg, text, ch, true, true)
+	b.handleAIQuestion(msg, question, ch, true, true)
 	var reply string
 	select {
 	case reply = <-ch:
@@ -305,6 +310,90 @@ func (b *Bot) answerLeoInPackGroupChatIfMentioned(d initdata.InitData, chatID in
 		b.afterLeoPackGroupReplyInserted(chatID, d.User.ID, reply, id)
 	}
 	return reply
+}
+
+// buildPackGroupLeoQuestion собирает вопрос для Лео: исходный текст + явный родитель реплая +
+// описание прикреплённых фото (через vision-модель). handleAIQuestion дополнительно подмешает
+// историю чата, так что Лео видит «весь контекст», на который отвечает.
+func (b *Bot) buildPackGroupLeoQuestion(chatID int64, text, photoURL string, replyToID int64) string {
+	var sb strings.Builder
+
+	// 1) Явный родитель реплая (текст + фото) — точнее, чем общая история.
+	var parentPhotoURL, parentLabel string
+	if replyToID > 0 {
+		if parent, ok, err := b.db.GetMiniappPackGroupMessageInPack(chatID, replyToID); err == nil && ok {
+			who := strings.TrimSpace(parent.Username)
+			if parent.IsLeo {
+				who = "Лео"
+			}
+			if who == "" {
+				who = "участник"
+			}
+			parentLabel = who
+			ptxt := strings.TrimSpace(parent.MessageText)
+			if len(ptxt) > 500 {
+				ptxt = ptxt[:500] + "…"
+			}
+			parentPhotoURL = strings.TrimSpace(parent.PhotoURL)
+			line := "[Участник отвечает на сообщение от «" + who + "»"
+			if ptxt != "" {
+				line += ": «" + ptxt + "»"
+			}
+			if parentPhotoURL != "" {
+				line += " (с фото)"
+			}
+			line += "]\n"
+			sb.WriteString(line)
+		}
+	}
+
+	// 2) Анализ фото: текущее сообщение и/или фото родителя реплая.
+	if b.aiClient != nil && b.aiClient.HasVision() {
+		if desc := b.describePackGroupPhoto(strings.TrimSpace(photoURL), text); desc != "" {
+			sb.WriteString("[Фото, приложенное к сообщению участника — что на нём: " + desc + "]\n")
+		}
+		if parentPhotoURL != "" {
+			if desc := b.describePackGroupPhoto(parentPhotoURL, ""); desc != "" {
+				lbl := parentLabel
+				if lbl == "" {
+					lbl = "участника"
+				}
+				sb.WriteString("[Фото из сообщения «" + lbl + "», на которое отвечают — что на нём: " + desc + "]\n")
+			}
+		}
+	}
+
+	if sb.Len() == 0 {
+		return text
+	}
+	sb.WriteString("\nСообщение участника: ")
+	sb.WriteString(text)
+	return sb.String()
+}
+
+// describePackGroupPhoto просит vision-модель кратко описать фото для контекста ответа Лео.
+// userText — текст участника рядом с фото (помогает модели понять, на что смотреть). Ошибки гасим.
+func (b *Bot) describePackGroupPhoto(photoURL, userText string) string {
+	if photoURL == "" || b.aiClient == nil || !b.aiClient.HasVision() {
+		return ""
+	}
+	sys := "Ты — ассистент, кратко и по делу описываешь фото для чата фитнес-стаи. " +
+		"Опиши, что на изображении: кто/что, обстановка, если это тренировка/еда/экипировка/скрин — отметь детали, важные для дружеского ответа. " +
+		"2–4 коротких предложения, без воды и без выдумок."
+	hint := strings.TrimSpace(userText)
+	if hint != "" {
+		hint = "Подпись участника к фото: " + hint
+	}
+	desc, err := b.aiClient.AnalyzeImages(sys, hint, []string{photoURL})
+	if err != nil {
+		b.logger.Warnf("pack group vision describe: %v", err)
+		return ""
+	}
+	desc = strings.TrimSpace(desc)
+	if len([]rune(desc)) > 600 {
+		desc = string([]rune(desc)[:600]) + "…"
+	}
+	return desc
 }
 
 func (b *Bot) afterLeoPackGroupReplyInserted(packChatID, recipientUserID int64, replyText string, leoMessageID int64) {
@@ -491,13 +580,22 @@ func (b *Bot) EditMiniAppPackGroupMessage(viewerUserID int64, initD initdata.Ini
 			if lerr != nil {
 				b.logger.Warnf("pack group edit: leo-replied check: %v", lerr)
 			} else if !already {
+				// Фото и адресата реплая правкой не меняем — берём из текущей строки сообщения.
+				var msgPhotoURL string
+				var replyToID int64
+				if row, ok, gerr := b.db.GetMiniappPackGroupMessageInPack(chatID, messageID); gerr == nil && ok {
+					msgPhotoURL = row.PhotoURL
+					if row.ReplyToID.Valid {
+						replyToID = row.ReplyToID.Int64
+					}
+				}
 				go func() {
 					defer func() {
 						if r := recover(); r != nil {
 							b.logger.Errorf("pack group edit leo answer panic: %v", r)
 						}
 					}()
-					b.answerLeoInPackGroupChatIfMentioned(initD, chatID, text, messageID)
+					b.answerLeoInPackGroupChatIfMentioned(initD, chatID, text, messageID, msgPhotoURL, replyToID)
 				}()
 			}
 		}

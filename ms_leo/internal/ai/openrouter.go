@@ -16,10 +16,24 @@ import (
 type OpenRouterClient struct {
 	apiKey        string
 	baseURL       string
-	model         string // Модель по умолчанию
+	model         string // Модель по умолчанию (текстовая)
+	visionModel   string // Vision-модель для анализа изображений (пусто = vision выключен)
 	logger        logger.Logger
 	httpClient    *http.Client
 	promptsBundle prompts.Bundle
+}
+
+// SetVisionModel задаёт vision-модель (slug OpenRouter). Пустая строка отключает анализ фото.
+func (c *OpenRouterClient) SetVisionModel(model string) {
+	if c == nil {
+		return
+	}
+	c.visionModel = strings.TrimSpace(model)
+}
+
+// HasVision — доступен ли анализ изображений (задана vision-модель).
+func (c *OpenRouterClient) HasVision() bool {
+	return c != nil && strings.TrimSpace(c.visionModel) != ""
 }
 
 type ChatMessage struct {

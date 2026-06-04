@@ -36,6 +36,11 @@ OPENROUTER_API_KEY=your_openrouter_api_key_here
 # Список моделей: https://openrouter.ai/models
 OPENROUTER_MODEL=deepseek/deepseek-r1-0528
 
+# Vision-модель для анализа фото в чате стаи (основная модель — текстовая, фото не видит).
+# Должна поддерживать изображения. Пусто = анализ фото выключен (Лео отвечает только по тексту).
+# Примеры: openai/gpt-4o-mini, google/gemini-2.0-flash-001, anthropic/claude-3.5-sonnet
+OPENROUTER_VISION_MODEL=openai/gpt-4o-mini
+
 # Промпты ИИ (Fat Leopard) — только встроенные тексты из ms_leo/internal/prompts/data/*.txt через //go:embed.
 # Переопределения через PROMPT_* в env больше не читаются — меняйте файлы в репозитории и пересобирайте.
 
