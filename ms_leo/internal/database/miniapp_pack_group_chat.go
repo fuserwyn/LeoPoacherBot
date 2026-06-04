@@ -335,3 +335,23 @@ func (d *Database) UpdateMiniappPackGroupMessageByAuthor(packChatID, messageID, 
 	n, _ := res.RowsAffected()
 	return n > 0, nil
 }
+
+// LeoAlreadyRepliedToPackGroupMessage — есть ли уже ответ Лео (is_leo) на сообщение messageID.
+// Нужно при правке сообщения: чтобы дописанный @leo не вызвал второй ответ, если Лео уже отвечал.
+func (d *Database) LeoAlreadyRepliedToPackGroupMessage(packChatID, userMessageID int64) (bool, error) {
+	if packChatID == 0 || userMessageID == 0 {
+		return false, nil
+	}
+	var exists bool
+	err := d.db.QueryRow(
+		`SELECT EXISTS (
+			SELECT 1 FROM miniapp_pack_group_chat
+			WHERE pack_chat_id = $1 AND reply_to_id = $2 AND is_leo = TRUE
+		)`,
+		packChatID, userMessageID,
+	).Scan(&exists)
+	if err != nil {
+		return false, fmt.Errorf("leo replied to pack group message: %w", err)
+	}
+	return exists, nil
+}

@@ -247,16 +247,26 @@ func (b *Bot) ProcessMiniAppPackGroupMessage(d initdata.InitData, text string, r
 		b.afterPackGroupReplyInserted(chatID, d.User.ID, uname, text, userMsgID, replyToID)
 	}
 
+	if reply := b.answerLeoInPackGroupChatIfMentioned(d, chatID, text, userMsgID); reply != "" {
+		out.ReplyText = reply
+	}
+	return out, nil
+}
+
+// answerLeoInPackGroupChatIfMentioned — если текст призывает Лео (@leo/@бот), генерирует ответ ИИ,
+// вставляет строку Лео (reply на userMsgID) и возвращает текст. Иначе — пустая строка.
+// Вынесено из ProcessMiniAppPackGroupMessage, чтобы вызывать и при правке сообщения (дописали @leo).
+func (b *Bot) answerLeoInPackGroupChatIfMentioned(d initdata.InitData, chatID int64, text string, userMsgID int64) string {
 	botName := ""
 	if b.api != nil && b.api.Self.ID != 0 {
 		botName = b.api.Self.UserName
 	}
 	if !textMentionsLeoForPackGroup(text, botName) {
-		return out, nil
+		return ""
 	}
 	tgU := tgbotapiUserFromInitData(d.User)
 	if tgU == nil {
-		return out, nil
+		return ""
 	}
 	msg := &tgbotapi.Message{
 		MessageID: 0,
@@ -275,10 +285,10 @@ func (b *Bot) ProcessMiniAppPackGroupMessage(d initdata.InitData, text string, r
 	select {
 	case reply = <-ch:
 	case <-time.After(3 * time.Minute):
-		return out, nil
+		return ""
 	}
 	if strings.TrimSpace(reply) == "" {
-		return out, nil
+		return ""
 	}
 	leoName := "Лео"
 	if b.api != nil && b.api.Self.ID != 0 && b.api.Self.UserName != "" {
@@ -294,8 +304,7 @@ func (b *Bot) ProcessMiniAppPackGroupMessage(d initdata.InitData, text string, r
 		b.indexPackGroupChatRAG(chatID, 0, "leo", reply, id)
 		b.afterLeoPackGroupReplyInserted(chatID, d.User.ID, reply, id)
 	}
-	out.ReplyText = reply
-	return out, nil
+	return reply
 }
 
 func (b *Bot) afterLeoPackGroupReplyInserted(packChatID, recipientUserID int64, replyText string, leoMessageID int64) {
@@ -471,6 +480,27 @@ func (b *Bot) EditMiniAppPackGroupMessage(viewerUserID int64, initD initdata.Ini
 	}
 	if updated {
 		b.indexPackGroupChatRAG(chatID, viewerUserID, "user", text, messageID)
+		// Правка дописала призыв @leo — Лео должен ответить, как при обычной отправке.
+		// Но только если он ещё не отвечал на это сообщение (иначе повторная правка плодит ответы).
+		botName := ""
+		if b.api != nil && b.api.Self.ID != 0 {
+			botName = b.api.Self.UserName
+		}
+		if textMentionsLeoForPackGroup(text, botName) {
+			already, lerr := b.db.LeoAlreadyRepliedToPackGroupMessage(chatID, messageID)
+			if lerr != nil {
+				b.logger.Warnf("pack group edit: leo-replied check: %v", lerr)
+			} else if !already {
+				go func() {
+					defer func() {
+						if r := recover(); r != nil {
+							b.logger.Errorf("pack group edit leo answer panic: %v", r)
+						}
+					}()
+					b.answerLeoInPackGroupChatIfMentioned(initD, chatID, text, messageID)
+				}()
+			}
+		}
 	}
 	return updated, nil
 }
