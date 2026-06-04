@@ -37,6 +37,19 @@ func textMentionsLeoForPackGroup(text, botUsername string) bool {
 	return strings.Contains(lt, "@"+bu)
 }
 
+// packGroupReplyTargetsLeo — true, если сообщение является reply на реплику Лео.
+// Ответ на сообщение Лео считаем прямым обращением к нему, даже без @leo.
+func (b *Bot) packGroupReplyTargetsLeo(chatID, replyToID int64) bool {
+	if replyToID <= 0 {
+		return false
+	}
+	parent, ok, err := b.db.GetMiniappPackGroupMessageInPack(chatID, replyToID)
+	if err != nil || !ok {
+		return false
+	}
+	return parent.IsLeo || parent.FromUserID == 0
+}
+
 func displayNameFromInitData(d initdata.InitData) string {
 	u := d.User
 	if u.Username != "" {
@@ -253,8 +266,9 @@ func (b *Bot) ProcessMiniAppPackGroupMessage(d initdata.InitData, text string, r
 	return out, nil
 }
 
-// answerLeoInPackGroupChatIfMentioned — если текст призывает Лео (@leo/@бот), генерирует ответ ИИ,
-// вставляет строку Лео (reply на userMsgID) и возвращает текст. Иначе — пустая строка.
+// answerLeoInPackGroupChatIfMentioned — если текст призывает Лео (@leo/@бот) ИЛИ сообщение
+// является reply на реплику Лео, генерирует ответ ИИ, вставляет строку Лео (reply на userMsgID)
+// и возвращает текст. Иначе — пустая строка.
 // Вынесено из ProcessMiniAppPackGroupMessage, чтобы вызывать и при правке сообщения (дописали @leo).
 // photoURL — фото текущего сообщения (опц.); replyToID — id сообщения, на которое отвечают (опц.),
 // нужны, чтобы Лео видел родителя реплая и анализировал прикреплённые фото (vision).
@@ -263,7 +277,8 @@ func (b *Bot) answerLeoInPackGroupChatIfMentioned(d initdata.InitData, chatID in
 	if b.api != nil && b.api.Self.ID != 0 {
 		botName = b.api.Self.UserName
 	}
-	if !textMentionsLeoForPackGroup(text, botName) {
+	// Лео отвечает, если его явно позвали (@leo/@бот) ИЛИ если это reply на его сообщение.
+	if !textMentionsLeoForPackGroup(text, botName) && !b.packGroupReplyTargetsLeo(chatID, replyToID) {
 		return ""
 	}
 	tgU := tgbotapiUserFromInitData(d.User)
