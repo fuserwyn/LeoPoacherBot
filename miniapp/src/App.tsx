@@ -225,7 +225,6 @@ export function App() {
         <TabKeepAlive active={tab === "feed"} hidden={!tabsVisible}>
           <FeedScreen
             active={tab === "feed" && tabsVisible}
-            name={effectiveName}
             streak={streak}
             userId={userId}
             initData={initData}

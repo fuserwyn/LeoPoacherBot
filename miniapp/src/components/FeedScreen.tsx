@@ -43,7 +43,6 @@ function bumpMaxFeedId(maxRef: { current: number }, items: PackFeedItemDTO[]) {
 }
 
 type Props = {
-  name: string;
   streak: number;
   userId: number;
   initData: string;
@@ -78,23 +77,53 @@ type FeedViewportStyle = CSSProperties & {
   "--feed-bottom-nav-h"?: string;
 };
 
-function mockFallback(_name: string, streak: number): ActivityCardProps[] {
-  return [
-    {
-      avatar: "💬",
-      name: "Стая",
-      streak: Math.max(streak, 0),
-      timeAgo: "сейчас",
-      emoji: "ℹ️",
-      activity: "Нет API",
-      details: "VITE_MINIAPP_API_URL",
-      comment: "Включи URL бота в билде, чтобы тянуть реальные отчёты из чата стаи.",
-    },
-  ];
+/** Почему лента не грузится — у каждой причины свой текст, чтобы не путать API URL с клиентом. */
+type MockFeedReason = "no-api" | "no-telegram" | "no-initdata";
+
+function mockFallback(streak: number, reason: MockFeedReason): ActivityCardProps[] {
+  const card = (emoji: string, activity: string, details: string, comment: string): ActivityCardProps => ({
+    avatar: "💬",
+    name: "Стая",
+    streak: Math.max(streak, 0),
+    timeAgo: "сейчас",
+    emoji,
+    activity,
+    details,
+    comment,
+  });
+  switch (reason) {
+    case "no-api":
+      return [
+        card(
+          "ℹ️",
+          "Нет API",
+          "VITE_MINIAPP_API_URL",
+          "Включи URL бота в билде, чтобы тянуть реальные отчёты из чата стаи.",
+        ),
+      ];
+    case "no-telegram":
+      return [
+        card(
+          "📲",
+          "Открой через Telegram",
+          "Мини-апп вне Telegram",
+          "Запусти мини-апп кнопкой меню бота. В браузере или старом клиенте лента недоступна.",
+        ),
+      ];
+    case "no-initdata":
+    default:
+      return [
+        card(
+          "🔄",
+          "Не получили данные Telegram",
+          "Обнови приложение",
+          "Telegram не передал данные входа. Обнови Telegram до последней версии и переоткрой мини-апп.",
+        ),
+      ];
+  }
 }
 
 export function FeedScreen({
-  name,
   streak,
   userId,
   initData,
@@ -951,7 +980,7 @@ export function FeedScreen({
                 </p>
               )}
             {useMockFeed &&
-              mockFallback(name, streak).map((c, i) => (
+              mockFallback(streak, !apiBase ? "no-api" : !inTelegram ? "no-telegram" : "no-initdata").map((c, i) => (
                 <div key={`mock-${i}`} className="feed__card-slot feed__card-slot--them">
                   <ActivityCard {...c} />
                 </div>
