@@ -603,6 +603,26 @@ export function PackGroupChatPanel({
     void bootstrapUnreadAndLoad();
   }, [active, bootstrapUnreadAndLoad]);
 
+  // Пока чат открыт, входящие сообщения (Лео или другой участник) сразу помечаем
+  // прочитанными на сервере и гасим бейдж. Presence у мини-аппа нет: бэкенд создаёт
+  // «непрочитанное» даже когда пользователь уже смотрит чат, и фоновый опрос бейджей
+  // в App.tsx иначе вернул бы значок, хотя сообщение уже на экране.
+  const lastSeenTailRef = useRef<number | null>(null);
+  useEffect(() => {
+    if (!active) {
+      lastSeenTailRef.current = null;
+      return;
+    }
+    const tail = items.length > 0 ? items[items.length - 1] : null;
+    if (!tail || tail.id <= 0) return; // нет серверного хвоста или оптимистичная вставка
+    const prev = lastSeenTailRef.current;
+    lastSeenTailRef.current = tail.id;
+    if (prev == null || tail.id === prev) return; // первый замер: bootstrap уже почистил
+    const incoming = tail.is_leo || tail.user_id !== meId;
+    if (!incoming) return; // своё сообщение непрочитанного не создаёт
+    void clearPackGroupUnread(initData).then(() => onRefreshTabBadges?.());
+  }, [active, items, initData, meId, onRefreshTabBadges]);
+
   useEffect(() => {
     if (!active) {
       didInitialScrollRef.current = false;
