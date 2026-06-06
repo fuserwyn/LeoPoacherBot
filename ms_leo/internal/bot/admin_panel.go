@@ -50,6 +50,7 @@ func (b *Bot) showAdminMenuForUser(chatID int64) {
 		),
 		tgbotapi.NewInlineKeyboardRow(
 			tgbotapi.NewInlineKeyboardButtonData("📊 Посещения бота", "admin_visit_stats"),
+			tgbotapi.NewInlineKeyboardButtonData("📈 Аналитика", "admin_analytics"),
 		),
 		tgbotapi.NewInlineKeyboardRow(
 			tgbotapi.NewInlineKeyboardButtonData("🗑 Очистить ленту и чат", "admin_wipe_pack_prompt"),
@@ -104,6 +105,13 @@ func (b *Bot) handleAdminCallbackQuery(callback *tgbotapi.CallbackQuery) {
 	if strings.HasPrefix(callback.Data, "admin_users_list_") ||
 		strings.HasPrefix(callback.Data, "admin_payments_") {
 		if b.handleAdminDirectoryCallback(callback) {
+			callbackConfig := tgbotapi.NewCallback(callback.ID, "")
+			b.api.Request(callbackConfig)
+			return
+		}
+	}
+	if callback.Data == "admin_analytics" || strings.HasPrefix(callback.Data, "admin_an_") {
+		if b.handleAdminAnalyticsCallback(callback) {
 			callbackConfig := tgbotapi.NewCallback(callback.ID, "")
 			b.api.Request(callbackConfig)
 			return
