@@ -511,7 +511,25 @@ func (b *Bot) LeoBanterReplyToUserTrainingFeedThread(
 	if t, err := b.db.GetUserMessageTextByIDForChat(trainingUserMessageID, packChatID); err == nil {
 		reportText = t
 	}
+	// Автор ОТЧЁТА и СОБЕСЕДНИК — это могут быть РАЗНЫЕ люди: коммент под чужой
+	// тренировкой пишет не автор поста. Раньше отчёт автора подавался как «отчёт
+	// собеседника» → Лео приписывал тренировку комментатору (баг: «ты играл в баскетбол»,
+	// хотя баскетбол был у автора поста, а отвечал другой участник).
+	authorUserID, _, _ := b.db.GetUserMessageAuthorUserID(packChatID, trainingUserMessageID)
+	commenterIsAuthor := authorUserID != 0 && authorUserID == viewerTelegramUserID
+	authorName := ""
+	if !commenterIsAuthor {
+		an, _ := b.LeoUserProfileForFeedPrompt(authorUserID)
+		authorName = strings.TrimSpace(an)
+		if authorName == "" {
+			authorName = "автор отчёта"
+		}
+	}
 	profName, _ := b.LeoUserProfileForFeedPrompt(viewerTelegramUserID)
+	commenterName := strings.TrimSpace(profName)
+	if commenterName == "" {
+		commenterName = "собеседник"
+	}
 	leoCtx := truncateForDM(leoMessageBeingRepliedTo, 1400)
 	userCtx := truncateForDM(userReplyText, 1400)
 	reportCtx := truncateForDM(reportText, 900)
@@ -524,7 +542,15 @@ func (b *Bot) LeoBanterReplyToUserTrainingFeedThread(
 	}
 
 	qb := strings.Builder{}
-	qb.WriteString("Ты Лео — Fat Leopard. Пользователь ответил на ТВОЁ сообщение в комментариях под его отчётом о тренировке в ленте стаи (мини-апп).\n\n")
+	qb.WriteString("Ты Лео — Fat Leopard. Пользователь ответил на ТВОЁ сообщение в комментариях под отчётом о тренировке в ленте стаи (мини-апп).\n\n")
+	if commenterIsAuthor {
+		qb.WriteString("Отчёт о тренировке (контекст ниже) принадлежит самому собеседнику — он автор этого отчёта.\n\n")
+	} else {
+		qb.WriteString("ВАЖНО про авторство: отчёт о тренировке (контекст ниже) написал участник «" + authorName + "». " +
+			"С тобой в комментариях разговаривает ДРУГОЙ участник — «" + commenterName + "». " +
+			"Собеседник НЕ делал эту тренировку, он лишь комментирует чужой отчёт. " +
+			"Не приписывай тренировку, цифры и вид активности из отчёта собеседнику.\n\n")
+	}
 	qb.WriteString("Твоё сообщение, на которое он ответил:\n")
 	qb.WriteString(leoCtx)
 	qb.WriteString("\n\nЕго реплика тебе:\n")
@@ -538,7 +564,11 @@ func (b *Bot) LeoBanterReplyToUserTrainingFeedThread(
 	}
 
 	ctxBody := strings.Builder{}
-	ctxBody.WriteString("Выдержка из текста отчёта пользователя (контекст, не цитируй дословно целиком):\n")
+	if commenterIsAuthor {
+		ctxBody.WriteString("Выдержка из текста отчёта собеседника о его тренировке (контекст, не цитируй дословно целиком):\n")
+	} else {
+		ctxBody.WriteString("Выдержка из текста отчёта о тренировке участника «" + authorName + "» — это НЕ тренировка собеседника (контекст, не цитируй дословно целиком):\n")
+	}
 	if wrapped := moderation.WrapUserContent("training_report", reportCtx); wrapped != "" {
 		ctxBody.WriteString(wrapped)
 	}
