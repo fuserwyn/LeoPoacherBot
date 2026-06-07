@@ -17,6 +17,12 @@ func TestExcessiveWordRepetition(t *testing.T) {
 		{"mixed case repetition", "Hello HELLO hello", true},
 		{"less than 4 words", "a a a", false},
 		{"no significant repetition", "one two three four five six", false},
+		// Ослабление: одиночное слово, естественно повторённое 3 раза в разнообразном
+		// тексте, больше НЕ блокируется (раньше это было ложным срабатыванием).
+		{"single word 3x in varied note", "Сегодня бегал утром, потом бегал в обед и вечером снова бегал, доволен", false},
+		{"single word 3x non-consecutive", "качал спину, качал ноги, качал плечи на тренировке", false},
+		// Но одно доминирующее слово (>=4 и >=50%) — всё ещё спам.
+		{"single word dominates", "скидка тут скидка там скидка везде скидка всем скидка", true},
 	}
 
 	for _, tt := range tests {
