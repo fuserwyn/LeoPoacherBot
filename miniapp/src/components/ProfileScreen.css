@@ -475,9 +475,20 @@
 /* Контур маленькой лапки/сердца не должен утончаться при scale(~0.5). */
 .profile__achievement-minipaw .profile__achievement-toe-shell,
 .profile__achievement-minipaw .profile__achievement-pad-shell,
+.profile__achievement-leo .profile__achievement-pad-shell,
+.profile__achievement-leo .profile__achievement-toe-bean,
 .profile__achievement-miniheart .profile__achievement-heart-shell {
   vector-effect: non-scaling-stroke;
   stroke-width: 1.4;
+}
+
+/* Закрытые глаза и улыбка медитирующего Лео — тонкие линии контуром. */
+.profile__achievement-leo-line {
+  fill: none;
+  stroke: var(--achievement-outline);
+  stroke-width: 2;
+  stroke-linecap: round;
+  vector-effect: non-scaling-stroke;
 }
 
 /* Число — на подушечке маленькой лапки. */

@@ -70,9 +70,9 @@ const WORKOUT_ACHIEVEMENTS = [
   { count: 50, variant: "paw" },
   { count: 100, variant: "paw" },
   { count: 200, variant: "paw" },
-  { count: 420, variant: "paw" },
+  { count: 420, variant: "crown" }, // звезда с короной
   { count: 500, variant: "paw" },
-  { count: 1000, variant: "paw" },
+  { count: 1000, variant: "leo" }, // медитирующий Лео
 ] as const;
 
 // Правильное склонение: 1 тренировка, 2-4 тренировки, 5-20 тренировок.
@@ -645,6 +645,29 @@ export function ProfileScreen({
                       d="M32 49 C22 41 14 35 14 26 C14 21 18 17 23 17 C27 17 30 19 32 23 C34 19 37 17 41 17 C46 17 50 21 50 26 C50 35 42 41 32 49 Z"
                     />
                   </g>
+                ) : variant === "leo" ? (
+                  /* медитирующий Лео в позе лотоса — 1000 тренировок */
+                  <g className="profile__achievement-leo" transform="translate(32 34) scale(0.6) translate(-32 -34)">
+                    {/* основание/тело в позе лотоса */}
+                    <path
+                      className="profile__achievement-pad-shell"
+                      d="M13 53 C13 43 21 38 32 38 C43 38 51 43 51 53 C51 57 47 59 41 59 L23 59 C17 59 13 57 13 53 Z"
+                    />
+                    {/* лапки сложены по центру (мудра) */}
+                    <ellipse className="profile__achievement-toe-bean" cx="26" cy="53" rx="5" ry="3.8" />
+                    <ellipse className="profile__achievement-toe-bean" cx="38" cy="53" rx="5" ry="3.8" />
+                    {/* уши */}
+                    <path className="profile__achievement-pad-shell" d="M20 16 L26 5 L31 18 Z" />
+                    <path className="profile__achievement-pad-shell" d="M44 16 L38 5 L33 18 Z" />
+                    <path className="profile__achievement-toe-bean" d="M23.5 14 L26 8 L28.5 15 Z" />
+                    <path className="profile__achievement-toe-bean" d="M40.5 14 L38 8 L35.5 15 Z" />
+                    {/* голова */}
+                    <circle className="profile__achievement-pad-shell" cx="32" cy="24" r="12" />
+                    {/* закрытые глаза (умиротворение) и улыбка */}
+                    <path className="profile__achievement-leo-line" d="M24 24 Q27 27 30 24" />
+                    <path className="profile__achievement-leo-line" d="M34 24 Q37 27 40 24" />
+                    <path className="profile__achievement-leo-line" d="M29 30 Q32 32.5 35 30" />
+                  </g>
                 ) : (
                   /* маленькая лапка внутри звезды — число «на подушечке» */
                   <g className="profile__achievement-minipaw" transform="translate(32 31.5) scale(0.5) translate(-32 -34)">
@@ -668,12 +691,25 @@ export function ProfileScreen({
                     />
                   </g>
                 )}
+                {variant === "crown" && (
+                  /* корона поверх звезды — 420 тренировок */
+                  <g className="profile__achievement-wcrown" transform="translate(32 7) scale(0.52) translate(-32 -17)">
+                    <path
+                      className="profile__achievement-crown"
+                      d="M11 24 L14.5 11 L18.5 19.5 L26.5 8.5 L32 15.5 L37.5 8.5 L45.5 19.5 L49.5 11 L53 24 Z"
+                    />
+                    <rect className="profile__achievement-crown-band" x="11" y="21.5" width="42" height="5.5" rx="1.4" />
+                    <circle className="profile__achievement-crown-gem profile__achievement-crown-gem--main" cx="32" cy="8" r="2" />
+                  </g>
+                )}
               </svg>
-              <span
-                className={`profile__achievement-num${variant === "heart" ? " profile__achievement-num--heart" : ""}${count >= 1000 ? " profile__achievement-num--quad" : count >= 100 ? " profile__achievement-num--triple" : count >= 10 ? " profile__achievement-num--double" : ""}`}
-              >
-                {count}
-              </span>
+              {variant !== "leo" && (
+                <span
+                  className={`profile__achievement-num${variant === "heart" ? " profile__achievement-num--heart" : ""}${count >= 1000 ? " profile__achievement-num--quad" : count >= 100 ? " profile__achievement-num--triple" : count >= 10 ? " profile__achievement-num--double" : ""}`}
+                >
+                  {count}
+                </span>
+              )}
             </div>
             <div className="profile__achievement-label">{count} {workoutsWordRu(count)}</div>
           </div>
