@@ -936,6 +936,7 @@ export function FeedScreen({
           inTelegram={inTelegram}
           meId={userId}
           showAlert={showAlert}
+          isAdmin={isAdmin}
           onRefreshTabBadges={onRefreshTabBadges}
           onPackGroupChatOpened={onPackGroupChatOpened}
           onHaptic={() => {
@@ -1094,6 +1095,7 @@ export function FeedScreen({
                       onThreadReplyDelete={(replyId) => void deleteTrainingThreadReply(it.id, replyId)}
                       onThreadReplyLike={(replyId) => void toggleTrainingThreadLike(it.id, replyId)}
                       threadReplyDeleting={threadReplyDeleting}
+                      isAdmin={isAdmin}
                       threadReplyIntent={threadReplyTargets[it.id] ?? null}
                       onCancelThreadReplyIntent={() =>
                         setThreadReplyTargets((r) => ({ ...r, [it.id]: undefined }))

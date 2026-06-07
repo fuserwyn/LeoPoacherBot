@@ -465,6 +465,8 @@ type Props = {
   onRefreshTabBadges?: () => void;
   /** Сразу убрать бейдж общего чата из UI (до ответа сервера). */
   onPackGroupChatOpened?: () => void;
+  /** Зритель — админ: может удалять чужие сообщения в чате стаи (модерация). */
+  isAdmin?: boolean;
 };
 
 export function PackGroupChatPanel({
@@ -476,6 +478,7 @@ export function PackGroupChatPanel({
   active = true,
   onRefreshTabBadges,
   onPackGroupChatOpened,
+  isAdmin = false,
 }: Props) {
   const [items, setItems] = useState<PackGroupMessage[]>([]);
   const [text, setText] = useState("");
@@ -1336,12 +1339,13 @@ export function PackGroupChatPanel({
                           Изменить
                         </button>
                       )}
-                      {mine && (
+                      {(mine || (isAdmin && !m.is_leo)) && (
                         <button
                           type="button"
                           className="packroom__del"
                           onClick={() => {
-                            if (!window.confirm("Удалить сообщение?")) return;
+                            const q = mine ? "Удалить сообщение?" : "Удалить сообщение участника как админ?";
+                            if (!window.confirm(q)) return;
                             void removeMine(m.id);
                           }}
                         >

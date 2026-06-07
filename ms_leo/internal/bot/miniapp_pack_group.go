@@ -530,16 +530,24 @@ func (b *Bot) DeleteMiniAppPackGroupMessage(viewerUserID int64, initD initdata.I
 	if chatID == 0 {
 		return false, nil
 	}
-	if b.config.IsAdminTelegramUser(viewerUserID) {
-		// владелец тоже подчиняется правилу "только своё" на уровне SQL WHERE from_user_id.
-	} else {
-		ok, err := b.db.UserInPackOrPaid(viewerUserID, chatID, b.config.PaywallEnabled)
+	// Админ (в т.ч. динамический) удаляет ЛЮБОЕ сообщение в чате стаи (модерация).
+	// Обычный участник — только своё.
+	if b.isAdminTelegramUser(viewerUserID) {
+		deleted, err := b.db.AdminDeletePackGroupMessage(chatID, messageID)
 		if err != nil {
 			return false, err
 		}
-		if !ok {
-			return false, ErrPackFeedForbidden
+		if deleted {
+			_ = b.db.DeletePackGroupUnreadByMessageID(messageID)
 		}
+		return deleted, nil
+	}
+	ok, err := b.db.UserInPackOrPaid(viewerUserID, chatID, b.config.PaywallEnabled)
+	if err != nil {
+		return false, err
+	}
+	if !ok {
+		return false, ErrPackFeedForbidden
 	}
 	deleted, err := b.db.DeleteMiniappPackGroupMessageByAuthor(chatID, messageID, viewerUserID)
 	if err != nil {

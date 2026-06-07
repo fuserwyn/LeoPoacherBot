@@ -381,6 +381,24 @@ func (b *Bot) PackTrainingFeedThreadDelete(viewerUserID int64, initD initdata.In
 		return 0, ErrTrainingFeedThreadDeleteNotFound
 	}
 	chatID := b.config.MonetizedChatID
+	// Админ может удалить ЛЮБОЙ коммент в треде (модерация). Обычный участник — только свой.
+	if b.isAdminTelegramUser(viewerUserID) {
+		row, ok, rerr := b.db.GetTrainingFeedThreadRowInPack(threadReplyID, chatID)
+		if rerr != nil {
+			return 0, rerr
+		}
+		if !ok {
+			return 0, ErrTrainingFeedThreadDeleteNotFound
+		}
+		deleted, derr := b.db.AdminDeleteTrainingFeedThreadReply(chatID, threadReplyID)
+		if derr != nil {
+			return 0, derr
+		}
+		if !deleted {
+			return 0, ErrTrainingFeedThreadDeleteNotFound
+		}
+		return row.UserMessageID, nil
+	}
 	parentID, deleted, err := b.db.DeleteTrainingFeedThreadReply(chatID, threadReplyID, viewerUserID)
 	if err != nil {
 		return 0, err

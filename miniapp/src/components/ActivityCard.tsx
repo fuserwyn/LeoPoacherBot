@@ -371,6 +371,8 @@ export type ActivityCardProps = {
   /** Удалить пост (админ). */
   onAdminDelete?: () => void;
   adminDeletePosting?: boolean;
+  /** Зритель — админ: может удалять чужие комментарии в треде (модерация). */
+  isAdmin?: boolean;
   /** Пожаловаться на комментарий в треде. */
   onThreadReplyReport?: (threadReplyId: number) => void;
   threadReplyReporting?: Record<number, boolean>;
@@ -403,6 +405,7 @@ export function ActivityCard({
   threadReplyIntent,
   onCancelThreadReplyIntent,
   threadReplyDeleting = {},
+  isAdmin = false,
   trainingPhotoUrl,
   onReport,
   reportPosting = false,
@@ -701,12 +704,13 @@ export function ActivityCard({
                                         posting={Boolean(threadReplyReporting[tr.id])}
                                       />
                                     )}
-                                    {tr.isYou && !leo && onThreadReplyDelete != null && (
+                                    {onThreadReplyDelete != null && (tr.isYou || isAdmin) && (
                                       <button
                                         type="button"
                                         className="act-card__thread-del"
                                         disabled={Boolean(threadReplyDeleting[tr.id])}
                                         onClick={() => onThreadReplyDelete(tr.id)}
+                                        title={!tr.isYou ? "Удалить как админ" : undefined}
                                       >
                                         {threadReplyDeleting[tr.id] ? "…" : "Удалить"}
                                       </button>
