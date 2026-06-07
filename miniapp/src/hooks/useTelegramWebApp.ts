@@ -1,4 +1,6 @@
 import { useEffect, useState } from "react";
+import { resolveInitDataWithSource } from "../lib/telegramInitData";
+import { reportInitDataSource } from "../lib/initDataDiag";
 
 /**
  * Подключает Telegram WebApp: разворот на весь экран, тёмный header под макет.
@@ -21,6 +23,14 @@ export function useTelegramWebApp() {
       if (n) setName(n);
       const s = q.get("streak");
       if (s) setStreak(Number(s) || 0);
+      // Скрипт telegram-web-app.js мог не успеть/не загрузиться, но параметры
+      // запуска остаются в хэше (или в sessionStorage с прошлого запуска) —
+      // тогда initData всё равно валиден, и юзера не нужно лочить.
+      const recovered = resolveInitDataWithSource();
+      if (recovered.value) setInitData(recovered.value);
+      // Диагностика: WebApp-объекта нет (скрипт TG не загрузился). Покажет, как
+      // часто спасает хэш/sessionStorage и сколько юзеров остаются без initData.
+      reportInitDataSource({ source: recovered.value ? recovered.source : "none", initData: recovered.value });
       return;
     }
     w.ready();
@@ -48,9 +58,31 @@ export function useTelegramWebApp() {
     // блокирует все запросы к API (добавление тренировки, бейджи, access-gate)
     // с ошибкой «нужен initData». Поэтому дочитываем его, пока не появится
     // непустая строка (или пока не истечёт пара секунд попыток).
+    const tgVersion = (w as { version?: string }).version ?? "";
+    const startedAt = Date.now();
+    // Диагностику (откуда взялся initData) шлём ОДИН раз: при первом успехе либо
+    // когда ретраи исчерпаны и initData так и нет ("none").
+    let diagReported = false;
+    const reportDiagOnce = (source: Parameters<typeof reportInitDataSource>[0]["source"], value: string) => {
+      if (diagReported) return;
+      diagReported = true;
+      reportInitDataSource({
+        source,
+        initData: value,
+        platform: w.platform,
+        tgVersion,
+        triesMs: Date.now() - startedAt,
+      });
+    };
     const syncInitData = () => {
-      const fresh = w.initData ?? "";
-      if (fresh) setInitData(fresh);
+      // resolveInitData достаёт строку из WebApp.initData, иначе из хэша запуска,
+      // иначе из sessionStorage — чтобы пустой initData не «прилипал» и переживал
+      // перезагрузку. См. src/lib/telegramInitData.ts.
+      const { value: fresh, source } = resolveInitDataWithSource();
+      if (fresh) {
+        setInitData(fresh);
+        reportDiagOnce(source, fresh);
+      }
       return Boolean(fresh);
     };
     const onViewportChanged = () => {
@@ -75,7 +107,11 @@ export function useTelegramWebApp() {
     let initDataTries = 0;
     const initDataTimer = window.setInterval(() => {
       initDataTries += 1;
-      if (syncInitData() || initDataTries >= 20) window.clearInterval(initDataTimer);
+      if (syncInitData() || initDataTries >= 20) {
+        window.clearInterval(initDataTimer);
+        // Ретраи исчерпаны, а initData так и нет — фиксируем "none" в диагностике.
+        if (!diagReported) reportDiagOnce("none", "");
+      }
     }, 150);
     syncInitData();
     const u = w.initDataUnsafe?.user;
@@ -103,7 +139,10 @@ export function useTelegramWebApp() {
     initData,
     userId,
     photoUrl,
-    inTelegram: Boolean(window.Telegram?.WebApp),
+    // Валидный initData = запуск из Telegram, даже если объект WebApp ещё не
+    // инициализировался (гонка загрузки скрипта). Иначе транзиентный сбой
+    // навсегда показывал бы «открой из Telegram».
+    inTelegram: Boolean(window.Telegram?.WebApp) || Boolean(initData),
     tg: window.Telegram?.WebApp,
   };
 }
