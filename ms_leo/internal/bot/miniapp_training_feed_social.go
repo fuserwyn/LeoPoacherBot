@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"unicode/utf8"
 
 	"leo-bot/internal/database"
 
@@ -134,7 +135,11 @@ func (b *Bot) PackTrainingFeedReact(viewerUserID int64, initD initdata.InitData,
 		return ErrTrainingFeedInvalidEmoji
 	}
 	uname := displayNameFromInitData(initD)
-	return b.db.SetTrainingFeedReaction(chatID, userMessageID, viewerUserID, uname, em)
+	if err := b.db.SetTrainingFeedReaction(chatID, userMessageID, viewerUserID, uname, em); err != nil {
+		return err
+	}
+	b.trackFeedReactionAdded(viewerUserID, "workout", em)
+	return nil
 }
 
 // PackTrainingFeedThreadPost — комментарий в треде под training_done/sick_leave/healthy.
@@ -182,6 +187,7 @@ func (b *Bot) PackTrainingFeedThreadPost(viewerUserID int64, initD initdata.Init
 		return err
 	}
 	b.afterPackTrainingThreadInserted(chatID, userMessageID, viewerUserID, uname, text, threadID, replyToThreadID, typ)
+	b.trackFeedCommentPosted(viewerUserID, utf8.RuneCountInString(text))
 	if replyingToLeo && threadID != 0 && typ == "training_done" {
 		snap := leoParentSnapshot
 		txt := text

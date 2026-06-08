@@ -154,6 +154,12 @@ func (b *Bot) removeUser(userID, chatID int64, username string) {
 		b.logger.Errorf("Failed to mark user as deleted: %v", err)
 	}
 
+	// PII-анонимизация аналитики при удалении аккаунта (§9.3, 152-ФЗ): telegram_id
+	// в events → псевдоним. Соль — бот-токен (секрет деплоя). Идемпотентно.
+	if err := b.db.AnonymizeUserAnalytics(userID, b.config.APIToken); err != nil {
+		b.logger.Warnf("anonymize analytics user=%d: %v", userID, err)
+	}
+
 	delete(b.timers, userID)
 	b.logger.Infof("Timer removed for user %d", userID)
 }
@@ -207,6 +213,7 @@ func (b *Bot) recoverTimersFromDatabase() error {
 		if remainingTime <= 0 {
 			// Время истекло - удаляем пользователя
 			b.logger.Infof("Timer expired for user %d (%s), removing from chat", user.UserID, user.Username)
+			b.trackAccountDeletedInactivity(user.UserID, user.ChatID)
 			b.removeUser(user.UserID, user.ChatID, user.Username)
 			continue
 		}

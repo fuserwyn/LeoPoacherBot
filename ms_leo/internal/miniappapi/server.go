@@ -117,6 +117,10 @@ func (s *Server) serve(w http.ResponseWriter, r *http.Request) {
 		s.handlePostWorkoutWithPhoto(w, r)
 	case path == "/api/miniapp/diag/init-source" && r.Method == http.MethodPost:
 		s.handlePostDiagInitSource(w, r)
+	case path == "/api/miniapp/analytics/leo-comment-displayed" && r.Method == http.MethodPost:
+		s.handlePostLeoCommentDisplayed(w, r)
+	case path == "/api/miniapp/analytics/event" && r.Method == http.MethodPost:
+		s.handlePostAnalyticsEvent(w, r)
 	case strings.HasPrefix(path, "/api/miniapp/media/") && r.Method == http.MethodGet:
 		s.handleGetMiniappMedia(w, r)
 	case path == "/" && r.Method == http.MethodGet:

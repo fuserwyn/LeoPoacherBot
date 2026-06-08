@@ -56,6 +56,9 @@ func init() {
 type Database struct {
 	db     *sql.DB
 	logger logger.Logger
+	// alphaTesterIDs — telegram_id альфа-тестеров (§10). Задаётся на старте через
+	// SetAlphaTesterIDs; используется в insertEvent для пометки is_alpha.
+	alphaTesterIDs map[int64]bool
 }
 
 func New(databaseURL string) (*Database, error) {

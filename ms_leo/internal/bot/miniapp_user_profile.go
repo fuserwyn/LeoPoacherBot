@@ -407,6 +407,7 @@ func (b *Bot) UseStreakSaveAttemptForAPI(userID, packChatID int64) (used, max, a
 	if avail < 0 {
 		avail = 0
 	}
+	b.trackStreakAttemptUsed(userID, avail) // §5: попытка спасла стрик
 	restoredStreak = b.GetMiniappProfileStatsForAPI(userID, packChatID).StreakDays
 	return newUsed, stats.StreakSaveAttemptsMax, avail, restoredStreak, nil
 }

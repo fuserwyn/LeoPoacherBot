@@ -16,6 +16,7 @@ import {
 } from "../lib/packFeed";
 import { moderationUserMessage, isModerationError } from "../lib/moderationMessages";
 import { clearFeedThreadUnread, fetchFeedThreadUnreadSummary } from "../lib/feedThreadUnread";
+import { reportLeoCommentDisplayed } from "../lib/leoCommentDiag";
 import { formatLocalDateTime } from "../lib/timeAgo";
 import { streakStreakAriaLabel } from "../lib/streakLabel";
 import {
@@ -1091,6 +1092,7 @@ export function FeedScreen({
                       onReactionClick={(emoji) => void postTrainingReact(it.id, emoji)}
                       hasUnreadThread={unreadFeedCardIds.has(it.id)}
                       onThreadOpened={() => markFeedCardThreadRead(it.id)}
+                      onLeoReplyDisplayed={(replyId) => reportLeoCommentDisplayed(initData, replyId)}
                       threadReplies={threadReplies}
                       onThreadReplyDelete={(replyId) => void deleteTrainingThreadReply(it.id, replyId)}
                       onThreadReplyLike={(replyId) => void toggleTrainingThreadLike(it.id, replyId)}

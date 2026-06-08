@@ -16,6 +16,7 @@ type Config struct {
 	APIToken              string
 	OwnerID               int64
 	AdminIDs              []int64
+	AlphaTesterIDs        []int64 // §10: тестеры альфы — события тегируются is_alpha
 	DatabaseURL           string
 	LogLevel              string
 	OpenRouterAPIKey      string
@@ -81,6 +82,7 @@ func Load() (*Config, error) {
 
 	ownerID, _ := strconv.ParseInt(getEnv("OWNER_ID", "0"), 10, 64)
 	adminIDs := parseAdminIDs(getEnv("ADMIN_IDS", ""))
+	alphaTesterIDs := parseAdminIDs(getEnv("ALPHA_TESTER_IDS", ""))
 
 	// Парсим булевое значение для ScanHistoryOnStart
 	scanHistoryOnStart := false
@@ -131,6 +133,7 @@ func Load() (*Config, error) {
 		APIToken:              apiToken,
 		OwnerID:               ownerID,
 		AdminIDs:              adminIDs,
+		AlphaTesterIDs:        alphaTesterIDs,
 		DatabaseURL:           getEnv("DATABASE_URL", "postgresql://postgres:password@localhost:5432/leo_bot_db?sslmode=disable"),
 		LogLevel:              getEnv("LOG_LEVEL", "info"),
 		OpenRouterAPIKey:      getEnv("OPENROUTER_API_KEY", ""),

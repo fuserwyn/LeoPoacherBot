@@ -1126,6 +1126,18 @@ var Migrations = []Migration{
 			DROP TABLE IF EXISTS events;
 		`,
 	},
+	{
+		Version:     56,
+		Description: "Analytics: events.is_alpha — пометка событий альфа-тестеров (§10)",
+		UpSQL: `
+			ALTER TABLE events ADD COLUMN IF NOT EXISTS is_alpha BOOLEAN NOT NULL DEFAULT FALSE;
+			CREATE INDEX IF NOT EXISTS idx_events_alpha_name ON events (is_alpha, event_name) WHERE is_alpha;
+		`,
+		DownSQL: `
+			DROP INDEX IF EXISTS idx_events_alpha_name;
+			ALTER TABLE events DROP COLUMN IF EXISTS is_alpha;
+		`,
+	},
 }
 
 // MigrationRecord представляет запись о выполненной миграции

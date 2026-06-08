@@ -89,6 +89,11 @@ func (b *Bot) PackFeedReport(viewerUserID int64, initD initdata.InitData, userMe
 		return err
 	}
 	b.notifyAdminsAboutFeedReport(reportID, viewerUserID, targetType, userMessageID, threadReplyID, targetUserID, targetText)
+	complaintTargetID := userMessageID
+	if threadReplyID > 0 {
+		complaintTargetID = threadReplyID
+	}
+	b.trackComplaintFiled(viewerUserID, targetType, complaintTargetID)
 	return nil
 }
 

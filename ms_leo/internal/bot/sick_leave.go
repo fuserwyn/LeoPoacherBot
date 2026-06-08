@@ -118,6 +118,7 @@ func (b *Bot) activateSickLeave(msg *tgbotapi.Message, messageLog *domain.Messag
 		b.logger.Errorf("Failed to update message log: %v", err)
 	} else {
 		b.logger.Infof("Successfully saved sick leave start time")
+		b.trackSickLeaveStarted(msg.From.ID) // §5: больничный активирован
 	}
 
 	// Отменяем существующие таймеры
@@ -449,6 +450,7 @@ func (b *Bot) handleHealthy(msg *tgbotapi.Message) {
 		b.logger.Errorf("Failed to update message log: %v", err)
 	} else {
 		b.logger.Infof("Successfully saved message log with sick leave data")
+		b.trackSickLeaveEnded(msg.From.ID, "manual") // §5: выздоровление по #healthy
 	}
 
 	// Рассчитываем оставшееся время используя исправленную функцию

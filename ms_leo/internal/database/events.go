@@ -1,10 +1,16 @@
 package database
 
 import (
+	"crypto/sha256"
+	"encoding/binary"
 	"encoding/json"
 	"fmt"
 	"log"
+	"strconv"
 	"strings"
+	"time"
+
+	"github.com/google/uuid"
 )
 
 // Аналитические события Fat Leopard — спецификация analytics_BT_v1.md.
@@ -66,21 +72,64 @@ type AnalyticsEvent struct {
 	IdempotencyKey string
 }
 
+// SetAlphaTesterIDs задаёт множество telegram_id альфа-тестеров (§10). Вызывается
+// один раз на старте до приёма трафика — поэтому без мьютекса. Каждое событие
+// этих пользователей помечается is_alpha=true для отдельной агрегации.
+func (d *Database) SetAlphaTesterIDs(ids []int64) {
+	if d == nil {
+		return
+	}
+	m := make(map[int64]bool, len(ids))
+	for _, id := range ids {
+		if id != 0 {
+			m[id] = true
+		}
+	}
+	d.alphaTesterIDs = m
+}
+
+func (d *Database) isAlphaTester(telegramID, userID int64) bool {
+	if d == nil || len(d.alphaTesterIDs) == 0 {
+		return false
+	}
+	return d.alphaTesterIDs[telegramID] || d.alphaTesterIDs[userID]
+}
+
+// eventInsertRetryDelays — задержки повторов записи события (§9.2). Первая попытка
+// сразу, далее экспоненциальный backoff. In-memory, без внешней очереди — для F1 хватает.
+var eventInsertRetryDelays = []time.Duration{0, 500 * time.Millisecond, 2 * time.Second, 8 * time.Second}
+
 // TrackEvent асинхронно (non-blocking, §9.2) пишет событие в таблицу events.
-// Ошибки не возвращаются — аналитика никогда не должна мешать основному flow.
+// При сбое БД повторяет с backoff. Ошибки не возвращаются — аналитика никогда не
+// должна мешать основному flow. Каждому событию проставляется idempotency_key
+// (свой или авто-UUID), поэтому повтор после «фантомного» успеха не плодит дубли.
 func (d *Database) TrackEvent(ev AnalyticsEvent) {
 	if d == nil || d.db == nil || strings.TrimSpace(ev.Name) == "" {
 		return
 	}
-	go func() {
-		if err := d.insertEvent(ev); err != nil {
-			if d.logger != nil {
-				d.logger.Warnf("TrackEvent %s: %v", ev.Name, err)
-			} else {
-				log.Printf("TrackEvent %s: %v", ev.Name, err)
-			}
+	if strings.TrimSpace(ev.IdempotencyKey) == "" {
+		ev.IdempotencyKey = ev.Name + ":" + uuid.NewString()
+	}
+	go d.trackEventWithRetry(ev)
+}
+
+func (d *Database) trackEventWithRetry(ev AnalyticsEvent) {
+	var lastErr error
+	for _, delay := range eventInsertRetryDelays {
+		if delay > 0 {
+			time.Sleep(delay)
 		}
-	}()
+		if err := d.insertEvent(ev); err != nil {
+			lastErr = err
+			continue
+		}
+		return // успех (или ON CONFLICT DO NOTHING — дубль не плодим)
+	}
+	if d.logger != nil {
+		d.logger.Warnf("TrackEvent %s: отброшено после %d попыток: %v", ev.Name, len(eventInsertRetryDelays), lastErr)
+	} else {
+		log.Printf("TrackEvent %s: dropped after %d attempts: %v", ev.Name, len(eventInsertRetryDelays), lastErr)
+	}
 }
 
 func (d *Database) insertEvent(ev AnalyticsEvent) error {
@@ -96,12 +145,42 @@ func (d *Database) insertEvent(ev AnalyticsEvent) error {
 	// occurred_at заполняется DEFAULT-ом (московский wall-clock, как остальные таблицы).
 	// NULLIF(...,'') приводит пустые строки/нули к NULL, чтобы не засорять колонки.
 	_, err := d.db.Exec(`
-		INSERT INTO events (event_name, user_id, telegram_id, payload, session_id, source, app_version, idempotency_key)
-		VALUES ($1, NULLIF($2, 0), NULLIF($3, 0), $4, NULLIF($5, '')::uuid, NULLIF($6, ''), NULLIF($7, ''), NULLIF($8, ''))
+		INSERT INTO events (event_name, user_id, telegram_id, payload, session_id, source, app_version, idempotency_key, is_alpha)
+		VALUES ($1, NULLIF($2, 0), NULLIF($3, 0), $4, NULLIF($5, '')::uuid, NULLIF($6, ''), NULLIF($7, ''), NULLIF($8, ''), $9)
 		ON CONFLICT (idempotency_key) WHERE idempotency_key IS NOT NULL DO NOTHING
-	`, ev.Name, ev.UserID, ev.TelegramID, payloadJSON, ev.SessionID, ev.Source, ev.AppVersion, ev.IdempotencyKey)
+	`, ev.Name, ev.UserID, ev.TelegramID, payloadJSON, ev.SessionID, ev.Source, ev.AppVersion, ev.IdempotencyKey, d.isAlphaTester(ev.TelegramID, ev.UserID))
 	if err != nil {
 		return fmt.Errorf("insert event: %w", err)
 	}
 	return nil
+}
+
+// AnonymizeUserAnalytics заменяет telegram_id/user_id во всех событиях пользователя
+// на псевдоним — удаление PII при удалении аккаунта (analytics_BT_v1 §9.3, 152-ФЗ).
+// salt — секрет деплоя (бот-токен), чтобы псевдоним нельзя было обратить перебором
+// telegram_id. Агрегаты по событиям сохраняются (один человек → один псевдоним).
+// Идемпотентно: повторный вызов уже не найдёт реального id.
+func (d *Database) AnonymizeUserAnalytics(telegramID int64, salt string) error {
+	if d == nil || d.db == nil || telegramID == 0 {
+		return nil
+	}
+	pseudo := pseudonymizeID(telegramID, salt)
+	_, err := d.db.Exec(`
+		UPDATE events
+		SET telegram_id = CASE WHEN telegram_id = $2 THEN $1 ELSE telegram_id END,
+		    user_id     = CASE WHEN user_id = $2 THEN $1 ELSE user_id END
+		WHERE telegram_id = $2 OR user_id = $2
+	`, pseudo, telegramID)
+	if err != nil {
+		return fmt.Errorf("anonymize events: %w", err)
+	}
+	return nil
+}
+
+// pseudonymizeID — детерминированный псевдоним из telegram_id и секретной соли.
+// Первые 8 байт sha256 → положительный int64. Огромное значение (до 2^62) не
+// пересекается с реальными telegram_id (< ~10^10).
+func pseudonymizeID(id int64, salt string) int64 {
+	h := sha256.Sum256([]byte(salt + ":pii:" + strconv.FormatInt(id, 10)))
+	return int64(binary.BigEndian.Uint64(h[:8]) >> 1)
 }

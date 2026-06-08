@@ -1216,6 +1216,7 @@ func (b *Bot) paywallDeliverAccessAfterPayment(userID int64, paywallRequestID in
 		b.logger.Errorf("paywall reactivate returned false user=%d chat=%d", userID, chatID)
 		return fmt.Errorf("paywall inconsistency: no profile for paid return user=%d chat=%d", userID, chatID)
 	}
+	b.trackAccountReactivated(userID) // §5: вернулся после удаления
 
 	// Username для приветственной карточки берём из только что обновлённой записи training_state.
 	// Если пусто — startTimer / savePackJoinMiniappFeed корректно отработают с пустой строкой.

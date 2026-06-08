@@ -70,6 +70,132 @@ func (b *Bot) trackModerationBlocked(surface, reason string, telegramID int64) {
 	})
 }
 
+// trackFeedReactionAdded — реакция в ленте стаи (analytics_BT_v1 §6).
+func (b *Bot) trackFeedReactionAdded(telegramID int64, targetType, reaction string) {
+	if b == nil || b.db == nil {
+		return
+	}
+	b.db.TrackEvent(database.AnalyticsEvent{
+		Name:       database.EventFeedReactionAdded,
+		UserID:     telegramID,
+		TelegramID: telegramID,
+		Payload:    map[string]any{"target_type": targetType, "reaction_type": reaction},
+	})
+}
+
+// trackFeedCommentPosted — комментарий в треде ленты (analytics_BT_v1 §6).
+func (b *Bot) trackFeedCommentPosted(telegramID int64, length int) {
+	if b == nil || b.db == nil {
+		return
+	}
+	b.db.TrackEvent(database.AnalyticsEvent{
+		Name:       database.EventFeedCommentPosted,
+		UserID:     telegramID,
+		TelegramID: telegramID,
+		Payload:    map[string]any{"length": length},
+	})
+}
+
+// trackComplaintFiled — жалоба через кнопку (analytics_BT_v1 §6).
+func (b *Bot) trackComplaintFiled(telegramID int64, targetType string, targetID int64) {
+	if b == nil || b.db == nil {
+		return
+	}
+	b.db.TrackEvent(database.AnalyticsEvent{
+		Name:       database.EventComplaintFiled,
+		UserID:     telegramID,
+		TelegramID: telegramID,
+		Payload:    map[string]any{"target_type": targetType, "target_id": targetID},
+	})
+}
+
+// trackReportResolved — админ закрыл жалобу (analytics_BT_v1 §6).
+// action: "delete" | "hide" | "mute" | "no_action". Идемпотентность по reportID:
+// одна жалоба закрывается один раз.
+func (b *Bot) trackReportResolved(reportID, adminTelegramID, targetUserID int64, action string) {
+	if b == nil || b.db == nil {
+		return
+	}
+	b.db.TrackEvent(database.AnalyticsEvent{
+		Name:           database.EventReportResolved,
+		TelegramID:     adminTelegramID,
+		Payload:        map[string]any{"action": action, "report_id": reportID, "target_user_id": targetUserID},
+		IdempotencyKey: fmt.Sprintf("report_resolved:%d", reportID),
+	})
+}
+
+// trackAccountDeletedInactivity — авто-удаление за неактивность (analytics_BT_v1 §5).
+// Идемпотентно по (user, chat): повторный проход watchdog не плодит дубль.
+func (b *Bot) trackAccountDeletedInactivity(userID, packChatID int64) {
+	if b == nil || b.db == nil {
+		return
+	}
+	payload := map[string]any{}
+	if ml, err := b.db.GetMessageLog(userID, packChatID); err == nil && ml != nil {
+		payload["last_streak"] = ml.StreakDays
+	}
+	b.db.TrackEvent(database.AnalyticsEvent{
+		Name:           database.EventAccountDeletedInactivity,
+		UserID:         userID,
+		TelegramID:     userID,
+		Payload:        payload,
+		IdempotencyKey: fmt.Sprintf("account_deleted_inactivity:%d:%d", userID, packChatID),
+	})
+}
+
+// trackAccountReactivated — вернулся после удаления (новый платёж, §5).
+func (b *Bot) trackAccountReactivated(userID int64) {
+	if b == nil || b.db == nil {
+		return
+	}
+	b.db.TrackEvent(database.AnalyticsEvent{
+		Name: database.EventAccountReactivated, UserID: userID, TelegramID: userID,
+	})
+}
+
+// trackStreakAttemptUsed — использована попытка спасения стрика (§5).
+func (b *Bot) trackStreakAttemptUsed(userID int64, attemptsLeft int) {
+	if b == nil || b.db == nil {
+		return
+	}
+	b.db.TrackEvent(database.AnalyticsEvent{
+		Name: database.EventStreakAttemptUsed, UserID: userID, TelegramID: userID,
+		Payload: map[string]any{"attempts_left": attemptsLeft},
+	})
+}
+
+// trackSickLeaveStarted / trackSickLeaveEnded — больничный (§5). via: manual|training|auto_14d.
+func (b *Bot) trackSickLeaveStarted(userID int64) {
+	if b == nil || b.db == nil {
+		return
+	}
+	b.db.TrackEvent(database.AnalyticsEvent{
+		Name: database.EventSickLeaveStarted, UserID: userID, TelegramID: userID,
+	})
+}
+
+func (b *Bot) trackSickLeaveEnded(userID int64, via string) {
+	if b == nil || b.db == nil {
+		return
+	}
+	b.db.TrackEvent(database.AnalyticsEvent{
+		Name: database.EventSickLeaveEnded, UserID: userID, TelegramID: userID,
+		Payload: map[string]any{"via": via},
+	})
+}
+
+// trackLeoChatLimitReached — хит дневного лимита сообщений Лео (analytics_BT_v1 §6).
+func (b *Bot) trackLeoChatLimitReached(telegramID int64) {
+	if b == nil || b.db == nil {
+		return
+	}
+	b.db.TrackEvent(database.AnalyticsEvent{
+		Name:       database.EventLeoChatLimitReached,
+		UserID:     telegramID,
+		TelegramID: telegramID,
+	})
+}
+
 // parseStartSource достаёт канал атрибуции из аргумента deep-link `/start`.
 // Формат UTM (analytics_BT_v1 §8): `?start=src-tg_channel_main` → "tg_channel_main".
 // Пустой аргумент => "organic". Значение усечено до 32 символов (колонка source).

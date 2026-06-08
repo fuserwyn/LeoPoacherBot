@@ -103,6 +103,9 @@ func New(cfg *config.Config, db *database.Database, log logger.Logger) (*Bot, er
 		return nil, fmt.Errorf("failed to create tables: %w", err)
 	}
 
+	// §10: множество альфа-тестеров — события этих юзеров помечаются is_alpha.
+	db.SetAlphaTesterIDs(cfg.AlphaTesterIDs)
+
 	// Создаем клиент OpenRouter для ИИ
 	var aiClient *ai.OpenRouterClient
 	if cfg.OpenRouterAPIKey != "" {

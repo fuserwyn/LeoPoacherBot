@@ -780,6 +780,7 @@ func (b *Bot) cancelSickLeaveForUser(userID, packChatID int64) error {
 	if err := b.db.SaveMessageLog(messageLog); err != nil {
 		return err
 	}
+	b.trackSickLeaveEnded(userID, "manual") // §5: больничный снят (админ/#healthy-логика)
 
 	remainingTime := b.calculateRemainingTime(messageLog)
 	if remainingTime <= 0 {
@@ -898,6 +899,7 @@ func (b *Bot) adminDeleteReportedContent(chatID, reportID int64) {
 		return
 	}
 	_, _ = b.db.DismissMiniappFeedReport(packChatID, reportID)
+	b.trackReportResolved(reportID, chatID, item.TargetUserID, "delete")
 	b.api.Send(tgbotapi.NewMessage(chatID, fmt.Sprintf("✅ Удалено без пометки: %s. Жалоба #%d закрыта.", label, reportID)))
 	b.showAdminFeedReportsInbox(chatID)
 }
@@ -944,6 +946,7 @@ func (b *Bot) adminHideReportedContent(chatID, reportID int64) {
 		b.api.Send(tgbotapi.NewMessage(chatID, fmt.Sprintf("🙈 Скрыто: %s. Жалоба #%d закрыта.", label, reportID)))
 	}
 	_, _ = b.db.DismissMiniappFeedReport(packChatID, reportID)
+	b.trackReportResolved(reportID, chatID, item.TargetUserID, "hide")
 	b.showAdminFeedReportsInbox(chatID)
 }
 
@@ -963,5 +966,6 @@ func (b *Bot) adminMuteReportedUser(chatID, reportID int64) {
 	}
 	b.adminMuteUserUGC(chatID, item.TargetUserID, packChatID, 24)
 	_, _ = b.db.DismissMiniappFeedReport(packChatID, reportID)
+	b.trackReportResolved(reportID, chatID, item.TargetUserID, "mute")
 	b.showAdminFeedReportsInbox(chatID)
 }

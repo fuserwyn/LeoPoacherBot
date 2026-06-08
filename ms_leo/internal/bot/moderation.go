@@ -119,6 +119,7 @@ func (b *Bot) enforceLeoChat(text string, userID int64) (moderation.Result, erro
 				UserMessage: moderation.UserWarnings[moderation.ReasonLeoDaily],
 				APICode:     moderation.APICodeFor(moderation.ReasonLeoDaily),
 			}
+			b.trackLeoChatLimitReached(userID)
 			b.deliverModerationWarning(userID, moderation.SurfaceLeoChat, text, res)
 			return res, &ModerationBlockedError{APICode: res.APICode, Message: res.UserMessage}
 		}

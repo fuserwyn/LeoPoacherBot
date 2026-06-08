@@ -17,6 +17,7 @@ import { fetchFeedThreadUnreadSummary } from "./lib/feedThreadUnread";
 import { fetchPackGroupUnreadCount } from "./lib/packGroupUnread";
 import { ensureMiniappOnboarding } from "./lib/miniappOnboarding";
 import { syncDeviceTimezone } from "./lib/timezoneSync";
+import { reportMiniappOpened, reportWorkoutLogStarted } from "./lib/miniappEvents";
 import "./App.css";
 
 type Tab = "chat" | "feed" | "rules" | "profile";
@@ -69,6 +70,13 @@ export function App() {
   const [accessGateStatus, setAccessGateStatus] = useState<AccessGateStatus>("checking");
   const [isAdmin, setIsAdmin] = useState(false);
   const tzSyncedRef = useRef(false);
+
+  // §3: miniapp_opened — один раз, как только есть валидный initData в Telegram.
+  useEffect(() => {
+    if (inTelegram && initData?.trim()) {
+      reportMiniappOpened(initData);
+    }
+  }, [inTelegram, initData]);
 
   const refreshAccessStatus = useCallback(async () => {
     if (!inTelegram || !initData?.trim()) {
@@ -311,6 +319,7 @@ export function App() {
         onAddWorkout={() => {
           setSupportOpen(false);
           setWorkoutOpen(true);
+          reportWorkoutLogStarted(initData); // §4: открыл форму логирования
         }}
         onRules={() => {
           setWorkoutOpen(false);

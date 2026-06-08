@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"leo-bot/internal/ai"
+	"leo-bot/internal/database"
 	"leo-bot/internal/domain"
 	"leo-bot/internal/game/leopardmoney"
 	"leo-bot/internal/utils"
@@ -224,6 +225,23 @@ func (b *Bot) sendInactiveRemovalWarning(userID, chatID int64, username string, 
 			}
 		}
 	}
+
+	// §5: burn_warning_sent — предупреждение о сгорании стрика/удалении (day_5/6/7).
+	// Идемпотентность по user+stage+дата кика, чтобы повтор планировщика не дублировал.
+	burnStage := "day_5"
+	switch hoursBefore {
+	case 48:
+		burnStage = "day_6"
+	case 24:
+		burnStage = "day_7"
+	}
+	b.db.TrackEvent(database.AnalyticsEvent{
+		Name:           database.EventBurnWarningSent,
+		UserID:         userID,
+		TelegramID:     userID,
+		Payload:        map[string]any{"stage": burnStage},
+		IdempotencyKey: fmt.Sprintf("burn_warning_sent:%d:%s:%s", userID, burnStage, removalAt.Format("2006-01-02")),
+	})
 
 	b.miniappPersonalPush(userID, messageText)
 

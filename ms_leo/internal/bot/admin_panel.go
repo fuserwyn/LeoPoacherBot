@@ -598,6 +598,7 @@ func (b *Bot) dismissAdminFeedReport(chatID, reportID int64) {
 		b.api.Send(tgbotapi.NewMessage(chatID, "Жалоба уже обработана или не найдена."))
 		return
 	}
+	b.trackReportResolved(reportID, chatID, 0, "no_action")
 	b.api.Send(tgbotapi.NewMessage(chatID, "✅ Жалоба отмечена обработанной."))
 	b.showAdminFeedReportsInbox(chatID)
 }

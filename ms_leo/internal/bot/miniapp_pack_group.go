@@ -704,6 +704,7 @@ func (b *Bot) PackGroupChatReport(viewerUserID int64, initD initdata.InitData, m
 		return err
 	}
 	b.notifyAdminsAboutFeedReport(reportID, viewerUserID, "pack_group_message", messageID, 0, row.FromUserID, row.MessageText)
+	b.trackComplaintFiled(viewerUserID, "pack_group_message", messageID)
 	return nil
 }
 

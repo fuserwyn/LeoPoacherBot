@@ -8,6 +8,7 @@ import (
 	"unicode/utf8"
 
 	"leo-bot/internal/ai"
+	"leo-bot/internal/database"
 	"leo-bot/internal/domain"
 	"leo-bot/internal/game/leopardmoney"
 	"leo-bot/internal/moderation"
@@ -354,6 +355,45 @@ func (b *Bot) handleLeopardMoneyTrainingDone(msg *tgbotapi.Message, personalRepl
 	ach := 0
 	if ml, e := b.db.GetMessageLog(msg.From.ID, packChatID); e == nil {
 		ach = ml.AchievementCount
+	}
+
+	// Аналитика Воронки 3 (retention, §5): рост стрика / обрыв, пробитие уровня, ачивка.
+	if newStreak > messageLog.StreakDays {
+		b.db.TrackEvent(database.AnalyticsEvent{
+			Name:       database.EventStreakIncremented,
+			TelegramID: msg.From.ID,
+			Payload:    map[string]any{"new_streak_days": newStreak, "prev_streak_days": messageLog.StreakDays},
+		})
+	} else if gapEmptyDays > 0 && messageLog.StreakDays > 1 {
+		// Вернулся после пропуска — прошлый стрик оборвался.
+		b.db.TrackEvent(database.AnalyticsEvent{
+			Name:       database.EventStreakBroken,
+			TelegramID: msg.From.ID,
+			Payload:    map[string]any{"streak_lost_days": messageLog.StreakDays},
+		})
+	}
+	if prevLevel, newLevel := leopardmoney.LevelFromTotalCups(totalCups-cupsAdd), leopardmoney.LevelFromTotalCups(totalCups); newLevel > prevLevel {
+		b.db.TrackEvent(database.AnalyticsEvent{
+			Name:       database.EventLevelUp,
+			TelegramID: msg.From.ID,
+			Payload:    map[string]any{"level_from": prevLevel, "level_to": newLevel, "cups_total": totalCups},
+		})
+	}
+	if achievementAwarded {
+		b.db.TrackEvent(database.AnalyticsEvent{
+			Name:       database.EventMilestoneAchieved,
+			TelegramID: msg.From.ID,
+			Payload:    map[string]any{"milestone_days": newStreak, "is_record": newStreak > messageLog.MaxStreakDays},
+		})
+	}
+	// burn_recovered (§5): тренировка после burn-предупреждения. Прокси — вернулся из
+	// «окна сгорания» (пропуск ~4+ дней ⇒ получал day_5/6/7 алерт), кика не случилось.
+	if gapEmptyDays >= 4 {
+		b.db.TrackEvent(database.AnalyticsEvent{
+			Name:       database.EventBurnRecovered,
+			TelegramID: msg.From.ID,
+			Payload:    map[string]any{"gap_days": gapEmptyDays},
+		})
 	}
 
 	session := &domain.TrainingSession{

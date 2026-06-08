@@ -380,6 +380,8 @@ export type ActivityCardProps = {
   hasUnreadThread?: boolean;
   /** Пользователь открыл тред — сбросить локальный/серверный unread. */
   onThreadOpened?: () => void;
+  /** Лео-реплай показан пользователю (тред раскрыт) — для аналитики leo_comment_displayed. */
+  onLeoReplyDisplayed?: (threadReplyId: number) => void;
 };
 
 export function ActivityCard({
@@ -406,6 +408,7 @@ export function ActivityCard({
   onCancelThreadReplyIntent,
   threadReplyDeleting = {},
   isAdmin = false,
+  onLeoReplyDisplayed,
   trainingPhotoUrl,
   onReport,
   reportPosting = false,
@@ -430,9 +433,15 @@ export function ActivityCard({
   useEffect(() => {
     if (threadOpen && !prevThreadOpenRef.current) {
       onThreadOpened?.();
+      // Тред раскрыт — Лео-реплаи теперь видны. Дедуп по id на стороне родителя.
+      if (onLeoReplyDisplayed) {
+        for (const tr of threadReplies) {
+          if (tr.isLeo && tr.id > 0) onLeoReplyDisplayed(tr.id);
+        }
+      }
     }
     prevThreadOpenRef.current = threadOpen;
-  }, [threadOpen, onThreadOpened]);
+  }, [threadOpen, onThreadOpened, onLeoReplyDisplayed, threadReplies]);
 
   const scrollThreadComposeIntoView = useCallback(() => {
     const target = threadComposeRef.current ?? threadInputRef.current;
