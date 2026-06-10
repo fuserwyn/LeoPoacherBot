@@ -1,6 +1,7 @@
 import { useRef, useState, useEffect, useLayoutEffect, useCallback, useMemo } from "react";
 import { createPortal } from "react-dom";
 import { LikersPopover, useChipPress, useLikersPopover, useLongPress, type Liker, type LikerGroup } from "./Likers";
+import { PhotoCropper } from "./PhotoCropper";
 import { LEO_AVATAR_URL } from "../lib/leoAvatar";
 import { resolveFeedAvatarUrl, type VoterDTO } from "../lib/packFeed";
 import { streakStreakAriaLabel } from "../lib/streakLabel";
@@ -467,6 +468,8 @@ export function ActivityCard({
   const threadPhotoInputRef = useRef<HTMLInputElement>(null);
   const [threadPhoto, setThreadPhoto] = useState<File | null>(null);
   const [threadPhotoPreview, setThreadPhotoPreview] = useState<string | null>(null);
+  // Фото для комментария кропаем перед прикреплением (как в отчёте о тренировке).
+  const [pendingThreadCrop, setPendingThreadCrop] = useState<File | null>(null);
   // Админ публикует комментарий от имени Лео (официальный голос).
   const [threadAsAdmin, setThreadAsAdmin] = useState(false);
   const prevThreadLen = useRef(threadReplies.length);
@@ -922,6 +925,16 @@ export function ActivityCard({
                         />
                         <button
                           type="button"
+                          className="act-card__thread-photo-recrop"
+                          disabled={threadComposer.posting}
+                          onClick={() => {
+                            if (threadPhoto) setPendingThreadCrop(threadPhoto);
+                          }}
+                        >
+                          Обрезать
+                        </button>
+                        <button
+                          type="button"
                           className="act-card__thread-photo-remove"
                           aria-label="Убрать фото"
                           disabled={threadComposer.posting}
@@ -961,7 +974,8 @@ export function ActivityCard({
                       hidden
                       onChange={(e) => {
                         const f = e.target.files?.[0] ?? null;
-                        setThreadPhoto(f);
+                        if (f) setPendingThreadCrop(f);
+                        e.target.value = "";
                       }}
                     />
                     <div className="act-card__thread-compose-actions">
@@ -994,6 +1008,18 @@ export function ActivityCard({
                         {threadComposer.posting ? "…" : "Отправить"}
                       </button>
                     </div>
+                    {pendingThreadCrop &&
+                      createPortal(
+                        <PhotoCropper
+                          file={pendingThreadCrop}
+                          onCancel={() => setPendingThreadCrop(null)}
+                          onConfirm={(cropped) => {
+                            setThreadPhoto(cropped);
+                            setPendingThreadCrop(null);
+                          }}
+                        />,
+                        document.body,
+                      )}
                   </div>
                 )}
               </>
