@@ -757,13 +757,6 @@ export function ActivityCard({
             <p className="act-card__comment">{comment}</p>
           ))
         )}
-        {onStartEditPost && !postEdit && (
-          <div className="act-card__post-actions">
-            <button type="button" className="act-card__post-edit-trigger" onClick={onStartEditPost}>
-              Изменить
-            </button>
-          </div>
-        )}
         {poll && poll.options.length > 0 && (
           <div className="act-card__poll" role="group" aria-label="Опрос">
             {poll.options.map((option, optionIndex) => (
