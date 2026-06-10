@@ -225,13 +225,23 @@ func (b *Bot) ProcessMiniAppLeoPhoto(d initdata.InitData, caption, photoURL stri
 func buildLeoPhotoQuestion(caption, desc string) string {
 	var sb strings.Builder
 	sb.WriteString("Пользователь прислал в личный чат фото и хочет рекомендации по нему.\n")
-	if d := strings.TrimSpace(desc); d != "" {
+	d := strings.TrimSpace(desc)
+	c := strings.TrimSpace(caption)
+	if d != "" {
 		sb.WriteString("[Что на фото (по описанию vision-модели): " + d + "]\n")
 	}
-	if c := strings.TrimSpace(caption); c != "" {
+	if c != "" {
 		sb.WriteString("Подпись/вопрос к фото: " + c + "\n")
-	} else {
-		sb.WriteString("Подписи нет — посмотри на фото и дай полезные рекомендации (по технике, форме, питанию, экипировке — смотря что на снимке).\n")
+	}
+	switch {
+	case d == "" && c == "":
+		// Фото рассмотреть не удалось и подписи нет — честно попроси описать словами.
+		sb.WriteString("Фото рассмотреть не получилось, подписи тоже нет. Дружелюбно попроси описать словами, что на снимке и с чем помочь.\n")
+	case d == "" && c != "":
+		// Нет описания, но есть подпись — отвечай по подписи, не выдумывая содержимое фото.
+		sb.WriteString("Само фото рассмотреть не получилось — отвечай по подписи, не выдумывая, что именно на снимке.\n")
+	case d != "" && c == "":
+		sb.WriteString("Подписи нет — по тому, что на фото, дай полезные рекомендации (техника, форма, питание, экипировка — смотря что на снимке).\n")
 	}
 	return strings.TrimSpace(sb.String())
 }

@@ -78,6 +78,7 @@ function mergeFromServer(prev: ChatMsg[], incoming: ServerMsg[]): ChatMsg[] {
           serverID: sm.id,
           role: "user",
           text: sm.text,
+          photoUrl: resolveTrainingPhotoUrl(sm.photo_url),
           createdAt: sm.created_at,
           likeCount: sm.like_count ?? 0,
           likeMe: Boolean(sm.like_me),
@@ -90,6 +91,7 @@ function mergeFromServer(prev: ChatMsg[], incoming: ServerMsg[]): ChatMsg[] {
       serverID: sm.id,
       role: sm.role,
       text: sm.text,
+      photoUrl: resolveTrainingPhotoUrl(sm.photo_url),
       createdAt: sm.created_at,
       likeCount: sm.like_count ?? 0,
       likeMe: Boolean(sm.like_me),
@@ -121,6 +123,13 @@ export function ChatScreen({ name, initData, inTelegram, showAlert, onInboxOpene
   const [leoTyping, setLeoTyping] = useState(false);
   const [items, setItems] = useState<ChatMsg[]>([]);
   const [loaded, setLoaded] = useState(false);
+  /** Прикреплённое фото (для рекомендаций Лео) и его локальное превью. */
+  const [photo, setPhoto] = useState<File | null>(null);
+  const [photoPreview, setPhotoPreview] = useState<string | null>(null);
+  const [lightboxUrl, setLightboxUrl] = useState<string | null>(null);
+  const photoInputRef = useRef<HTMLInputElement | null>(null);
+  /** blob-URL оптимистичных превью — ревокаем на размонтировании, чтобы не текла память. */
+  const optimisticBlobsRef = useRef<string[]>([]);
   const chatRef = useRef<HTMLDivElement | null>(null);
   const logRef = useRef<HTMLDivElement | null>(null);
   const formRef = useRef<HTMLFormElement | null>(null);
@@ -354,9 +363,51 @@ export function ChatScreen({ name, initData, inTelegram, showAlert, onInboxOpene
     };
   }, [active, inTelegram, initData, onInboxOpened, onInboxDrained]);
 
+  const onPickPhoto = useCallback(
+    (e: ChangeEvent<HTMLInputElement>) => {
+      const f = e.target.files?.[0] ?? null;
+      if (!f) return;
+      if (!/^image\//.test(f.type)) {
+        showAlert("Можно прикрепить только изображение (JPG, PNG, WEBP, GIF).");
+        if (photoInputRef.current) photoInputRef.current.value = "";
+        return;
+      }
+      if (f.size > 6 * 1024 * 1024) {
+        showAlert("Фото слишком большое. Максимум 6 МБ.");
+        if (photoInputRef.current) photoInputRef.current.value = "";
+        return;
+      }
+      setPhoto(f);
+      setPhotoPreview((prev) => {
+        if (prev) URL.revokeObjectURL(prev);
+        return URL.createObjectURL(f);
+      });
+    },
+    [showAlert],
+  );
+
+  const clearPhoto = useCallback(() => {
+    setPhoto(null);
+    setPhotoPreview((prev) => {
+      if (prev) URL.revokeObjectURL(prev);
+      return null;
+    });
+    if (photoInputRef.current) photoInputRef.current.value = "";
+  }, []);
+
+  // Подчищаем blob превью и оптимистичные blob-URL на размонтировании.
+  useEffect(() => {
+    return () => {
+      if (photoPreview) URL.revokeObjectURL(photoPreview);
+      for (const u of optimisticBlobsRef.current) URL.revokeObjectURL(u);
+      optimisticBlobsRef.current = [];
+    };
+  }, [photoPreview]);
+
   const send = useCallback(async () => {
     const t = text.trim();
-    if (!t || sending) return;
+    const sentPhoto = photo;
+    if ((!t && !sentPhoto) || sending) return;
     if (!envApi) {
       showAlert(
         "Сборка без API: в Railway у сервисе мини-аппа задай Build Variable VITE_MINIAPP_API_URL = публичный https URL сервиса с ботом (ms_leo), затем Redeploy."
@@ -368,6 +419,10 @@ export function ChatScreen({ name, initData, inTelegram, showAlert, onInboxOpene
       return;
     }
 
+    // Локальное превью для оптимистичного пузыря (фото видно сразу).
+    const localPhotoUrl = sentPhoto ? URL.createObjectURL(sentPhoto) : undefined;
+    if (localPhotoUrl) optimisticBlobsRef.current.push(localPhotoUrl);
+
     forceScrollRef.current = true;
     /** Макс. server id до оптимистичного сообщения — так отличим новый ответ Лео от старых. */
     let baselineMaxBeforeSend = 0;
@@ -375,28 +430,50 @@ export function ChatScreen({ name, initData, inTelegram, showAlert, onInboxOpene
       baselineMaxBeforeSend = maxServerID(prev);
       return [
         ...prev,
-        { uiKey: nowId(), role: "user", text: t, createdAt: new Date().toISOString() },
+        { uiKey: nowId(), role: "user", text: t, photoUrl: localPhotoUrl, createdAt: new Date().toISOString() },
       ];
     });
 
     setSending(true);
     setText("");
+    clearPhoto();
     try {
       const w = window.Telegram?.WebApp;
       w?.HapticFeedback?.impactOccurred?.("light");
-      const res = await fetch(`${envApi}/api/miniapp/messages`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ init_data: initData, text: t }),
-      });
+      let res: Response;
+      if (sentPhoto) {
+        const fd = new FormData();
+        fd.append("init_data", initData);
+        fd.append("text", t);
+        fd.append("photo", sentPhoto, sentPhoto.name || "photo.jpg");
+        res = await fetch(`${envApi}/api/miniapp/messages/photo`, {
+          method: "POST",
+          body: fd,
+        });
+      } else {
+        res = await fetch(`${envApi}/api/miniapp/messages`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ init_data: initData, text: t }),
+        });
+      }
       const j = (await res.json().catch(() => ({}))) as {
         error?: string;
+        message?: string;
         ok?: boolean;
         pending?: boolean;
         reply_text?: string;
       };
       if (!res.ok) {
-        showAlert(j.error ?? `Ошибка ${res.status}`);
+        const errMap: Record<string, string> = {
+          media_not_configured: "Загрузка фото на сервере не настроена.",
+          unsupported_image: "Не удалось прочитать фото. Попробуй JPG, PNG, WEBP или GIF.",
+          photo_too_large: "Фото слишком большое. Максимум 6 МБ.",
+          invalid_multipart: "Не удалось отправить фото. Выбери снимок заново.",
+          missing_photo: "Фото не приложено.",
+          chat_mismatch: "Открой мини-апп из чата стаи",
+        };
+        showAlert(j.message ?? errMap[j.error ?? ""] ?? j.error ?? `Ошибка ${res.status}`);
         setLeoTyping(false);
         return;
       }
@@ -409,7 +486,7 @@ export function ChatScreen({ name, initData, inTelegram, showAlert, onInboxOpene
     } finally {
       setSending(false);
     }
-  }, [text, sending, inTelegram, initData, showAlert]);
+  }, [text, photo, sending, inTelegram, initData, showAlert, clearPhoto]);
 
   const toggleLike = useCallback(
     (messageID?: number) => {
@@ -493,7 +570,19 @@ export function ChatScreen({ name, initData, inTelegram, showAlert, onInboxOpene
           m.role === "user" ? (
             <div key={m.uiKey} className="chat__row chat__row--user">
               <div className="chat__bubble-wrap chat__bubble-wrap--user">
-                <div className="chat__bubble chat__bubble--user">{m.text}</div>
+                <div className="chat__bubble chat__bubble--user">
+                  {m.photoUrl && (
+                    <button
+                      type="button"
+                      className="chat__photo-wrap"
+                      aria-label="Открыть фото"
+                      onClick={() => setLightboxUrl(m.photoUrl ?? null)}
+                    >
+                      <img className="chat__photo" src={m.photoUrl} alt="" loading="lazy" referrerPolicy="no-referrer" />
+                    </button>
+                  )}
+                  {m.text.trim() !== "" && <span className="chat__bubble-text">{m.text}</span>}
+                </div>
                 <div className="chat__time chat__time--user">{formatChatTime(m.createdAt)}</div>
               </div>
             </div>
@@ -532,6 +621,20 @@ export function ChatScreen({ name, initData, inTelegram, showAlert, onInboxOpene
         )}
         <div ref={endRef} className="chat__log-end" aria-hidden="true" />
       </div>
+      {photoPreview != null && (
+        <div className="chat__photo-pending">
+          <img className="chat__photo-pending-img" src={photoPreview} alt="" />
+          <span className="chat__photo-pending-name">{photo?.name ?? "Фото"}</span>
+          <button
+            type="button"
+            className="chat__photo-pending-remove"
+            aria-label="Убрать фото"
+            onClick={clearPhoto}
+          >
+            ✕
+          </button>
+        </div>
+      )}
       <form
         ref={formRef}
         className="chat__form"
@@ -540,6 +643,24 @@ export function ChatScreen({ name, initData, inTelegram, showAlert, onInboxOpene
           void send();
         }}
       >
+        <input
+          ref={photoInputRef}
+          type="file"
+          accept="image/*"
+          className="chat__photo-input"
+          onChange={onPickPhoto}
+          tabIndex={-1}
+          aria-hidden
+        />
+        <button
+          type="button"
+          className="chat__attach"
+          aria-label="Прикрепить фото"
+          disabled={sending}
+          onClick={() => photoInputRef.current?.click()}
+        >
+          📎
+        </button>
         <input
           className="chat__input"
           value={text}
@@ -550,15 +671,42 @@ export function ChatScreen({ name, initData, inTelegram, showAlert, onInboxOpene
           onBlur={() => {
             window.setTimeout(scrollLogToEndIfAllowed, 120);
           }}
-          placeholder="Лео, подскажи…"
+          placeholder={photo ? "Подпись к фото (необязательно)…" : "Лео, подскажи…"}
           maxLength={4000}
           autoComplete="off"
           enterKeyHint="send"
         />
-        <button type="submit" className="chat__send" disabled={sending || !text.trim()}>
+        <button type="submit" className="chat__send" disabled={sending || (!text.trim() && !photo)}>
           {sending ? "…" : "➤"}
         </button>
       </form>
+      {lightboxUrl != null && (
+        <div
+          className="chat__lightbox"
+          role="dialog"
+          aria-modal="true"
+          onClick={() => setLightboxUrl(null)}
+        >
+          <button
+            type="button"
+            className="chat__lightbox-close"
+            aria-label="Закрыть"
+            onClick={(e) => {
+              e.stopPropagation();
+              setLightboxUrl(null);
+            }}
+          >
+            ✕
+          </button>
+          <img
+            className="chat__lightbox-img"
+            src={lightboxUrl}
+            alt=""
+            referrerPolicy="no-referrer"
+            onClick={(e) => e.stopPropagation()}
+          />
+        </div>
+      )}
     </div>
   );
 }
