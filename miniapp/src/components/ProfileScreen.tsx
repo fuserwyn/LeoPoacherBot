@@ -1048,7 +1048,7 @@ export function ProfileScreen({
         </div>
       ) : (
         <div className="profile__health">
-          <p className="profile__hint muted">Заболел — таймер остановится до выздоровления.</p>
+          <p className="profile__hint muted">Болеешь - таймер остановится до выздоровления.</p>
           <div className="profile__health-actions">
             <button
               type="button"

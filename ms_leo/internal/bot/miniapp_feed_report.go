@@ -97,6 +97,37 @@ func (b *Bot) PackFeedReport(viewerUserID int64, initD initdata.InitData, userMe
 	return nil
 }
 
+func (b *Bot) buildAdminFeedReportNotifyText(
+	reportID, reporterUserID, targetUserID, userMessageID, threadReplyID int64,
+	targetType, targetText, resolvedBy string,
+) string {
+	kind := "пост в ленте"
+	if targetType == "thread_reply" {
+		kind = "комментарий"
+	} else if targetType == "pack_group_message" {
+		kind = "сообщение в чате"
+	}
+	title := fmt.Sprintf("🚨 Жалоба на %s · #%d", kind, reportID)
+	if resolvedBy != "" {
+		title = fmt.Sprintf("✅ Решено · жалоба на %s · #%d", kind, reportID)
+	}
+	body := fmt.Sprintf(
+		"От: %s\nНа: %s\nОтчёт #%d",
+		b.supportDisplayName(reporterUserID),
+		b.supportDisplayName(targetUserID),
+		userMessageID,
+	)
+	if threadReplyID > 0 {
+		body += fmt.Sprintf("\nКомментарий #%d", threadReplyID)
+	}
+	body += "\n\n«" + clipAdminSupportText(targetText, 400) + "»"
+	footer := "\n\n«⚙️ Админ-панель» внизу → Поддержка → Жалобы."
+	if resolvedBy != "" {
+		footer = "\n\n✅ Решено · " + resolvedBy
+	}
+	return title + "\n\n" + body + footer
+}
+
 func (b *Bot) notifyAdminsAboutFeedReport(
 	reportID, reporterUserID int64,
 	targetType string,
@@ -111,34 +142,79 @@ func (b *Bot) notifyAdminsAboutFeedReport(
 		return
 	}
 
-	kind := "пост в ленте"
-	if targetType == "thread_reply" {
-		kind = "комментарий"
-	} else if targetType == "pack_group_message" {
-		kind = "сообщение в чате"
-	}
-	title := fmt.Sprintf("🚨 Жалоба на %s · #%d", kind, reportID)
-	body := fmt.Sprintf(
-		"От: %s\nНа: %s\nОтчёт #%d",
-		b.supportDisplayName(reporterUserID),
-		b.supportDisplayName(targetUserID),
-		userMessageID,
+	text := b.buildAdminFeedReportNotifyText(
+		reportID, reporterUserID, targetUserID, userMessageID, threadReplyID, targetType, targetText, "",
 	)
-	if threadReplyID > 0 {
-		body += fmt.Sprintf("\nКомментарий #%d", threadReplyID)
-	}
-	body += "\n\n«" + clipAdminSupportText(targetText, 400) + "»"
 
 	for _, adminID := range adminIDs {
-		msg := tgbotapi.NewMessage(adminID, title+"\n\n"+body+"\n\n«⚙️ Админ-панель» внизу → Поддержка → Жалобы.")
+		msg := tgbotapi.NewMessage(adminID, text)
 		msg.ReplyMarkup = tgbotapi.NewInlineKeyboardMarkup(
 			tgbotapi.NewInlineKeyboardRow(
 				tgbotapi.NewInlineKeyboardButtonData("🚨 Открыть", "admin_feed_report_"+strconv.FormatInt(reportID, 10)),
+				tgbotapi.NewInlineKeyboardButtonData("✅ Решено", "admin_feed_report_dismiss_"+strconv.FormatInt(reportID, 10)),
 			),
 		)
-		if _, err := b.api.Send(msg); err != nil {
+		sent, err := b.api.Send(msg)
+		if err != nil {
 			b.logger.Warnf("feed report notify admin=%d report=%d: %v", adminID, reportID, err)
+			continue
 		}
+		if b.db != nil && sent.MessageID != 0 {
+			if err := b.db.InsertMiniappFeedReportAdminNotify(reportID, adminID, adminID, int64(sent.MessageID)); err != nil {
+				b.logger.Warnf("feed report notify store admin=%d report=%d: %v", adminID, reportID, err)
+			}
+		}
+	}
+}
+
+func (b *Bot) markFeedReportNotifyMessagesResolved(reportID int64, resolverUserID int64, fallbackMsg *tgbotapi.Message) {
+	if b == nil || b.api == nil || b.db == nil || b.config == nil || reportID == 0 {
+		return
+	}
+	item, err := b.db.GetMiniappFeedReport(b.config.MonetizedChatID, reportID)
+	if err != nil || item == nil {
+		return
+	}
+	resolverName := b.supportDisplayName(resolverUserID)
+	text := b.buildAdminFeedReportNotifyText(
+		item.ID,
+		item.ReporterUserID,
+		item.TargetUserID,
+		item.UserMessageID,
+		item.ThreadReplyID,
+		item.TargetType,
+		item.TargetText,
+		resolverName,
+	)
+	text = clipAdminSupportText(text, 3500)
+	emptyMarkup := &tgbotapi.InlineKeyboardMarkup{InlineKeyboard: [][]tgbotapi.InlineKeyboardButton{}}
+
+	seen := map[string]struct{}{}
+	editOne := func(chatID, messageID int64) {
+		if chatID == 0 || messageID == 0 {
+			return
+		}
+		key := fmt.Sprintf("%d:%d", chatID, messageID)
+		if _, ok := seen[key]; ok {
+			return
+		}
+		seen[key] = struct{}{}
+		edit := tgbotapi.NewEditMessageText(chatID, int(messageID), text)
+		edit.ReplyMarkup = emptyMarkup
+		if _, err := b.api.Send(edit); err != nil {
+			b.logger.Warnf("feed report resolve edit chat=%d msg=%d report=%d: %v", chatID, messageID, reportID, err)
+		}
+	}
+
+	notifies, err := b.db.ListMiniappFeedReportAdminNotifies(reportID)
+	if err != nil {
+		b.logger.Warnf("feed report resolve list notifies report=%d: %v", reportID, err)
+	}
+	for _, n := range notifies {
+		editOne(n.ChatID, n.MessageID)
+	}
+	if fallbackMsg != nil {
+		editOne(fallbackMsg.Chat.ID, int64(fallbackMsg.MessageID))
 	}
 }
 

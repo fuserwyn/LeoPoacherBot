@@ -111,7 +111,11 @@ func (b *Bot) handleAdminCallbackQuery(callback *tgbotapi.CallbackQuery) {
 	if strings.HasPrefix(callback.Data, "admin_feed_report_dismiss_") {
 		reportID, err := strconv.ParseInt(strings.TrimPrefix(callback.Data, "admin_feed_report_dismiss_"), 10, 64)
 		if err == nil && reportID > 0 {
-			b.dismissAdminFeedReport(callback.Message.Chat.ID, reportID)
+			fromPanel := strings.Contains(callback.Message.Text, "Тип:")
+			toast := b.dismissAdminFeedReport(callback.From.ID, callback.Message.Chat.ID, reportID, callback.Message, fromPanel)
+			callbackConfig := tgbotapi.NewCallback(callback.ID, toast)
+			b.api.Request(callbackConfig)
+			return
 		}
 		callbackConfig := tgbotapi.NewCallback(callback.ID, "")
 		b.api.Request(callbackConfig)
@@ -636,22 +640,49 @@ func (b *Bot) showAdminFeedReport(chatID, reportID int64) {
 	b.api.Send(msg)
 }
 
-func (b *Bot) dismissAdminFeedReport(chatID, reportID int64) {
+func (b *Bot) dismissAdminFeedReport(resolverUserID, chatID, reportID int64, triggerMsg *tgbotapi.Message, fromPanel bool) string {
 	if b == nil || b.db == nil || b.config == nil || b.config.MonetizedChatID == 0 {
-		return
+		return ""
 	}
 	ok, err := b.db.DismissMiniappFeedReport(b.config.MonetizedChatID, reportID)
 	if err != nil {
-		b.api.Send(tgbotapi.NewMessage(chatID, "❌ Не удалось закрыть жалобу."))
-		return
+		if fromPanel {
+			b.api.Send(tgbotapi.NewMessage(chatID, "❌ Не удалось закрыть жалобу."))
+		}
+		return "Не удалось закрыть жалобу"
 	}
 	if !ok {
-		b.api.Send(tgbotapi.NewMessage(chatID, "Жалоба уже обработана или не найдена."))
-		return
+		if fromPanel {
+			b.api.Send(tgbotapi.NewMessage(chatID, "Жалоба уже обработана или не найдена."))
+		}
+		return "Жалоба уже обработана"
 	}
-	b.trackReportResolved(reportID, chatID, 0, "no_action")
-	b.api.Send(tgbotapi.NewMessage(chatID, "✅ Жалоба отмечена обработанной."))
-	b.showAdminFeedReportsInbox(chatID)
+	targetUserID := int64(0)
+	if item, err := b.db.GetMiniappFeedReport(b.config.MonetizedChatID, reportID); err == nil && item != nil {
+		targetUserID = item.TargetUserID
+	}
+	b.trackReportResolved(reportID, resolverUserID, targetUserID, "no_action")
+	b.markFeedReportNotifyMessagesResolved(reportID, resolverUserID, triggerMsg)
+	if fromPanel {
+		if triggerMsg != nil {
+			detailText := clipAdminSupportText(triggerMsg.Text+"\n\n✅ Обработано · "+b.supportDisplayName(resolverUserID), 3500)
+			edit := tgbotapi.NewEditMessageText(triggerMsg.Chat.ID, triggerMsg.MessageID, detailText)
+			edit.ReplyMarkup = &tgbotapi.InlineKeyboardMarkup{
+				InlineKeyboard: [][]tgbotapi.InlineKeyboardButton{
+					tgbotapi.NewInlineKeyboardRow(
+						tgbotapi.NewInlineKeyboardButtonData("⬅️ К жалобам", "admin_feed_reports_back"),
+					),
+				},
+			}
+			if _, err := b.api.Send(edit); err != nil {
+				b.logger.Warnf("feed report panel dismiss edit report=%d: %v", reportID, err)
+			}
+		}
+		b.api.Send(tgbotapi.NewMessage(chatID, "✅ Жалоба отмечена обработанной."))
+		b.showAdminFeedReportsInbox(chatID)
+		return ""
+	}
+	return "✅ Отмечено решённым"
 }
 
 // ─── Visit stats (доступно всем админам) ─────────────────────────────────────

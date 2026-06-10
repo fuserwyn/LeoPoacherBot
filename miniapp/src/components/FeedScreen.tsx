@@ -735,6 +735,20 @@ export function FeedScreen({
     [apiBase, initData, showAlert],
   );
 
+  const confirmReportPublication = useCallback(
+    (userMessageId: number) => {
+      if (
+        !window.confirm(
+          "Отправить жалобу на эту публикацию?\n\nАдмины проверят её в разделе поддержки.",
+        )
+      ) {
+        return;
+      }
+      void reportFeedContent(userMessageId);
+    },
+    [reportFeedContent],
+  );
+
   const toggleTrainingThreadLike = useCallback(
     (trainingUserMessageId: number, threadReplyId: number) => {
       if (!apiBase || !initData) return;
@@ -1225,7 +1239,7 @@ export function FeedScreen({
                         onReactionClick={
                           supportsReactions ? (emoji) => void postTrainingReact(it.id, emoji) : undefined
                         }
-                        onReport={canReportCard ? () => void reportFeedContent(it.id) : undefined}
+                        onReport={canReportCard ? () => confirmReportPublication(it.id) : undefined}
                         reportPosting={feedReportPosting[it.id] ?? false}
                         onAdminDelete={canAdminDeleteCard ? () => void deleteFeedPost(it.id) : undefined}
                         adminDeletePosting={feedDeletePosting[it.id] ?? false}
@@ -1302,7 +1316,7 @@ export function FeedScreen({
                           void postTrainingThread(it.id, text, threadReplyTargets[it.id]?.replyToThreadId, photo, postAs),
                         posting: threadPosting[it.id] ?? false,
                       }}
-                      onReport={canReportCard ? () => void reportFeedContent(it.id) : undefined}
+                      onReport={canReportCard ? () => confirmReportPublication(it.id) : undefined}
                       reportPosting={feedReportPosting[it.id] ?? false}
                       onAdminDelete={canAdminDeleteCard ? () => void deleteFeedPost(it.id) : undefined}
                       adminDeletePosting={feedDeletePosting[it.id] ?? false}

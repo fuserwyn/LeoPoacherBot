@@ -124,6 +124,64 @@ func (d *Database) GetMiniappFeedReport(packChatID, reportID int64) (*domain.Min
 	return item, nil
 }
 
+// FeedReportAdminNotify — DM-уведомление админу о новой жалобе.
+type FeedReportAdminNotify struct {
+	ReportID    int64
+	AdminUserID int64
+	ChatID      int64
+	MessageID   int64
+}
+
+// InsertMiniappFeedReportAdminNotify сохраняет id сообщения-уведомления админу.
+func (d *Database) InsertMiniappFeedReportAdminNotify(reportID, adminUserID, chatID, messageID int64) error {
+	if reportID == 0 || adminUserID == 0 || chatID == 0 || messageID == 0 {
+		return nil
+	}
+	_, err := d.db.Exec(
+		`INSERT INTO miniapp_feed_report_admin_notifies (report_id, admin_user_id, chat_id, message_id)
+		 VALUES ($1, $2, $3, $4)
+		 ON CONFLICT (report_id, admin_user_id) DO UPDATE
+		 SET chat_id = EXCLUDED.chat_id, message_id = EXCLUDED.message_id`,
+		reportID, adminUserID, chatID, messageID,
+	)
+	if err != nil {
+		return fmt.Errorf("insert feed report admin notify: %w", err)
+	}
+	return nil
+}
+
+// ListMiniappFeedReportAdminNotifies — все DM по жалобе для обновления после «Решено».
+func (d *Database) ListMiniappFeedReportAdminNotifies(reportID int64) ([]FeedReportAdminNotify, error) {
+	if reportID == 0 {
+		return []FeedReportAdminNotify{}, nil
+	}
+	rows, err := d.db.Query(
+		`SELECT report_id, admin_user_id, chat_id, message_id
+		 FROM miniapp_feed_report_admin_notifies
+		 WHERE report_id = $1`,
+		reportID,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("list feed report admin notifies: %w", err)
+	}
+	defer rows.Close()
+	var out []FeedReportAdminNotify
+	for rows.Next() {
+		var item FeedReportAdminNotify
+		if err := rows.Scan(&item.ReportID, &item.AdminUserID, &item.ChatID, &item.MessageID); err != nil {
+			return nil, err
+		}
+		out = append(out, item)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	if out == nil {
+		out = []FeedReportAdminNotify{}
+	}
+	return out, nil
+}
+
 // DismissMiniappFeedReport помечает жалобу обработанной.
 func (d *Database) DismissMiniappFeedReport(packChatID, reportID int64) (bool, error) {
 	res, err := d.db.Exec(

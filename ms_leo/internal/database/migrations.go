@@ -1259,6 +1259,23 @@ var Migrations = []Migration{
 			ALTER TABLE user_messages DROP COLUMN IF EXISTS edited_at;
 		`,
 	},
+	{
+		Version:     65,
+		Description: "DM-уведомления админам о жалобах в ленте (для кнопки «Решено»)",
+		UpSQL: `
+			CREATE TABLE IF NOT EXISTS miniapp_feed_report_admin_notifies (
+				report_id BIGINT NOT NULL REFERENCES miniapp_feed_reports(id) ON DELETE CASCADE,
+				admin_user_id BIGINT NOT NULL,
+				chat_id BIGINT NOT NULL,
+				message_id BIGINT NOT NULL,
+				created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
+				PRIMARY KEY (report_id, admin_user_id)
+			);
+		`,
+		DownSQL: `
+			DROP TABLE IF EXISTS miniapp_feed_report_admin_notifies;
+		`,
+	},
 }
 
 // MigrationRecord представляет запись о выполненной миграции
