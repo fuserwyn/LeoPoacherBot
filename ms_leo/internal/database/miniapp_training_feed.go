@@ -191,6 +191,8 @@ type TrainingFeedThreadRow struct {
 	PhotoURL      string
 	CreatedAt     time.Time
 	ReplyToID     sql.NullInt64
+	// Голос комментария: 'self' (обычный), 'leo' (админ от имени Лео), 'admin' (админ от имени админов).
+	PostedAs string
 }
 
 // GetTrainingFeedThreadRow — строка по id (для проверки reply_to).
@@ -207,14 +209,15 @@ func (d *Database) GetTrainingFeedThreadRow(id int64) (TrainingFeedThreadRow, bo
 			t.message_text,
 			COALESCE(t.photo_url, ''),
 			t.created_at,
-			t.reply_to_id
+			t.reply_to_id,
+			COALESCE(t.posted_as, 'self')
 		FROM miniapp_training_feed_thread t
 		LEFT JOIN miniapp_user_profile p
 			ON p.user_id = t.from_user_id AND p.pack_chat_id = t.pack_chat_id
 		WHERE t.id = $1`
 	var r TrainingFeedThreadRow
 	var replyTo sql.NullInt64
-	err := d.db.QueryRow(q, id).Scan(&r.ID, &r.UserMessageID, &r.FromUserID, &r.Username, &r.MessageText, &r.PhotoURL, &r.CreatedAt, &replyTo)
+	err := d.db.QueryRow(q, id).Scan(&r.ID, &r.UserMessageID, &r.FromUserID, &r.Username, &r.MessageText, &r.PhotoURL, &r.CreatedAt, &replyTo, &r.PostedAs)
 	if err == sql.ErrNoRows {
 		return TrainingFeedThreadRow{}, false, nil
 	}
@@ -227,14 +230,17 @@ func (d *Database) GetTrainingFeedThreadRow(id int64) (TrainingFeedThreadRow, bo
 
 // InsertTrainingFeedThreadReply — комментарий под отчётом; replyToThreadID=0 без ответа на сообщение треда.
 // photoURL — опциональное фото к комментарию (пусто, если без фото).
-func (d *Database) InsertTrainingFeedThreadReply(packChatID, userMessageID, fromUserID int64, username, text string, replyToThreadID int64, photoURL string) (int64, error) {
+func (d *Database) InsertTrainingFeedThreadReply(packChatID, userMessageID, fromUserID int64, username, text string, replyToThreadID int64, photoURL, postedAs string) (int64, error) {
+	if strings.TrimSpace(postedAs) == "" {
+		postedAs = "self"
+	}
 	const q = `
-		INSERT INTO miniapp_training_feed_thread (pack_chat_id, user_message_id, from_user_id, username, message_text, reply_to_id, photo_url)
-		VALUES ($1, $2, $3, $4, $5, NULLIF($6::bigint, 0), $7)
+		INSERT INTO miniapp_training_feed_thread (pack_chat_id, user_message_id, from_user_id, username, message_text, reply_to_id, photo_url, posted_as)
+		VALUES ($1, $2, $3, $4, $5, NULLIF($6::bigint, 0), $7, $8)
 		RETURNING id
 	`
 	var id int64
-	err := d.db.QueryRow(q, packChatID, userMessageID, fromUserID, strings.TrimSpace(username), text, replyToThreadID, strings.TrimSpace(photoURL)).Scan(&id)
+	err := d.db.QueryRow(q, packChatID, userMessageID, fromUserID, strings.TrimSpace(username), text, replyToThreadID, strings.TrimSpace(photoURL), postedAs).Scan(&id)
 	if err != nil {
 		return 0, fmt.Errorf("insert training thread: %w", err)
 	}
@@ -255,14 +261,15 @@ func (d *Database) GetTrainingFeedThreadRowInPack(threadID, packChatID int64) (T
 			t.message_text,
 			COALESCE(t.photo_url, ''),
 			t.created_at,
-			t.reply_to_id
+			t.reply_to_id,
+			COALESCE(t.posted_as, 'self')
 		FROM miniapp_training_feed_thread t
 		LEFT JOIN miniapp_user_profile p
 			ON p.user_id = t.from_user_id AND p.pack_chat_id = t.pack_chat_id
 		WHERE t.id = $1 AND t.pack_chat_id = $2`
 	var r TrainingFeedThreadRow
 	var replyTo sql.NullInt64
-	err := d.db.QueryRow(q, threadID, packChatID).Scan(&r.ID, &r.UserMessageID, &r.FromUserID, &r.Username, &r.MessageText, &r.PhotoURL, &r.CreatedAt, &replyTo)
+	err := d.db.QueryRow(q, threadID, packChatID).Scan(&r.ID, &r.UserMessageID, &r.FromUserID, &r.Username, &r.MessageText, &r.PhotoURL, &r.CreatedAt, &replyTo, &r.PostedAs)
 	if err == sql.ErrNoRows {
 		return TrainingFeedThreadRow{}, false, nil
 	}
@@ -288,7 +295,8 @@ func (d *Database) ListTrainingFeedThreadRowsByIDs(packChatID int64, ids []int64
 			t.message_text,
 			COALESCE(t.photo_url, ''),
 			t.created_at,
-			t.reply_to_id
+			t.reply_to_id,
+			COALESCE(t.posted_as, 'self')
 		FROM miniapp_training_feed_thread t
 		LEFT JOIN miniapp_user_profile p
 			ON p.user_id = t.from_user_id AND p.pack_chat_id = t.pack_chat_id
@@ -301,7 +309,7 @@ func (d *Database) ListTrainingFeedThreadRowsByIDs(packChatID int64, ids []int64
 	for rows.Next() {
 		var r TrainingFeedThreadRow
 		var replyTo sql.NullInt64
-		if err := rows.Scan(&r.ID, &r.UserMessageID, &r.FromUserID, &r.Username, &r.MessageText, &r.PhotoURL, &r.CreatedAt, &replyTo); err != nil {
+		if err := rows.Scan(&r.ID, &r.UserMessageID, &r.FromUserID, &r.Username, &r.MessageText, &r.PhotoURL, &r.CreatedAt, &replyTo, &r.PostedAs); err != nil {
 			return nil, err
 		}
 		r.ReplyToID = replyTo
@@ -345,7 +353,8 @@ func (d *Database) ListTrainingFeedThreadByMessages(userMessageIDs []int64) (map
 			t.message_text,
 			COALESCE(t.photo_url, ''),
 			t.created_at,
-			t.reply_to_id
+			t.reply_to_id,
+			COALESCE(t.posted_as, 'self')
 		FROM miniapp_training_feed_thread t
 		LEFT JOIN miniapp_user_profile p
 			ON p.user_id = t.from_user_id AND p.pack_chat_id = t.pack_chat_id
@@ -361,7 +370,7 @@ func (d *Database) ListTrainingFeedThreadByMessages(userMessageIDs []int64) (map
 	for rows.Next() {
 		var r TrainingFeedThreadRow
 		var replyTo sql.NullInt64
-		if err := rows.Scan(&r.ID, &r.UserMessageID, &r.FromUserID, &r.Username, &r.MessageText, &r.PhotoURL, &r.CreatedAt, &replyTo); err != nil {
+		if err := rows.Scan(&r.ID, &r.UserMessageID, &r.FromUserID, &r.Username, &r.MessageText, &r.PhotoURL, &r.CreatedAt, &replyTo, &r.PostedAs); err != nil {
 			return nil, err
 		}
 		r.ReplyToID = replyTo

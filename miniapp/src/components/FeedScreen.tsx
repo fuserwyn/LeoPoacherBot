@@ -163,6 +163,8 @@ export function FeedScreen({
   const [threadReplyTargets, setThreadReplyTargets] = useState<
     Record<number, { replyToThreadId: number; authorLabel: string; excerpt: string } | undefined>
   >({});
+  /** Идёт запрос подписки/отписки — ключ user_id автора. */
+  const [followPosting, setFollowPosting] = useState<Record<number, boolean>>({});
   /** Чьи отчёты показывать: все / только мои / только друзей (на кого подписан). */
   const [feedScope, setFeedScope] = useState<"all" | "mine" | "friends">("all");
   /** Мультивыбор типов тренировок (пусто = «все типы»). */
@@ -371,6 +373,43 @@ export function FeedScreen({
     [inTelegram, initData, optimisticFeedItem, onOptimisticConsumed],
   );
 
+  const toggleFollowAuthor = useCallback(
+    async (authorId: number, currentlyFriend: boolean) => {
+      if (!apiBase || !initData || authorId <= 0) return;
+      let busy = false;
+      setFollowPosting((p) => {
+        busy = Boolean(p[authorId]);
+        return busy ? p : { ...p, [authorId]: true };
+      });
+      if (busy) return;
+      const next = !currentlyFriend;
+      // Оптимистично переключаем флаг на всех карточках этого автора.
+      const setFriendOnAuthor = (val: boolean) =>
+        setFeedItems((prev) => prev.map((it) => (it.user_id === authorId ? { ...it, is_friend: val } : it)));
+      setFriendOnAuthor(next);
+      try {
+        const res = await fetch(`${apiBase}/api/miniapp/friends/${next ? "follow" : "unfollow"}`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ init_data: initData, target_id: authorId }),
+        });
+        const j = (await res.json().catch(() => ({}))) as { ok?: boolean; error?: string };
+        if (!res.ok || !j.ok) {
+          setFriendOnAuthor(currentlyFriend);
+          showAlert(j.error ?? `Ошибка ${res.status}`);
+        } else {
+          hapticLight();
+        }
+      } catch (e) {
+        setFriendOnAuthor(currentlyFriend);
+        showAlert(e instanceof Error ? e.message : "Сеть");
+      } finally {
+        setFollowPosting((p) => ({ ...p, [authorId]: false }));
+      }
+    },
+    [apiBase, initData, showAlert, hapticLight],
+  );
+
   const postTrainingReact = useCallback(
     (userMessageId: number, emoji: string) => {
       if (!apiBase || !initData) return;
@@ -442,7 +481,7 @@ export function FeedScreen({
   );
 
   const postTrainingThread = useCallback(
-    async (userMessageId: number, text: string, replyToThreadId?: number, photo?: File | null, asAdmin?: boolean) => {
+    async (userMessageId: number, text: string, replyToThreadId?: number, photo?: File | null, postAs?: "self" | "leo" | "admin") => {
       const t = text.trim();
       if (!t && !photo) {
         showAlert("Введи текст комментария или прикрепи фото.");
@@ -459,7 +498,7 @@ export function FeedScreen({
           fd.append("user_message_id", String(userMessageId));
           fd.append("text", t);
           fd.append("reply_to_id", String(replyToThreadId ?? 0));
-          if (asAdmin) fd.append("as_admin", "1");
+          if (postAs && postAs !== "self") fd.append("post_as", postAs);
           fd.append("photo", photo);
           res = await fetch(`${apiBase}/api/miniapp/feed/training/thread`, {
             method: "POST",
@@ -474,7 +513,7 @@ export function FeedScreen({
               user_message_id: userMessageId,
               text: t,
               reply_to_id: replyToThreadId ?? 0,
-              as_admin: Boolean(asAdmin),
+              post_as: postAs ?? "self",
             }),
           });
         }
@@ -1132,9 +1171,12 @@ export function FeedScreen({
                       ? {
                           author: tr.reply_to_is_leo
                             ? "Лео"
-                            : (tr.reply_to_username || "").trim() || `Участник ${tr.user_id}`,
+                            : tr.reply_to_is_admin
+                              ? "Админ"
+                              : (tr.reply_to_username || "").trim() || `Участник ${tr.user_id}`,
                           text: (tr.reply_to_text || "").trim(),
                           isLeo: Boolean(tr.reply_to_is_leo),
+                          isAdmin: Boolean(tr.reply_to_is_admin),
                         }
                       : undefined;
                   return {
@@ -1144,6 +1186,8 @@ export function FeedScreen({
                     timeAgo: formatLocalDateTime(tr.created_at),
                     isYou: tr.is_you,
                     isLeo: Boolean(tr.is_leo),
+                    isAdmin: Boolean(tr.is_admin),
+                    adminName: tr.admin_name?.trim() || undefined,
                     authorPhotoUrl: tr.author_photo_url?.trim()
                       ? resolveFeedAvatarUrl(tr.author_photo_url.trim())
                       : undefined,
@@ -1156,12 +1200,22 @@ export function FeedScreen({
                 });
                 const canReportCard = !it.is_you && !isLeoSystemFeed;
                 const canAdminDeleteCard = isAdmin;
+                // Подписка возможна только на реального участника стаи (не свой пост, не системная карточка Лео).
+                const canFollowAuthor = !it.is_you && !isLeoSystemFeed && it.user_id > 0;
+                const followProps: Partial<ActivityCardProps> = canFollowAuthor
+                  ? {
+                      onToggleFollow: () => void toggleFollowAuthor(it.user_id, Boolean(it.is_friend)),
+                      isFriend: Boolean(it.is_friend),
+                      followPosting: followPosting[it.user_id] ?? false,
+                    }
+                  : {};
                 if (!supportsThread) {
                   return (
                     <div key={it.id} className={`${slotClass}${isPinnedAnnouncement ? " feed__card-slot--pinned" : ""}`}>
                       <ActivityCard
                         {...base}
                         {...pinnedLeoProps}
+                        {...followProps}
                         comment={adminPostText ?? base.comment}
                         pinned={isPinnedAnnouncement}
                         commentCollapsible={adminPostCollapsible}
@@ -1197,6 +1251,7 @@ export function FeedScreen({
                     <ActivityCard
                       {...base}
                       {...pinnedLeoProps}
+                      {...followProps}
                       comment={adminPostText ?? base.comment}
                       pinned={isPinnedAnnouncement}
                       commentCollapsible={adminPostCollapsible}
@@ -1243,8 +1298,8 @@ export function FeedScreen({
                       threadComposer={{
                         draft: threadDrafts[it.id] ?? "",
                         onDraftChange: (v) => setThreadDrafts((d) => ({ ...d, [it.id]: v })),
-                        onSubmit: (text, photo, asAdmin) =>
-                          void postTrainingThread(it.id, text, threadReplyTargets[it.id]?.replyToThreadId, photo, asAdmin),
+                        onSubmit: (text, photo, postAs) =>
+                          void postTrainingThread(it.id, text, threadReplyTargets[it.id]?.replyToThreadId, photo, postAs),
                         posting: threadPosting[it.id] ?? false,
                       }}
                       onReport={canReportCard ? () => void reportFeedContent(it.id) : undefined}

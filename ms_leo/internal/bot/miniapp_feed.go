@@ -57,12 +57,18 @@ type PackFeedThreadReply struct {
 	CreatedAt       string `json:"created_at"`
 	IsYou           bool   `json:"is_you"`
 	IsLeo           bool   `json:"is_leo"`
+	// IsAdmin — комментарий опубликован «от имени админов».
+	IsAdmin bool `json:"is_admin,omitempty"`
+	// AdminName — реальное имя автора-админа за голосом Лео/Админ. Заполняется
+	// ТОЛЬКО для зрителей-админов (атрибуция); обычные юзеры его не получают.
+	AdminName       string `json:"admin_name,omitempty"`
 	AuthorPhotoURL  string `json:"author_photo_url,omitempty"`
 	PhotoURL        string `json:"photo_url,omitempty"`
 	ReplyToID       int64  `json:"reply_to_id,omitempty"`
 	ReplyToUsername string `json:"reply_to_username,omitempty"`
 	ReplyToText     string `json:"reply_to_text,omitempty"`
 	ReplyToIsLeo    bool   `json:"reply_to_is_leo,omitempty"`
+	ReplyToIsAdmin  bool   `json:"reply_to_is_admin,omitempty"`
 	LikeCount       int         `json:"like_count,omitempty"`
 	LikeMe          bool        `json:"like_me,omitempty"`
 	LikeVoters      []PackVoter `json:"like_voters,omitempty"`

@@ -978,6 +978,14 @@ html.app-keyboard-open .profile__health-actions--keyboard {
   width: 100%;
 }
 
+.profile__friends-subhead {
+  margin-top: 4px;
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
 .profile__friends-list {
   list-style: none;
   margin: 0;

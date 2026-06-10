@@ -1064,23 +1064,55 @@
   cursor: not-allowed;
 }
 
-/* Тоггл «от имени Лео» — только для админов в админских постах */
-.act-card__thread-as-leo {
+/* Выбор голоса «Я / Лео / Админ» — только для админов в админских постах */
+.act-card__thread-voice {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
+  gap: 4px;
   margin-right: auto;
-  font-size: 12px;
-  color: var(--text-muted);
-  cursor: pointer;
-  user-select: none;
+  padding: 2px;
+  border-radius: 999px;
+  background: var(--card-inner);
+  border: 1px solid var(--border-subtle);
 }
 
-.act-card__thread-as-leo input {
-  width: 15px;
-  height: 15px;
-  accent-color: rgba(255, 90, 31, 0.95);
+.act-card__thread-voice-btn {
+  border: none;
+  background: transparent;
+  color: var(--text-muted);
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1.2;
+  padding: 4px 9px;
+  border-radius: 999px;
   cursor: pointer;
+}
+
+.act-card__thread-voice-btn--active {
+  background: rgba(255, 90, 31, 0.95);
+  color: #fff;
+}
+
+.act-card__thread-voice-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* Аватар-бейдж комментария «от имени админов» */
+.act-card__thread-avatar--admin {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(255, 90, 31, 0.14);
+  border: 1px solid rgba(255, 90, 31, 0.4);
+  font-size: 14px;
+  line-height: 1;
+}
+
+/* Атрибуция «(имя · админ)» — видят только админы */
+.act-card__thread-attrib {
+  font-size: 11px;
+  font-style: italic;
 }
 
 /* Превью прикреплённого к комментарию фото (до отправки) */

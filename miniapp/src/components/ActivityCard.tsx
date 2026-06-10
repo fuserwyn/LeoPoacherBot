@@ -67,6 +67,9 @@ function ThreadMemberAvatar({ src, name }: { src: string; name: string }) {
   );
 }
 
+/** Голос комментария админа: от себя, от имени Лео или от имени админов. */
+export type ThreadPostAs = "self" | "leo" | "admin";
+
 export type ActivityCardThreadReply = {
   id: number;
   author: string;
@@ -75,12 +78,16 @@ export type ActivityCardThreadReply = {
   isYou: boolean;
   /** Ответ Лео из треда ленты (тот же текст, что персонально в ЛС). */
   isLeo?: boolean;
+  /** Комментарий опубликован «от имени админов». */
+  isAdmin?: boolean;
+  /** Реальное имя автора-админа за голосом Лео/Админ — приходит ТОЛЬКО админам. */
+  adminName?: string;
   /** Аватар участника (TG), если уже синхронился с сервера. */
   authorPhotoUrl?: string;
   /** Фото, приложенное к комментарию (опционально). */
   photoUrl?: string;
   /** Цитата родителя (reply). */
-  replyTo?: { author: string; text: string; isLeo?: boolean };
+  replyTo?: { author: string; text: string; isLeo?: boolean; isAdmin?: boolean };
   likeCount?: number;
   likeMe?: boolean;
   /** Имена лайкнувших комментарий (для поповера «кто лайкнул»). */
@@ -91,8 +98,8 @@ export type ActivityCardThreadComposer = {
   draft: string;
   onDraftChange: (v: string) => void;
   /** Текст берём из поля ввода в момент отправки (надёжнее в Telegram WebView, чем только React state).
-   *  photo — опциональное фото к комментарию. asAdmin — публикация от имени Лео (для админов). */
-  onSubmit: (text: string, photo?: File | null, asAdmin?: boolean) => void;
+   *  photo — опциональное фото к комментарию. postAs — голос: себя/Лео/админ (для админов). */
+  onSubmit: (text: string, photo?: File | null, postAs?: ThreadPostAs) => void;
   posting: boolean;
 };
 
@@ -377,6 +384,11 @@ export type ActivityCardProps = {
   trainingPhotoUrl?: string;
   /** Состояние удаления строк треда (id → отправка). */
   threadReplyDeleting?: Record<number, boolean>;
+  /** Подписаться/отписаться от автора карточки (только чужие тренировки). */
+  onToggleFollow?: () => void;
+  /** Viewer уже подписан на автора (для текста пункта меню). */
+  isFriend?: boolean;
+  followPosting?: boolean;
   /** Пожаловаться на пост (не свой). */
   onReport?: () => void;
   reportPosting?: boolean;
@@ -432,6 +444,9 @@ export function ActivityCard({
   adminVoiceAvailable = false,
   onLeoReplyDisplayed,
   trainingPhotoUrl,
+  onToggleFollow,
+  isFriend = false,
+  followPosting = false,
   onReport,
   reportPosting = false,
   onAdminDelete,
@@ -470,8 +485,8 @@ export function ActivityCard({
   const [threadPhotoPreview, setThreadPhotoPreview] = useState<string | null>(null);
   // Фото для комментария кропаем перед прикреплением (как в отчёте о тренировке).
   const [pendingThreadCrop, setPendingThreadCrop] = useState<File | null>(null);
-  // Админ публикует комментарий от имени Лео (официальный голос).
-  const [threadAsAdmin, setThreadAsAdmin] = useState(false);
+  // Голос комментария для админа: от себя / от имени Лео / от имени админов.
+  const [threadPostAs, setThreadPostAs] = useState<ThreadPostAs>("self");
   const prevThreadLen = useRef(threadReplies.length);
   const prevThreadOpenRef = useRef(false);
 
@@ -496,7 +511,7 @@ export function ActivityCard({
     if (!threadComposer || threadComposer.posting) return;
     const raw = threadInputRef.current?.value ?? threadComposer.draft;
     if (raw.trim() === "" && !threadPhoto) return;
-    threadComposer.onSubmit(raw, threadPhoto, adminVoiceAvailable && threadAsAdmin);
+    threadComposer.onSubmit(raw, threadPhoto, adminVoiceAvailable ? threadPostAs : "self");
     setThreadPhoto(null);
     if (threadPhotoInputRef.current) threadPhotoInputRef.current.value = "";
   };
@@ -590,6 +605,9 @@ export function ActivityCard({
   const showStreak = !hideStreak && name.trim() !== "Админ";
   const cardHeadMenuItems = useMemo(() => {
     const items: { label: string; onClick: () => void; danger?: boolean }[] = [];
+    if (onToggleFollow) {
+      items.push({ label: isFriend ? "Не следить за автором" : "Следить за автором", onClick: onToggleFollow });
+    }
     if (onTogglePin) {
       items.push({ label: pinned ? "Открепить" : "Закрепить", onClick: onTogglePin });
     }
@@ -600,8 +618,8 @@ export function ActivityCard({
       items.push({ label: "Пожаловаться на публикацию", onClick: onReport });
     }
     return items;
-  }, [onTogglePin, pinned, onAdminDelete, onReport]);
-  const cardHeadMenuPosting = reportPosting || adminDeletePosting || pinPosting;
+  }, [onToggleFollow, isFriend, onTogglePin, pinned, onAdminDelete, onReport]);
+  const cardHeadMenuPosting = reportPosting || adminDeletePosting || pinPosting || followPosting;
 
   // Долгое нажатие на весь пост — показать, кто его лайкнул (все реакции).
   const cardRef = useRef<HTMLElement>(null);
@@ -775,13 +793,20 @@ export function ActivityCard({
                     <ul className="act-card__thread-list">
                       {threadReplies.map((tr) => {
                         const leo = Boolean(tr.isLeo);
-                        const displayAuthor = leo ? "Лео" : tr.isYou ? "Ты" : tr.author;
+                        const adminVoice = Boolean(tr.isAdmin);
+                        const displayAuthor = leo ? "Лео" : adminVoice ? "Админ" : tr.isYou ? "Ты" : tr.author;
+                        // Атрибуция «(имя · админ)» приходит ТОЛЬКО админам — юзеры её не видят.
+                        const attribution = tr.adminName
+                          ? leo
+                            ? `${tr.adminName} · админ`
+                            : tr.adminName
+                          : "";
                         return (
                           <li
                             key={tr.id}
-                            className={`act-card__thread-item${tr.isYou ? " act-card__thread-item--you" : ""}${leo ? " act-card__thread-item--leo" : ""}`}
+                            className={`act-card__thread-item${tr.isYou ? " act-card__thread-item--you" : ""}${leo ? " act-card__thread-item--leo" : ""}${adminVoice ? " act-card__thread-item--admin" : ""}`}
                           >
-                            <div className={`act-card__thread-item-inner${leo || (!leo && tr.authorPhotoUrl?.trim()) ? " act-card__thread-item-inner--has-avatar" : ""}`}>
+                            <div className={`act-card__thread-item-inner${leo || adminVoice || tr.authorPhotoUrl?.trim() ? " act-card__thread-item-inner--has-avatar" : ""}`}>
                               {leo ? (
                                 <img
                                   className="act-card__thread-avatar"
@@ -789,6 +814,10 @@ export function ActivityCard({
                                   alt=""
                                   loading="lazy"
                                 />
+                              ) : adminVoice ? (
+                                <span className="act-card__thread-avatar act-card__thread-avatar--admin" aria-hidden>
+                                  📢
+                                </span>
                               ) : tr.authorPhotoUrl?.trim() ? (
                                 <ThreadMemberAvatar src={tr.authorPhotoUrl.trim()} name={displayAuthor} />
                               ) : null}
@@ -796,6 +825,9 @@ export function ActivityCard({
                                 <div className="act-card__thread-item-head">
                                   <div className="act-card__thread-item-meta">
                                     <span className="act-card__thread-author">{displayAuthor}</span>
+                                    {attribution && (
+                                      <span className="act-card__thread-attrib muted">({attribution})</span>
+                                    )}
                                     <span className="act-card__thread-time muted">{tr.timeAgo}</span>
                                   </div>
                                   <div className="act-card__thread-head-actions">
@@ -828,7 +860,7 @@ export function ActivityCard({
                                   ((tr.replyTo.text || "").trim() !== "" || (tr.replyTo.author || "").trim() !== "") && (
                                     <div className="act-card__thread-quote" aria-label="Ответ на сообщение">
                                       <span className="act-card__thread-quote-author muted">
-                                        {tr.replyTo.isLeo ? "Лео" : tr.replyTo.author}
+                                        {tr.replyTo.isLeo ? "Лео" : tr.replyTo.isAdmin ? "Админ" : tr.replyTo.author}
                                       </span>
                                       {(tr.replyTo.text || "").trim() !== "" && (
                                         <p className="act-card__thread-quote-text">{(tr.replyTo.text || "").trim()}</p>
@@ -989,15 +1021,28 @@ export function ActivityCard({
                         📎
                       </button>
                       {adminVoiceAvailable && (
-                        <label className="act-card__thread-as-leo" title="Опубликовать от имени Лео">
-                          <input
-                            type="checkbox"
-                            checked={threadAsAdmin}
-                            disabled={threadComposer.posting}
-                            onChange={(e) => setThreadAsAdmin(e.target.checked)}
-                          />
-                          <span>🐆 от имени Лео</span>
-                        </label>
+                        <div className="act-card__thread-voice" role="group" aria-label="От чьего имени комментировать">
+                          {(
+                            [
+                              { v: "self", label: "Я" },
+                              { v: "leo", label: "🐆 Лео" },
+                              { v: "admin", label: "Админ" },
+                            ] as { v: ThreadPostAs; label: string }[]
+                          ).map((opt) => (
+                            <button
+                              key={opt.v}
+                              type="button"
+                              className={`act-card__thread-voice-btn${
+                                threadPostAs === opt.v ? " act-card__thread-voice-btn--active" : ""
+                              }`}
+                              disabled={threadComposer.posting}
+                              aria-pressed={threadPostAs === opt.v}
+                              onClick={() => setThreadPostAs(opt.v)}
+                            >
+                              {opt.label}
+                            </button>
+                          ))}
+                        </div>
                       )}
                       <button
                         type="button"

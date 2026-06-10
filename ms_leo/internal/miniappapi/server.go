@@ -763,7 +763,7 @@ func (s *Server) handlePostFeedTrainingThread(w http.ResponseWriter, r *http.Req
 		text          string
 		replyToID     int64
 		photoURL      string
-		asAdmin       bool
+		postAs        string
 	)
 	isMultipart := strings.HasPrefix(r.Header.Get("Content-Type"), "multipart/form-data")
 	if isMultipart {
@@ -781,9 +781,13 @@ func (s *Server) handlePostFeedTrainingThread(w http.ResponseWriter, r *http.Req
 				replyToID = v
 			}
 		}
-		switch strings.TrimSpace(r.FormValue("as_admin")) {
-		case "1", "true", "yes":
-			asAdmin = true
+		postAs = strings.TrimSpace(r.FormValue("post_as"))
+		if postAs == "" {
+			// legacy: as_admin=1 раньше означало голос Лео.
+			switch strings.TrimSpace(r.FormValue("as_admin")) {
+			case "1", "true", "yes":
+				postAs = "leo"
+			}
 		}
 	} else {
 		var body struct {
@@ -791,6 +795,7 @@ func (s *Server) handlePostFeedTrainingThread(w http.ResponseWriter, r *http.Req
 			UserMessageID int64  `json:"user_message_id"`
 			Text          string `json:"text"`
 			ReplyToID     int64  `json:"reply_to_id"`
+			PostAs        string `json:"post_as"`
 			AsAdmin       bool   `json:"as_admin"`
 		}
 		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
@@ -801,7 +806,10 @@ func (s *Server) handlePostFeedTrainingThread(w http.ResponseWriter, r *http.Req
 		userMessageID = body.UserMessageID
 		text = body.Text
 		replyToID = body.ReplyToID
-		asAdmin = body.AsAdmin
+		postAs = strings.TrimSpace(body.PostAs)
+		if postAs == "" && body.AsAdmin {
+			postAs = "leo"
+		}
 	}
 
 	if initDataRaw == "" {
@@ -844,7 +852,7 @@ func (s *Server) handlePostFeedTrainingThread(w http.ResponseWriter, r *http.Req
 		}
 	}
 
-	if err := s.bot.PackTrainingFeedThreadPost(parsed.User.ID, parsed, userMessageID, text, replyToID, photoURL, asAdmin); err != nil {
+	if err := s.bot.PackTrainingFeedThreadPost(parsed.User.ID, parsed, userMessageID, text, replyToID, photoURL, postAs); err != nil {
 		if errors.Is(err, bot.ErrMiniAppChatMismatch) {
 			s.jsonErr(w, http.StatusConflict, "chat_mismatch")
 			return

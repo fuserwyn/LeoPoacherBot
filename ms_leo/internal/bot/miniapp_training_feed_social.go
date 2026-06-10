@@ -145,8 +145,9 @@ func (b *Bot) PackTrainingFeedReact(viewerUserID int64, initD initdata.InitData,
 // PackTrainingFeedThreadPost — комментарий в треде под training_done/sick_leave/healthy.
 // replyToThreadID — id строки miniapp_training_feed_thread, на которую отвечаем (как Reply в Telegram).
 // photoURL — опциональное фото к комментарию (пусто, если без фото). При наличии фото текст может быть пустым.
-// asAdmin — админ оставляет комментарий от имени Лео (официальный голос) в админских постах.
-func (b *Bot) PackTrainingFeedThreadPost(viewerUserID int64, initD initdata.InitData, userMessageID int64, text string, replyToThreadID int64, photoURL string, asAdmin bool) error {
+// postAs — голос комментария: "self" (обычный), "leo" (от имени Лео) или "admin"
+// (от имени админов). Голоса leo/admin доступны только админам в админских постах.
+func (b *Bot) PackTrainingFeedThreadPost(viewerUserID int64, initD initdata.InitData, userMessageID int64, text string, replyToThreadID int64, photoURL string, postAs string) error {
 	if err := b.AssertMiniAppPackChatAligns(initD); err != nil {
 		return err
 	}
@@ -166,12 +167,16 @@ func (b *Bot) PackTrainingFeedThreadPost(viewerUserID int64, initD initdata.Init
 	if !has || !packFeedSupportsThread(typ) {
 		return ErrTrainingFeedParentNotFound
 	}
-	// Комментарий от имени Лео: только админ и только в админских постах (объявление/опрос).
-	asAdmin = asAdmin &&
+	// Голоса leo/admin — только админ и только в админских постах (объявление/опрос).
+	postAs = strings.TrimSpace(strings.ToLower(postAs))
+	officialVoice := (postAs == "leo" || postAs == "admin") &&
 		b.isAdminTelegramUser(viewerUserID) &&
 		(typ == userMessageTypeAdminPost || typ == userMessageTypeAdminPoll)
-	// Текст модерируем только если он есть и это не официальный голос Лео.
-	if text != "" && !asAdmin {
+	if !officialVoice {
+		postAs = "self"
+	}
+	// Официальный голос (Лео/Админ) модерацию не проходит — это контент команды.
+	if text != "" && !officialVoice {
 		if _, err := b.enforceUGC(text, moderation.SurfaceFeedComment, viewerUserID); err != nil {
 			return err
 		}
@@ -197,21 +202,16 @@ func (b *Bot) PackTrainingFeedThreadPost(viewerUserID int64, initD initdata.Init
 	}
 	mentionsLeo := textMentionsLeoForPackGroup(text, botName)
 	uname := displayNameFromInitData(initD)
-	// От имени Лео: пишем как системный голос (from_user_id = 0, username "Лео") —
-	// тот же путь рендера и удаления, что и у автоответов Лео.
-	insertFromUserID := viewerUserID
-	if asAdmin {
-		insertFromUserID = 0
-		uname = "Лео"
-	}
-	threadID, err := b.db.InsertTrainingFeedThreadReply(chatID, userMessageID, insertFromUserID, uname, text, replyToThreadID, photoURL)
+	// Голоса leo/admin сохраняют реального автора (from_user_id), чтобы другие
+	// админы видели, кто комментил; отображение голоса решает posted_as.
+	threadID, err := b.db.InsertTrainingFeedThreadReply(chatID, userMessageID, viewerUserID, uname, text, replyToThreadID, photoURL, postAs)
 	if err != nil {
 		return err
 	}
 	b.afterPackTrainingThreadInserted(chatID, userMessageID, viewerUserID, uname, text, threadID, replyToThreadID, typ)
 	b.trackFeedCommentPosted(viewerUserID, utf8.RuneCountInString(text))
-	// Автоответ Лео не нужен, если комментарий уже опубликован от имени Лео.
-	if !asAdmin && (replyingToLeo || mentionsLeo) && threadID != 0 && typ == "training_done" {
+	// Автоответ Лео не нужен, если комментарий уже опубликован официальным голосом.
+	if !officialVoice && (replyingToLeo || mentionsLeo) && threadID != 0 && typ == "training_done" {
 		txt := text
 		uid := viewerUserID
 		tid := threadID
@@ -475,6 +475,8 @@ func (b *Bot) threadRowsToPackReplies(rows []database.TrainingFeedThreadRow, vie
 	if len(rows) == 0 {
 		return out
 	}
+	// Атрибуцию (какой админ писал от имени Лео/Админ) видят только админы.
+	viewerIsAdmin := b.isAdminTelegramUser(viewerUserID)
 	var refIDs []int64
 	seen := map[int64]struct{}{}
 	for _, t := range rows {
@@ -509,6 +511,9 @@ func (b *Bot) threadRowsToPackReplies(rows []database.TrainingFeedThreadRow, vie
 		}
 	}
 	for _, t := range rows {
+		// Системный Лео (from_user_id = 0) ИЛИ админ, выбравший голос «Лео».
+		isLeoVoice := t.FromUserID == 0 || t.PostedAs == "leo"
+		isAdminVoice := t.PostedAs == "admin"
 		pr := PackFeedThreadReply{
 			ID:        t.ID,
 			UserID:    t.FromUserID,
@@ -517,15 +522,23 @@ func (b *Bot) threadRowsToPackReplies(rows []database.TrainingFeedThreadRow, vie
 			PhotoURL:  b.canonicalMiniappTrainingPhotoURL(t.PhotoURL),
 			CreatedAt: t.CreatedAt.UTC().Format("2006-01-02T15:04:05Z07:00"),
 			IsYou:     t.FromUserID != 0 && t.FromUserID == viewerUserID,
-			IsLeo:     t.FromUserID == 0,
+			IsLeo:     isLeoVoice,
+			IsAdmin:   isAdminVoice,
+		}
+		// Атрибуция: только админам и только для официальных голосов с реальным автором.
+		if viewerIsAdmin && (isAdminVoice || (isLeoVoice && t.FromUserID != 0)) {
+			pr.AdminName = strings.TrimSpace(t.Username)
 		}
 		if t.ReplyToID.Valid && t.ReplyToID.Int64 != 0 {
 			rid := t.ReplyToID.Int64
 			pr.ReplyToID = rid
 			if p, ok := parentByID[rid]; ok {
-				pr.ReplyToIsLeo = p.FromUserID == 0
+				pr.ReplyToIsLeo = p.FromUserID == 0 || p.PostedAs == "leo"
+				pr.ReplyToIsAdmin = p.PostedAs == "admin"
 				if pr.ReplyToIsLeo {
 					pr.ReplyToUsername = "Лео"
+				} else if pr.ReplyToIsAdmin {
+					pr.ReplyToUsername = "Админ"
 				} else {
 					pr.ReplyToUsername = strings.TrimSpace(p.Username)
 					if pr.ReplyToUsername == "" {

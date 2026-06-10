@@ -1224,6 +1224,16 @@ var Migrations = []Migration{
 			ALTER TABLE miniapp_training_feed_thread DROP COLUMN IF EXISTS photo_url;
 		`,
 	},
+	{
+		Version:     62,
+		Description: "Голос комментария админа: miniapp_training_feed_thread.posted_as (self/leo/admin)",
+		UpSQL: `
+			ALTER TABLE miniapp_training_feed_thread ADD COLUMN IF NOT EXISTS posted_as TEXT NOT NULL DEFAULT 'self';
+		`,
+		DownSQL: `
+			ALTER TABLE miniapp_training_feed_thread DROP COLUMN IF EXISTS posted_as;
+		`,
+	},
 }
 
 // MigrationRecord представляет запись о выполненной миграции

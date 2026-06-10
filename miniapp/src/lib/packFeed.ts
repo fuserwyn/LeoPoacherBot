@@ -117,6 +117,10 @@ export type PackFeedThreadReplyDTO = {
   created_at: string;
   is_you: boolean;
   is_leo?: boolean;
+  /** Комментарий опубликован «от имени админов». */
+  is_admin?: boolean;
+  /** Реальное имя автора-админа за голосом Лео/Админ — приходит ТОЛЬКО админам. */
+  admin_name?: string;
   /** URL из miniapp_user_profile (Telegram WebApp user.photo_url при онбординге). */
   author_photo_url?: string;
   /** Фото, приложенное к комментарию (опционально). */
@@ -126,6 +130,7 @@ export type PackFeedThreadReplyDTO = {
   reply_to_username?: string;
   reply_to_text?: string;
   reply_to_is_leo?: boolean;
+  reply_to_is_admin?: boolean;
   like_count?: number;
   like_me?: boolean;
   /** Имена лайкнувших комментарий (для поповера «кто лайкнул»). */

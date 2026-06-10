@@ -528,7 +528,7 @@ func (b *Bot) handleLeopardMoneyTrainingDone(msg *tgbotapi.Message, personalRepl
 			if strings.TrimSpace(threadText) == "" {
 				threadText = b.generateShortLeopardChatAck(un, txt, ns, tc, a)
 			}
-			if _, err := b.db.InsertTrainingFeedThreadReply(packID, tid, 0, "Лео", threadText, 0, ""); err != nil {
+			if _, err := b.db.InsertTrainingFeedThreadReply(packID, tid, 0, "Лео", threadText, 0, "", "self"); err != nil {
 				b.logger.Warnf("training feed leo thread reply: %v", err)
 			}
 		}()
@@ -709,7 +709,7 @@ func (b *Bot) LeoReplyInFeedThread(
 		r := []rune(reply)
 		reply = string(r[:900]) + "…"
 	}
-	leoReplyID, err := b.db.InsertTrainingFeedThreadReply(packChatID, trainingUserMessageID, 0, "Лео", reply, triggerThreadReplyID, "")
+	leoReplyID, err := b.db.InsertTrainingFeedThreadReply(packChatID, trainingUserMessageID, 0, "Лео", reply, triggerThreadReplyID, "", "self")
 	if err != nil {
 		b.logger.Warnf("leo feed thread reply insert: %v", err)
 		return
