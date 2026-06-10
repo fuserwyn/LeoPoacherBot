@@ -371,6 +371,13 @@ export type ActivityCardProps = {
   /** Удалить пост (админ). */
   onAdminDelete?: () => void;
   adminDeletePosting?: boolean;
+  /** Объявление закреплено сверху ленты (пометка «закреплено» + сворачиваемый текст). */
+  pinned?: boolean;
+  /** Текст-объявление сворачивается (показать полностью / свернуть). */
+  commentCollapsible?: boolean;
+  /** Закрепить/открепить объявление (админ). Текст пункта зависит от pinned. */
+  onTogglePin?: () => void;
+  pinPosting?: boolean;
   /** Зритель — админ: может удалять чужие комментарии в треде (модерация). */
   isAdmin?: boolean;
   /** Пожаловаться на комментарий в треде. */
@@ -414,6 +421,10 @@ export function ActivityCard({
   reportPosting = false,
   onAdminDelete,
   adminDeletePosting = false,
+  pinned = false,
+  commentCollapsible = false,
+  onTogglePin,
+  pinPosting = false,
   onThreadReplyReport,
   threadReplyReporting = {},
   hasUnreadThread = false,
@@ -424,6 +435,11 @@ export function ActivityCard({
   const threadInputRef = useRef<HTMLTextAreaElement>(null);
   const [threadOpen, setThreadOpen] = useState(false);
   const [threadInputFocused, setThreadInputFocused] = useState(false);
+  // Закреплённое объявление: длинный текст свёрнут, разворачивается по кнопке.
+  const [commentExpanded, setCommentExpanded] = useState(false);
+  const COMMENT_COLLAPSE_THRESHOLD = 160;
+  const canCollapseComment =
+    commentCollapsible && typeof comment === "string" && comment.trim().length > COMMENT_COLLAPSE_THRESHOLD;
   const [lightboxOpen, setLightboxOpen] = useState(false);
   const [photoFailed, setPhotoFailed] = useState(false);
   const [avatarFailed, setAvatarFailed] = useState(false);
@@ -519,6 +535,9 @@ export function ActivityCard({
   const showStreak = !hideStreak && name.trim() !== "Админ";
   const cardHeadMenuItems = useMemo(() => {
     const items: { label: string; onClick: () => void; danger?: boolean }[] = [];
+    if (onTogglePin) {
+      items.push({ label: pinned ? "Открепить" : "Закрепить", onClick: onTogglePin });
+    }
     if (onAdminDelete) {
       items.push({ label: "Удалить пост", onClick: onAdminDelete, danger: true });
     }
@@ -526,8 +545,8 @@ export function ActivityCard({
       items.push({ label: "Пожаловаться на публикацию", onClick: onReport });
     }
     return items;
-  }, [onAdminDelete, onReport]);
-  const cardHeadMenuPosting = reportPosting || adminDeletePosting;
+  }, [onTogglePin, pinned, onAdminDelete, onReport]);
+  const cardHeadMenuPosting = reportPosting || adminDeletePosting || pinPosting;
 
   // Долгое нажатие на весь пост — показать, кто его лайкнул (все реакции).
   const cardRef = useRef<HTMLElement>(null);
@@ -567,6 +586,11 @@ export function ActivityCard({
         <div className="act-card__meta">
           <div className="act-card__row act-card__row--name">
             <span className="act-card__name">{name}</span>
+            {pinned && (
+              <span className="act-card__pinned-badge" aria-label="Закреплённое объявление">
+                📌 закреплено
+              </span>
+            )}
           </div>
           <div className="act-card__row act-card__row--sub">
             <p className="act-card__time">{timeAgo}</p>
@@ -595,7 +619,26 @@ export function ActivityCard({
           <span className="act-card__type-ico">{emoji}</span> {activity}
         </p>
         {details.trim() !== "" && <p className="act-card__details">{details}</p>}
-        {comment && <p className="act-card__comment">{comment}</p>}
+        {comment &&
+          (canCollapseComment ? (
+            <div className="act-card__comment-collapsible">
+              <p
+                className={`act-card__comment${commentExpanded ? "" : " act-card__comment--clamped"}`}
+              >
+                {comment}
+              </p>
+              <button
+                type="button"
+                className="act-card__comment-toggle"
+                aria-expanded={commentExpanded}
+                onClick={() => setCommentExpanded((v) => !v)}
+              >
+                {commentExpanded ? "Свернуть" : "Показать полностью"}
+              </button>
+            </div>
+          ) : (
+            <p className="act-card__comment">{comment}</p>
+          ))}
         {poll && poll.options.length > 0 && (
           <div className="act-card__poll" role="group" aria-label="Опрос">
             {poll.options.map((option, optionIndex) => (

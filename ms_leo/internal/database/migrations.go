@@ -1171,6 +1171,20 @@ var Migrations = []Migration{
 			ALTER TABLE miniapp_personal_chat DROP COLUMN IF EXISTS photo_url;
 		`,
 	},
+	{
+		Version:     59,
+		Description: "Закреп объявлений админа в ленте стаи (user_messages.pinned_at)",
+		UpSQL: `
+			ALTER TABLE user_messages ADD COLUMN IF NOT EXISTS pinned_at TIMESTAMP WITH TIME ZONE;
+			CREATE INDEX IF NOT EXISTS idx_user_messages_pinned
+				ON user_messages (chat_id, pinned_at DESC)
+				WHERE pinned_at IS NOT NULL;
+		`,
+		DownSQL: `
+			DROP INDEX IF EXISTS idx_user_messages_pinned;
+			ALTER TABLE user_messages DROP COLUMN IF EXISTS pinned_at;
+		`,
+	},
 }
 
 // MigrationRecord представляет запись о выполненной миграции

@@ -79,6 +79,8 @@ func (s *Server) serve(w http.ResponseWriter, r *http.Request) {
 		s.handlePostFeedTrainingThreadDelete(w, r)
 	case path == "/api/miniapp/feed/delete" && r.Method == http.MethodPost:
 		s.handlePostFeedDelete(w, r)
+	case path == "/api/miniapp/feed/pin" && r.Method == http.MethodPost:
+		s.handlePostFeedPin(w, r)
 	case path == "/api/miniapp/feed/training/thread/like" && r.Method == http.MethodPost:
 		s.handlePostFeedTrainingThreadLike(w, r)
 	case path == "/api/miniapp/feed/report" && r.Method == http.MethodPost:
@@ -111,6 +113,16 @@ func (s *Server) serve(w http.ResponseWriter, r *http.Request) {
 		s.handlePostProfileLoad(w, r)
 	case path == "/api/miniapp/profile/save" && r.Method == http.MethodPost:
 		s.handlePostProfileSave(w, r)
+	case path == "/api/miniapp/reminders/load" && r.Method == http.MethodPost:
+		s.handlePostReminderLoad(w, r)
+	case path == "/api/miniapp/reminders/save" && r.Method == http.MethodPost:
+		s.handlePostReminderSave(w, r)
+	case path == "/api/miniapp/friends/list" && r.Method == http.MethodPost:
+		s.handlePostFriendsList(w, r)
+	case path == "/api/miniapp/friends/follow" && r.Method == http.MethodPost:
+		s.handlePostFriendsFollow(w, r)
+	case path == "/api/miniapp/friends/unfollow" && r.Method == http.MethodPost:
+		s.handlePostFriendsUnfollow(w, r)
 	case path == "/api/miniapp/health/status" && r.Method == http.MethodPost:
 		s.handlePostHealthStatus(w, r)
 	case path == "/api/miniapp/streak/save-use" && r.Method == http.MethodPost:
@@ -497,8 +509,73 @@ func (s *Server) handlePostFeed(w http.ResponseWriter, r *http.Request) {
 		s.jsonErr(w, http.StatusInternalServerError, "feed_error")
 		return
 	}
+	// Закреплённые объявления — авторитетный текущий набор (в т.ч. при incremental polling),
+	// чтобы фронт синхронизировал закреп/откреп даже для старых постов вне окна выдачи.
+	pinned, pErr := s.bot.PackFeedPinnedForViewer(parsed.User.ID, parsed, body.InitData)
+	if pErr != nil {
+		s.logger.Warnf("pack feed pinned: %v", pErr)
+		pinned = nil
+	}
 	w.Header().Set("Content-Type", "application/json; charset=utf-8")
-	_ = json.NewEncoder(w).Encode(map[string]any{"ok": true, "items": items})
+	_ = json.NewEncoder(w).Encode(map[string]any{"ok": true, "items": items, "pinned": pinned})
+}
+
+func (s *Server) handlePostFeedPin(w http.ResponseWriter, r *http.Request) {
+	corsWriteHeaders(w, r)
+	if s.bot == nil || s.token == "" {
+		s.jsonErr(w, http.StatusServiceUnavailable, "server_unavailable")
+		return
+	}
+	var body struct {
+		InitData      string `json:"init_data"`
+		UserMessageID int64  `json:"user_message_id"`
+		Pin           bool   `json:"pin"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		s.jsonErr(w, http.StatusBadRequest, "invalid_json")
+		return
+	}
+	if body.InitData == "" {
+		s.jsonErr(w, http.StatusBadRequest, "missing_init_data")
+		return
+	}
+	if body.UserMessageID == 0 {
+		s.jsonErr(w, http.StatusBadRequest, "missing_user_message_id")
+		return
+	}
+	if err := initdata.Validate(body.InitData, s.token, 24*time.Hour); err != nil {
+		s.logger.Warnf("miniapp feed pin: invalid init: %v", err)
+		s.jsonErr(w, http.StatusUnauthorized, "invalid_init_data")
+		return
+	}
+	parsed, err := initdata.Parse(body.InitData)
+	if err != nil {
+		s.jsonErr(w, http.StatusBadRequest, "parse_init_data")
+		return
+	}
+	if parsed.User.ID == 0 {
+		s.jsonErr(w, http.StatusBadRequest, "user_missing")
+		return
+	}
+	if err := s.bot.PackFeedAdminSetPin(parsed.User.ID, parsed, body.UserMessageID, body.Pin); err != nil {
+		if errors.Is(err, bot.ErrMiniAppChatMismatch) {
+			s.jsonErr(w, http.StatusConflict, "chat_mismatch")
+			return
+		}
+		if errors.Is(err, bot.ErrPackFeedForbidden) {
+			s.jsonErr(w, http.StatusForbidden, "forbidden")
+			return
+		}
+		if errors.Is(err, bot.ErrTrainingFeedParentNotFound) {
+			s.jsonErr(w, http.StatusNotFound, "not_found")
+			return
+		}
+		s.logger.Errorf("feed pin: %v", err)
+		s.jsonErr(w, http.StatusInternalServerError, "feed_pin_error")
+		return
+	}
+	w.Header().Set("Content-Type", "application/json; charset=utf-8")
+	_ = json.NewEncoder(w).Encode(map[string]any{"ok": true})
 }
 
 func (s *Server) handlePostFeedPollVote(w http.ResponseWriter, r *http.Request) {

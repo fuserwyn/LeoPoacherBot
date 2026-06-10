@@ -9,6 +9,7 @@ import {
   mergeFeedReactionsForType,
   optimisticTogglePackFeedReaction,
   optimisticToggleThreadReplyLike,
+  reconcilePinnedFeed,
   resolveFeedAvatarUrl,
   sortPackFeedItemsDesc,
   type PackFeedItemDTO,
@@ -154,6 +155,7 @@ export function FeedScreen({
   const [threadReplyDeleting, setThreadReplyDeleting] = useState<Record<number, boolean>>({});
   const [feedReportPosting, setFeedReportPosting] = useState<Record<number, boolean>>({});
   const [feedDeletePosting, setFeedDeletePosting] = useState<Record<number, boolean>>({});
+  const [feedPinPosting, setFeedPinPosting] = useState<Record<number, boolean>>({});
   const [threadReplyReporting, setThreadReplyReporting] = useState<Record<number, boolean>>({});
   /** Ответ на конкретное сообщение треда (reply_to_id) — ключ id отчёта user_messages. */
   const [threadReplyTargets, setThreadReplyTargets] = useState<
@@ -179,6 +181,8 @@ export function FeedScreen({
   const visibleFeedItems = useMemo(() => {
     return feedWithOptimistic.filter((it) => {
       if (it.type === "sick_leave") return false;
+      // Закреплённое объявление видно всегда (поверх фильтров).
+      if (it.is_pinned) return true;
       // Свой только что отправленный пост показываем всегда, даже если активен
       // фильтр по типам тренировок (иначе кажется, что отчёт не отправился).
       if (optimisticFeedItem && it.id === optimisticFeedItem.id) return true;
@@ -190,6 +194,16 @@ export function FeedScreen({
       return true;
     });
   }, [feedWithOptimistic, feedOnlyMine, feedCategoryIds, categoryFilterSet, optimisticFeedItem]);
+
+  // Закреплённые объявления — сверху ленты (свежезакреплённые первыми), остальное — хронологически.
+  const orderedFeedItems = useMemo(() => {
+    const pinnedAtMs = (it: PackFeedItemDTO) => Date.parse(it.pinned_at ?? "") || 0;
+    const pinned = visibleFeedItems
+      .filter((it) => it.is_pinned)
+      .sort((a, b) => pinnedAtMs(b) - pinnedAtMs(a));
+    const rest = visibleFeedItems.filter((it) => !it.is_pinned);
+    return [...pinned, ...rest];
+  }, [visibleFeedItems]);
 
   const hapticLight = useCallback(() => {
     window.Telegram?.WebApp?.HapticFeedback?.impactOccurred?.("light");
@@ -298,7 +312,7 @@ export function FeedScreen({
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ init_data: initData, since_id: sinceId }),
         });
-        const j = (await res.json().catch(() => ({}))) as { ok?: boolean; items?: PackFeedItemDTO[]; error?: string };
+        const j = (await res.json().catch(() => ({}))) as { ok?: boolean; items?: PackFeedItemDTO[]; pinned?: PackFeedItemDTO[]; error?: string };
         if (!res.ok) {
           if (res.status === 403) {
             setErr("Нет доступа к ленте стаи: нужна подписка/участие в группе, как в боте.");
@@ -314,8 +328,9 @@ export function FeedScreen({
         // Успешный ответ (в т.ч. тихий поллинг) снимает «липкий» баннер ошибки.
         setErr(null);
         const incoming = j.items ?? [];
+        const pinned = j.pinned ?? [];
         if (full || sinceId === 0) {
-          setFeedItems(incoming);
+          setFeedItems(reconcilePinnedFeed(incoming, pinned));
           maxFeedIdRef.current = 0;
           bumpMaxFeedId(maxFeedIdRef, incoming);
           if (
@@ -326,7 +341,8 @@ export function FeedScreen({
           }
         } else {
           setFeedItems((prev) => {
-            const next = mergePackFeedIncremental(prev, incoming);
+            const merged = mergePackFeedIncremental(prev, incoming);
+            const next = reconcilePinnedFeed(merged, pinned);
             bumpMaxFeedId(maxFeedIdRef, incoming);
             if (
               optimisticFeedItem &&
@@ -561,6 +577,51 @@ export function FeedScreen({
       }
     },
     [apiBase, initData, isAdmin, showAlert],
+  );
+
+  const setFeedPostPinned = useCallback(
+    async (userMessageId: number, pin: boolean) => {
+      if (!apiBase || !initData || !isAdmin) return;
+      setFeedPinPosting((p) => ({ ...p, [userMessageId]: true }));
+      // Оптимистично — сразу двигаем карточку (вверх при закрепе / в хронологию при открепе).
+      setFeedItems((prev) =>
+        sortPackFeedItemsDesc(
+          prev.map((it) =>
+            it.id === userMessageId
+              ? { ...it, is_pinned: pin, pinned_at: pin ? new Date().toISOString() : undefined }
+              : it,
+          ),
+        ),
+      );
+      try {
+        const res = await fetch(`${apiBase}/api/miniapp/feed/pin`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ init_data: initData, user_message_id: userMessageId, pin }),
+        });
+        const j = (await res.json().catch(() => ({}))) as { error?: string };
+        if (!res.ok) {
+          const errMap: Record<string, string> = {
+            not_found: "Объявление не найдено или уже удалено",
+            forbidden: "Закреплять может только админ",
+            chat_mismatch: "Открой мини-апп из чата стаи",
+            feed_pin_error: "Не удалось изменить закреп",
+          };
+          showAlert(errMap[j.error ?? ""] ?? j.error ?? `Ошибка ${res.status}`);
+          // Откат — следующий синк восстановит истину с сервера.
+          void syncFeed({ silent: true });
+          return;
+        }
+        // Подтягиваем авторитетный набор закреплённых.
+        void syncFeed({ silent: true });
+      } catch (e) {
+        showAlert(e instanceof Error ? e.message : "Сеть");
+        void syncFeed({ silent: true });
+      } finally {
+        setFeedPinPosting((p) => ({ ...p, [userMessageId]: false }));
+      }
+    },
+    [initData, isAdmin, showAlert, syncFeed],
   );
 
   const reportFeedContent = useCallback(
@@ -988,8 +1049,14 @@ export function FeedScreen({
                 </div>
               ))}
             {!useMockFeed &&
-              visibleFeedItems.map((it) => {
+              orderedFeedItems.map((it) => {
                 const base = dtoToCard(it);
+                const isAdminAnnouncement = it.type === "admin_post" || it.type === "admin_poll";
+                const isPinnedAnnouncement = Boolean(it.is_pinned) && isAdminAnnouncement;
+                const canPinCard = isAdmin && isAdminAnnouncement;
+                // Закреплённое объявление: показываем полный текст с возможностью свернуть.
+                const pinnedComment =
+                  isPinnedAnnouncement && it.type === "admin_post" ? it.text.trim() : undefined;
                 const supportsThread =
                   it.type === "training_done" ||
                   it.type === "sick_leave" ||
@@ -1043,9 +1110,14 @@ export function FeedScreen({
                 const canAdminDeleteCard = isAdmin;
                 if (!supportsThread) {
                   return (
-                    <div key={it.id} className={slotClass}>
+                    <div key={it.id} className={`${slotClass}${isPinnedAnnouncement ? " feed__card-slot--pinned" : ""}`}>
                       <ActivityCard
                         {...base}
+                        comment={pinnedComment ?? base.comment}
+                        pinned={isPinnedAnnouncement}
+                        commentCollapsible={isPinnedAnnouncement}
+                        onTogglePin={canPinCard ? () => void setFeedPostPinned(it.id, !it.is_pinned) : undefined}
+                        pinPosting={feedPinPosting[it.id] ?? false}
                         reactions={supportsReactions ? mergeFeedReactionsForType(it.type, it.reactions) : undefined}
                         onReactionClick={
                           supportsReactions ? (emoji) => void postTrainingReact(it.id, emoji) : undefined
@@ -1072,9 +1144,14 @@ export function FeedScreen({
                   );
                 }
                 return (
-                  <div key={it.id} className={slotClass}>
+                  <div key={it.id} className={`${slotClass}${isPinnedAnnouncement ? " feed__card-slot--pinned" : ""}`}>
                     <ActivityCard
                       {...base}
+                      comment={pinnedComment ?? base.comment}
+                      pinned={isPinnedAnnouncement}
+                      commentCollapsible={isPinnedAnnouncement}
+                      onTogglePin={canPinCard ? () => void setFeedPostPinned(it.id, !it.is_pinned) : undefined}
+                      pinPosting={feedPinPosting[it.id] ?? false}
                       poll={
                         it.poll
                           ? {

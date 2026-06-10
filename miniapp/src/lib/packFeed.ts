@@ -147,7 +147,40 @@ export type PackFeedItemDTO = {
   poll?: PackFeedPollDTO;
   /** Публичный URL фото из мини‑аппа после POST /api/miniapp/workout */
   training_photo_url?: string;
+  /** Объявление закреплено админом (висит сверху ленты). */
+  is_pinned?: boolean;
+  pinned_at?: string;
 };
+
+/** Сводит авторитетный набор закреплённых (с бэка) в текущую ленту:
+ *  обновляет/добавляет закреплённые, снимает флаг с откреплённых. */
+export function reconcilePinnedFeed(
+  prev: PackFeedItemDTO[],
+  pinned: PackFeedItemDTO[],
+): PackFeedItemDTO[] {
+  const pinnedById = new Map(pinned.map((p) => [p.id, p]));
+  let changed = false;
+  const next = prev.map((it) => {
+    const p = pinnedById.get(it.id);
+    if (p) {
+      changed = true;
+      return { ...it, ...p, is_pinned: true };
+    }
+    if (it.is_pinned) {
+      changed = true;
+      return { ...it, is_pinned: false, pinned_at: undefined };
+    }
+    return it;
+  });
+  for (const p of pinned) {
+    if (!next.some((it) => it.id === p.id)) {
+      changed = true;
+      next.push({ ...p, is_pinned: true });
+    }
+  }
+  if (!changed) return prev;
+  return sortPackFeedItemsDesc(next);
+}
 
 /** Полная строка эмодзи для кнопок реакций (с нулевыми счётчиками). Собственная реакция (`me`) показывается первой — в т.ч. если её выбрали в меню «⋯». */
 export function mergeTrainingFeedReactions(fromServer?: PackFeedReactionDTO[]): { emoji: string; count: number; me: boolean; voters?: VoterDTO[] | string[] }[] {

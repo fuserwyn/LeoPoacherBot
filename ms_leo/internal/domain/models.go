@@ -81,6 +81,8 @@ type PackActivityRow struct {
 	StreakDays  int
 	// TrainingPhotoURL — публичный URL фото из мини-аппа (#training_done), если приложили.
 	TrainingPhotoURL string
+	// PinnedAt — момент закрепления объявления админом (nil = не закреплено).
+	PinnedAt *time.Time
 }
 
 // PackGroupChatReaction — эмодзи-реакция на сообщение общего чата.

@@ -384,6 +384,19 @@
   flex-shrink: 0;
 }
 
+/* Закреплённое объявление — на всю ширину полосы, с акцентной рамкой сверху ленты. */
+.feed__card-slot--pinned {
+  justify-content: stretch;
+}
+
+.feed__card-slot--pinned .act-card {
+  width: 100%;
+  max-width: 100%;
+  margin: 0;
+  border-color: rgba(236, 160, 60, 0.42);
+  box-shadow: 0 4px 20px rgba(236, 160, 60, 0.12);
+}
+
 .feed__card-slot--them .act-card {
   margin-right: auto;
   margin-left: 0;

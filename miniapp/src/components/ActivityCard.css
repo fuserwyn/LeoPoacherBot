@@ -310,6 +310,48 @@
   max-width: 100%;
 }
 
+.act-card__pinned-badge {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  margin-left: 6px;
+  padding: 1px 7px;
+  font-size: 10px;
+  font-weight: 600;
+  line-height: 1.6;
+  color: #f2d9a0;
+  background: rgba(236, 160, 60, 0.16);
+  border: 1px solid rgba(236, 160, 60, 0.35);
+  border-radius: 999px;
+  white-space: nowrap;
+}
+
+.act-card__comment-collapsible {
+  margin-bottom: 6px;
+}
+
+.act-card__comment--clamped {
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  margin-bottom: 2px;
+  /* Плавное затухание нижней строки, как в Telegram. */
+  -webkit-mask-image: linear-gradient(180deg, #000 55%, transparent 100%);
+  mask-image: linear-gradient(180deg, #000 55%, transparent 100%);
+}
+
+.act-card__comment-toggle {
+  border: none;
+  background: transparent;
+  padding: 0;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--accent, #2ea76e);
+  cursor: pointer;
+}
+
 .act-card__poll {
   display: flex;
   flex-direction: column;

@@ -2,6 +2,7 @@ package bot
 
 import (
 	"errors"
+	"fmt"
 	"strings"
 
 	initdata "github.com/telegram-mini-apps/init-data-golang"
@@ -96,6 +97,9 @@ type PackFeedItem struct {
 	Reactions  []PackFeedReaction    `json:"reactions,omitempty"`
 	Thread     []PackFeedThreadReply `json:"thread,omitempty"`
 	Poll       *PackFeedPoll         `json:"poll,omitempty"`
+	// IsPinned — объявление закреплено админом (висит сверху ленты с пометкой «объявление»).
+	IsPinned bool   `json:"is_pinned,omitempty"`
+	PinnedAt string `json:"pinned_at,omitempty"`
 }
 
 // PackFeedForViewer — лента стаи из user_messages. sinceID > 0 — только id новее (polling).
@@ -128,24 +132,92 @@ func (b *Bot) PackFeedForViewer(viewerUserID int64, initD initdata.InitData, ini
 		if r.MessageType == "sick_leave" {
 			continue
 		}
-		out = append(out, PackFeedItem{
-			ID:               r.ID,
-			UserID:           r.UserID,
-			Username:         r.Username,
-			Type:             r.MessageType,
-			Text:             r.MessageText,
-			CreatedAt:        r.CreatedAt.UTC().Format("2006-01-02T15:04:05Z07:00"),
-			StreakDays:       r.StreakDays,
-			IsYou:            r.UserID == viewerUserID,
-			PackChatID:       chatID,
-			PackTitle:        packTitle,
-			TrainingPhotoURL: b.canonicalMiniappTrainingPhotoURL(r.TrainingPhotoURL),
-		})
+		out = append(out, b.packFeedItemFromRow(r, viewerUserID, chatID, packTitle))
 	}
 	out = b.enrichPackFeedTrainingSocial(out, viewerUserID, chatID, initDataRaw)
 	out = b.enrichPackFeedPolls(out, viewerUserID, chatID)
 	out = b.enrichPackFeedAuthorPhotos(out, chatID, initDataRaw)
 	return out, nil
+}
+
+// packFeedItemFromRow конвертирует строку ленты в PackFeedItem (с пометкой закрепа).
+func (b *Bot) packFeedItemFromRow(r *domain.PackActivityRow, viewerUserID, chatID int64, packTitle string) PackFeedItem {
+	item := PackFeedItem{
+		ID:               r.ID,
+		UserID:           r.UserID,
+		Username:         r.Username,
+		Type:             r.MessageType,
+		Text:             r.MessageText,
+		CreatedAt:        r.CreatedAt.UTC().Format("2006-01-02T15:04:05Z07:00"),
+		StreakDays:       r.StreakDays,
+		IsYou:            r.UserID == viewerUserID,
+		PackChatID:       chatID,
+		PackTitle:        packTitle,
+		TrainingPhotoURL: b.canonicalMiniappTrainingPhotoURL(r.TrainingPhotoURL),
+	}
+	if r.PinnedAt != nil {
+		item.IsPinned = true
+		item.PinnedAt = r.PinnedAt.UTC().Format("2006-01-02T15:04:05Z07:00")
+	}
+	return item
+}
+
+// PackFeedPinnedForViewer — текущие закреплённые объявления стаи (свежезакреплённые сверху).
+// Возвращается отдельно от хронологической ленты как авторитетный набор для фронта:
+// фронт по нему синхронизирует флаг закрепа (в т.ч. снимает закреп при открепе).
+func (b *Bot) PackFeedPinnedForViewer(viewerUserID int64, initD initdata.InitData, initDataRaw string) ([]PackFeedItem, error) {
+	if err := b.PackFeedAssertViewerAccess(viewerUserID, initD); err != nil {
+		return nil, err
+	}
+	chatID := b.config.MonetizedChatID
+	if chatID == 0 {
+		return []PackFeedItem{}, nil
+	}
+	packTitle := ""
+	if initD.Chat.ID != 0 && (initD.Chat.Type == initdata.ChatTypeSupergroup || initD.Chat.Type == initdata.ChatTypeGroup) {
+		packTitle = initD.Chat.Title
+	}
+	rows, err := b.db.ListPinnedAdminPosts(chatID)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]PackFeedItem, 0, len(rows))
+	for _, r := range rows {
+		out = append(out, b.packFeedItemFromRow(r, viewerUserID, chatID, packTitle))
+	}
+	out = b.enrichPackFeedTrainingSocial(out, viewerUserID, chatID, initDataRaw)
+	out = b.enrichPackFeedPolls(out, viewerUserID, chatID)
+	out = b.enrichPackFeedAuthorPhotos(out, chatID, initDataRaw)
+	return out, nil
+}
+
+// PackFeedAdminSetPin — админ закрепляет/открепляет объявление в ленте стаи.
+// Только админ; только admin_post/admin_poll. Открепление оставляет пост в ленте.
+func (b *Bot) PackFeedAdminSetPin(viewerUserID int64, initD initdata.InitData, userMessageID int64, pin bool) error {
+	if err := b.AssertMiniAppPackChatAligns(initD); err != nil {
+		return err
+	}
+	if b == nil || b.db == nil {
+		return fmt.Errorf("bot unavailable")
+	}
+	if !b.isAdminTelegramUser(viewerUserID) {
+		return ErrPackFeedForbidden
+	}
+	if userMessageID <= 0 {
+		return ErrTrainingFeedParentNotFound
+	}
+	chatID := b.config.MonetizedChatID
+	if chatID == 0 {
+		return ErrTrainingFeedParentNotFound
+	}
+	ok, err := b.db.SetUserMessagePinned(chatID, userMessageID, pin)
+	if err != nil {
+		return err
+	}
+	if !ok {
+		return ErrTrainingFeedParentNotFound
+	}
+	return nil
 }
 
 func packFeedIsLeoNoticeType(t string) bool {
