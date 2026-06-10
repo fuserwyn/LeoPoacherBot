@@ -1353,7 +1353,7 @@ export function FeedScreen({
                     author: (tr.username || "").trim() || `Участник ${tr.user_id}`,
                     text: tr.text,
                     timeAgo: formatLocalDateTime(tr.created_at),
-                    isYou: tr.is_you,
+                    isYou: tr.is_you || (userId > 0 && tr.user_id === userId),
                     isLeo: Boolean(tr.is_leo),
                     isAdmin: Boolean(tr.is_admin),
                     adminName: tr.admin_name?.trim() || undefined,
@@ -1370,7 +1370,8 @@ export function FeedScreen({
                 });
                 const canReportCard = !it.is_you && !isLeoSystemFeed;
                 const canAdminDeleteCard = isAdmin;
-                const canEditPost = feedPostEditable(it.type, it.is_you);
+                const isOwnPost = it.is_you || (userId > 0 && it.user_id === userId);
+                const canEditPost = feedPostEditable(it.type, isOwnPost);
                 const postEditProps: Partial<ActivityCardProps> = canEditPost
                   ? {
                       onStartEditPost: () => {

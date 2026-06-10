@@ -840,7 +840,8 @@
   flex-shrink: 0;
 }
 
-.act-card__thread-edit {
+.act-card__thread-edit,
+.act-card__post-edit-trigger {
   flex-shrink: 0;
   padding: 2px 8px;
   font-size: 12px;
@@ -851,6 +852,10 @@
   cursor: pointer;
   text-decoration: underline;
   text-underline-offset: 2px;
+}
+
+.act-card__post-actions {
+  margin-top: 4px;
 }
 
 .act-card__edited {
