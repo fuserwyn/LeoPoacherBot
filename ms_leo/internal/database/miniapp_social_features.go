@@ -117,16 +117,16 @@ func (d *Database) MarkWorkoutReminderSent(userID, packChatID int64, mskDate str
 
 // PackMemberRow — участник стаи для экрана «Друзья».
 type PackMemberRow struct {
-	UserID      int64
-	Username    string
-	DisplayName string
-	StreakDays  int
-	Following   bool // viewer подписан на этого участника
+	UserID         int64
+	Username       string
+	DisplayName    string
+	StreakDays     int
+	Following      bool // viewer подписан на этого участника
+	NotifyWorkouts bool // уведомлять viewer о тренировках target (только при Following)
 }
 
-// ListPackMembersForSubscriptions — участники стаи (кроме самого viewer и удалённых) с флагом подписки viewer.
-// Сортировка: сначала те, на кого viewer уже подписан, затем по стрику.
-func (d *Database) ListPackMembersForSubscriptions(packChatID, viewerUserID int64) ([]PackMemberRow, error) {
+// ListFollowingPackMembers — только леопарды, за которыми viewer следит (экран «Слежу за»).
+func (d *Database) ListFollowingPackMembers(packChatID, viewerUserID int64) ([]PackMemberRow, error) {
 	if d == nil || packChatID == 0 || viewerUserID == 0 {
 		return nil, nil
 	}
@@ -135,31 +135,27 @@ func (d *Database) ListPackMembersForSubscriptions(packChatID, viewerUserID int6
 		       COALESCE(NULLIF(BTRIM(ts.username), ''), ''),
 		       COALESCE(NULLIF(BTRIM(p.display_name), ''), ''),
 		       COALESCE(ts.streak_days, 0),
-		       EXISTS (
-		           SELECT 1 FROM miniapp_friend_subscriptions s
-		           WHERE s.subscriber_id = $2 AND s.target_id = ts.user_id AND s.pack_chat_id = $1
-		       )
-		FROM training_state ts
+		       TRUE,
+		       s.notify_workouts
+		FROM miniapp_friend_subscriptions s
+		JOIN training_state ts
+			ON ts.user_id = s.target_id AND ts.chat_id = s.pack_chat_id
 		LEFT JOIN miniapp_user_profile p
 			ON p.user_id = ts.user_id AND p.pack_chat_id = ts.chat_id
-		WHERE ts.chat_id = $1
-		  AND ts.user_id <> $2
+		WHERE s.pack_chat_id = $1
+		  AND s.subscriber_id = $2
 		  AND ts.is_deleted = FALSE
-		ORDER BY EXISTS (
-		           SELECT 1 FROM miniapp_friend_subscriptions s2
-		           WHERE s2.subscriber_id = $2 AND s2.target_id = ts.user_id AND s2.pack_chat_id = $1
-		         ) DESC,
-		         ts.streak_days DESC, ts.user_id ASC`
+		ORDER BY ts.streak_days DESC, ts.user_id ASC`
 	rows, err := d.db.Query(q, packChatID, viewerUserID)
 	if err != nil {
-		return nil, fmt.Errorf("list pack members for subscriptions: %w", err)
+		return nil, fmt.Errorf("list following pack members: %w", err)
 	}
 	defer rows.Close()
 	var out []PackMemberRow
 	for rows.Next() {
 		var m PackMemberRow
-		if err := rows.Scan(&m.UserID, &m.Username, &m.DisplayName, &m.StreakDays, &m.Following); err != nil {
-			return nil, fmt.Errorf("scan pack member: %w", err)
+		if err := rows.Scan(&m.UserID, &m.Username, &m.DisplayName, &m.StreakDays, &m.Following, &m.NotifyWorkouts); err != nil {
+			return nil, fmt.Errorf("scan following pack member: %w", err)
 		}
 		out = append(out, m)
 	}
@@ -194,6 +190,51 @@ func (d *Database) RemoveFriendSubscription(subscriberID, targetID, packChatID i
 		return fmt.Errorf("remove friend subscription: %w", err)
 	}
 	return nil
+}
+
+// SetFriendWorkoutNotify — вкл/выкл уведомления о тренировках target для subscriber.
+func (d *Database) SetFriendWorkoutNotify(subscriberID, targetID, packChatID int64, enabled bool) error {
+	if d == nil || subscriberID == 0 || targetID == 0 || packChatID == 0 {
+		return nil
+	}
+	const q = `
+		UPDATE miniapp_friend_subscriptions
+		SET notify_workouts = $4
+		WHERE subscriber_id = $1 AND target_id = $2 AND pack_chat_id = $3`
+	res, err := d.db.Exec(q, subscriberID, targetID, packChatID, enabled)
+	if err != nil {
+		return fmt.Errorf("set friend workout notify: %w", err)
+	}
+	n, _ := res.RowsAffected()
+	if n == 0 {
+		return fmt.Errorf("friend subscription not found")
+	}
+	return nil
+}
+
+// ListFriendWorkoutNotifySubscribers — кто хочет получать уведомления о тренировках target.
+func (d *Database) ListFriendWorkoutNotifySubscribers(targetID, packChatID int64) ([]int64, error) {
+	if d == nil || targetID == 0 || packChatID == 0 {
+		return nil, nil
+	}
+	const q = `
+		SELECT subscriber_id
+		FROM miniapp_friend_subscriptions
+		WHERE target_id = $1 AND pack_chat_id = $2 AND notify_workouts = TRUE`
+	rows, err := d.db.Query(q, targetID, packChatID)
+	if err != nil {
+		return nil, fmt.Errorf("list friend workout notify subscribers: %w", err)
+	}
+	defer rows.Close()
+	var out []int64
+	for rows.Next() {
+		var id int64
+		if err := rows.Scan(&id); err != nil {
+			return nil, fmt.Errorf("scan friend workout notify subscriber: %w", err)
+		}
+		out = append(out, id)
+	}
+	return out, rows.Err()
 }
 
 // ListFriendTargetIDs — на кого подписан subscriber в этой стае (для фильтра «Друзья» в ленте).

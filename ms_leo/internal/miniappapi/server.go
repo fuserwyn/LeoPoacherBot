@@ -123,6 +123,8 @@ func (s *Server) serve(w http.ResponseWriter, r *http.Request) {
 		s.handlePostFriendsFollow(w, r)
 	case path == "/api/miniapp/friends/unfollow" && r.Method == http.MethodPost:
 		s.handlePostFriendsUnfollow(w, r)
+	case path == "/api/miniapp/friends/notify" && r.Method == http.MethodPost:
+		s.handlePostFriendsNotify(w, r)
 	case path == "/api/miniapp/health/status" && r.Method == http.MethodPost:
 		s.handlePostHealthStatus(w, r)
 	case path == "/api/miniapp/streak/save-use" && r.Method == http.MethodPost:

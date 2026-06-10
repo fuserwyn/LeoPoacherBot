@@ -1234,6 +1234,17 @@ var Migrations = []Migration{
 			ALTER TABLE miniapp_training_feed_thread DROP COLUMN IF EXISTS posted_as;
 		`,
 	},
+	{
+		Version:     63,
+		Description: "Уведомления о тренировках леопардов из «Слежу за»",
+		UpSQL: `
+			ALTER TABLE miniapp_friend_subscriptions
+				ADD COLUMN IF NOT EXISTS notify_workouts BOOLEAN NOT NULL DEFAULT TRUE;
+		`,
+		DownSQL: `
+			ALTER TABLE miniapp_friend_subscriptions DROP COLUMN IF EXISTS notify_workouts;
+		`,
+	},
 }
 
 // MigrationRecord представляет запись о выполненной миграции

@@ -19,6 +19,7 @@ export type FriendMember = {
   name: string;
   streak_days: number;
   following: boolean;
+  notify_workouts: boolean;
 };
 
 function normalizeProfileData(profile: ProfileData): ProfileData {
@@ -141,6 +142,7 @@ export function ProfileScreen({
   const [friendsLoading, setFriendsLoading] = useState(false);
   const [followingOpen, setFollowingOpen] = useState(false);
   const [friendBusyId, setFriendBusyId] = useState<number | null>(null);
+  const [friendNotifyBusyId, setFriendNotifyBusyId] = useState<number | null>(null);
 
   useEffect(() => {
     setCups(xp);
@@ -354,7 +356,11 @@ export function ProfileScreen({
       const next = !member.following;
       setFriendBusyId(member.user_id);
       // Оптимистичное обновление.
-      setFriends((list) => list.map((m) => (m.user_id === member.user_id ? { ...m, following: next } : m)));
+      setFriends((list) =>
+        next
+          ? list.map((m) => (m.user_id === member.user_id ? { ...m, following: next } : m))
+          : list.filter((m) => m.user_id !== member.user_id),
+      );
       try {
         const res = await fetch(`${api}/api/miniapp/friends/${next ? "follow" : "unfollow"}`, {
           method: "POST",
@@ -363,11 +369,21 @@ export function ProfileScreen({
         });
         const j = (await res.json().catch(() => ({}))) as { ok?: boolean; error?: string };
         if (!res.ok || !j.ok) {
-          setFriends((list) => list.map((m) => (m.user_id === member.user_id ? { ...m, following: !next } : m)));
+          setFriends((list) => {
+            if (next) {
+              return list.map((m) => (m.user_id === member.user_id ? { ...m, following: !next } : m));
+            }
+            return [...list, member].sort((a, b) => b.streak_days - a.streak_days || a.user_id - b.user_id);
+          });
           showAlert(j.error ?? `Ошибка ${res.status}`);
         }
       } catch (e) {
-        setFriends((list) => list.map((m) => (m.user_id === member.user_id ? { ...m, following: !next } : m)));
+        setFriends((list) => {
+          if (next) {
+            return list.map((m) => (m.user_id === member.user_id ? { ...m, following: !next } : m));
+          }
+          return [...list, member].sort((a, b) => b.streak_days - a.streak_days || a.user_id - b.user_id);
+        });
         showAlert(e instanceof Error ? e.message : "Сеть");
       } finally {
         setFriendBusyId(null);
@@ -376,12 +392,44 @@ export function ProfileScreen({
     [inTelegram, initData, friendBusyId, showAlert],
   );
 
+  const toggleFriendNotify = useCallback(
+    async (member: FriendMember, enabled: boolean) => {
+      if (!api || !inTelegram || !initData?.trim() || friendNotifyBusyId !== null) return;
+      setFriendNotifyBusyId(member.user_id);
+      setFriends((list) =>
+        list.map((m) => (m.user_id === member.user_id ? { ...m, notify_workouts: enabled } : m)),
+      );
+      try {
+        const res = await fetch(`${api}/api/miniapp/friends/notify`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ init_data: initData, target_id: member.user_id, enabled }),
+        });
+        const j = (await res.json().catch(() => ({}))) as { ok?: boolean; error?: string };
+        if (!res.ok || !j.ok) {
+          setFriends((list) =>
+            list.map((m) => (m.user_id === member.user_id ? { ...m, notify_workouts: !enabled } : m)),
+          );
+          showAlert(j.error ?? `Уведомления: ошибка ${res.status}`);
+        }
+      } catch (e) {
+        setFriends((list) =>
+          list.map((m) => (m.user_id === member.user_id ? { ...m, notify_workouts: !enabled } : m)),
+        );
+        showAlert(e instanceof Error ? e.message : "Сеть");
+      } finally {
+        setFriendNotifyBusyId(null);
+      }
+    },
+    [inTelegram, initData, friendNotifyBusyId, showAlert],
+  );
+
   // Подписки подгружаем только при раскрытии «Слежу за».
   useEffect(() => {
     if (active && followingOpen) void loadFriends();
   }, [active, followingOpen, loadFriends]);
 
-  const followingList = friends.filter((m) => m.following);
+  const followingList = friends;
 
   const loadHealth = useCallback(async () => {
     if (!api || !inTelegram || !initData?.trim()) {
@@ -991,7 +1039,7 @@ export function ProfileScreen({
         )}
         <p className="profile__hint muted">
           {reminderEnabled
-            ? "Если до этого часа ты ещё не отметил тренировку — Лео мягко напомнит в личке."
+            ? "Если до этого часа ты ещё не отмечена тренировка — Лео мягко напомнит"
             : "Напоминания выключены. Лео не будет писать о пропущенной тренировке."}
         </p>
       </div>
@@ -999,7 +1047,7 @@ export function ProfileScreen({
       <h2 className="section-title">Друзья по стае</h2>
       <div className="profile__friends">
         <p className="profile__hint muted">
-          Подписаться можно в ленте: открой отчёт и выбери «Следить за автором». Их отчёты увидишь по фильтру «Друзья».
+          Подписаться можно в ленте: открой отчёт и выбери «Следить за леопардом». Их отчёты — по фильтру «Друзья»; уведомления о тренировках настраиваются здесь.
         </p>
         <button
           type="button"
@@ -1013,7 +1061,7 @@ export function ProfileScreen({
             <p className="muted">Загрузка…</p>
           ) : followingList.length === 0 ? (
             <p className="profile__hint muted">
-              Пока ты ни на кого не подписан. Найди человека в ленте и нажми «Следить за автором».
+              Пока ты ни на кого не подписан. Найди леопарда в ленте и нажми «Следить за леопардом».
             </p>
           ) : (
             <ul className="profile__friends-list">
@@ -1025,6 +1073,16 @@ export function ProfileScreen({
                       <span className="profile__friend-streak muted">🔥 {m.streak_days}</span>
                     )}
                   </span>
+                  <label className="profile__friend-notify" title="Уведомления о тренировках в Telegram">
+                    <span className="profile__friend-notify-label muted">🔔</span>
+                    <input
+                      type="checkbox"
+                      className="profile__friend-notify-toggle"
+                      checked={m.notify_workouts}
+                      disabled={friendNotifyBusyId === m.user_id}
+                      onChange={(e) => void toggleFriendNotify(m, e.target.checked)}
+                    />
+                  </label>
                   <button
                     type="button"
                     className="profile__friend-btn profile__friend-btn--following"

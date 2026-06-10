@@ -1034,6 +1034,31 @@ html.app-keyboard-open .profile__health-actions--keyboard {
   flex-shrink: 0;
 }
 
+.profile__friend-notify {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+  cursor: pointer;
+}
+
+.profile__friend-notify-label {
+  font-size: 14px;
+  line-height: 1;
+}
+
+.profile__friend-notify-toggle {
+  width: 18px;
+  height: 18px;
+  accent-color: var(--accent, #ff6a35);
+  cursor: pointer;
+}
+
+.profile__friend-notify-toggle:disabled {
+  cursor: default;
+  opacity: 0.55;
+}
+
 .profile__friend-btn {
   flex-shrink: 0;
   padding: 8px 16px;
