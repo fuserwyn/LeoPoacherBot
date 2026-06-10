@@ -72,6 +72,7 @@ type PackFeedThreadReply struct {
 	LikeCount       int         `json:"like_count,omitempty"`
 	LikeMe          bool        `json:"like_me,omitempty"`
 	LikeVoters      []PackVoter `json:"like_voters,omitempty"`
+	EditedAt        string      `json:"edited_at,omitempty"`
 }
 
 type PackFeedPollOption struct {

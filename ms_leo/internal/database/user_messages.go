@@ -8,6 +8,27 @@ import (
 	"leo-bot/internal/utils"
 )
 
+// UpdateUserMessageTextByAuthor — правка текста своего поста в ленте (training_done / healthy).
+func (d *Database) UpdateUserMessageTextByAuthor(messageID, chatID, actorUserID int64, newText string) (bool, error) {
+	if messageID == 0 || chatID == 0 || actorUserID == 0 {
+		return false, nil
+	}
+	res, err := d.db.Exec(
+		`UPDATE user_messages
+		 SET message_text = $4,
+		     edited_at = (NOW() AT TIME ZONE 'Europe/Moscow')
+		 WHERE id = $1 AND chat_id = $2 AND user_id = $3
+		   AND COALESCE(is_hidden, FALSE) = FALSE
+		   AND message_type IN ('training_done', 'healthy')`,
+		messageID, chatID, actorUserID, newText,
+	)
+	if err != nil {
+		return false, err
+	}
+	n, _ := res.RowsAffected()
+	return n > 0, nil
+}
+
 // GetTrainingPhotoURLByMessageID возвращает URL фото тренировки поста ленты (пусто, если фото нет).
 // Нужен, чтобы удалить объект из хранилища при удалении поста.
 func (d *Database) GetTrainingPhotoURLByMessageID(chatID, messageID int64) (string, error) {

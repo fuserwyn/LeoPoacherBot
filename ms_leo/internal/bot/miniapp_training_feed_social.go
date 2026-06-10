@@ -445,6 +445,92 @@ func (b *Bot) PackTrainingFeedThreadDelete(viewerUserID int64, initD initdata.In
 	return parentID, nil
 }
 
+// PackTrainingFeedThreadEdit — правка своего комментария в треде (не Лео / не официальный голос).
+func (b *Bot) PackTrainingFeedThreadEdit(viewerUserID int64, initD initdata.InitData, threadReplyID int64, text string) (parentUserMessageID int64, err error) {
+	if err := b.AssertMiniAppPackChatAligns(initD); err != nil {
+		return 0, err
+	}
+	if err := b.assertPackFeedSocialViewer(viewerUserID); err != nil {
+		return 0, err
+	}
+	if threadReplyID == 0 {
+		return 0, ErrTrainingFeedThreadDeleteNotFound
+	}
+	text = strings.TrimSpace(text)
+	if text == "" {
+		return 0, ErrTrainingFeedThreadEmpty
+	}
+	if _, err := b.enforceUGC(text, moderation.SurfaceFeedComment, viewerUserID); err != nil {
+		return 0, err
+	}
+	chatID := b.config.MonetizedChatID
+	row, ok, err := b.db.GetTrainingFeedThreadRowInPack(threadReplyID, chatID)
+	if err != nil {
+		return 0, err
+	}
+	if !ok || row.FromUserID != viewerUserID || row.FromUserID == 0 {
+		return 0, ErrTrainingFeedThreadDeleteNotFound
+	}
+	postedAs := strings.TrimSpace(strings.ToLower(row.PostedAs))
+	if postedAs == "" {
+		postedAs = "self"
+	}
+	if postedAs != "self" {
+		return 0, ErrTrainingFeedThreadDeleteNotFound
+	}
+	parentID, updated, err := b.db.UpdateTrainingFeedThreadReplyByAuthor(chatID, threadReplyID, viewerUserID, text)
+	if err != nil {
+		return 0, err
+	}
+	if !updated {
+		return 0, ErrTrainingFeedThreadDeleteNotFound
+	}
+	return parentID, nil
+}
+
+// PackFeedPostEdit — правка текста своего поста в ленте (training_done / healthy).
+func (b *Bot) PackFeedPostEdit(viewerUserID int64, initD initdata.InitData, userMessageID int64, text string) error {
+	if err := b.AssertMiniAppPackChatAligns(initD); err != nil {
+		return err
+	}
+	if err := b.assertPackFeedSocialViewer(viewerUserID); err != nil {
+		return err
+	}
+	if userMessageID == 0 {
+		return ErrTrainingFeedParentNotFound
+	}
+	text = strings.TrimSpace(text)
+	if text == "" {
+		return ErrTrainingFeedThreadEmpty
+	}
+	chatID := b.config.MonetizedChatID
+	typ, has, err := b.db.GetUserMessageTypeByIDForChat(userMessageID, chatID)
+	if err != nil {
+		return err
+	}
+	if !has || (typ != "training_done" && typ != "healthy") {
+		return ErrTrainingFeedParentNotFound
+	}
+	surface := moderation.SurfaceFeedComment
+	if typ == "training_done" {
+		surface = moderation.SurfaceTrainingNote
+		checkText := moderation.TextForTrainingModeration(text)
+		if _, err := b.enforceUGC(checkText, surface, viewerUserID); err != nil {
+			return err
+		}
+	} else if _, err := b.enforceUGC(text, surface, viewerUserID); err != nil {
+		return err
+	}
+	updated, err := b.db.UpdateUserMessageTextByAuthor(userMessageID, chatID, viewerUserID, text)
+	if err != nil {
+		return err
+	}
+	if !updated {
+		return ErrTrainingFeedParentNotFound
+	}
+	return nil
+}
+
 // PackTrainingFeedThreadLikeToggle — лайк комментария в треде training_done.
 func (b *Bot) PackTrainingFeedThreadLikeToggle(viewerUserID int64, initD initdata.InitData, threadReplyID int64) (parentUserMessageID int64, err error) {
 	if err := b.AssertMiniAppPackChatAligns(initD); err != nil {
@@ -524,6 +610,9 @@ func (b *Bot) threadRowsToPackReplies(rows []database.TrainingFeedThreadRow, vie
 			IsYou:     t.FromUserID != 0 && t.FromUserID == viewerUserID,
 			IsLeo:     isLeoVoice,
 			IsAdmin:   isAdminVoice,
+		}
+		if t.EditedAt.Valid {
+			pr.EditedAt = t.EditedAt.Time.UTC().Format("2006-01-02T15:04:05Z07:00")
 		}
 		// Атрибуция: только админам и только для официальных голосов с реальным автором.
 		if viewerIsAdmin && (isAdminVoice || (isLeoVoice && t.FromUserID != 0)) {

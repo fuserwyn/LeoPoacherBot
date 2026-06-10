@@ -77,6 +77,10 @@ func (s *Server) serve(w http.ResponseWriter, r *http.Request) {
 		s.handlePostFeedTrainingThread(w, r)
 	case path == "/api/miniapp/feed/training/thread/delete" && r.Method == http.MethodPost:
 		s.handlePostFeedTrainingThreadDelete(w, r)
+	case path == "/api/miniapp/feed/training/thread/edit" && r.Method == http.MethodPost:
+		s.handlePostFeedTrainingThreadEdit(w, r)
+	case path == "/api/miniapp/feed/edit" && r.Method == http.MethodPost:
+		s.handlePostFeedEdit(w, r)
 	case path == "/api/miniapp/feed/delete" && r.Method == http.MethodPost:
 		s.handlePostFeedDelete(w, r)
 	case path == "/api/miniapp/feed/pin" && r.Method == http.MethodPost:
@@ -958,6 +962,163 @@ func (s *Server) handlePostFeedTrainingThreadDelete(w http.ResponseWriter, r *ht
 		out["thread"] = replies
 	}
 	_ = json.NewEncoder(w).Encode(out)
+}
+
+func (s *Server) handlePostFeedTrainingThreadEdit(w http.ResponseWriter, r *http.Request) {
+	corsWriteHeaders(w, r)
+	if s.bot == nil || s.token == "" {
+		s.jsonErr(w, http.StatusServiceUnavailable, "server_unavailable")
+		return
+	}
+	var body struct {
+		InitData      string `json:"init_data"`
+		ThreadReplyID int64  `json:"thread_reply_id"`
+		Text          string `json:"text"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		s.jsonErr(w, http.StatusBadRequest, "invalid_json")
+		return
+	}
+	if body.InitData == "" {
+		s.jsonErr(w, http.StatusBadRequest, "missing_init_data")
+		return
+	}
+	if body.ThreadReplyID == 0 {
+		s.jsonErr(w, http.StatusBadRequest, "missing_thread_reply_id")
+		return
+	}
+	text := strings.TrimSpace(body.Text)
+	if text == "" {
+		s.jsonErr(w, http.StatusBadRequest, "empty_text")
+		return
+	}
+	if utf8.RuneCountInString(text) > 500 {
+		s.jsonErr(w, http.StatusBadRequest, "text_too_long")
+		return
+	}
+	if err := initdata.Validate(body.InitData, s.token, 24*time.Hour); err != nil {
+		s.logger.Warnf("miniapp feed training thread edit: invalid init: %v", err)
+		s.jsonErr(w, http.StatusUnauthorized, "invalid_init_data")
+		return
+	}
+	parsed, err := initdata.Parse(body.InitData)
+	if err != nil {
+		s.jsonErr(w, http.StatusBadRequest, "parse_init_data")
+		return
+	}
+	if parsed.User.ID == 0 {
+		s.jsonErr(w, http.StatusBadRequest, "user_missing")
+		return
+	}
+	parentID, err := s.bot.PackTrainingFeedThreadEdit(parsed.User.ID, parsed, body.ThreadReplyID, text)
+	if err != nil {
+		if errors.Is(err, bot.ErrMiniAppChatMismatch) {
+			s.jsonErr(w, http.StatusConflict, "chat_mismatch")
+			return
+		}
+		if errors.Is(err, bot.ErrTrainingFeedSocialForbidden) {
+			s.jsonErr(w, http.StatusForbidden, "forbidden")
+			return
+		}
+		if errors.Is(err, bot.ErrTrainingFeedThreadEmpty) {
+			s.jsonErr(w, http.StatusBadRequest, "empty_text")
+			return
+		}
+		if errors.Is(err, bot.ErrTrainingFeedThreadDeleteNotFound) {
+			s.jsonErr(w, http.StatusNotFound, "not_found")
+			return
+		}
+		if s.jsonModerationErr(w, err) {
+			return
+		}
+		s.logger.Errorf("feed training thread edit: %v", err)
+		s.jsonErr(w, http.StatusInternalServerError, "thread_edit_error")
+		return
+	}
+	replies, rerr := s.bot.PackFeedThreadRepliesForViewer(parsed.User.ID, parentID, body.InitData)
+	if rerr != nil {
+		s.logger.Warnf("feed training thread edit: list after edit: %v", rerr)
+	}
+	w.Header().Set("Content-Type", "application/json; charset=utf-8")
+	out := map[string]any{"ok": true}
+	if rerr == nil {
+		out["thread"] = replies
+	}
+	_ = json.NewEncoder(w).Encode(out)
+}
+
+func (s *Server) handlePostFeedEdit(w http.ResponseWriter, r *http.Request) {
+	corsWriteHeaders(w, r)
+	if s.bot == nil || s.token == "" {
+		s.jsonErr(w, http.StatusServiceUnavailable, "server_unavailable")
+		return
+	}
+	var body struct {
+		InitData      string `json:"init_data"`
+		UserMessageID int64  `json:"user_message_id"`
+		Text          string `json:"text"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		s.jsonErr(w, http.StatusBadRequest, "invalid_json")
+		return
+	}
+	if body.InitData == "" {
+		s.jsonErr(w, http.StatusBadRequest, "missing_init_data")
+		return
+	}
+	if body.UserMessageID == 0 {
+		s.jsonErr(w, http.StatusBadRequest, "missing_user_message_id")
+		return
+	}
+	text := strings.TrimSpace(body.Text)
+	if text == "" {
+		s.jsonErr(w, http.StatusBadRequest, "empty_text")
+		return
+	}
+	if utf8.RuneCountInString(text) > maxTextRunes {
+		s.jsonErr(w, http.StatusBadRequest, "text_too_long")
+		return
+	}
+	if err := initdata.Validate(body.InitData, s.token, 24*time.Hour); err != nil {
+		s.logger.Warnf("miniapp feed edit: invalid init: %v", err)
+		s.jsonErr(w, http.StatusUnauthorized, "invalid_init_data")
+		return
+	}
+	parsed, err := initdata.Parse(body.InitData)
+	if err != nil {
+		s.jsonErr(w, http.StatusBadRequest, "parse_init_data")
+		return
+	}
+	if parsed.User.ID == 0 {
+		s.jsonErr(w, http.StatusBadRequest, "user_missing")
+		return
+	}
+	if err := s.bot.PackFeedPostEdit(parsed.User.ID, parsed, body.UserMessageID, text); err != nil {
+		if errors.Is(err, bot.ErrMiniAppChatMismatch) {
+			s.jsonErr(w, http.StatusConflict, "chat_mismatch")
+			return
+		}
+		if errors.Is(err, bot.ErrTrainingFeedSocialForbidden) {
+			s.jsonErr(w, http.StatusForbidden, "forbidden")
+			return
+		}
+		if errors.Is(err, bot.ErrTrainingFeedThreadEmpty) {
+			s.jsonErr(w, http.StatusBadRequest, "empty_text")
+			return
+		}
+		if errors.Is(err, bot.ErrTrainingFeedParentNotFound) {
+			s.jsonErr(w, http.StatusNotFound, "not_found")
+			return
+		}
+		if s.jsonModerationErr(w, err) {
+			return
+		}
+		s.logger.Errorf("feed edit: %v", err)
+		s.jsonErr(w, http.StatusInternalServerError, "feed_edit_error")
+		return
+	}
+	w.Header().Set("Content-Type", "application/json; charset=utf-8")
+	_ = json.NewEncoder(w).Encode(map[string]any{"ok": true})
 }
 
 func (s *Server) handlePostFeedDelete(w http.ResponseWriter, r *http.Request) {

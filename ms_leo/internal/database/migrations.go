@@ -1245,6 +1245,20 @@ var Migrations = []Migration{
 			ALTER TABLE miniapp_friend_subscriptions DROP COLUMN IF EXISTS notify_workouts;
 		`,
 	},
+	{
+		Version:     64,
+		Description: "edited_at для комментариев ленты и постов user_messages",
+		UpSQL: `
+			ALTER TABLE miniapp_training_feed_thread
+				ADD COLUMN IF NOT EXISTS edited_at TIMESTAMP WITH TIME ZONE;
+			ALTER TABLE user_messages
+				ADD COLUMN IF NOT EXISTS edited_at TIMESTAMP WITH TIME ZONE;
+		`,
+		DownSQL: `
+			ALTER TABLE miniapp_training_feed_thread DROP COLUMN IF EXISTS edited_at;
+			ALTER TABLE user_messages DROP COLUMN IF EXISTS edited_at;
+		`,
+	},
 }
 
 // MigrationRecord представляет запись о выполненной миграции

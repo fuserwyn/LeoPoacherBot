@@ -190,6 +190,7 @@ type TrainingFeedThreadRow struct {
 	MessageText   string
 	PhotoURL      string
 	CreatedAt     time.Time
+	EditedAt      sql.NullTime
 	ReplyToID     sql.NullInt64
 	// Голос комментария: 'self' (обычный), 'leo' (админ от имени Лео), 'admin' (админ от имени админов).
 	PostedAs string
@@ -338,6 +339,29 @@ func (d *Database) DeleteTrainingFeedThreadReply(packChatID, threadReplyID, acto
 	return userMessageID, true, nil
 }
 
+// UpdateTrainingFeedThreadReplyByAuthor — правка своего комментария (posted_as=self, не Лео).
+func (d *Database) UpdateTrainingFeedThreadReplyByAuthor(packChatID, threadReplyID, actorUserID int64, newText string) (userMessageID int64, updated bool, err error) {
+	if threadReplyID == 0 || actorUserID == 0 {
+		return 0, false, nil
+	}
+	err = d.db.QueryRow(
+		`UPDATE miniapp_training_feed_thread
+		 SET message_text = $4,
+		     edited_at = (NOW() AT TIME ZONE 'Europe/Moscow')
+		 WHERE id = $1 AND pack_chat_id = $2 AND from_user_id = $3
+		   AND from_user_id != 0 AND COALESCE(posted_as, 'self') = 'self'
+		 RETURNING user_message_id`,
+		threadReplyID, packChatID, actorUserID, newText,
+	).Scan(&userMessageID)
+	if err == sql.ErrNoRows {
+		return 0, false, nil
+	}
+	if err != nil {
+		return 0, false, err
+	}
+	return userMessageID, true, nil
+}
+
 // ListTrainingFeedThreadByMessages — все реплики для данных parent id, по времени по возрастанию.
 func (d *Database) ListTrainingFeedThreadByMessages(userMessageIDs []int64) (map[int64][]TrainingFeedThreadRow, error) {
 	res := make(map[int64][]TrainingFeedThreadRow)
@@ -353,6 +377,7 @@ func (d *Database) ListTrainingFeedThreadByMessages(userMessageIDs []int64) (map
 			t.message_text,
 			COALESCE(t.photo_url, ''),
 			t.created_at,
+			t.edited_at,
 			t.reply_to_id,
 			COALESCE(t.posted_as, 'self')
 		FROM miniapp_training_feed_thread t
@@ -370,7 +395,7 @@ func (d *Database) ListTrainingFeedThreadByMessages(userMessageIDs []int64) (map
 	for rows.Next() {
 		var r TrainingFeedThreadRow
 		var replyTo sql.NullInt64
-		if err := rows.Scan(&r.ID, &r.UserMessageID, &r.FromUserID, &r.Username, &r.MessageText, &r.PhotoURL, &r.CreatedAt, &replyTo, &r.PostedAs); err != nil {
+		if err := rows.Scan(&r.ID, &r.UserMessageID, &r.FromUserID, &r.Username, &r.MessageText, &r.PhotoURL, &r.CreatedAt, &r.EditedAt, &replyTo, &r.PostedAs); err != nil {
 			return nil, err
 		}
 		r.ReplyToID = replyTo
