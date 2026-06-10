@@ -223,7 +223,7 @@ export function ProfileScreen({
         return;
       }
       if (!j.ok) return;
-      const g = j.gender === "m" || j.gender === "f" ? j.gender : "";
+      const g: ProfileData["gender"] = j.gender === "m" ? "m" : j.gender === "f" ? "f" : "";
       const dn = (j.display_name ?? "").trim() || (name && name !== "друг" ? name : "");
       const tz =
         typeof j.timezone_offset === "number" && Number.isFinite(j.timezone_offset)
