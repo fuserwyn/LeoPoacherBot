@@ -975,15 +975,22 @@ html.app-keyboard-open .profile__health-actions--keyboard {
 }
 
 .profile__friends-toggle {
-  width: 100%;
+  align-self: flex-start;
+  padding: 8px 18px;
+  border-radius: 999px;
+  border: 1.5px solid var(--border-subtle);
+  background: rgba(255, 255, 255, 0.05);
+  color: var(--muted);
+  font-size: 14px;
+  font-weight: 700;
+  font-family: inherit;
+  cursor: pointer;
 }
 
-.profile__friends-subhead {
-  margin-top: 4px;
-  font-size: 12px;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.03em;
+.profile__friends-toggle.is-active {
+  background: linear-gradient(180deg, #ff6a35, #e54a15);
+  border-color: transparent;
+  color: #fff;
 }
 
 .profile__friends-list {

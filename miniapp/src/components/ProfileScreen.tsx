@@ -136,10 +136,10 @@ export function ProfileScreen({
   const [reminderLoading, setReminderLoading] = useState(true);
   const [reminderBusy, setReminderBusy] = useState(false);
 
-  // Друзья по стае: список участников + индикатор «слежу».
+  // Друзья по стае: только те, за кем viewer уже подписался в ленте.
   const [friends, setFriends] = useState<FriendMember[]>([]);
   const [friendsLoading, setFriendsLoading] = useState(false);
-  const [friendsOpen, setFriendsOpen] = useState(false);
+  const [followingOpen, setFollowingOpen] = useState(false);
   const [friendBusyId, setFriendBusyId] = useState<number | null>(null);
 
   useEffect(() => {
@@ -376,14 +376,12 @@ export function ProfileScreen({
     [inTelegram, initData, friendBusyId, showAlert],
   );
 
-  // Список участников (с флагом подписки) грузим сразу при открытии вкладки —
-  // чтобы показать «за кем ты следишь» без раскрытия полного списка.
+  // Подписки подгружаем только при раскрытии «Слежу за».
   useEffect(() => {
-    if (active) void loadFriends();
-  }, [active, loadFriends]);
+    if (active && followingOpen) void loadFriends();
+  }, [active, followingOpen, loadFriends]);
 
   const followingList = friends.filter((m) => m.following);
-  const notFollowingList = friends.filter((m) => !m.following);
 
   const loadHealth = useCallback(async () => {
     if (!api || !inTelegram || !initData?.trim()) {
@@ -1001,77 +999,44 @@ export function ProfileScreen({
       <h2 className="section-title">Друзья по стае</h2>
       <div className="profile__friends">
         <p className="profile__hint muted">
-          За кем ты следишь — их отчёты увидишь в ленте по фильтру «Друзья».
+          Подписаться можно в ленте: открой отчёт и выбери «Следить за автором». Их отчёты увидишь по фильтру «Друзья».
         </p>
-        {friendsLoading && friends.length === 0 ? (
-          <p className="muted">Загрузка…</p>
-        ) : (
-          <>
-            {followingList.length === 0 ? (
-              <p className="profile__hint muted">
-                Пока ты ни на кого не подписан. Открой список участников ниже и нажми «Следить».
-              </p>
-            ) : (
-              <ul className="profile__friends-list">
-                {followingList.map((m) => (
-                  <li key={m.user_id} className="profile__friend-row">
-                    <span className="profile__friend-info">
-                      <span className="profile__friend-name">{m.name}</span>
-                      {m.streak_days > 0 && (
-                        <span className="profile__friend-streak muted">🔥 {m.streak_days}</span>
-                      )}
-                    </span>
-                    <button
-                      type="button"
-                      className="profile__friend-btn profile__friend-btn--following"
-                      onClick={() => void toggleFollow(m)}
-                      disabled={friendBusyId === m.user_id}
-                    >
-                      Отписаться
-                    </button>
-                  </li>
-                ))}
-              </ul>
-            )}
-
-            {!friendsOpen ? (
-              <button
-                type="button"
-                className="profile__save profile__friends-toggle"
-                onClick={() => setFriendsOpen(true)}
-              >
-                Найти участников стаи
-              </button>
-            ) : (
-              <>
-                <div className="profile__friends-subhead muted">Участники стаи</div>
-                {notFollowingList.length === 0 ? (
-                  <p className="profile__hint muted">Ты уже следишь за всеми участниками стаи.</p>
-                ) : (
-                  <ul className="profile__friends-list">
-                    {notFollowingList.map((m) => (
-                      <li key={m.user_id} className="profile__friend-row">
-                        <span className="profile__friend-info">
-                          <span className="profile__friend-name">{m.name}</span>
-                          {m.streak_days > 0 && (
-                            <span className="profile__friend-streak muted">🔥 {m.streak_days}</span>
-                          )}
-                        </span>
-                        <button
-                          type="button"
-                          className="profile__friend-btn"
-                          onClick={() => void toggleFollow(m)}
-                          disabled={friendBusyId === m.user_id}
-                        >
-                          Следить
-                        </button>
-                      </li>
-                    ))}
-                  </ul>
-                )}
-              </>
-            )}
-          </>
+        <button
+          type="button"
+          className={`profile__friends-toggle${followingOpen ? " is-active" : ""}`}
+          onClick={() => setFollowingOpen((open) => !open)}
+        >
+          Слежу за
+        </button>
+        {followingOpen && (
+          friendsLoading && friends.length === 0 ? (
+            <p className="muted">Загрузка…</p>
+          ) : followingList.length === 0 ? (
+            <p className="profile__hint muted">
+              Пока ты ни на кого не подписан. Найди человека в ленте и нажми «Следить за автором».
+            </p>
+          ) : (
+            <ul className="profile__friends-list">
+              {followingList.map((m) => (
+                <li key={m.user_id} className="profile__friend-row">
+                  <span className="profile__friend-info">
+                    <span className="profile__friend-name">{m.name}</span>
+                    {m.streak_days > 0 && (
+                      <span className="profile__friend-streak muted">🔥 {m.streak_days}</span>
+                    )}
+                  </span>
+                  <button
+                    type="button"
+                    className="profile__friend-btn profile__friend-btn--following"
+                    onClick={() => void toggleFollow(m)}
+                    disabled={friendBusyId === m.user_id}
+                  >
+                    Отписаться
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )
         )}
       </div>
 
