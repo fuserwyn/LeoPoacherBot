@@ -209,6 +209,8 @@ func (b *Bot) Start(ctx context.Context) error {
 	go b.startDailySummaryScheduler(ctx)
 	go b.startDailyWisdomScheduler(ctx)
 	go b.startOutboxWorker(ctx)
+	// Publish отложенных админских постов ленты (см. startScheduledAdminPostsWorker).
+	go b.startScheduledAdminPostsWorker(ctx)
 	// Periodic-страховка от пропущенных киков (см. startInactivityKickWatchdog).
 	go b.startInactivityKickWatchdog(ctx)
 

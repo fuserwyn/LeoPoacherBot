@@ -6,14 +6,18 @@ import (
 	"strings"
 	"time"
 
+	"leo-bot/internal/moderation"
+
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 )
 
 type adminSession struct {
 	Mode         string // feed_text | poll | support | user_mgmt | user_add_cups | user_sub_cups | user_set_cups | user_add_streak | user_sub_streak | owner_add_admin
-	Step         string // await_text | await_support_text | await_poll_question | await_poll_options | await_user_id | await_amount | await_cups_set | await_days | await_admin_id
+	Step         string // await_text | await_post_options | await_schedule_time | await_support_text | await_poll_question | await_poll_options | await_user_id | await_amount | await_cups_set | await_days | await_admin_id
 	TargetUserID int64
 	PollQuestion string
+	FeedText     string // черновик текста админского поста (между шагами выбора автора/времени)
+	PostAuthor   string // adminPostAuthorLeo | adminPostAuthorAdmin — от чьего имени публиковать
 }
 
 func (b *Bot) isOwnerPrivateChat(msg *tgbotapi.Message) bool {
@@ -47,6 +51,9 @@ func (b *Bot) showAdminMenuForUser(chatID int64) {
 		tgbotapi.NewInlineKeyboardRow(
 			tgbotapi.NewInlineKeyboardButtonData("📝 Текст", "admin_mode_feed_text"),
 			tgbotapi.NewInlineKeyboardButtonData("🗳 Опрос", "admin_mode_poll"),
+		),
+		tgbotapi.NewInlineKeyboardRow(
+			tgbotapi.NewInlineKeyboardButtonData("📅 Отложенные", "admin_sched_list"),
 		),
 		tgbotapi.NewInlineKeyboardRow(
 			tgbotapi.NewInlineKeyboardButtonData("📊 Посещения бота", "admin_visit_stats"),
@@ -91,6 +98,14 @@ func (b *Bot) handleAdminCallbackQuery(callback *tgbotapi.CallbackQuery) {
 		}
 		callbackConfig := tgbotapi.NewCallback(callback.ID, "")
 		b.api.Request(callbackConfig)
+		return
+	}
+	if strings.HasPrefix(callback.Data, "admin_sched_cancel_") {
+		postID, err := strconv.ParseInt(strings.TrimPrefix(callback.Data, "admin_sched_cancel_"), 10, 64)
+		if err == nil && postID > 0 {
+			b.cancelAdminScheduledPost(callback.Message.Chat.ID, postID)
+		}
+		b.api.Request(tgbotapi.NewCallback(callback.ID, ""))
 		return
 	}
 	if strings.HasPrefix(callback.Data, "admin_feed_report_dismiss_") {
@@ -157,7 +172,17 @@ func (b *Bot) handleAdminCallbackQuery(callback *tgbotapi.CallbackQuery) {
 		b.showAdminFeedReportsInbox(callback.Message.Chat.ID)
 	case "admin_mode_feed_text":
 		b.startAdminFlow(callback.From.ID, "feed_text")
-		b.api.Send(tgbotapi.NewMessage(callback.Message.Chat.ID, "📝 Напиши кастомный текст для ленты стаи. Он появится как отдельный админский пост."))
+		b.api.Send(tgbotapi.NewMessage(callback.Message.Chat.ID, "📝 Напиши текст для ленты стаи. Дальше выберешь автора (Лео/Админ) и время публикации."))
+	case "admin_feed_pub_leo":
+		b.finishAdminFeedPostNow(callback, adminPostAuthorLeo)
+	case "admin_feed_pub_admin":
+		b.finishAdminFeedPostNow(callback, adminPostAuthorAdmin)
+	case "admin_feed_sch_leo":
+		b.startAdminFeedSchedule(callback, adminPostAuthorLeo)
+	case "admin_feed_sch_admin":
+		b.startAdminFeedSchedule(callback, adminPostAuthorAdmin)
+	case "admin_sched_list":
+		b.showAdminScheduledPosts(callback.Message.Chat.ID)
 	case "admin_mode_poll":
 		b.startAdminFlow(callback.From.ID, "poll")
 		b.api.Send(tgbotapi.NewMessage(callback.Message.Chat.ID, "🗳 Напиши вопрос для опроса в ленте miniapp."))
@@ -268,12 +293,38 @@ func (b *Bot) handleAdminFlowMessage(msg *tgbotapi.Message) bool {
 			b.api.Send(tgbotapi.NewMessage(msg.Chat.ID, "❌ Неизвестный текстовый режим. Начни заново: /admin"))
 			return true
 		}
-		if err := b.saveAdminCustomPackFeed(msg.From.ID, text); err != nil {
-			b.api.Send(tgbotapi.NewMessage(msg.Chat.ID, "❌ Не удалось опубликовать пост: "+err.Error()))
+		session.FeedText = text
+		session.Step = "await_post_options"
+		b.showAdminFeedPostOptions(msg.Chat.ID)
+		return true
+
+	case "await_schedule_time":
+		when, perr := parseAdminScheduleTime(strings.TrimSpace(msg.Text))
+		if perr != nil {
+			b.api.Send(tgbotapi.NewMessage(msg.Chat.ID, "⚠️ "+perr.Error()+"\n\nФормат: `ДД.ММ ЧЧ:ММ` (МСК), например `15.06 09:30`. Или /cancel."))
 			return true
 		}
+		text := strings.TrimSpace(session.FeedText)
+		if text == "" {
+			b.clearAdminFlow(msg.From.ID)
+			b.api.Send(tgbotapi.NewMessage(msg.Chat.ID, "❌ Текст поста потерян. Начни заново: /admin"))
+			return true
+		}
+		// Модерируем заранее — чтобы админ сразу увидел отказ, а не в момент публикации.
+		if err := b.enforceAdminBroadcast(text, moderation.SurfaceAdminPost); err != nil {
+			b.api.Send(tgbotapi.NewMessage(msg.Chat.ID, "❌ Текст не прошёл модерацию: "+err.Error()))
+			return true
+		}
+		if _, err := b.db.InsertScheduledAdminPost(b.config.MonetizedChatID, session.PostAuthor, text, when, msg.From.ID); err != nil {
+			b.api.Send(tgbotapi.NewMessage(msg.Chat.ID, "❌ Не удалось запланировать пост: "+err.Error()))
+			return true
+		}
+		author := adminPostAuthorUsername(session.PostAuthor)
 		b.clearAdminFlow(msg.From.ID)
-		b.api.Send(tgbotapi.NewMessage(msg.Chat.ID, "✅ Кастомный пост опубликован в ленте стаи."))
+		b.api.Send(tgbotapi.NewMessage(msg.Chat.ID, fmt.Sprintf(
+			"✅ Пост запланирован на %s (МСК), от имени «%s». Управление: /admin → 📅 Отложенные.",
+			when.In(moscowLocation()).Format("02.01 15:04"), author,
+		)))
 		return true
 
 	case "await_poll_question":

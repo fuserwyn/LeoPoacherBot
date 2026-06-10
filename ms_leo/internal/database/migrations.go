@@ -1138,6 +1138,29 @@ var Migrations = []Migration{
 			ALTER TABLE events DROP COLUMN IF EXISTS is_alpha;
 		`,
 	},
+	{
+		Version:     57,
+		Description: "Scheduled admin feed posts (отложенные посты + автор Лео/Админ)",
+		UpSQL: `
+			CREATE TABLE IF NOT EXISTS scheduled_admin_posts (
+				id           BIGSERIAL PRIMARY KEY,
+				chat_id      BIGINT NOT NULL,
+				author       VARCHAR(16) NOT NULL DEFAULT 'admin',
+				message_text TEXT NOT NULL,
+				scheduled_at TIMESTAMP WITH TIME ZONE NOT NULL,
+				created_by   BIGINT NOT NULL,
+				published_at TIMESTAMP WITH TIME ZONE,
+				canceled_at  TIMESTAMP WITH TIME ZONE,
+				created_at   TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT (NOW() AT TIME ZONE 'Europe/Moscow')
+			);
+			CREATE INDEX IF NOT EXISTS idx_sched_admin_posts_due
+				ON scheduled_admin_posts (scheduled_at)
+				WHERE published_at IS NULL AND canceled_at IS NULL;
+		`,
+		DownSQL: `
+			DROP TABLE IF EXISTS scheduled_admin_posts;
+		`,
+	},
 }
 
 // MigrationRecord представляет запись о выполненной миграции

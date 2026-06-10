@@ -338,15 +338,17 @@ export function dtoToCard(d: PackFeedItemDTO): ActivityCardProps {
     };
   }
   if (isAdminPost) {
+    // Пост может публиковаться от имени Лео (username "Лео") или от имени Админа.
+    const fromLeo = (d.username || "").trim() === "Лео";
     return {
-      avatar: "📢",
-      name: "Админ",
+      avatar: fromLeo ? LEO_AVATAR_URL : "📢",
+      name: fromLeo ? "Лео" : "Админ",
       streak: 0,
       hideStreak: true,
       lightTone: true,
       timeAgo: formatLocalDateTime(d.created_at),
-      emoji: m.emoji,
-      activity: m.activity,
+      emoji: fromLeo ? "🐆" : m.emoji,
+      activity: fromLeo ? "Лео · объявление" : m.activity,
       details: "",
       comment,
     };

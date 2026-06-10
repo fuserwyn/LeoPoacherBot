@@ -137,10 +137,22 @@ func (b *Bot) savePackRemovedMiniappFeed(chatID, userID int64, username string) 
 	}
 }
 
-func (b *Bot) saveAdminCustomPackFeed(adminUserID int64, text string) error {
-	if b == nil || b.db == nil || b.config == nil || b.config.MonetizedChatID == 0 {
-		return fmt.Errorf("pack feed unavailable")
+// Автор админского поста ленты: "leo" — от имени Лео, иначе — от имени Админа.
+const (
+	adminPostAuthorLeo   = "leo"
+	adminPostAuthorAdmin = "admin"
+)
+
+// adminPostAuthorUsername — отображаемое имя автора карточки ленты по коду автора.
+func adminPostAuthorUsername(author string) string {
+	if author == adminPostAuthorLeo {
+		return "Лео"
 	}
+	return "Админ"
+}
+
+// saveAdminCustomPackFeed — немедленная публикация админского поста в ленту стаи (с PRE-модерацией).
+func (b *Bot) saveAdminCustomPackFeed(adminUserID int64, author, text string) error {
 	t := strings.TrimSpace(text)
 	if t == "" {
 		return fmt.Errorf("empty text")
@@ -148,16 +160,30 @@ func (b *Bot) saveAdminCustomPackFeed(adminUserID int64, text string) error {
 	if err := b.enforceAdminBroadcast(t, moderation.SurfaceAdminPost); err != nil {
 		return err
 	}
+	if err := b.publishAdminPackFeedPost(author, t); err != nil {
+		return err
+	}
+	b.logger.Infof("admin custom pack feed post published by admin=%d author=%s", adminUserID, author)
+	return nil
+}
+
+// publishAdminPackFeedPost — записывает админский пост в ленту стаи без модерации.
+// Используется и при немедленной публикации (после enforceAdminBroadcast), и планировщиком
+// отложенных постов (модерация уже прошла в момент постановки в очередь).
+func (b *Bot) publishAdminPackFeedPost(author, text string) error {
+	if b == nil || b.db == nil || b.config == nil || b.config.MonetizedChatID == 0 {
+		return fmt.Errorf("pack feed unavailable")
+	}
+	t := strings.TrimSpace(text)
+	if t == "" {
+		return fmt.Errorf("empty text")
+	}
 	um := &domain.UserMessage{
 		UserID:      0,
 		ChatID:      b.config.MonetizedChatID,
-		Username:    "Админ",
+		Username:    adminPostAuthorUsername(author),
 		MessageText: t,
 		MessageType: userMessageTypeAdminPost,
 	}
-	if err := b.db.SaveUserMessage(um); err != nil {
-		return err
-	}
-	b.logger.Infof("admin custom pack feed post published by admin=%d", adminUserID)
-	return nil
+	return b.db.SaveUserMessage(um)
 }

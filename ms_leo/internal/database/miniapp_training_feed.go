@@ -432,7 +432,7 @@ func (d *Database) ToggleTrainingFeedThreadLike(packChatID, threadReplyID, userI
 type ThreadLikeAgg struct {
 	Count  int
 	Me     bool
-	Voters []Voter // лайкнувшие: имя (display_name, иначе «Участник <id>») + аватар
+	Voters []Voter // лайкнувшие: имя (display_name → ник, иначе «Участник <id>») + аватар
 }
 
 // ListTrainingFeedThreadLikeAggs — агрегаты лайков для списка thread reply id.
@@ -464,10 +464,23 @@ func (d *Database) ListTrainingFeedThreadLikeAggs(packChatID int64, threadReplyI
 		return nil, err
 	}
 
-	// Лайкнувшие: профиль мини-аппа (display_name + аватар), иначе «Участник <id>».
+	// Лайкнувшие: имя профиля (display_name) → ник (username из комментариев/реакций
+	// этого человека в стае), иначе «Участник <id>»; + аватар.
 	rvoters, err := d.db.Query(
 		`SELECT l.thread_reply_id, l.user_id,
-		        COALESCE(NULLIF(BTRIM(p.display_name), ''), CONCAT('Участник ', l.user_id::text)) AS voter,
+		        COALESCE(
+		          NULLIF(BTRIM(p.display_name), ''),
+		          NULLIF(BTRIM((
+		            SELECT u.username FROM (
+		              SELECT username, created_at FROM miniapp_training_feed_thread
+		               WHERE pack_chat_id = l.pack_chat_id AND from_user_id = l.user_id AND BTRIM(username) <> ''
+		              UNION ALL
+		              SELECT username, created_at FROM miniapp_training_feed_reactions
+		               WHERE pack_chat_id = l.pack_chat_id AND user_id = l.user_id AND BTRIM(username) <> ''
+		            ) u ORDER BY u.created_at DESC LIMIT 1
+		          )), ''),
+		          CONCAT('Участник ', l.user_id::text)
+		        ) AS voter,
 		        COALESCE(p.telegram_photo_url, '') AS photo
 		 FROM miniapp_training_feed_thread_likes l
 		 LEFT JOIN miniapp_user_profile p

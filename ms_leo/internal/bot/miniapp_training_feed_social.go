@@ -163,10 +163,9 @@ func (b *Bot) PackTrainingFeedThreadPost(viewerUserID int64, initD initdata.Init
 	if err != nil {
 		return err
 	}
-	if !has || (typ != "training_done" && typ != "sick_leave" && typ != "healthy") {
+	if !has || !packFeedSupportsThread(typ) {
 		return ErrTrainingFeedParentNotFound
 	}
-	var leoParentSnapshot string
 	replyingToLeo := false
 	if replyToThreadID != 0 {
 		parent, ok, err := b.db.GetTrainingFeedThreadRowInPack(replyToThreadID, chatID)
@@ -178,9 +177,15 @@ func (b *Bot) PackTrainingFeedThreadPost(viewerUserID int64, initD initdata.Init
 		}
 		if parent.FromUserID == 0 {
 			replyingToLeo = true
-			leoParentSnapshot = parent.MessageText
 		}
 	}
+	// Лео отвечает в треде, если его явно позвали через @leo (даже если реплай был на
+	// сообщение другого участника) ИЛИ если это reply на сообщение самого Лео.
+	botName := ""
+	if b.api != nil && b.api.Self.ID != 0 {
+		botName = b.api.Self.UserName
+	}
+	mentionsLeo := textMentionsLeoForPackGroup(text, botName)
 	uname := displayNameFromInitData(initD)
 	threadID, err := b.db.InsertTrainingFeedThreadReply(chatID, userMessageID, viewerUserID, uname, text, replyToThreadID)
 	if err != nil {
@@ -188,20 +193,21 @@ func (b *Bot) PackTrainingFeedThreadPost(viewerUserID int64, initD initdata.Init
 	}
 	b.afterPackTrainingThreadInserted(chatID, userMessageID, viewerUserID, uname, text, threadID, replyToThreadID, typ)
 	b.trackFeedCommentPosted(viewerUserID, utf8.RuneCountInString(text))
-	if replyingToLeo && threadID != 0 && typ == "training_done" {
-		snap := leoParentSnapshot
+	if (replyingToLeo || mentionsLeo) && threadID != 0 && typ == "training_done" {
 		txt := text
 		uid := viewerUserID
 		tid := threadID
 		umid := userMessageID
 		cid := chatID
+		rtt := replyToThreadID
+		mention := mentionsLeo
 		go func() {
 			defer func() {
 				if r := recover(); r != nil {
-					b.logger.Errorf("leo banter training thread panic: %v", r)
+					b.logger.Errorf("leo feed thread reply panic: %v", r)
 				}
 			}()
-			b.LeoBanterReplyToUserTrainingFeedThread(cid, umid, tid, uid, txt, snap)
+			b.LeoReplyInFeedThread(cid, umid, tid, uid, txt, rtt, mention)
 		}()
 	}
 	return nil

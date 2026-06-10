@@ -536,13 +536,74 @@ func (b *Bot) handleLeopardMoneyTrainingDone(msg *tgbotapi.Message, personalRepl
 
 }
 
-// LeoBanterReplyToUserTrainingFeedThread — ответ Лео в треде под отчётом, когда пользователь ответил на сообщение Лео (reply).
-// Вызывается асинхронно из PackTrainingFeedThreadPost; не шлёт личку, только строка в miniapp_training_feed_thread.
-func (b *Bot) LeoBanterReplyToUserTrainingFeedThread(
+// feedThreadAuthorLabel — как подписать автора строки треда в транскрипте для Лео.
+func feedThreadAuthorLabel(r database.TrainingFeedThreadRow) string {
+	if r.FromUserID == 0 {
+		return "Лео"
+	}
+	n := strings.TrimSpace(r.Username)
+	if n == "" {
+		n = fmt.Sprintf("Участник %d", r.FromUserID)
+	}
+	return n
+}
+
+// buildFeedThreadTranscript — весь тред комментариев под отчётом как переписка (по времени).
+// Помечает строку-триггер (на которую отвечает Лео) и связи reply внутри треда, чтобы Лео
+// понимал контекст диалога, даже если последний коммент — ответ на сообщение другого участника.
+func (b *Bot) buildFeedThreadTranscript(trainingUserMessageID, triggerThreadReplyID int64) string {
+	if b == nil || b.db == nil {
+		return ""
+	}
+	m, err := b.db.ListTrainingFeedThreadByMessages([]int64{trainingUserMessageID})
+	if err != nil {
+		b.logger.Warnf("feed thread transcript list: %v", err)
+		return ""
+	}
+	rows := m[trainingUserMessageID]
+	if len(rows) == 0 {
+		return ""
+	}
+	// Имена резолвим по всему треду (родитель reply может быть старше, чем хвост).
+	nameByID := make(map[int64]string, len(rows))
+	for _, r := range rows {
+		nameByID[r.ID] = feedThreadAuthorLabel(r)
+	}
+	// Контекст не должен пухнуть: для отображения берём хвост треда.
+	const maxRows = 30
+	if len(rows) > maxRows {
+		rows = rows[len(rows)-maxRows:]
+	}
+	var sb strings.Builder
+	for _, r := range rows {
+		line := feedThreadAuthorLabel(r)
+		if r.ReplyToID.Valid && r.ReplyToID.Int64 != 0 {
+			if pn, ok := nameByID[r.ReplyToID.Int64]; ok {
+				line += " (в ответ «" + pn + "»)"
+			}
+		}
+		line += ": " + truncateForDM(r.MessageText, 400)
+		if r.ID == triggerThreadReplyID {
+			line += "  ← на это ответь"
+		}
+		sb.WriteString(line)
+		sb.WriteString("\n")
+	}
+	return strings.TrimRight(sb.String(), "\n")
+}
+
+// LeoReplyInFeedThread — ответ Лео в треде комментариев под отчётом тренировки.
+// Срабатывает, когда участник явно позвал Лео через @leo (даже если реплай был на сообщение
+// другого участника) ИЛИ ответил на сообщение самого Лео. Лео подхватывает контекст ВСЕГО
+// треда, а не только сообщения-родителя. Реплика Лео привязывается к комментарию, который её
+// вызвал. Вызывается асинхронно из PackTrainingFeedThreadPost; личку шлёт через unread-бейдж.
+func (b *Bot) LeoReplyInFeedThread(
 	packChatID, trainingUserMessageID int64,
-	userThreadReplyRowID int64,
+	triggerThreadReplyID int64,
 	viewerTelegramUserID int64,
-	userReplyText, leoMessageBeingRepliedTo string,
+	triggerText string,
+	replyToThreadID int64,
+	calledByMention bool,
 ) {
 	if b == nil || b.db == nil || b.aiClient == nil {
 		return
@@ -552,8 +613,8 @@ func (b *Bot) LeoBanterReplyToUserTrainingFeedThread(
 		reportText = t
 	}
 	// Автор ОТЧЁТА и СОБЕСЕДНИК — это могут быть РАЗНЫЕ люди: коммент под чужой
-	// тренировкой пишет не автор поста. Раньше отчёт автора подавался как «отчёт
-	// собеседника» → Лео приписывал тренировку комментатору (баг: «ты играл в баскетбол»,
+	// тренировкой пишет не автор поста. Отчёт автора нельзя подавать как «отчёт
+	// собеседника» → иначе Лео припишет тренировку комментатору (баг: «ты играл в баскетбол»,
 	// хотя баскетбол был у автора поста, а отвечал другой участник).
 	authorUserID, _, _ := b.db.GetUserMessageAuthorUserID(packChatID, trainingUserMessageID)
 	commenterIsAuthor := authorUserID != 0 && authorUserID == viewerTelegramUserID
@@ -570,9 +631,14 @@ func (b *Bot) LeoBanterReplyToUserTrainingFeedThread(
 	if commenterName == "" {
 		commenterName = "собеседник"
 	}
-	leoCtx := truncateForDM(leoMessageBeingRepliedTo, 1400)
-	userCtx := truncateForDM(userReplyText, 1400)
-	reportCtx := truncateForDM(reportText, 900)
+
+	// Весь тред под отчётом как переписка — чтобы Лео видел контекст, а не одно сообщение.
+	transcript := b.buildFeedThreadTranscript(trainingUserMessageID, triggerThreadReplyID)
+	if strings.TrimSpace(transcript) == "" {
+		// На всякий случай не остаёмся без контекста — хотя бы реплика-триггер.
+		transcript = commenterName + ": " + truncateForDM(triggerText, 400)
+	}
+
 	// Фото отчёта, под которым идёт диалог — анализируем vision-моделью.
 	photoDesc := ""
 	if b.aiClient != nil && b.aiClient.HasVision() {
@@ -582,23 +648,26 @@ func (b *Bot) LeoBanterReplyToUserTrainingFeedThread(
 	}
 
 	qb := strings.Builder{}
-	qb.WriteString("Ты Лео — Fat Leopard. Пользователь ответил на ТВОЁ сообщение в комментариях под отчётом о тренировке в ленте стаи (мини-апп).\n\n")
+	qb.WriteString("Ты Лео — Fat Leopard. Ты участвуешь в комментариях под отчётом о тренировке в ленте стаи (мини-апп).\n\n")
+	if calledByMention {
+		qb.WriteString("Участник «" + commenterName + "» позвал тебя через @leo в комментарии. Ответь именно ему, опираясь на весь разговор в треде ниже.\n\n")
+	} else {
+		qb.WriteString("Участник «" + commenterName + "» ответил на твоё сообщение в треде. Продолжи диалог, опираясь на весь разговор в треде ниже.\n\n")
+	}
 	if commenterIsAuthor {
 		qb.WriteString("Отчёт о тренировке (контекст ниже) принадлежит самому собеседнику — он автор этого отчёта.\n\n")
 	} else {
 		qb.WriteString("ВАЖНО про авторство: отчёт о тренировке (контекст ниже) написал участник «" + authorName + "». " +
-			"С тобой в комментариях разговаривает ДРУГОЙ участник — «" + commenterName + "». " +
+			"С тобой сейчас разговаривает ДРУГОЙ участник — «" + commenterName + "». " +
 			"Собеседник НЕ делал эту тренировку, он лишь комментирует чужой отчёт. " +
 			"Не приписывай тренировку, цифры и вид активности из отчёта собеседнику.\n\n")
 	}
-	qb.WriteString("Твоё сообщение, на которое он ответил:\n")
-	qb.WriteString(leoCtx)
-	qb.WriteString("\n\nЕго реплика тебе:\n")
-	if wrapped := moderation.WrapUserContent("user_reply", userCtx); wrapped != "" {
+	qb.WriteString("Весь тред комментариев (по порядку; строка с пометкой «← на это ответь» — последняя реплика, на которую нужно ответить):\n")
+	if wrapped := moderation.WrapUserContent("feed_thread", transcript); wrapped != "" {
 		qb.WriteString(wrapped)
 	}
-	qb.WriteString("\n\nОтветь ему 1–4 короткими предложениями в том же тоне: остроумно, по-хищному по-дружески, можно лёгкую иронию. Реагируй на его слова, продолжай диалог — не пересказывай длинный отчёт ниже целиком.\n")
-	qb.WriteString("Без Markdown, без нумерации списков. Эмодзи — не больше двух на весь ответ. Без мета («как языковая модель»).\n")
+	qb.WriteString("\n\nОтветь собеседнику 1–4 короткими предложениями: остроумно, по-хищному по-дружески, можно лёгкую иронию. Реагируй по делу на последнюю реплику и общий контекст треда — не пересказывай длинный отчёт ниже целиком.\n")
+	qb.WriteString("Без Markdown, без нумерации списков. Не начинай ответ с «@leo» или имени. Эмодзи — не больше двух на весь ответ. Без мета («как языковая модель»).\n")
 	if strings.TrimSpace(profName) != "" {
 		qb.WriteString("Имя из профиля (если уместно в обращении): " + strings.TrimSpace(profName) + "\n")
 	}
@@ -609,7 +678,7 @@ func (b *Bot) LeoBanterReplyToUserTrainingFeedThread(
 	} else {
 		ctxBody.WriteString("Выдержка из текста отчёта о тренировке участника «" + authorName + "» — это НЕ тренировка собеседника (контекст, не цитируй дословно целиком):\n")
 	}
-	if wrapped := moderation.WrapUserContent("training_report", reportCtx); wrapped != "" {
+	if wrapped := moderation.WrapUserContent("training_report", truncateForDM(reportText, 900)); wrapped != "" {
 		ctxBody.WriteString(wrapped)
 	}
 	if strings.TrimSpace(photoDesc) != "" {
@@ -618,7 +687,7 @@ func (b *Bot) LeoBanterReplyToUserTrainingFeedThread(
 
 	reply, err := b.aiClient.AnswerUserQuestion(qb.String(), ctxBody.String())
 	if err != nil {
-		b.logger.Warnf("leo training feed thread banter AI: %v", err)
+		b.logger.Warnf("leo feed thread reply AI: %v", err)
 		return
 	}
 	reply = ai.SanitizeTextForUser(reply)
@@ -630,9 +699,9 @@ func (b *Bot) LeoBanterReplyToUserTrainingFeedThread(
 		r := []rune(reply)
 		reply = string(r[:900]) + "…"
 	}
-	leoReplyID, err := b.db.InsertTrainingFeedThreadReply(packChatID, trainingUserMessageID, 0, "Лео", reply, userThreadReplyRowID)
+	leoReplyID, err := b.db.InsertTrainingFeedThreadReply(packChatID, trainingUserMessageID, 0, "Лео", reply, triggerThreadReplyID)
 	if err != nil {
-		b.logger.Warnf("leo training feed thread banter insert: %v", err)
+		b.logger.Warnf("leo feed thread reply insert: %v", err)
 		return
 	}
 	preview := truncateForDM(reply, 160)
