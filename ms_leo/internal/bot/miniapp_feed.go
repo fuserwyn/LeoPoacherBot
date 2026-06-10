@@ -90,6 +90,8 @@ type PackFeedItem struct {
 	CreatedAt        string `json:"created_at"`
 	StreakDays       int    `json:"streak_days"`
 	IsYou            bool   `json:"is_you"`
+	// IsFriend — viewer подписан на автора этой карточки (для фильтра «Друзья» в ленте).
+	IsFriend         bool   `json:"is_friend,omitempty"`
 	AuthorPhotoURL   string `json:"author_photo_url,omitempty"`
 	TrainingPhotoURL string `json:"training_photo_url,omitempty"`
 	// PackChatID — id группы «Стая» (MONETIZED_CHAT_ID), с которой синхронизирована лента.
@@ -138,6 +140,7 @@ func (b *Bot) PackFeedForViewer(viewerUserID int64, initD initdata.InitData, ini
 	out = b.enrichPackFeedTrainingSocial(out, viewerUserID, chatID, initDataRaw)
 	out = b.enrichPackFeedPolls(out, viewerUserID, chatID)
 	out = b.enrichPackFeedAuthorPhotos(out, chatID, initDataRaw)
+	out = b.enrichPackFeedFriends(out, viewerUserID, chatID)
 	return out, nil
 }
 

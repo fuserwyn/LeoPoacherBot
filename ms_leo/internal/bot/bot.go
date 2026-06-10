@@ -34,12 +34,12 @@ type Bot struct {
 	ragStore             rag.Store
 	sickApprovalWatchers map[int64]chan struct{}
 	sickApprovalMutex    sync.Mutex
-	adminSessions            map[int64]*adminSession
-	adminSessionsMutex       sync.Mutex
+	adminSessions        map[int64]*adminSession
+	adminSessionsMutex   sync.Mutex
 	// privateBottomKeyboardKind — последняя reply-клавиатура внизу лички: "admin" | "support".
 	privateBottomKeyboardKind sync.Map
-	userSupportSessions      map[int64]struct{}
-	userSupportSessionsMutex sync.Mutex
+	userSupportSessions       map[int64]struct{}
+	userSupportSessionsMutex  sync.Mutex
 	// Очередь ответов Лео для мини-аппа (личка): poll без БД. Несколько реплик бота — один процесс.
 	miniappPersonalMu    sync.Mutex
 	miniappPersonalQueue map[int64][]string
@@ -516,18 +516,6 @@ func (b *Bot) handleMessage(msg *tgbotapi.Message, personalReplyCh chan<- string
 							b.logger.Warnf("mirror training_done to pack feed user_messages: %v", errM)
 						} else {
 							trainingDoneFeedMsgID = feedID
-							// Уведомляем подписчиков этого участника, что он потренировался.
-							trainerID := userMsg.UserID
-							trainerName := userMsg.Username
-							packID := b.config.MonetizedChatID
-							go func() {
-								defer func() {
-									if r := recover(); r != nil {
-										b.logger.Errorf("notify friend subscribers panic: %v", r)
-									}
-								}()
-								b.notifyFriendSubscribers(trainerID, packID, trainerName)
-							}()
 						}
 					}
 				}
@@ -546,17 +534,17 @@ func (b *Bot) handleMessage(msg *tgbotapi.Message, personalReplyCh chan<- string
 			// Если пользователя нет в БД, создаем новую запись
 			timerStartTime := utils.FormatMoscowTime(utils.GetMoscowTime())
 			messageLog := &domain.MessageLog{
-				UserID:            msg.From.ID,
-				ChatID:            stateChatID,
-				Username:          username,
-				StreakDays: 0,
-				CupsEarned: 0,
-				LastMessage:       timerStartTime,
-				HasTrainingDone:   hasTrainingReport,
-				HasSickLeave:      false,
-				HasHealthy:        false,
-				IsDeleted:         false,
-				TimerStartTime:    &timerStartTime,
+				UserID:          msg.From.ID,
+				ChatID:          stateChatID,
+				Username:        username,
+				StreakDays:      0,
+				CupsEarned:      0,
+				LastMessage:     timerStartTime,
+				HasTrainingDone: hasTrainingReport,
+				HasSickLeave:    false,
+				HasHealthy:      false,
+				IsDeleted:       false,
+				TimerStartTime:  &timerStartTime,
 			}
 
 			if err := b.db.SaveMessageLog(messageLog); err != nil {

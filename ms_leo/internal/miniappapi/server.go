@@ -763,6 +763,7 @@ func (s *Server) handlePostFeedTrainingThread(w http.ResponseWriter, r *http.Req
 		text          string
 		replyToID     int64
 		photoURL      string
+		asAdmin       bool
 	)
 	isMultipart := strings.HasPrefix(r.Header.Get("Content-Type"), "multipart/form-data")
 	if isMultipart {
@@ -780,12 +781,17 @@ func (s *Server) handlePostFeedTrainingThread(w http.ResponseWriter, r *http.Req
 				replyToID = v
 			}
 		}
+		switch strings.TrimSpace(r.FormValue("as_admin")) {
+		case "1", "true", "yes":
+			asAdmin = true
+		}
 	} else {
 		var body struct {
 			InitData      string `json:"init_data"`
 			UserMessageID int64  `json:"user_message_id"`
 			Text          string `json:"text"`
 			ReplyToID     int64  `json:"reply_to_id"`
+			AsAdmin       bool   `json:"as_admin"`
 		}
 		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
 			s.jsonErr(w, http.StatusBadRequest, "invalid_json")
@@ -795,6 +801,7 @@ func (s *Server) handlePostFeedTrainingThread(w http.ResponseWriter, r *http.Req
 		userMessageID = body.UserMessageID
 		text = body.Text
 		replyToID = body.ReplyToID
+		asAdmin = body.AsAdmin
 	}
 
 	if initDataRaw == "" {
@@ -837,7 +844,7 @@ func (s *Server) handlePostFeedTrainingThread(w http.ResponseWriter, r *http.Req
 		}
 	}
 
-	if err := s.bot.PackTrainingFeedThreadPost(parsed.User.ID, parsed, userMessageID, text, replyToID, photoURL); err != nil {
+	if err := s.bot.PackTrainingFeedThreadPost(parsed.User.ID, parsed, userMessageID, text, replyToID, photoURL, asAdmin); err != nil {
 		if errors.Is(err, bot.ErrMiniAppChatMismatch) {
 			s.jsonErr(w, http.StatusConflict, "chat_mismatch")
 			return

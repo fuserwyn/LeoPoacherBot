@@ -196,22 +196,22 @@ func (d *Database) RemoveFriendSubscription(subscriberID, targetID, packChatID i
 	return nil
 }
 
-// ListFriendSubscribersOfTarget — кто подписан на target в этой стае (для уведомления при #training_done).
-func (d *Database) ListFriendSubscribersOfTarget(targetID, packChatID int64) ([]int64, error) {
-	if d == nil || targetID == 0 || packChatID == 0 {
+// ListFriendTargetIDs — на кого подписан subscriber в этой стае (для фильтра «Друзья» в ленте).
+func (d *Database) ListFriendTargetIDs(subscriberID, packChatID int64) ([]int64, error) {
+	if d == nil || subscriberID == 0 || packChatID == 0 {
 		return nil, nil
 	}
-	const q = `SELECT subscriber_id FROM miniapp_friend_subscriptions WHERE target_id = $1 AND pack_chat_id = $2`
-	rows, err := d.db.Query(q, targetID, packChatID)
+	const q = `SELECT target_id FROM miniapp_friend_subscriptions WHERE subscriber_id = $1 AND pack_chat_id = $2`
+	rows, err := d.db.Query(q, subscriberID, packChatID)
 	if err != nil {
-		return nil, fmt.Errorf("list friend subscribers: %w", err)
+		return nil, fmt.Errorf("list friend target ids: %w", err)
 	}
 	defer rows.Close()
 	var out []int64
 	for rows.Next() {
 		var id int64
 		if err := rows.Scan(&id); err != nil {
-			return nil, fmt.Errorf("scan subscriber: %w", err)
+			return nil, fmt.Errorf("scan friend target: %w", err)
 		}
 		out = append(out, id)
 	}

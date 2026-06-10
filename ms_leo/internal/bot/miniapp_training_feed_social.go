@@ -145,7 +145,8 @@ func (b *Bot) PackTrainingFeedReact(viewerUserID int64, initD initdata.InitData,
 // PackTrainingFeedThreadPost — комментарий в треде под training_done/sick_leave/healthy.
 // replyToThreadID — id строки miniapp_training_feed_thread, на которую отвечаем (как Reply в Telegram).
 // photoURL — опциональное фото к комментарию (пусто, если без фото). При наличии фото текст может быть пустым.
-func (b *Bot) PackTrainingFeedThreadPost(viewerUserID int64, initD initdata.InitData, userMessageID int64, text string, replyToThreadID int64, photoURL string) error {
+// asAdmin — админ оставляет комментарий от имени Лео (официальный голос) в админских постах.
+func (b *Bot) PackTrainingFeedThreadPost(viewerUserID int64, initD initdata.InitData, userMessageID int64, text string, replyToThreadID int64, photoURL string, asAdmin bool) error {
 	if err := b.AssertMiniAppPackChatAligns(initD); err != nil {
 		return err
 	}
@@ -157,12 +158,6 @@ func (b *Bot) PackTrainingFeedThreadPost(viewerUserID int64, initD initdata.Init
 	if text == "" && photoURL == "" {
 		return ErrTrainingFeedThreadEmpty
 	}
-	// Текст модерируем только если он есть — комментарий может быть из одного фото.
-	if text != "" {
-		if _, err := b.enforceUGC(text, moderation.SurfaceFeedComment, viewerUserID); err != nil {
-			return err
-		}
-	}
 	chatID := b.config.MonetizedChatID
 	typ, has, err := b.db.GetUserMessageTypeByIDForChat(userMessageID, chatID)
 	if err != nil {
@@ -170,6 +165,16 @@ func (b *Bot) PackTrainingFeedThreadPost(viewerUserID int64, initD initdata.Init
 	}
 	if !has || !packFeedSupportsThread(typ) {
 		return ErrTrainingFeedParentNotFound
+	}
+	// Комментарий от имени Лео: только админ и только в админских постах (объявление/опрос).
+	asAdmin = asAdmin &&
+		b.isAdminTelegramUser(viewerUserID) &&
+		(typ == userMessageTypeAdminPost || typ == userMessageTypeAdminPoll)
+	// Текст модерируем только если он есть и это не официальный голос Лео.
+	if text != "" && !asAdmin {
+		if _, err := b.enforceUGC(text, moderation.SurfaceFeedComment, viewerUserID); err != nil {
+			return err
+		}
 	}
 	replyingToLeo := false
 	if replyToThreadID != 0 {
@@ -192,13 +197,21 @@ func (b *Bot) PackTrainingFeedThreadPost(viewerUserID int64, initD initdata.Init
 	}
 	mentionsLeo := textMentionsLeoForPackGroup(text, botName)
 	uname := displayNameFromInitData(initD)
-	threadID, err := b.db.InsertTrainingFeedThreadReply(chatID, userMessageID, viewerUserID, uname, text, replyToThreadID, photoURL)
+	// От имени Лео: пишем как системный голос (from_user_id = 0, username "Лео") —
+	// тот же путь рендера и удаления, что и у автоответов Лео.
+	insertFromUserID := viewerUserID
+	if asAdmin {
+		insertFromUserID = 0
+		uname = "Лео"
+	}
+	threadID, err := b.db.InsertTrainingFeedThreadReply(chatID, userMessageID, insertFromUserID, uname, text, replyToThreadID, photoURL)
 	if err != nil {
 		return err
 	}
 	b.afterPackTrainingThreadInserted(chatID, userMessageID, viewerUserID, uname, text, threadID, replyToThreadID, typ)
 	b.trackFeedCommentPosted(viewerUserID, utf8.RuneCountInString(text))
-	if (replyingToLeo || mentionsLeo) && threadID != 0 && typ == "training_done" {
+	// Автоответ Лео не нужен, если комментарий уже опубликован от имени Лео.
+	if !asAdmin && (replyingToLeo || mentionsLeo) && threadID != 0 && typ == "training_done" {
 		txt := text
 		uid := viewerUserID
 		tid := threadID

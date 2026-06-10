@@ -1056,6 +1056,25 @@
   cursor: not-allowed;
 }
 
+/* Тоггл «от имени Лео» — только для админов в админских постах */
+.act-card__thread-as-leo {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-right: auto;
+  font-size: 12px;
+  color: var(--text-muted);
+  cursor: pointer;
+  user-select: none;
+}
+
+.act-card__thread-as-leo input {
+  width: 15px;
+  height: 15px;
+  accent-color: rgba(255, 90, 31, 0.95);
+  cursor: pointer;
+}
+
 /* Превью прикреплённого к комментарию фото (до отправки) */
 .act-card__thread-photo-preview {
   position: relative;

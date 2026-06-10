@@ -141,6 +141,8 @@ export type PackFeedItemDTO = {
   created_at: string;
   streak_days: number;
   is_you: boolean;
+  /** Viewer подписан на автора этой карточки (для фильтра «Друзья»). */
+  is_friend?: boolean;
   pack_chat_id?: number;
   pack_title?: string;
   author_photo_url?: string;

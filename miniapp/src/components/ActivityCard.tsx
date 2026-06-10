@@ -27,6 +27,14 @@ function avatarLooksLikeImageSrc(avatar: string): boolean {
   return /\.[a-z0-9]{2,4}(\?|$)/i.test(t);
 }
 
+/** Обрезка по код-поинтам (не по UTF-16): не режет эмодзи пополам — иначе остаётся
+ *  «битый» суррогат, который рендерится как квадрат-«бургер». */
+function truncateByCodePoints(text: string, maxChars: number): string {
+  const chars = Array.from(text);
+  if (chars.length <= maxChars) return text.trim();
+  return `${chars.slice(0, maxChars).join("").trim()}…`;
+}
+
 /** Запасной глиф, когда фото профиля не загрузилось (нет аватара в Telegram / приватность). */
 function avatarFallbackGlyph(name: string): string {
   const t = (name || "").trim();
@@ -82,8 +90,8 @@ export type ActivityCardThreadComposer = {
   draft: string;
   onDraftChange: (v: string) => void;
   /** Текст берём из поля ввода в момент отправки (надёжнее в Telegram WebView, чем только React state).
-   *  photo — опциональное фото к комментарию. */
-  onSubmit: (text: string, photo?: File | null) => void;
+   *  photo — опциональное фото к комментарию. asAdmin — публикация от имени Лео (для админов). */
+  onSubmit: (text: string, photo?: File | null, asAdmin?: boolean) => void;
   posting: boolean;
 };
 
@@ -383,6 +391,8 @@ export type ActivityCardProps = {
   pinPosting?: boolean;
   /** Зритель — админ: может удалять чужие комментарии в треде (модерация). */
   isAdmin?: boolean;
+  /** Админ может оставить комментарий от имени Лео (доступно в админских постах). */
+  adminVoiceAvailable?: boolean;
   /** Пожаловаться на комментарий в треде. */
   onThreadReplyReport?: (threadReplyId: number) => void;
   threadReplyReporting?: Record<number, boolean>;
@@ -418,6 +428,7 @@ export function ActivityCard({
   onCancelThreadReplyIntent,
   threadReplyDeleting = {},
   isAdmin = false,
+  adminVoiceAvailable = false,
   onLeoReplyDisplayed,
   trainingPhotoUrl,
   onReport,
@@ -452,6 +463,8 @@ export function ActivityCard({
   const threadPhotoInputRef = useRef<HTMLInputElement>(null);
   const [threadPhoto, setThreadPhoto] = useState<File | null>(null);
   const [threadPhotoPreview, setThreadPhotoPreview] = useState<string | null>(null);
+  // Админ публикует комментарий от имени Лео (официальный голос).
+  const [threadAsAdmin, setThreadAsAdmin] = useState(false);
   const prevThreadLen = useRef(threadReplies.length);
   const prevThreadOpenRef = useRef(false);
 
@@ -476,7 +489,7 @@ export function ActivityCard({
     if (!threadComposer || threadComposer.posting) return;
     const raw = threadInputRef.current?.value ?? threadComposer.draft;
     if (raw.trim() === "" && !threadPhoto) return;
-    threadComposer.onSubmit(raw, threadPhoto);
+    threadComposer.onSubmit(raw, threadPhoto, adminVoiceAvailable && threadAsAdmin);
     setThreadPhoto(null);
     if (threadPhotoInputRef.current) threadPhotoInputRef.current.value = "";
   };
@@ -852,8 +865,7 @@ export function ActivityCard({
                                           onThreadReplyIntent({
                                             replyToThreadId: tr.id,
                                             authorLabel: displayAuthor,
-                                            excerpt:
-                                              tr.text.length > 100 ? `${tr.text.slice(0, 99).trim()}…` : tr.text.trim(),
+                                            excerpt: truncateByCodePoints(tr.text, 99),
                                           });
                                           window.setTimeout(() => {
                                             threadInputRef.current?.focus();
@@ -958,6 +970,17 @@ export function ActivityCard({
                       >
                         📎
                       </button>
+                      {adminVoiceAvailable && (
+                        <label className="act-card__thread-as-leo" title="Опубликовать от имени Лео">
+                          <input
+                            type="checkbox"
+                            checked={threadAsAdmin}
+                            disabled={threadComposer.posting}
+                            onChange={(e) => setThreadAsAdmin(e.target.checked)}
+                          />
+                          <span>🐆 от имени Лео</span>
+                        </label>
+                      )}
                       <button
                         type="button"
                         className="act-card__thread-send"

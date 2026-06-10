@@ -3,7 +3,6 @@ package bot
 import (
 	"strings"
 
-	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 	initdata "github.com/telegram-mini-apps/init-data-golang"
 )
 
@@ -84,38 +83,28 @@ func (b *Bot) UnfollowFriend(viewerUserID int64, initD initdata.InitData, target
 	return b.db.RemoveFriendSubscription(viewerUserID, targetUserID, chatID)
 }
 
-// notifyFriendSubscribers — DM всем, кто подписан на trainerUserID, когда тот сдал #training_done.
-// Вызывается из обработки training_done в отдельной горутине (silent fail на отправке).
-func (b *Bot) notifyFriendSubscribers(trainerUserID, packChatID int64, trainerUsername string) {
-	if b == nil || b.db == nil || b.api == nil || trainerUserID == 0 || packChatID == 0 {
-		return
+// enrichPackFeedFriends — проставляет IsFriend на карточках авторов, на которых подписан viewer.
+// Один запрос за все подписки viewer'а; стоит дёшево даже на большой ленте.
+func (b *Bot) enrichPackFeedFriends(items []PackFeedItem, viewerUserID, packChatID int64) []PackFeedItem {
+	if b == nil || b.db == nil || viewerUserID == 0 || packChatID == 0 || len(items) == 0 {
+		return items
 	}
-	subscribers, err := b.db.ListFriendSubscribersOfTarget(trainerUserID, packChatID)
+	targetIDs, err := b.db.ListFriendTargetIDs(viewerUserID, packChatID)
 	if err != nil {
-		b.logger.Warnf("friend subscribers lookup trainer=%d: %v", trainerUserID, err)
-		return
+		b.logger.Warnf("pack feed friends enrich: %v", err)
+		return items
 	}
-	if len(subscribers) == 0 {
-		return
+	if len(targetIDs) == 0 {
+		return items
 	}
-	// Имя: display_name из профиля, иначе @username.
-	name := ""
-	if _, dn, _ := b.GetMiniappUserProfileJSONForAPI(trainerUserID, packChatID); strings.TrimSpace(dn) != "" {
-		name = strings.TrimSpace(dn)
-	} else {
-		name = normalizeUserDisplayName(trainerUsername)
+	friends := make(map[int64]struct{}, len(targetIDs))
+	for _, id := range targetIDs {
+		friends[id] = struct{}{}
 	}
-	if strings.TrimSpace(name) == "" {
-		name = "Твой друг по стае"
-	}
-	body := "🔥 " + name + " только что отметил тренировку в стае!\n\nОткрой мини-апп → вкладка «Стая», поддержи реакцией или комментарием 💪"
-	for _, sub := range subscribers {
-		if sub == 0 || sub == trainerUserID {
-			continue
-		}
-		b.miniappPersonalPush(sub, body)
-		if _, sendErr := b.api.Send(tgbotapi.NewMessage(sub, body)); sendErr != nil {
-			b.logger.Warnf("friend training DM sub=%d trainer=%d: %v", sub, trainerUserID, sendErr)
+	for i := range items {
+		if _, ok := friends[items[i].UserID]; ok {
+			items[i].IsFriend = true
 		}
 	}
+	return items
 }

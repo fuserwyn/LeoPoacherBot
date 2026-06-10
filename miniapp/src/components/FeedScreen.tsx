@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import { usePullToRefresh } from "../hooks/usePullToRefresh";
 import { ActivityCard, type ActivityCardProps } from "./ActivityCard";
+import { LEO_AVATAR_URL } from "../lib/leoAvatar";
 import { PackGroupChatPanel } from "./PackGroupChatPanel";
 import {
   dtoToCard,
@@ -162,7 +163,8 @@ export function FeedScreen({
   const [threadReplyTargets, setThreadReplyTargets] = useState<
     Record<number, { replyToThreadId: number; authorLabel: string; excerpt: string } | undefined>
   >({});
-  const [feedOnlyMine, setFeedOnlyMine] = useState(false);
+  /** Чьи отчёты показывать: все / только мои / только друзей (на кого подписан). */
+  const [feedScope, setFeedScope] = useState<"all" | "mine" | "friends">("all");
   /** Мультивыбор типов тренировок (пусто = «все типы»). */
   const [feedCategoryIds, setFeedCategoryIds] = useState<WorkoutCategoryId[]>([]);
   const [viewportStyle, setViewportStyle] = useState<FeedViewportStyle>({});
@@ -187,14 +189,15 @@ export function FeedScreen({
       // Свой только что отправленный пост показываем всегда, даже если активен
       // фильтр по типам тренировок (иначе кажется, что отчёт не отправился).
       if (optimisticFeedItem && it.id === optimisticFeedItem.id) return true;
-      if (feedOnlyMine && !it.is_you) return false;
+      if (feedScope === "mine" && !it.is_you) return false;
+      if (feedScope === "friends" && !it.is_friend) return false;
       if (feedCategoryIds.length > 0) {
         if (it.type !== "training_done") return false;
         if (!trainingDoneMatchesAnyCategory(it.text, categoryFilterSet)) return false;
       }
       return true;
     });
-  }, [feedWithOptimistic, feedOnlyMine, feedCategoryIds, categoryFilterSet, optimisticFeedItem]);
+  }, [feedWithOptimistic, feedScope, feedCategoryIds, categoryFilterSet, optimisticFeedItem]);
 
   // Закреплённые объявления — сверху ленты (свежезакреплённые первыми), остальное — хронологически.
   const orderedFeedItems = useMemo(() => {
@@ -439,7 +442,7 @@ export function FeedScreen({
   );
 
   const postTrainingThread = useCallback(
-    async (userMessageId: number, text: string, replyToThreadId?: number, photo?: File | null) => {
+    async (userMessageId: number, text: string, replyToThreadId?: number, photo?: File | null, asAdmin?: boolean) => {
       const t = text.trim();
       if (!t && !photo) {
         showAlert("Введи текст комментария или прикрепи фото.");
@@ -456,6 +459,7 @@ export function FeedScreen({
           fd.append("user_message_id", String(userMessageId));
           fd.append("text", t);
           fd.append("reply_to_id", String(replyToThreadId ?? 0));
+          if (asAdmin) fd.append("as_admin", "1");
           fd.append("photo", photo);
           res = await fetch(`${apiBase}/api/miniapp/feed/training/thread`, {
             method: "POST",
@@ -470,6 +474,7 @@ export function FeedScreen({
               user_message_id: userMessageId,
               text: t,
               reply_to_id: replyToThreadId ?? 0,
+              as_admin: Boolean(asAdmin),
             }),
           });
         }
@@ -805,7 +810,7 @@ export function FeedScreen({
       feedRoot.style.removeProperty("--feed-header-h");
       feedRoot.style.removeProperty("--feed-sticky-bottom");
     };
-  }, [sub, feedCategoryIds.length, feedOnlyMine]);
+  }, [sub, feedCategoryIds.length, feedScope]);
 
   useEffect(() => {
     let raf = 0;
@@ -941,17 +946,24 @@ export function FeedScreen({
             <div className="feed__filter-scope" role="group" aria-label="Чьи отчёты">
               <button
                 type="button"
-                className={`feed__filter-pill${!feedOnlyMine ? " is-active" : ""}`}
-                onClick={() => setFeedOnlyMine(false)}
+                className={`feed__filter-pill${feedScope === "all" ? " is-active" : ""}`}
+                onClick={() => setFeedScope("all")}
               >
                 Все
               </button>
               <button
                 type="button"
-                className={`feed__filter-pill${feedOnlyMine ? " is-active" : ""}`}
-                onClick={() => setFeedOnlyMine(true)}
+                className={`feed__filter-pill${feedScope === "friends" ? " is-active" : ""}`}
+                onClick={() => setFeedScope("friends")}
               >
-                Мои тренировки
+                Друзья
+              </button>
+              <button
+                type="button"
+                className={`feed__filter-pill${feedScope === "mine" ? " is-active" : ""}`}
+                onClick={() => setFeedScope("mine")}
+              >
+                Мои
               </button>
             </div>
             <div className="feed__filter-cats" role="group" aria-label="Тип тренировки">
@@ -1061,7 +1073,9 @@ export function FeedScreen({
               visibleFeedItems.length === 0 &&
               !err && (
                 <p className="feed__empty muted">
-                  Ничего не подходит под фильтры — выбери другой тип или «Все типы» / «Все».
+                  {feedScope === "friends"
+                    ? "Здесь отчёты друзей. Подпишись на участников в профиле → «Друзья по стае»."
+                    : "Ничего не подходит под фильтры — выбери другой тип или «Все типы» / «Все»."}
                 </p>
               )}
             {useMockFeed &&
@@ -1076,9 +1090,19 @@ export function FeedScreen({
                 const isAdminAnnouncement = it.type === "admin_post" || it.type === "admin_poll";
                 const isPinnedAnnouncement = Boolean(it.is_pinned) && isAdminAnnouncement;
                 const canPinCard = isAdmin && isAdminAnnouncement;
-                // Закреплённое объявление: показываем полный текст с возможностью свернуть.
+                // Закреплённое объявление: показываем полный текст сразу (без сворачивания).
                 const pinnedComment =
                   isPinnedAnnouncement && it.type === "admin_post" ? it.text.trim() : undefined;
+                // Закреп — исключительно голос Лео: единый аватар/имя независимо от автора поста.
+                const pinnedLeoProps: Partial<ActivityCardProps> = isPinnedAnnouncement
+                  ? {
+                      name: "Лео",
+                      avatar: LEO_AVATAR_URL,
+                      activity: "Лео · объявление",
+                      emoji: "🐆",
+                      hideStreak: true,
+                    }
+                  : {};
                 const supportsThread =
                   it.type === "training_done" ||
                   it.type === "sick_leave" ||
@@ -1136,9 +1160,10 @@ export function FeedScreen({
                     <div key={it.id} className={`${slotClass}${isPinnedAnnouncement ? " feed__card-slot--pinned" : ""}`}>
                       <ActivityCard
                         {...base}
+                        {...pinnedLeoProps}
                         comment={pinnedComment ?? base.comment}
                         pinned={isPinnedAnnouncement}
-                        commentCollapsible={isPinnedAnnouncement}
+                        commentCollapsible={false}
                         onTogglePin={canPinCard ? () => void setFeedPostPinned(it.id, !it.is_pinned) : undefined}
                         pinPosting={feedPinPosting[it.id] ?? false}
                         reactions={supportsReactions ? mergeFeedReactionsForType(it.type, it.reactions) : undefined}
@@ -1170,9 +1195,10 @@ export function FeedScreen({
                   <div key={it.id} className={`${slotClass}${isPinnedAnnouncement ? " feed__card-slot--pinned" : ""}`}>
                     <ActivityCard
                       {...base}
+                      {...pinnedLeoProps}
                       comment={pinnedComment ?? base.comment}
                       pinned={isPinnedAnnouncement}
-                      commentCollapsible={isPinnedAnnouncement}
+                      commentCollapsible={false}
                       onTogglePin={canPinCard ? () => void setFeedPostPinned(it.id, !it.is_pinned) : undefined}
                       pinPosting={feedPinPosting[it.id] ?? false}
                       poll={
@@ -1198,6 +1224,7 @@ export function FeedScreen({
                       onThreadReplyLike={(replyId) => void toggleTrainingThreadLike(it.id, replyId)}
                       threadReplyDeleting={threadReplyDeleting}
                       isAdmin={isAdmin}
+                      adminVoiceAvailable={isAdmin && isAdminAnnouncement}
                       threadReplyIntent={threadReplyTargets[it.id] ?? null}
                       onCancelThreadReplyIntent={() =>
                         setThreadReplyTargets((r) => ({ ...r, [it.id]: undefined }))
@@ -1215,8 +1242,8 @@ export function FeedScreen({
                       threadComposer={{
                         draft: threadDrafts[it.id] ?? "",
                         onDraftChange: (v) => setThreadDrafts((d) => ({ ...d, [it.id]: v })),
-                        onSubmit: (text, photo) =>
-                          void postTrainingThread(it.id, text, threadReplyTargets[it.id]?.replyToThreadId, photo),
+                        onSubmit: (text, photo, asAdmin) =>
+                          void postTrainingThread(it.id, text, threadReplyTargets[it.id]?.replyToThreadId, photo, asAdmin),
                         posting: threadPosting[it.id] ?? false,
                       }}
                       onReport={canReportCard ? () => void reportFeedContent(it.id) : undefined}

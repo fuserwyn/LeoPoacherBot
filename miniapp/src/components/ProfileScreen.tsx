@@ -997,7 +997,7 @@ export function ProfileScreen({
       <h2 className="section-title">Друзья по стае</h2>
       <div className="profile__friends">
         <p className="profile__hint muted">
-          Подпишись на участников стаи — Лео сообщит, когда друг отметит тренировку.
+          Подпишись на участников стаи — и в ленте можно будет фильтровать отчёты по друзьям.
         </p>
         {!friendsOpen ? (
           <button
