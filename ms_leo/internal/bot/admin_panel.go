@@ -140,6 +140,8 @@ func (b *Bot) handleAdminCallbackQuery(callback *tgbotapi.CallbackQuery) {
 		strings.HasPrefix(callback.Data, "admin_feed_report_hide_") ||
 		strings.HasPrefix(callback.Data, "admin_feed_report_mute_") ||
 		strings.HasPrefix(callback.Data, "admin_feed_report_unmute_") ||
+		strings.HasPrefix(callback.Data, "admin_hidden_restore_") ||
+		callback.Data == "admin_hidden_inbox" ||
 		strings.HasPrefix(callback.Data, "admin_user_") ||
 		callback.Data == "admin_users" {
 		if b.handleAdminUserMgmtCallback(callback) {
@@ -174,8 +176,6 @@ func (b *Bot) handleAdminCallbackQuery(callback *tgbotapi.CallbackQuery) {
 		b.showAdminFeedReportsInbox(callback.Message.Chat.ID)
 	case "admin_feed_reports_back":
 		b.showAdminFeedReportsInbox(callback.Message.Chat.ID)
-	case "admin_hidden_inbox":
-		b.showAdminHiddenContentInbox(callback.Message.Chat.ID)
 	case "admin_mode_feed_text":
 		b.startAdminFlow(callback.From.ID, "feed_text")
 		b.api.Send(tgbotapi.NewMessage(callback.Message.Chat.ID, "📝 Напиши текст для ленты стаи. Дальше выберешь автора (Лео/Админ) и время публикации."))

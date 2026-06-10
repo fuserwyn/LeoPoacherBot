@@ -102,8 +102,15 @@ func (b *Bot) adminRestoreHiddenContent(chatID int64, kind string, id int64) {
 		ok, err = b.db.AdminUnhideFeedUserMessage(packChatID, id)
 		label = fmt.Sprintf("пост #%d", id)
 	case "thread_reply":
+		parentPostID := int64(0)
+		if row, found, rerr := b.db.GetTrainingFeedThreadRowInPack(id, packChatID); rerr == nil && found {
+			parentPostID = row.UserMessageID
+		}
 		ok, err = b.db.AdminUnhideTrainingFeedThreadReply(packChatID, id)
 		label = fmt.Sprintf("комментарий t%d", id)
+		if ok && parentPostID > 0 {
+			label = fmt.Sprintf("комментарий t%d под отчётом #%d", id, parentPostID)
+		}
 	case "pack_group_message":
 		ok, err = b.db.AdminUnhidePackGroupMessage(packChatID, id)
 		label = fmt.Sprintf("сообщение чата #%d", id)
@@ -118,7 +125,8 @@ func (b *Bot) adminRestoreHiddenContent(chatID int64, kind string, id int64) {
 	if !ok {
 		b.api.Send(tgbotapi.NewMessage(chatID, "ℹ️ Уже возвращено или не найдено."))
 	} else {
-		b.api.Send(tgbotapi.NewMessage(chatID, "✅ Возвращено: "+label+"."))
+		msg := "✅ Возвращено: " + label + ".\n\nОбнови ленту в мини-аппе (потяни вниз) и открой «Комментарии» под этим отчётом."
+		b.api.Send(tgbotapi.NewMessage(chatID, msg))
 	}
 	b.showAdminHiddenContentInbox(chatID)
 }
