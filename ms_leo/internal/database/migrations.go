@@ -1185,6 +1185,35 @@ var Migrations = []Migration{
 			ALTER TABLE user_messages DROP COLUMN IF EXISTS pinned_at;
 		`,
 	},
+	{
+		Version:     60,
+		Description: "Напоминания внести тренировку + подписки на друзей стаи",
+		UpSQL: `
+			CREATE TABLE IF NOT EXISTS miniapp_workout_reminders (
+				user_id            BIGINT NOT NULL,
+				pack_chat_id       BIGINT NOT NULL,
+				enabled            BOOLEAN NOT NULL DEFAULT TRUE,
+				remind_hour        SMALLINT NOT NULL DEFAULT 19,
+				last_sent_msk_date DATE,
+				updated_at         TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT (NOW() AT TIME ZONE 'Europe/Moscow'),
+				PRIMARY KEY (user_id, pack_chat_id)
+			);
+
+			CREATE TABLE IF NOT EXISTS miniapp_friend_subscriptions (
+				subscriber_id BIGINT NOT NULL,
+				target_id     BIGINT NOT NULL,
+				pack_chat_id  BIGINT NOT NULL,
+				created_at    TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT (NOW() AT TIME ZONE 'Europe/Moscow'),
+				PRIMARY KEY (subscriber_id, target_id, pack_chat_id)
+			);
+			CREATE INDEX IF NOT EXISTS idx_friend_subs_target
+				ON miniapp_friend_subscriptions (target_id, pack_chat_id);
+		`,
+		DownSQL: `
+			DROP TABLE IF EXISTS miniapp_friend_subscriptions;
+			DROP TABLE IF EXISTS miniapp_workout_reminders;
+		`,
+	},
 }
 
 // MigrationRecord представляет запись о выполненной миграции

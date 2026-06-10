@@ -213,6 +213,8 @@ func (b *Bot) Start(ctx context.Context) error {
 	go b.startScheduledAdminPostsWorker(ctx)
 	// Periodic-страховка от пропущенных киков (см. startInactivityKickWatchdog).
 	go b.startInactivityKickWatchdog(ctx)
+	// Напоминания «внеси тренировку» в локальный час пользователя (см. startWorkoutReminderScheduler).
+	go b.startWorkoutReminderScheduler(ctx)
 
 	updatesCh := b.runGetUpdatesWithWebApp(ctx)
 
@@ -514,6 +516,18 @@ func (b *Bot) handleMessage(msg *tgbotapi.Message, personalReplyCh chan<- string
 							b.logger.Warnf("mirror training_done to pack feed user_messages: %v", errM)
 						} else {
 							trainingDoneFeedMsgID = feedID
+							// Уведомляем подписчиков этого участника, что он потренировался.
+							trainerID := userMsg.UserID
+							trainerName := userMsg.Username
+							packID := b.config.MonetizedChatID
+							go func() {
+								defer func() {
+									if r := recover(); r != nil {
+										b.logger.Errorf("notify friend subscribers panic: %v", r)
+									}
+								}()
+								b.notifyFriendSubscribers(trainerID, packID, trainerName)
+							}()
 						}
 					}
 				}

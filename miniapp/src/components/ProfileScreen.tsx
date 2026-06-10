@@ -14,6 +14,13 @@ export type ProfileData = {
 
 const EMPTY_PROFILE: ProfileData = { gender: "", displayName: "", timezoneOffset: 0 };
 
+export type FriendMember = {
+  user_id: number;
+  name: string;
+  streak_days: number;
+  following: boolean;
+};
+
 function normalizeProfileData(profile: ProfileData): ProfileData {
   return {
     gender: profile.gender,
@@ -122,6 +129,18 @@ export function ProfileScreen({
   const [saveStreakMax, setSaveStreakMax] = useState(1);
   const [saveStreakBusy, setSaveStreakBusy] = useState(false);
   const saveStreakAvail = Math.max(0, saveStreakMax - saveStreakUsed);
+
+  // Напоминания «внеси тренировку»: вкл/выкл + час по локальному времени пользователя.
+  const [reminderEnabled, setReminderEnabled] = useState(true);
+  const [reminderHour, setReminderHour] = useState(19);
+  const [reminderLoading, setReminderLoading] = useState(true);
+  const [reminderBusy, setReminderBusy] = useState(false);
+
+  // Друзья по стае: список участников + индикатор «слежу».
+  const [friends, setFriends] = useState<FriendMember[]>([]);
+  const [friendsLoading, setFriendsLoading] = useState(false);
+  const [friendsOpen, setFriendsOpen] = useState(false);
+  const [friendBusyId, setFriendBusyId] = useState<number | null>(null);
 
   useEffect(() => {
     setCups(xp);
@@ -238,6 +257,129 @@ export function ProfileScreen({
     void load();
     onRefreshStats?.();
   }, [load, active, onRefreshStats]);
+
+  const loadReminder = useCallback(async () => {
+    if (!api || !inTelegram || !initData?.trim()) {
+      setReminderLoading(false);
+      return;
+    }
+    setReminderLoading(true);
+    try {
+      const res = await fetch(`${api}/api/miniapp/reminders/load`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ init_data: initData }),
+      });
+      const j = (await res.json().catch(() => ({}))) as { ok?: boolean; enabled?: boolean; remind_hour?: number };
+      if (res.ok && j.ok) {
+        setReminderEnabled(Boolean(j.enabled));
+        if (typeof j.remind_hour === "number" && j.remind_hour >= 0 && j.remind_hour <= 23) {
+          setReminderHour(Math.trunc(j.remind_hour));
+        }
+      }
+    } catch {
+      // тихо: не критично
+    } finally {
+      setReminderLoading(false);
+    }
+  }, [inTelegram, initData]);
+
+  const saveReminder = useCallback(
+    async (enabled: boolean, hour: number) => {
+      if (!api || !inTelegram || !initData?.trim()) {
+        showAlert("Открой мини-апп из Telegram (нужен initData).");
+        return;
+      }
+      // Оптимистично применяем, чтобы UI не «прыгал».
+      const prevEnabled = reminderEnabled;
+      const prevHour = reminderHour;
+      setReminderEnabled(enabled);
+      setReminderHour(hour);
+      setReminderBusy(true);
+      try {
+        const res = await fetch(`${api}/api/miniapp/reminders/save`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ init_data: initData, enabled, remind_hour: hour }),
+        });
+        const j = (await res.json().catch(() => ({}))) as { ok?: boolean; error?: string };
+        if (!res.ok || !j.ok) {
+          setReminderEnabled(prevEnabled);
+          setReminderHour(prevHour);
+          showAlert(j.error ?? `Напоминания: ошибка ${res.status}`);
+        }
+      } catch (e) {
+        setReminderEnabled(prevEnabled);
+        setReminderHour(prevHour);
+        showAlert(e instanceof Error ? e.message : "Сеть");
+      } finally {
+        setReminderBusy(false);
+      }
+    },
+    [inTelegram, initData, reminderEnabled, reminderHour, showAlert],
+  );
+
+  useEffect(() => {
+    if (!active) return;
+    void loadReminder();
+  }, [loadReminder, active]);
+
+  const loadFriends = useCallback(async () => {
+    if (!api || !inTelegram || !initData?.trim()) {
+      return;
+    }
+    setFriendsLoading(true);
+    try {
+      const res = await fetch(`${api}/api/miniapp/friends/list`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ init_data: initData }),
+      });
+      const j = (await res.json().catch(() => ({}))) as { ok?: boolean; error?: string; members?: FriendMember[] };
+      if (!res.ok || !j.ok) {
+        showAlert(j.error ?? `Друзья: ошибка ${res.status}`);
+        return;
+      }
+      setFriends(Array.isArray(j.members) ? j.members : []);
+    } catch (e) {
+      showAlert(e instanceof Error ? e.message : "Сеть");
+    } finally {
+      setFriendsLoading(false);
+    }
+  }, [inTelegram, initData, showAlert]);
+
+  const toggleFollow = useCallback(
+    async (member: FriendMember) => {
+      if (!api || !inTelegram || !initData?.trim() || friendBusyId !== null) return;
+      const next = !member.following;
+      setFriendBusyId(member.user_id);
+      // Оптимистичное обновление.
+      setFriends((list) => list.map((m) => (m.user_id === member.user_id ? { ...m, following: next } : m)));
+      try {
+        const res = await fetch(`${api}/api/miniapp/friends/${next ? "follow" : "unfollow"}`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ init_data: initData, target_id: member.user_id }),
+        });
+        const j = (await res.json().catch(() => ({}))) as { ok?: boolean; error?: string };
+        if (!res.ok || !j.ok) {
+          setFriends((list) => list.map((m) => (m.user_id === member.user_id ? { ...m, following: !next } : m)));
+          showAlert(j.error ?? `Ошибка ${res.status}`);
+        }
+      } catch (e) {
+        setFriends((list) => list.map((m) => (m.user_id === member.user_id ? { ...m, following: !next } : m)));
+        showAlert(e instanceof Error ? e.message : "Сеть");
+      } finally {
+        setFriendBusyId(null);
+      }
+    },
+    [inTelegram, initData, friendBusyId, showAlert],
+  );
+
+  // Список друзей подгружаем лениво — только когда секцию раскрыли.
+  useEffect(() => {
+    if (active && friendsOpen) void loadFriends();
+  }, [active, friendsOpen, loadFriends]);
 
   const loadHealth = useCallback(async () => {
     if (!api || !inTelegram || !initData?.trim()) {
@@ -815,6 +957,83 @@ export function ProfileScreen({
           </div>
         </div>
       )}
+
+      <h2 className="section-title">Напоминания</h2>
+      <div className="profile__reminder">
+        <label className="profile__reminder-row">
+          <span className="profile__reminder-label">Напоминать внести тренировку</span>
+          <input
+            type="checkbox"
+            className="profile__reminder-toggle"
+            checked={reminderEnabled}
+            disabled={reminderLoading || reminderBusy}
+            onChange={(e) => void saveReminder(e.target.checked, reminderHour)}
+          />
+        </label>
+        {reminderEnabled && (
+          <label className="profile__field">
+            <span>Время напоминания (по твоему времени)</span>
+            <select
+              className="profile__input"
+              value={reminderHour}
+              disabled={reminderLoading || reminderBusy}
+              onChange={(e) => void saveReminder(true, Number(e.target.value))}
+            >
+              {Array.from({ length: 24 }, (_, h) => (
+                <option key={h} value={h}>
+                  {String(h).padStart(2, "0")}:00
+                </option>
+              ))}
+            </select>
+          </label>
+        )}
+        <p className="profile__hint muted">
+          {reminderEnabled
+            ? "Если до этого часа ты ещё не отметил тренировку — Лео мягко напомнит в личке."
+            : "Напоминания выключены. Лео не будет писать о пропущенной тренировке."}
+        </p>
+      </div>
+
+      <h2 className="section-title">Друзья по стае</h2>
+      <div className="profile__friends">
+        <p className="profile__hint muted">
+          Подпишись на участников стаи — Лео сообщит, когда друг отметит тренировку.
+        </p>
+        {!friendsOpen ? (
+          <button
+            type="button"
+            className="profile__save profile__friends-toggle"
+            onClick={() => setFriendsOpen(true)}
+          >
+            Показать участников стаи
+          </button>
+        ) : friendsLoading ? (
+          <p className="muted">Загрузка участников…</p>
+        ) : friends.length === 0 ? (
+          <p className="profile__hint muted">В стае пока нет других участников.</p>
+        ) : (
+          <ul className="profile__friends-list">
+            {friends.map((m) => (
+              <li key={m.user_id} className="profile__friend-row">
+                <span className="profile__friend-info">
+                  <span className="profile__friend-name">{m.name}</span>
+                  {m.streak_days > 0 && (
+                    <span className="profile__friend-streak muted">🔥 {m.streak_days}</span>
+                  )}
+                </span>
+                <button
+                  type="button"
+                  className={`profile__friend-btn${m.following ? " profile__friend-btn--following" : ""}`}
+                  onClick={() => void toggleFollow(m)}
+                  disabled={friendBusyId === m.user_id}
+                >
+                  {m.following ? "Слежу ✓" : "Следить"}
+                </button>
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
 
       <h2 className="section-title">Профиль (для Лео)</h2>
       {profileLoading && <p className="muted">Загрузка профиля…</p>}

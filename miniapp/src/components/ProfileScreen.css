@@ -933,3 +933,112 @@ html.app-keyboard-open .profile__health-actions--keyboard {
 .profile__support-btn {
   width: 100%;
 }
+
+/* Напоминания */
+.profile__reminder {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-bottom: 24px;
+}
+
+.profile__reminder-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 14px;
+  border-radius: var(--radius-sm);
+  border: 1.5px solid var(--border-subtle);
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.profile__reminder-label {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.profile__reminder-toggle {
+  width: 22px;
+  height: 22px;
+  accent-color: var(--accent, #ff6a35);
+  cursor: pointer;
+}
+
+/* Друзья по стае */
+.profile__friends {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-bottom: 24px;
+}
+
+.profile__friends-toggle {
+  width: 100%;
+}
+
+.profile__friends-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.profile__friend-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 14px;
+  border-radius: var(--radius-sm);
+  border: 1.5px solid var(--border-subtle);
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.profile__friend-info {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  min-width: 0;
+}
+
+.profile__friend-name {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.profile__friend-streak {
+  font-size: 12px;
+  flex-shrink: 0;
+}
+
+.profile__friend-btn {
+  flex-shrink: 0;
+  padding: 8px 16px;
+  border-radius: 999px;
+  border: 1.5px solid var(--accent, #ff6a35);
+  background: transparent;
+  color: var(--accent, #ff6a35);
+  font-size: 13px;
+  font-weight: 700;
+  font-family: inherit;
+  cursor: pointer;
+}
+
+.profile__friend-btn--following {
+  background: linear-gradient(180deg, #ff6a35, #e54a15);
+  border-color: transparent;
+  color: #fff;
+}
+
+.profile__friend-btn:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}

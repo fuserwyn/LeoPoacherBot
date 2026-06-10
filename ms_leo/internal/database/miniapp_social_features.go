@@ -1,0 +1,219 @@
+package database
+
+import (
+	"database/sql"
+	"fmt"
+)
+
+// WorkoutReminderSettings — настройки напоминания «внеси тренировку» для пары (user, стая).
+type WorkoutReminderSettings struct {
+	Enabled    bool
+	RemindHour int // 0–23, локальный час пользователя (TZ из training_state.timezone_offset_from_moscow)
+}
+
+// WorkoutReminderDue — кандидат на напоминание: всё, что нужно планировщику, в одной строке.
+type WorkoutReminderDue struct {
+	UserID                   int64
+	PackChatID               int64
+	Username                 string
+	RemindHour               int
+	TimezoneOffsetFromMoscow int
+	LastTrainingDate         sql.NullString // YYYY-MM-DD в локальном TZ юзера
+	LastSentMskDate          sql.NullString // YYYY-MM-DD МСК последней отправки (идемпотентность)
+}
+
+// GetWorkoutReminderSettings — настройки напоминания. Если строки нет — дефолт (вкл, 19:00 локально).
+func (d *Database) GetWorkoutReminderSettings(userID, packChatID int64) (WorkoutReminderSettings, error) {
+	def := WorkoutReminderSettings{Enabled: true, RemindHour: 19}
+	if d == nil || userID == 0 || packChatID == 0 {
+		return def, nil
+	}
+	const q = `SELECT enabled, remind_hour FROM miniapp_workout_reminders WHERE user_id = $1 AND pack_chat_id = $2`
+	var s WorkoutReminderSettings
+	err := d.db.QueryRow(q, userID, packChatID).Scan(&s.Enabled, &s.RemindHour)
+	if err == sql.ErrNoRows {
+		return def, nil
+	}
+	if err != nil {
+		return def, fmt.Errorf("get workout reminder settings: %w", err)
+	}
+	return s, nil
+}
+
+// SaveWorkoutReminderSettings — upsert настроек. Смена настроек сбрасывает last_sent_msk_date,
+// чтобы напоминание могло прийти сегодня же в новый час.
+func (d *Database) SaveWorkoutReminderSettings(userID, packChatID int64, s WorkoutReminderSettings) error {
+	if d == nil || userID == 0 || packChatID == 0 {
+		return nil
+	}
+	if s.RemindHour < 0 || s.RemindHour > 23 {
+		return fmt.Errorf("remind_hour out of range: %d", s.RemindHour)
+	}
+	const q = `
+		INSERT INTO miniapp_workout_reminders (user_id, pack_chat_id, enabled, remind_hour, last_sent_msk_date, updated_at)
+		VALUES ($1, $2, $3, $4, NULL, NOW())
+		ON CONFLICT (user_id, pack_chat_id) DO UPDATE SET
+			enabled            = EXCLUDED.enabled,
+			remind_hour        = EXCLUDED.remind_hour,
+			last_sent_msk_date = NULL,
+			updated_at         = NOW()`
+	if _, err := d.db.Exec(q, userID, packChatID, s.Enabled, s.RemindHour); err != nil {
+		return fmt.Errorf("save workout reminder settings: %w", err)
+	}
+	return nil
+}
+
+// ListDueWorkoutReminderCandidates — все включённые напоминания пачки вместе с данными,
+// нужными планировщику для расчёта локального часа и проверки «тренировался сегодня».
+// Фильтрацию по часу/дате делает вызывающий (локальный TZ считается в Go).
+func (d *Database) ListDueWorkoutReminderCandidates(packChatID int64) ([]WorkoutReminderDue, error) {
+	if d == nil || packChatID == 0 {
+		return nil, nil
+	}
+	const q = `
+		SELECT r.user_id,
+		       r.pack_chat_id,
+		       COALESCE(NULLIF(BTRIM(ts.username), ''), ''),
+		       r.remind_hour,
+		       COALESCE(ts.timezone_offset_from_moscow, 0),
+		       ts.last_training_date,
+		       r.last_sent_msk_date
+		FROM miniapp_workout_reminders r
+		JOIN training_state ts
+			ON ts.user_id = r.user_id AND ts.chat_id = r.pack_chat_id
+		WHERE r.pack_chat_id = $1
+		  AND r.enabled = TRUE
+		  AND ts.is_deleted = FALSE
+		  AND ts.is_exempt_from_deletion = FALSE
+		  AND NOT (ts.has_sick_leave = TRUE AND ts.has_healthy = FALSE)`
+	rows, err := d.db.Query(q, packChatID)
+	if err != nil {
+		return nil, fmt.Errorf("list due workout reminders: %w", err)
+	}
+	defer rows.Close()
+	var out []WorkoutReminderDue
+	for rows.Next() {
+		var c WorkoutReminderDue
+		if err := rows.Scan(&c.UserID, &c.PackChatID, &c.Username, &c.RemindHour,
+			&c.TimezoneOffsetFromMoscow, &c.LastTrainingDate, &c.LastSentMskDate); err != nil {
+			return nil, fmt.Errorf("scan workout reminder candidate: %w", err)
+		}
+		out = append(out, c)
+	}
+	return out, rows.Err()
+}
+
+// MarkWorkoutReminderSent — фиксируем дату МСК последней отправки (идемпотентность одной отправки в день).
+func (d *Database) MarkWorkoutReminderSent(userID, packChatID int64, mskDate string) error {
+	if d == nil || userID == 0 || packChatID == 0 || mskDate == "" {
+		return nil
+	}
+	const q = `UPDATE miniapp_workout_reminders SET last_sent_msk_date = $3 WHERE user_id = $1 AND pack_chat_id = $2`
+	if _, err := d.db.Exec(q, userID, packChatID, mskDate); err != nil {
+		return fmt.Errorf("mark workout reminder sent: %w", err)
+	}
+	return nil
+}
+
+// PackMemberRow — участник стаи для экрана «Друзья».
+type PackMemberRow struct {
+	UserID      int64
+	Username    string
+	DisplayName string
+	StreakDays  int
+	Following   bool // viewer подписан на этого участника
+}
+
+// ListPackMembersForSubscriptions — участники стаи (кроме самого viewer и удалённых) с флагом подписки viewer.
+// Сортировка: сначала те, на кого viewer уже подписан, затем по стрику.
+func (d *Database) ListPackMembersForSubscriptions(packChatID, viewerUserID int64) ([]PackMemberRow, error) {
+	if d == nil || packChatID == 0 || viewerUserID == 0 {
+		return nil, nil
+	}
+	const q = `
+		SELECT ts.user_id,
+		       COALESCE(NULLIF(BTRIM(ts.username), ''), ''),
+		       COALESCE(NULLIF(BTRIM(p.display_name), ''), ''),
+		       COALESCE(ts.streak_days, 0),
+		       EXISTS (
+		           SELECT 1 FROM miniapp_friend_subscriptions s
+		           WHERE s.subscriber_id = $2 AND s.target_id = ts.user_id AND s.pack_chat_id = $1
+		       )
+		FROM training_state ts
+		LEFT JOIN miniapp_user_profile p
+			ON p.user_id = ts.user_id AND p.pack_chat_id = ts.chat_id
+		WHERE ts.chat_id = $1
+		  AND ts.user_id <> $2
+		  AND ts.is_deleted = FALSE
+		ORDER BY EXISTS (
+		           SELECT 1 FROM miniapp_friend_subscriptions s2
+		           WHERE s2.subscriber_id = $2 AND s2.target_id = ts.user_id AND s2.pack_chat_id = $1
+		         ) DESC,
+		         ts.streak_days DESC, ts.user_id ASC`
+	rows, err := d.db.Query(q, packChatID, viewerUserID)
+	if err != nil {
+		return nil, fmt.Errorf("list pack members for subscriptions: %w", err)
+	}
+	defer rows.Close()
+	var out []PackMemberRow
+	for rows.Next() {
+		var m PackMemberRow
+		if err := rows.Scan(&m.UserID, &m.Username, &m.DisplayName, &m.StreakDays, &m.Following); err != nil {
+			return nil, fmt.Errorf("scan pack member: %w", err)
+		}
+		out = append(out, m)
+	}
+	return out, rows.Err()
+}
+
+// AddFriendSubscription — viewer подписывается на target. Идемпотентно.
+func (d *Database) AddFriendSubscription(subscriberID, targetID, packChatID int64) error {
+	if d == nil || subscriberID == 0 || targetID == 0 || packChatID == 0 {
+		return nil
+	}
+	if subscriberID == targetID {
+		return fmt.Errorf("cannot subscribe to self")
+	}
+	const q = `
+		INSERT INTO miniapp_friend_subscriptions (subscriber_id, target_id, pack_chat_id)
+		VALUES ($1, $2, $3)
+		ON CONFLICT (subscriber_id, target_id, pack_chat_id) DO NOTHING`
+	if _, err := d.db.Exec(q, subscriberID, targetID, packChatID); err != nil {
+		return fmt.Errorf("add friend subscription: %w", err)
+	}
+	return nil
+}
+
+// RemoveFriendSubscription — viewer отписывается от target. Идемпотентно.
+func (d *Database) RemoveFriendSubscription(subscriberID, targetID, packChatID int64) error {
+	if d == nil || subscriberID == 0 || targetID == 0 || packChatID == 0 {
+		return nil
+	}
+	const q = `DELETE FROM miniapp_friend_subscriptions WHERE subscriber_id = $1 AND target_id = $2 AND pack_chat_id = $3`
+	if _, err := d.db.Exec(q, subscriberID, targetID, packChatID); err != nil {
+		return fmt.Errorf("remove friend subscription: %w", err)
+	}
+	return nil
+}
+
+// ListFriendSubscribersOfTarget — кто подписан на target в этой стае (для уведомления при #training_done).
+func (d *Database) ListFriendSubscribersOfTarget(targetID, packChatID int64) ([]int64, error) {
+	if d == nil || targetID == 0 || packChatID == 0 {
+		return nil, nil
+	}
+	const q = `SELECT subscriber_id FROM miniapp_friend_subscriptions WHERE target_id = $1 AND pack_chat_id = $2`
+	rows, err := d.db.Query(q, targetID, packChatID)
+	if err != nil {
+		return nil, fmt.Errorf("list friend subscribers: %w", err)
+	}
+	defer rows.Close()
+	var out []int64
+	for rows.Next() {
+		var id int64
+		if err := rows.Scan(&id); err != nil {
+			return nil, fmt.Errorf("scan subscriber: %w", err)
+		}
+		out = append(out, id)
+	}
+	return out, rows.Err()
+}
