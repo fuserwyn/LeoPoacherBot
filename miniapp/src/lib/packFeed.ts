@@ -385,7 +385,7 @@ export function dtoToCard(d: PackFeedItemDTO): ActivityCardProps {
       lightTone: true,
       timeAgo: formatLocalDateTime(d.created_at),
       emoji: fromLeo ? "🐆" : m.emoji,
-      activity: fromLeo ? "Лео · объявление" : m.activity,
+      activity: fromLeo ? "Объявление" : m.activity,
       details: "",
       comment,
     };

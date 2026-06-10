@@ -1090,15 +1090,16 @@ export function FeedScreen({
                 const isAdminAnnouncement = it.type === "admin_post" || it.type === "admin_poll";
                 const isPinnedAnnouncement = Boolean(it.is_pinned) && isAdminAnnouncement;
                 const canPinCard = isAdmin && isAdminAnnouncement;
-                // Закреплённое объявление: показываем полный текст сразу (без сворачивания).
-                const pinnedComment =
-                  isPinnedAnnouncement && it.type === "admin_post" ? it.text.trim() : undefined;
+                // Объявление Лео: полный текст в карточке, свёрнут до первой строки
+                // (разворачивается по «Показать полностью», без внутреннего скролла).
+                const adminPostText = it.type === "admin_post" ? it.text.trim() : undefined;
+                const adminPostCollapsible = it.type === "admin_post";
                 // Закреп — исключительно голос Лео: единый аватар/имя независимо от автора поста.
                 const pinnedLeoProps: Partial<ActivityCardProps> = isPinnedAnnouncement
                   ? {
                       name: "Лео",
                       avatar: LEO_AVATAR_URL,
-                      activity: "Лео · объявление",
+                      activity: "Объявление",
                       emoji: "🐆",
                       hideStreak: true,
                     }
@@ -1161,9 +1162,9 @@ export function FeedScreen({
                       <ActivityCard
                         {...base}
                         {...pinnedLeoProps}
-                        comment={pinnedComment ?? base.comment}
+                        comment={adminPostText ?? base.comment}
                         pinned={isPinnedAnnouncement}
-                        commentCollapsible={false}
+                        commentCollapsible={adminPostCollapsible}
                         onTogglePin={canPinCard ? () => void setFeedPostPinned(it.id, !it.is_pinned) : undefined}
                         pinPosting={feedPinPosting[it.id] ?? false}
                         reactions={supportsReactions ? mergeFeedReactionsForType(it.type, it.reactions) : undefined}
@@ -1196,9 +1197,9 @@ export function FeedScreen({
                     <ActivityCard
                       {...base}
                       {...pinnedLeoProps}
-                      comment={pinnedComment ?? base.comment}
+                      comment={adminPostText ?? base.comment}
                       pinned={isPinnedAnnouncement}
-                      commentCollapsible={false}
+                      commentCollapsible={adminPostCollapsible}
                       onTogglePin={canPinCard ? () => void setFeedPostPinned(it.id, !it.is_pinned) : undefined}
                       pinPosting={feedPinPosting[it.id] ?? false}
                       poll={

@@ -451,9 +451,13 @@ export function ActivityCard({
   const [threadInputFocused, setThreadInputFocused] = useState(false);
   // Закреплённое объявление: длинный текст свёрнут, разворачивается по кнопке.
   const [commentExpanded, setCommentExpanded] = useState(false);
-  const COMMENT_COLLAPSE_THRESHOLD = 160;
+  // Свёрнутый вид показывает только первую строку, поэтому сворачиваем как только
+  // текст не помещается в одну строку: есть перенос строки или он заметно длинный.
+  const COMMENT_COLLAPSE_THRESHOLD = 80;
   const canCollapseComment =
-    commentCollapsible && typeof comment === "string" && comment.trim().length > COMMENT_COLLAPSE_THRESHOLD;
+    commentCollapsible &&
+    typeof comment === "string" &&
+    (comment.includes("\n") || comment.trim().length > COMMENT_COLLAPSE_THRESHOLD);
   const [lightboxOpen, setLightboxOpen] = useState(false);
   // Источник для лайтбокса: фото отчёта (по умолчанию) или фото из комментария.
   const [lightboxSrc, setLightboxSrc] = useState<string | null>(null);
@@ -610,7 +614,7 @@ export function ActivityCard({
     <article
       ref={cardRef}
       {...cardPress}
-      className={`act-card${hideStreak ? " act-card--leo" : ""}${lightTone ? " act-card--light" : ""}${threadOpen && hasThread ? " act-card--thread-open" : ""}${trainingPhotoUrl ? " act-card--has-photo" : ""}`}
+      className={`act-card${hideStreak ? " act-card--leo" : ""}${lightTone ? " act-card--light" : ""}${threadOpen && hasThread ? " act-card--thread-open" : ""}${trainingPhotoUrl ? " act-card--has-photo" : ""}${canCollapseComment && commentExpanded ? " act-card--comment-expanded" : ""}`}
     >
       {cardLikers.open && cardLikerGroups.length > 0 && (
         <LikersPopover groups={cardLikerGroups} popRef={cardLikers.popRef} style={cardLikers.style} />
