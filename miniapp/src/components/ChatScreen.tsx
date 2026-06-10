@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState, type ChangeEvent } from "react";
 import { clearLeoPersonalInbox } from "../lib/leoPersonalInbox";
 import {
   createChatScrollScheduler,
@@ -7,6 +7,7 @@ import {
 } from "../lib/chatLogScroll";
 import { formatChatTime } from "../lib/timeAgo";
 import { LEO_AVATAR_URL } from "../lib/leoAvatar";
+import { resolveTrainingPhotoUrl } from "../lib/packFeed";
 import "./ChatScreen.css";
 
 const envApi = (import.meta.env.VITE_MINIAPP_API_URL as string | undefined)?.replace(/\/$/, "") ?? "";
@@ -33,13 +34,15 @@ type ChatMsg = {
   serverID?: number;
   role: "user" | "leo";
   text: string;
+  /** Публичный URL фото (или локальный blob у оптимистичного сообщения). */
+  photoUrl?: string;
   // ISO-строка от сервера или ISO от Date.now() для оптимистичных.
   createdAt: string;
   likeCount?: number;
   likeMe?: boolean;
 };
 
-type ServerMsg = { id: number; role: "user" | "leo"; text: string; created_at: string; like_count?: number; like_me?: boolean };
+type ServerMsg = { id: number; role: "user" | "leo"; text: string; photo_url?: string; created_at: string; like_count?: number; like_me?: boolean };
 
 function nowId() {
   return `local-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;

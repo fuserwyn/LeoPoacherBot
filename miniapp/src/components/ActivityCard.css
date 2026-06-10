@@ -276,6 +276,15 @@
   overflow-y: auto;
 }
 
+/* Фото-карточка: при раскрытии треда тело НЕ превращаем в обрезанный 24dvh
+   скролл-вьюпорт. Большое фото в нём схлопывается, а iOS WebView (Telegram)
+   не перерисовывает освободившуюся область — заголовок/детали остаются
+   «призраком» поверх фото. Оставляем тело в потоке, страница скроллится. */
+.act-card--has-photo.act-card--thread-open .act-card__body {
+  max-height: none;
+  overflow: visible;
+}
+
 /* Реакции всегда между телом и «Комментарии» — не внутри скролла body. */
 .act-card--thread-open .act-card__react {
   flex-shrink: 0;
@@ -561,6 +570,11 @@
   border: 1px solid transparent;
   color: inherit;
   cursor: pointer;
+  /* Это кнопка, а не текст: не выделять эмодзи при наведении/тапе, убрать подсветку тапа на iOS. */
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
+  -webkit-tap-highlight-color: transparent;
 }
 
 .act-card__react-btn:disabled {

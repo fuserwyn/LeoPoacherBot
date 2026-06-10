@@ -180,6 +180,92 @@ func (b *Bot) processMiniAppPrivateCore(d initdata.InitData, text string, traini
 	return out
 }
 
+// ProcessMiniAppLeoPhoto — личный чат с Лео: юзер прислал фото (с подписью или без)
+// и ждёт рекомендаций. Подпись модерируется как обычное сообщение Лео; фото
+// сохраняется в историю лички и описывается vision-моделью, после чего ответ
+// генерится обычным путём Лео (персона + RAG + память). Ответ — асинхронно (poll).
+func (b *Bot) ProcessMiniAppLeoPhoto(d initdata.InitData, caption, photoURL string) MiniAppTextProcessResult {
+	out := MiniAppTextProcessResult{}
+	photoURL = strings.TrimSpace(photoURL)
+	if b == nil || d.User.ID == 0 || photoURL == "" {
+		return out
+	}
+	if err := b.AssertMiniAppPackChatAligns(d); err != nil {
+		return out
+	}
+	caption = strings.TrimSpace(caption)
+	if caption != "" {
+		if _, err := b.enforceLeoChat(caption, d.User.ID); err != nil {
+			var mod *ModerationBlockedError
+			out.Blocked = true
+			if errors.As(err, &mod) && mod != nil {
+				out.ReplyText = mod.Message
+				out.BlockCode = mod.APICode
+			} else {
+				out.ReplyText = moderation.UserWarnings[moderation.ReasonProfanity]
+				out.BlockCode = "moderation_blocked"
+			}
+			b.trackModerationBlocked("leo_chat", out.BlockCode, d.User.ID)
+			return out
+		}
+	}
+	// Воронка UGC: сообщение юзера Лео прошло гейт.
+	b.db.TrackEvent(database.AnalyticsEvent{Name: database.EventLeoChatMessageSent, TelegramID: d.User.ID})
+
+	b.miniappPersonalClear(d.User.ID)
+	b.savePersonalChatMessageWithPhoto(d.User.ID, "user", caption, photoURL)
+
+	go b.runMiniAppLeoPhotoWorker(d, caption, photoURL)
+	out.Pending = true
+	return out
+}
+
+// buildLeoPhotoQuestion собирает «синтетический» вопрос для Лео по фото:
+// описание изображения (vision) + подпись юзера. Передаётся в обычный путь ИИ.
+func buildLeoPhotoQuestion(caption, desc string) string {
+	var sb strings.Builder
+	sb.WriteString("Пользователь прислал в личный чат фото и хочет рекомендации по нему.\n")
+	if d := strings.TrimSpace(desc); d != "" {
+		sb.WriteString("[Что на фото (по описанию vision-модели): " + d + "]\n")
+	}
+	if c := strings.TrimSpace(caption); c != "" {
+		sb.WriteString("Подпись/вопрос к фото: " + c + "\n")
+	} else {
+		sb.WriteString("Подписи нет — посмотри на фото и дай полезные рекомендации (по технике, форме, питанию, экипировке — смотря что на снимке).\n")
+	}
+	return strings.TrimSpace(sb.String())
+}
+
+func (b *Bot) runMiniAppLeoPhotoWorker(d initdata.InitData, caption, photoURL string) {
+	defer func() {
+		if r := recover(); r != nil {
+			b.logger.Errorf("miniapp leo photo worker panic: %v", r)
+		}
+	}()
+	desc := ""
+	if b.aiClient != nil && b.aiClient.HasVision() {
+		desc = b.describeImageForLeo(photoURL, caption)
+	}
+	question := buildLeoPhotoQuestion(caption, desc)
+	msg := PrivateTextMessageFromInitUser(d, question)
+	ch := make(chan string, 32)
+	b.markMiniappOrigin(d.User.ID, ch)
+	defer b.unmarkMiniappOrigin(d.User.ID)
+	b.dispatchTextMessageFromUser(msg, ch, "")
+	for {
+		select {
+		case t := <-ch:
+			tr := strings.TrimSpace(t)
+			if tr == "" {
+				continue
+			}
+			b.miniappPersonalPush(d.User.ID, tr)
+		default:
+			return
+		}
+	}
+}
+
 func (b *Bot) runMiniAppPrivateTextWorker(d initdata.InitData, text string, trainingPhotoURL string) {
 	defer func() {
 		if r := recover(); r != nil {

@@ -251,6 +251,84 @@ func (s *Server) storeUploadedPhoto(w http.ResponseWriter, r *http.Request, file
 	return publicBase + "/api/miniapp/media/" + baseName, true
 }
 
+// handlePostLeoMessageWithPhoto — личный чат с Лео: фото (+ опц. подпись) для рекомендаций.
+// Подпись необязательна; фото обязательно. Ответ Лео приходит асинхронно (poll фида лички).
+func (s *Server) handlePostLeoMessageWithPhoto(w http.ResponseWriter, r *http.Request) {
+	corsWriteHeaders(w, r)
+	if s.bot == nil || s.token == "" {
+		s.jsonErr(w, http.StatusServiceUnavailable, "server_unavailable")
+		return
+	}
+	if err := r.ParseMultipartForm(maxWorkoutPhotoBytes + 65536); err != nil {
+		s.jsonErr(w, http.StatusBadRequest, "invalid_multipart")
+		return
+	}
+	initD := strings.TrimSpace(r.FormValue("init_data"))
+	caption := strings.TrimSpace(r.FormValue("text"))
+	if initD == "" {
+		s.jsonErr(w, http.StatusBadRequest, "missing_init_data")
+		return
+	}
+	if utf8.RuneCountInString(caption) > maxTextRunes {
+		s.jsonErr(w, http.StatusBadRequest, "text_too_long")
+		return
+	}
+	if err := initdata.Validate(initD, s.token, 24*time.Hour); err != nil {
+		s.logger.Warnf("miniapp leo photo init_data invalid: %v", err)
+		s.jsonErr(w, http.StatusUnauthorized, "invalid_init_data")
+		return
+	}
+	parsed, err := initdata.Parse(initD)
+	if err != nil || parsed.User.ID == 0 {
+		s.jsonErr(w, http.StatusBadRequest, "parse_init_data")
+		return
+	}
+	if err := s.bot.AssertMiniAppPackChatAligns(parsed); err != nil {
+		if errors.Is(err, bot.ErrMiniAppChatMismatch) {
+			s.jsonErr(w, http.StatusConflict, "chat_mismatch")
+			return
+		}
+		s.jsonErr(w, http.StatusInternalServerError, "assert_chat_error")
+		return
+	}
+	fs := r.MultipartForm.File["photo"]
+	if len(fs) == 0 {
+		s.jsonErr(w, http.StatusBadRequest, "missing_photo")
+		return
+	}
+	file, err := fs[0].Open()
+	if err != nil {
+		s.jsonErr(w, http.StatusBadRequest, "photo_open_error")
+		return
+	}
+	defer file.Close()
+
+	publicURL, ok := s.storeUploadedPhoto(w, r, file)
+	if !ok {
+		return
+	}
+	miniRes := s.bot.ProcessMiniAppLeoPhoto(parsed, caption, publicURL)
+	if miniRes.Blocked {
+		code := miniRes.BlockCode
+		if code == "" {
+			code = "moderation_blocked"
+		}
+		w.Header().Set("Content-Type", "application/json; charset=utf-8")
+		w.WriteHeader(bot.ModerationHTTPStatus(code))
+		_ = json.NewEncoder(w).Encode(map[string]string{"error": code, "message": miniRes.ReplyText})
+		return
+	}
+	w.Header().Set("Content-Type", "application/json; charset=utf-8")
+	outm := map[string]any{"ok": true, "photo_url": publicURL}
+	if miniRes.Pending {
+		outm["pending"] = true
+	}
+	if miniRes.ReplyText != "" {
+		outm["reply_text"] = miniRes.ReplyText
+	}
+	_ = json.NewEncoder(w).Encode(outm)
+}
+
 // handlePostPackGroupMessageWithPhoto — отправка сообщения в чат стаи с фото (multipart).
 // text может быть пустым (сообщение только с фото). reply_to_id — опц. ответ.
 func (s *Server) handlePostPackGroupMessageWithPhoto(w http.ResponseWriter, r *http.Request) {

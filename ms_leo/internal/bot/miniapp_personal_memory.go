@@ -68,6 +68,35 @@ func (b *Bot) savePersonalChatMessage(userID int64, role, text string) {
 	b.indexPersonalChatRAG(userID, role, t, id)
 }
 
+// savePersonalChatMessageWithPhoto — пишет строку лички с прикреплённым фото.
+// В отличие от savePersonalChatMessage, не отбрасывает пустой text (сообщение
+// может быть только из фото). Для RAG индексируем подпись (если есть).
+func (b *Bot) savePersonalChatMessageWithPhoto(userID int64, role, text, photoURL string) {
+	if b == nil || b.db == nil || userID == 0 {
+		return
+	}
+	if b.config == nil || b.config.MonetizedChatID == 0 {
+		return
+	}
+	photoURL = strings.TrimSpace(photoURL)
+	if photoURL == "" {
+		b.savePersonalChatMessage(userID, role, text)
+		return
+	}
+	if role != "user" && role != "leo" {
+		return
+	}
+	t := strings.TrimSpace(text)
+	id, err := b.db.InsertMiniappPersonalChatMessageWithPhoto(userID, b.config.MonetizedChatID, role, t, photoURL)
+	if err != nil {
+		b.logger.Warnf("save personal chat photo user=%d role=%s: %v", userID, role, err)
+		return
+	}
+	if t != "" {
+		b.indexPersonalChatRAG(userID, role, t, id)
+	}
+}
+
 // MiniappPersonalChatHistory — последние N сообщений приватного чата юзера с Лео.
 // sinceID > 0 — только записи новее (для инкрементальной подгрузки на фронте).
 // Используется HTTP-эндпоинтом /api/miniapp/personal-chat/feed.

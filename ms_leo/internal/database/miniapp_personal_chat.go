@@ -27,6 +27,21 @@ func (d *Database) InsertMiniappPersonalChatMessage(userID, packChatID int64, ro
 	return id, nil
 }
 
+// InsertMiniappPersonalChatMessageWithPhoto — то же, что выше, но с прикреплённым фото
+// (личный чат с Лео: юзер шлёт снимок для рекомендаций). text может быть пустым.
+func (d *Database) InsertMiniappPersonalChatMessageWithPhoto(userID, packChatID int64, role, text, photoURL string) (int64, error) {
+	const q = `
+		INSERT INTO miniapp_personal_chat (user_id, pack_chat_id, role, message_text, photo_url)
+		VALUES ($1, $2, $3, $4, $5)
+		RETURNING id
+	`
+	var id int64
+	if err := d.db.QueryRow(q, userID, packChatID, role, text, photoURL).Scan(&id); err != nil {
+		return 0, fmt.Errorf("insert miniapp personal chat with photo: %w", err)
+	}
+	return id, nil
+}
+
 // ListMiniappPersonalChat — возвращает последние limit сообщений в хронологическом порядке
 // (старые → новые). sinceID > 0 — отдаём только записи с id > sinceID (для инкрементальной
 // подгрузки клиентом). Если sinceID == 0 — отдаём последние limit сообщений (для первого
@@ -42,7 +57,7 @@ func (d *Database) ListMiniappPersonalChat(userID, packChatID int64, limit int, 
 	if sinceID > 0 {
 		// Инкрементальная подгрузка: всё, что новее, в хронологическом порядке (ASC).
 		const q = `
-			SELECT id, role, message_text, created_at
+			SELECT id, role, message_text, COALESCE(photo_url, ''), created_at
 			FROM miniapp_personal_chat
 			WHERE user_id = $1 AND pack_chat_id = $2 AND id > $3
 			ORDER BY id ASC
@@ -53,7 +68,7 @@ func (d *Database) ListMiniappPersonalChat(userID, packChatID int64, limit int, 
 
 	// Первое открытие: берём последние limit, потом разворачиваем в хронологический порядок.
 	const q = `
-		SELECT id, role, message_text, created_at
+		SELECT id, role, message_text, COALESCE(photo_url, ''), created_at
 		FROM miniapp_personal_chat
 		WHERE user_id = $1 AND pack_chat_id = $2
 		ORDER BY id DESC
@@ -138,7 +153,7 @@ func (d *Database) queryMiniappPersonalChat(query string, args ...interface{}) (
 	for rows.Next() {
 		var m domain.MiniappPersonalChatMessage
 		var t time.Time
-		if err := rows.Scan(&m.ID, &m.Role, &m.Text, &t); err != nil {
+		if err := rows.Scan(&m.ID, &m.Role, &m.Text, &m.PhotoURL, &t); err != nil {
 			return nil, err
 		}
 		m.CreatedAt = t.UTC().Format("2006-01-02T15:04:05Z07:00")

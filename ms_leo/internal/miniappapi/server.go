@@ -47,6 +47,8 @@ func (s *Server) serve(w http.ResponseWriter, r *http.Request) {
 	switch {
 	case path == "/healthz" && r.Method == http.MethodGet:
 		s.handleHealthz(w, r)
+	case path == "/api/miniapp/messages/photo" && r.Method == http.MethodPost:
+		s.handlePostLeoMessageWithPhoto(w, r)
 	case path == "/api/miniapp/messages" && r.Method == http.MethodPost:
 		s.handlePostMessage(w, r)
 	case path == "/api/miniapp/personal-reply/pending-count" && r.Method == http.MethodPost:

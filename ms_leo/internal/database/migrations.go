@@ -1161,6 +1161,16 @@ var Migrations = []Migration{
 			DROP TABLE IF EXISTS scheduled_admin_posts;
 		`,
 	},
+	{
+		Version:     58,
+		Description: "Личный чат с Лео: фото к сообщению (vision-рекомендации)",
+		UpSQL: `
+			ALTER TABLE miniapp_personal_chat ADD COLUMN IF NOT EXISTS photo_url TEXT NOT NULL DEFAULT '';
+		`,
+		DownSQL: `
+			ALTER TABLE miniapp_personal_chat DROP COLUMN IF EXISTS photo_url;
+		`,
+	},
 }
 
 // MigrationRecord представляет запись о выполненной миграции
