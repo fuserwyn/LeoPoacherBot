@@ -287,62 +287,51 @@ export function ReportActionMenu({
   posting?: boolean;
   className?: string;
 }) {
-  const wrapRef = useRef<HTMLDivElement>(null);
-  const [open, setOpen] = useState(false);
-
-  useEffect(() => {
-    if (!open) return;
-    const close = (e: MouseEvent | TouchEvent) => {
-      const t = e.target as Node;
-      if (wrapRef.current?.contains(t)) return;
-      setOpen(false);
-    };
-    const esc = (e: KeyboardEvent) => {
-      if (e.key === "Escape") setOpen(false);
-    };
-    document.addEventListener("mousedown", close);
-    document.addEventListener("touchstart", close);
-    document.addEventListener("keydown", esc);
-    return () => {
-      document.removeEventListener("mousedown", close);
-      document.removeEventListener("touchstart", close);
-      document.removeEventListener("keydown", esc);
-    };
-  }, [open]);
+  const toggleRef = useRef<HTMLButtonElement>(null);
+  const { open, setOpen, style, popRef } = useLikersPopover(toggleRef);
 
   if (items.length === 0) return null;
 
   return (
-    <div className={`act-card__menu${className ? ` ${className}` : ""}`} ref={wrapRef}>
+    <div className={`act-card__menu${className ? ` ${className}` : ""}`}>
       <button
+        ref={toggleRef}
         type="button"
         className={`act-card__menu-toggle${open ? " act-card__menu-toggle--open" : ""}`}
         aria-expanded={open}
         aria-haspopup="menu"
         aria-label="Ещё"
         disabled={posting}
-        onClick={() => setOpen((v) => !v)}
+        onClick={() => setOpen(!open)}
       >
         {posting ? "…" : "⋯"}
       </button>
-      {open && !posting && (
-        <div className="act-card__menu-popover" role="menu">
-          {items.map((item) => (
-            <button
-              key={item.label}
-              type="button"
-              className={`act-card__menu-item${item.danger ? " act-card__menu-item--danger" : ""}`}
-              role="menuitem"
-              onClick={() => {
-                setOpen(false);
-                item.onClick();
-              }}
-            >
-              {item.label}
-            </button>
-          ))}
-        </div>
-      )}
+      {open &&
+        !posting &&
+        createPortal(
+          <div
+            className="act-card__menu-popover act-card__menu-popover--portal"
+            role="menu"
+            ref={popRef}
+            style={style}
+          >
+            {items.map((item) => (
+              <button
+                key={item.label}
+                type="button"
+                className={`act-card__menu-item${item.danger ? " act-card__menu-item--danger" : ""}`}
+                role="menuitem"
+                onClick={() => {
+                  setOpen(false);
+                  item.onClick();
+                }}
+              >
+                {item.label}
+              </button>
+            ))}
+          </div>,
+          document.body,
+        )}
     </div>
   );
 }
@@ -606,7 +595,7 @@ export function ActivityCard({
   const cardHeadMenuItems = useMemo(() => {
     const items: { label: string; onClick: () => void; danger?: boolean }[] = [];
     if (onToggleFollow) {
-      items.push({ label: isFriend ? "Не следить за автором" : "Следить за автором", onClick: onToggleFollow });
+      items.push({ label: isFriend ? "Не следить за леопардом" : "Следить за леопардом", onClick: onToggleFollow });
     }
     if (onTogglePin) {
       items.push({ label: pinned ? "Открепить" : "Закрепить", onClick: onTogglePin });
@@ -824,36 +813,40 @@ export function ActivityCard({
                               <div className="act-card__thread-item-main">
                                 <div className="act-card__thread-item-head">
                                   <div className="act-card__thread-item-meta">
-                                    <span className="act-card__thread-author">{displayAuthor}</span>
-                                    {attribution && (
-                                      <span className="act-card__thread-attrib muted">({attribution})</span>
-                                    )}
-                                    <span className="act-card__thread-time muted">{tr.timeAgo}</span>
-                                  </div>
-                                  <div className="act-card__thread-head-actions">
-                                    {!tr.isYou && !leo && onThreadReplyReport != null && (
-                                      <ReportActionMenu
-                                        className="act-card__menu--thread"
-                                        items={[
-                                          {
-                                            label: "Пожаловаться на комментарий",
-                                            onClick: () => onThreadReplyReport(tr.id),
-                                          },
-                                        ]}
-                                        posting={Boolean(threadReplyReporting[tr.id])}
-                                      />
-                                    )}
-                                    {onThreadReplyDelete != null && (tr.isYou || isAdmin) && (
-                                      <button
-                                        type="button"
-                                        className="act-card__thread-del"
-                                        disabled={Boolean(threadReplyDeleting[tr.id])}
-                                        onClick={() => onThreadReplyDelete(tr.id)}
-                                        title={!tr.isYou ? "Удалить как админ" : undefined}
-                                      >
-                                        {threadReplyDeleting[tr.id] ? "…" : "Удалить"}
-                                      </button>
-                                    )}
+                                    <div className="act-card__thread-name-row">
+                                      <span className="act-card__thread-name-text">
+                                        <span className="act-card__thread-author">{displayAuthor}</span>
+                                        {attribution && (
+                                          <span className="act-card__thread-attrib muted">({attribution})</span>
+                                        )}
+                                      </span>
+                                      {!tr.isYou && !leo && onThreadReplyReport != null && (
+                                        <ReportActionMenu
+                                          className="act-card__menu--thread"
+                                          items={[
+                                            {
+                                              label: "Пожаловаться на комментарий",
+                                              onClick: () => onThreadReplyReport(tr.id),
+                                            },
+                                          ]}
+                                          posting={Boolean(threadReplyReporting[tr.id])}
+                                        />
+                                      )}
+                                    </div>
+                                    <div className="act-card__thread-subrow">
+                                      <span className="act-card__thread-time muted">{tr.timeAgo}</span>
+                                      {onThreadReplyDelete != null && (tr.isYou || isAdmin) && (
+                                        <button
+                                          type="button"
+                                          className="act-card__thread-del"
+                                          disabled={Boolean(threadReplyDeleting[tr.id])}
+                                          onClick={() => onThreadReplyDelete(tr.id)}
+                                          title={!tr.isYou ? "Удалить как админ" : undefined}
+                                        >
+                                          {threadReplyDeleting[tr.id] ? "…" : "Удалить"}
+                                        </button>
+                                      )}
+                                    </div>
                                   </div>
                                 </div>
                                 {tr.replyTo != null &&

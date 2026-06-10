@@ -121,6 +121,15 @@
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
 }
 
+/* Портал в body: позиция задаётся useLikersPopover (не обрезается overflow треда). */
+.act-card__menu-popover--portal {
+  position: fixed;
+  right: auto;
+  top: auto;
+  z-index: 1200;
+  overflow-y: auto;
+}
+
 .act-card__menu-item {
   display: block;
   width: 100%;
@@ -769,23 +778,39 @@
 .act-card__thread-item-head {
   display: flex;
   align-items: flex-start;
-  justify-content: space-between;
-  gap: 8px;
-  flex-wrap: wrap;
-}
-
-.act-card__thread-head-actions {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  flex-shrink: 0;
+  min-width: 0;
 }
 
 .act-card__thread-item-meta {
   display: flex;
-  flex-wrap: wrap;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  flex: 1;
+}
+
+.act-card__thread-name-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  min-width: 0;
+}
+
+.act-card__thread-name-text {
+  display: flex;
   align-items: baseline;
-  gap: 6px 8px;
+  flex-wrap: wrap;
+  gap: 6px;
+  min-width: 0;
+  flex: 1;
+}
+
+.act-card__thread-subrow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
   min-width: 0;
 }
 
@@ -844,7 +869,6 @@
 
 .act-card__thread-author {
   font-weight: 600;
-  margin-right: 8px;
 }
 
 .act-card__thread-time {
