@@ -119,6 +119,8 @@ export type PackFeedThreadReplyDTO = {
   is_leo?: boolean;
   /** URL из miniapp_user_profile (Telegram WebApp user.photo_url при онбординге). */
   author_photo_url?: string;
+  /** Фото, приложенное к комментарию (опционально). */
+  photo_url?: string;
   /** Ответ на сообщение внутри треда (как Reply в Telegram). */
   reply_to_id?: number;
   reply_to_username?: string;

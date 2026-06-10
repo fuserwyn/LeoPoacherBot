@@ -1214,6 +1214,16 @@ var Migrations = []Migration{
 			DROP TABLE IF EXISTS miniapp_workout_reminders;
 		`,
 	},
+	{
+		Version:     61,
+		Description: "Фото в комментариях ленты стаи (miniapp_training_feed_thread.photo_url) + vision Лео",
+		UpSQL: `
+			ALTER TABLE miniapp_training_feed_thread ADD COLUMN IF NOT EXISTS photo_url TEXT NOT NULL DEFAULT '';
+		`,
+		DownSQL: `
+			ALTER TABLE miniapp_training_feed_thread DROP COLUMN IF EXISTS photo_url;
+		`,
+	},
 }
 
 // MigrationRecord представляет запись о выполненной миграции

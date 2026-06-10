@@ -11,6 +11,7 @@ import {
   optimisticToggleThreadReplyLike,
   reconcilePinnedFeed,
   resolveFeedAvatarUrl,
+  resolveTrainingPhotoUrl,
   sortPackFeedItemsDesc,
   type PackFeedItemDTO,
   type PackFeedThreadReplyDTO,
@@ -438,25 +439,40 @@ export function FeedScreen({
   );
 
   const postTrainingThread = useCallback(
-    async (userMessageId: number, text: string, replyToThreadId?: number) => {
+    async (userMessageId: number, text: string, replyToThreadId?: number, photo?: File | null) => {
       const t = text.trim();
-      if (!t) {
-        showAlert("Введи текст комментария.");
+      if (!t && !photo) {
+        showAlert("Введи текст комментария или прикрепи фото.");
         return;
       }
       if (!apiBase || !initData) return;
       setThreadPosting((p) => ({ ...p, [userMessageId]: true }));
       try {
-        const res = await fetch(`${apiBase}/api/miniapp/feed/training/thread`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            init_data: initData,
-            user_message_id: userMessageId,
-            text: t,
-            reply_to_id: replyToThreadId ?? 0,
-          }),
-        });
+        let res: Response;
+        if (photo) {
+          // Multipart: фото + (опционально) текст.
+          const fd = new FormData();
+          fd.append("init_data", initData);
+          fd.append("user_message_id", String(userMessageId));
+          fd.append("text", t);
+          fd.append("reply_to_id", String(replyToThreadId ?? 0));
+          fd.append("photo", photo);
+          res = await fetch(`${apiBase}/api/miniapp/feed/training/thread`, {
+            method: "POST",
+            body: fd,
+          });
+        } else {
+          res = await fetch(`${apiBase}/api/miniapp/feed/training/thread`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              init_data: initData,
+              user_message_id: userMessageId,
+              text: t,
+              reply_to_id: replyToThreadId ?? 0,
+            }),
+          });
+        }
         const j = (await res.json().catch(() => ({}))) as {
           error?: string;
           message?: string;
@@ -475,6 +491,12 @@ export function FeedScreen({
             chat_mismatch: "Открой мини-апп из чата стаи",
             thread_error: "Сервер не сохранил комментарий (таблица миграции или БД)",
             invalid_reply: "Не удалось ответить на это сообщение (обнови ленту)",
+            invalid_multipart: "Не удалось прочитать фото — попробуй ещё раз",
+            photo_open_error: "Не удалось открыть фото",
+            photo_too_large: "Фото слишком большое",
+            unsupported_type: "Неподдерживаемый формат фото",
+            media_write_error: "Не удалось загрузить фото — попробуй ещё раз",
+            media_not_configured: "Загрузка фото недоступна",
           };
           showAlert(errMap[j.error ?? ""] ?? j.error ?? `Ошибка ${res.status}`);
           return;
@@ -1100,6 +1122,7 @@ export function FeedScreen({
                     authorPhotoUrl: tr.author_photo_url?.trim()
                       ? resolveFeedAvatarUrl(tr.author_photo_url.trim())
                       : undefined,
+                    photoUrl: resolveTrainingPhotoUrl(tr.photo_url),
                     replyTo: rq,
                     likeCount: tr.like_count ?? 0,
                     likeMe: Boolean(tr.like_me),
@@ -1192,8 +1215,8 @@ export function FeedScreen({
                       threadComposer={{
                         draft: threadDrafts[it.id] ?? "",
                         onDraftChange: (v) => setThreadDrafts((d) => ({ ...d, [it.id]: v })),
-                        onSubmit: (text) =>
-                          void postTrainingThread(it.id, text, threadReplyTargets[it.id]?.replyToThreadId),
+                        onSubmit: (text, photo) =>
+                          void postTrainingThread(it.id, text, threadReplyTargets[it.id]?.replyToThreadId, photo),
                         posting: threadPosting[it.id] ?? false,
                       }}
                       onReport={canReportCard ? () => void reportFeedContent(it.id) : undefined}

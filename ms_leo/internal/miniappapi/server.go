@@ -755,30 +755,62 @@ func (s *Server) handlePostFeedTrainingThread(w http.ResponseWriter, r *http.Req
 		s.jsonErr(w, http.StatusServiceUnavailable, "server_unavailable")
 		return
 	}
-	var body struct {
-		InitData      string `json:"init_data"`
-		UserMessageID int64  `json:"user_message_id"`
-		Text          string `json:"text"`
-		ReplyToID     int64  `json:"reply_to_id"`
+
+	// Комментарий может прийти JSON'ом (только текст) или multipart'ом (текст + фото).
+	var (
+		initDataRaw   string
+		userMessageID int64
+		text          string
+		replyToID     int64
+		photoURL      string
+	)
+	isMultipart := strings.HasPrefix(r.Header.Get("Content-Type"), "multipart/form-data")
+	if isMultipart {
+		if err := r.ParseMultipartForm(maxWorkoutPhotoBytes + 65536); err != nil {
+			s.jsonErr(w, http.StatusBadRequest, "invalid_multipart")
+			return
+		}
+		initDataRaw = strings.TrimSpace(r.FormValue("init_data"))
+		text = r.FormValue("text")
+		if v, perr := strconv.ParseInt(strings.TrimSpace(r.FormValue("user_message_id")), 10, 64); perr == nil {
+			userMessageID = v
+		}
+		if rid := strings.TrimSpace(r.FormValue("reply_to_id")); rid != "" {
+			if v, perr := strconv.ParseInt(rid, 10, 64); perr == nil {
+				replyToID = v
+			}
+		}
+	} else {
+		var body struct {
+			InitData      string `json:"init_data"`
+			UserMessageID int64  `json:"user_message_id"`
+			Text          string `json:"text"`
+			ReplyToID     int64  `json:"reply_to_id"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+			s.jsonErr(w, http.StatusBadRequest, "invalid_json")
+			return
+		}
+		initDataRaw = body.InitData
+		userMessageID = body.UserMessageID
+		text = body.Text
+		replyToID = body.ReplyToID
 	}
-	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
-		s.jsonErr(w, http.StatusBadRequest, "invalid_json")
-		return
-	}
-	if body.InitData == "" {
+
+	if initDataRaw == "" {
 		s.jsonErr(w, http.StatusBadRequest, "missing_init_data")
 		return
 	}
-	if body.UserMessageID == 0 {
+	if userMessageID == 0 {
 		s.jsonErr(w, http.StatusBadRequest, "missing_user_message_id")
 		return
 	}
-	if err := initdata.Validate(body.InitData, s.token, 24*time.Hour); err != nil {
+	if err := initdata.Validate(initDataRaw, s.token, 24*time.Hour); err != nil {
 		s.logger.Warnf("miniapp feed training thread: invalid init: %v", err)
 		s.jsonErr(w, http.StatusUnauthorized, "invalid_init_data")
 		return
 	}
-	parsed, err := initdata.Parse(body.InitData)
+	parsed, err := initdata.Parse(initDataRaw)
 	if err != nil {
 		s.jsonErr(w, http.StatusBadRequest, "parse_init_data")
 		return
@@ -787,7 +819,25 @@ func (s *Server) handlePostFeedTrainingThread(w http.ResponseWriter, r *http.Req
 		s.jsonErr(w, http.StatusBadRequest, "user_missing")
 		return
 	}
-	if err := s.bot.PackTrainingFeedThreadPost(parsed.User.ID, parsed, body.UserMessageID, body.Text, body.ReplyToID); err != nil {
+
+	// Фото загружаем в хранилище ПОСЛЕ валидации initData (не тратим запись на анонимов).
+	if isMultipart && r.MultipartForm != nil {
+		if fs := r.MultipartForm.File["photo"]; len(fs) > 0 {
+			file, ferr := fs[0].Open()
+			if ferr != nil {
+				s.jsonErr(w, http.StatusBadRequest, "photo_open_error")
+				return
+			}
+			defer file.Close()
+			url, ok := s.storeUploadedPhoto(w, r, file)
+			if !ok {
+				return // storeUploadedPhoto уже записал ошибку
+			}
+			photoURL = url
+		}
+	}
+
+	if err := s.bot.PackTrainingFeedThreadPost(parsed.User.ID, parsed, userMessageID, text, replyToID, photoURL); err != nil {
 		if errors.Is(err, bot.ErrMiniAppChatMismatch) {
 			s.jsonErr(w, http.StatusConflict, "chat_mismatch")
 			return
@@ -815,7 +865,7 @@ func (s *Server) handlePostFeedTrainingThread(w http.ResponseWriter, r *http.Req
 		s.jsonErr(w, http.StatusInternalServerError, "thread_error")
 		return
 	}
-	replies, rerr := s.bot.PackFeedThreadRepliesForViewer(parsed.User.ID, body.UserMessageID, body.InitData)
+	replies, rerr := s.bot.PackFeedThreadRepliesForViewer(parsed.User.ID, userMessageID, initDataRaw)
 	if rerr != nil {
 		s.logger.Warnf("feed training thread: list after insert: %v", rerr)
 	}

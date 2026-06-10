@@ -528,7 +528,7 @@ func (b *Bot) handleLeopardMoneyTrainingDone(msg *tgbotapi.Message, personalRepl
 			if strings.TrimSpace(threadText) == "" {
 				threadText = b.generateShortLeopardChatAck(un, txt, ns, tc, a)
 			}
-			if _, err := b.db.InsertTrainingFeedThreadReply(packID, tid, 0, "Лео", threadText, 0); err != nil {
+			if _, err := b.db.InsertTrainingFeedThreadReply(packID, tid, 0, "Лео", threadText, 0, ""); err != nil {
 				b.logger.Warnf("training feed leo thread reply: %v", err)
 			}
 		}()
@@ -641,9 +641,16 @@ func (b *Bot) LeoReplyInFeedThread(
 
 	// Фото отчёта, под которым идёт диалог — анализируем vision-моделью.
 	photoDesc := ""
+	// Фото, приложенное к самой реплике-триггеру (комментарий с фото) — Лео тоже его «видит».
+	commentPhotoDesc := ""
 	if b.aiClient != nil && b.aiClient.HasVision() {
 		if purl, perr := b.db.GetTrainingPhotoURLByMessageID(packChatID, trainingUserMessageID); perr == nil && strings.TrimSpace(purl) != "" {
 			photoDesc = b.describeImageForLeo(strings.TrimSpace(purl), reportText)
+		}
+		if triggerThreadReplyID != 0 {
+			if row, ok, rerr := b.db.GetTrainingFeedThreadRowInPack(triggerThreadReplyID, packChatID); rerr == nil && ok && strings.TrimSpace(row.PhotoURL) != "" {
+				commentPhotoDesc = b.describeImageForLeo(strings.TrimSpace(row.PhotoURL), triggerText)
+			}
 		}
 	}
 
@@ -684,6 +691,9 @@ func (b *Bot) LeoReplyInFeedThread(
 	if strings.TrimSpace(photoDesc) != "" {
 		ctxBody.WriteString("\nФото, приложенное к отчёту (по данным vision — можно обыграть, если участник про него спрашивает; не выдумывай): " + strings.TrimSpace(photoDesc) + "\n")
 	}
+	if strings.TrimSpace(commentPhotoDesc) != "" {
+		ctxBody.WriteString("\nФото, которое собеседник приложил к своему последнему комментарию (по данным vision — отреагируй на него, если он про него спрашивает; не выдумывай деталей): " + strings.TrimSpace(commentPhotoDesc) + "\n")
+	}
 
 	reply, err := b.aiClient.AnswerUserQuestion(qb.String(), ctxBody.String())
 	if err != nil {
@@ -699,7 +709,7 @@ func (b *Bot) LeoReplyInFeedThread(
 		r := []rune(reply)
 		reply = string(r[:900]) + "…"
 	}
-	leoReplyID, err := b.db.InsertTrainingFeedThreadReply(packChatID, trainingUserMessageID, 0, "Лео", reply, triggerThreadReplyID)
+	leoReplyID, err := b.db.InsertTrainingFeedThreadReply(packChatID, trainingUserMessageID, 0, "Лео", reply, triggerThreadReplyID, "")
 	if err != nil {
 		b.logger.Warnf("leo feed thread reply insert: %v", err)
 		return

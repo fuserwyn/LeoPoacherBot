@@ -68,6 +68,8 @@ export type ActivityCardThreadReply = {
   isLeo?: boolean;
   /** Аватар участника (TG), если уже синхронился с сервера. */
   authorPhotoUrl?: string;
+  /** Фото, приложенное к комментарию (опционально). */
+  photoUrl?: string;
   /** Цитата родителя (reply). */
   replyTo?: { author: string; text: string; isLeo?: boolean };
   likeCount?: number;
@@ -79,8 +81,9 @@ export type ActivityCardThreadReply = {
 export type ActivityCardThreadComposer = {
   draft: string;
   onDraftChange: (v: string) => void;
-  /** Текст берём из поля ввода в момент отправки (надёжнее в Telegram WebView, чем только React state). */
-  onSubmit: (text: string) => void;
+  /** Текст берём из поля ввода в момент отправки (надёжнее в Telegram WebView, чем только React state).
+   *  photo — опциональное фото к комментарию. */
+  onSubmit: (text: string, photo?: File | null) => void;
   posting: boolean;
 };
 
@@ -441,10 +444,42 @@ export function ActivityCard({
   const canCollapseComment =
     commentCollapsible && typeof comment === "string" && comment.trim().length > COMMENT_COLLAPSE_THRESHOLD;
   const [lightboxOpen, setLightboxOpen] = useState(false);
+  // Источник для лайтбокса: фото отчёта (по умолчанию) или фото из комментария.
+  const [lightboxSrc, setLightboxSrc] = useState<string | null>(null);
   const [photoFailed, setPhotoFailed] = useState(false);
   const [avatarFailed, setAvatarFailed] = useState(false);
+  // Прикреплённое к комментарию фото (локально в композере до отправки).
+  const threadPhotoInputRef = useRef<HTMLInputElement>(null);
+  const [threadPhoto, setThreadPhoto] = useState<File | null>(null);
+  const [threadPhotoPreview, setThreadPhotoPreview] = useState<string | null>(null);
   const prevThreadLen = useRef(threadReplies.length);
   const prevThreadOpenRef = useRef(false);
+
+  // Превью прикреплённого фото: создаём/освобождаем object URL.
+  useEffect(() => {
+    if (!threadPhoto) {
+      setThreadPhotoPreview(null);
+      return;
+    }
+    const url = URL.createObjectURL(threadPhoto);
+    setThreadPhotoPreview(url);
+    return () => URL.revokeObjectURL(url);
+  }, [threadPhoto]);
+
+  const openLightbox = (src?: string) => {
+    if (!src) return;
+    setLightboxSrc(src);
+    setLightboxOpen(true);
+  };
+
+  const submitThreadComment = () => {
+    if (!threadComposer || threadComposer.posting) return;
+    const raw = threadInputRef.current?.value ?? threadComposer.draft;
+    if (raw.trim() === "" && !threadPhoto) return;
+    threadComposer.onSubmit(raw, threadPhoto);
+    setThreadPhoto(null);
+    if (threadPhotoInputRef.current) threadPhotoInputRef.current.value = "";
+  };
 
   useEffect(() => {
     if (threadOpen && !prevThreadOpenRef.current) {
@@ -661,11 +696,11 @@ export function ActivityCard({
             role="button"
             tabIndex={0}
             aria-label="Открыть фото"
-            onClick={() => setLightboxOpen(true)}
+            onClick={() => openLightbox(trainingPhotoUrl)}
             onKeyDown={(e) => {
               if (e.key === "Enter" || e.key === " ") {
                 e.preventDefault();
-                setLightboxOpen(true);
+                openLightbox(trainingPhotoUrl);
               }
             }}
           >
@@ -780,7 +815,25 @@ export function ActivityCard({
                                       )}
                                     </div>
                                   )}
-                                <p className="act-card__thread-text">{tr.text}</p>
+                                {(tr.text || "").trim() !== "" && (
+                                  <p className="act-card__thread-text">{tr.text}</p>
+                                )}
+                                {tr.photoUrl ? (
+                                  <button
+                                    type="button"
+                                    className="act-card__thread-photo-wrap"
+                                    aria-label="Открыть фото"
+                                    onClick={() => openLightbox(tr.photoUrl)}
+                                  >
+                                    <img
+                                      className="act-card__thread-photo"
+                                      src={tr.photoUrl}
+                                      alt=""
+                                      loading="lazy"
+                                      referrerPolicy="no-referrer"
+                                    />
+                                  </button>
+                                ) : null}
                                 {(onThreadReplyLike != null || onThreadReplyIntent != null) && (
                                   <div className="act-card__thread-actions">
                                     {onThreadReplyLike != null && (
@@ -844,6 +897,27 @@ export function ActivityCard({
                         )}
                       </div>
                     )}
+                    {threadPhotoPreview && (
+                      <div className="act-card__thread-photo-preview">
+                        <img
+                          className="act-card__thread-photo-preview-img"
+                          src={threadPhotoPreview}
+                          alt=""
+                        />
+                        <button
+                          type="button"
+                          className="act-card__thread-photo-remove"
+                          aria-label="Убрать фото"
+                          disabled={threadComposer.posting}
+                          onClick={() => {
+                            setThreadPhoto(null);
+                            if (threadPhotoInputRef.current) threadPhotoInputRef.current.value = "";
+                          }}
+                        >
+                          ✕
+                        </button>
+                      </div>
+                    )}
                     <textarea
                       ref={threadInputRef}
                       className="act-card__thread-input"
@@ -861,29 +935,45 @@ export function ActivityCard({
                       onKeyDown={(e) => {
                         if (e.key !== "Enter" || (!e.ctrlKey && !e.metaKey)) return;
                         e.preventDefault();
-                        const raw = threadInputRef.current?.value ?? threadComposer.draft;
-                        if (threadComposer.posting || raw.trim() === "") return;
-                        threadComposer.onSubmit(raw);
+                        submitThreadComment();
                       }}
                     />
-                    <button
-                      type="button"
-                      className="act-card__thread-send"
-                      disabled={threadComposer.posting}
-                      onClick={() => {
-                        const raw = threadInputRef.current?.value ?? threadComposer.draft;
-                        threadComposer.onSubmit(raw);
+                    <input
+                      ref={threadPhotoInputRef}
+                      type="file"
+                      accept="image/*"
+                      hidden
+                      onChange={(e) => {
+                        const f = e.target.files?.[0] ?? null;
+                        setThreadPhoto(f);
                       }}
-                    >
-                      {threadComposer.posting ? "…" : "Отправить"}
-                    </button>
+                    />
+                    <div className="act-card__thread-compose-actions">
+                      <button
+                        type="button"
+                        className="act-card__thread-attach"
+                        aria-label="Прикрепить фото"
+                        disabled={threadComposer.posting}
+                        onClick={() => threadPhotoInputRef.current?.click()}
+                      >
+                        📎
+                      </button>
+                      <button
+                        type="button"
+                        className="act-card__thread-send"
+                        disabled={threadComposer.posting}
+                        onClick={() => submitThreadComment()}
+                      >
+                        {threadComposer.posting ? "…" : "Отправить"}
+                      </button>
+                    </div>
                   </div>
                 )}
               </>
             )}
           </div>
         )}
-      {lightboxOpen && trainingPhotoUrl ? (
+      {lightboxOpen && (lightboxSrc || trainingPhotoUrl) ? (
         <div
           className="act-card__lightbox"
           role="dialog"
@@ -903,7 +993,7 @@ export function ActivityCard({
           </button>
           <img
             className="act-card__lightbox-img"
-            src={trainingPhotoUrl}
+            src={lightboxSrc || trainingPhotoUrl}
             alt=""
             referrerPolicy="no-referrer"
             onClick={(e) => e.stopPropagation()}

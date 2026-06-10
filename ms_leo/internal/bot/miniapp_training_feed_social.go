@@ -144,7 +144,8 @@ func (b *Bot) PackTrainingFeedReact(viewerUserID int64, initD initdata.InitData,
 
 // PackTrainingFeedThreadPost — комментарий в треде под training_done/sick_leave/healthy.
 // replyToThreadID — id строки miniapp_training_feed_thread, на которую отвечаем (как Reply в Telegram).
-func (b *Bot) PackTrainingFeedThreadPost(viewerUserID int64, initD initdata.InitData, userMessageID int64, text string, replyToThreadID int64) error {
+// photoURL — опциональное фото к комментарию (пусто, если без фото). При наличии фото текст может быть пустым.
+func (b *Bot) PackTrainingFeedThreadPost(viewerUserID int64, initD initdata.InitData, userMessageID int64, text string, replyToThreadID int64, photoURL string) error {
 	if err := b.AssertMiniAppPackChatAligns(initD); err != nil {
 		return err
 	}
@@ -152,11 +153,15 @@ func (b *Bot) PackTrainingFeedThreadPost(viewerUserID int64, initD initdata.Init
 		return err
 	}
 	text = strings.TrimSpace(text)
-	if text == "" {
+	photoURL = strings.TrimSpace(photoURL)
+	if text == "" && photoURL == "" {
 		return ErrTrainingFeedThreadEmpty
 	}
-	if _, err := b.enforceUGC(text, moderation.SurfaceFeedComment, viewerUserID); err != nil {
-		return err
+	// Текст модерируем только если он есть — комментарий может быть из одного фото.
+	if text != "" {
+		if _, err := b.enforceUGC(text, moderation.SurfaceFeedComment, viewerUserID); err != nil {
+			return err
+		}
 	}
 	chatID := b.config.MonetizedChatID
 	typ, has, err := b.db.GetUserMessageTypeByIDForChat(userMessageID, chatID)
@@ -187,7 +192,7 @@ func (b *Bot) PackTrainingFeedThreadPost(viewerUserID int64, initD initdata.Init
 	}
 	mentionsLeo := textMentionsLeoForPackGroup(text, botName)
 	uname := displayNameFromInitData(initD)
-	threadID, err := b.db.InsertTrainingFeedThreadReply(chatID, userMessageID, viewerUserID, uname, text, replyToThreadID)
+	threadID, err := b.db.InsertTrainingFeedThreadReply(chatID, userMessageID, viewerUserID, uname, text, replyToThreadID, photoURL)
 	if err != nil {
 		return err
 	}
@@ -271,6 +276,9 @@ func (b *Bot) afterPackTrainingThreadInserted(packChatID, userMessageID, comment
 		b.logger.Warnf("training thread unread insert: %v", err)
 	}
 	preview := truncateForDM(commentText, 160)
+	if strings.TrimSpace(preview) == "" {
+		preview = "📷 Фото"
+	}
 	cn := strings.TrimSpace(commenterName)
 	if cn == "" {
 		cn = "Участник стаи"
@@ -493,6 +501,7 @@ func (b *Bot) threadRowsToPackReplies(rows []database.TrainingFeedThreadRow, vie
 			UserID:    t.FromUserID,
 			Username:  t.Username,
 			Text:      t.MessageText,
+			PhotoURL:  b.canonicalMiniappTrainingPhotoURL(t.PhotoURL),
 			CreatedAt: t.CreatedAt.UTC().Format("2006-01-02T15:04:05Z07:00"),
 			IsYou:     t.FromUserID != 0 && t.FromUserID == viewerUserID,
 			IsLeo:     t.FromUserID == 0,
