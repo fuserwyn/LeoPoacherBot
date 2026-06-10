@@ -1171,16 +1171,11 @@ func (s *Server) handlePostFeedDelete(w http.ResponseWriter, r *http.Request) {
 			s.jsonErr(w, http.StatusNotFound, "not_found")
 			return
 		}
-		s.logger.Errorf("feed delete: %v", err)
+		s.logger.Errorf("feed hide: %v", err)
 		s.jsonErr(w, http.StatusInternalServerError, "feed_delete_error")
 		return
 	}
-	// Пост удалён — best-effort подчищаем фото в R2 (ошибку только логируем).
-	if s.r2 != nil && deletedPhotoURL != "" {
-		if delErr := s.r2.DeleteByURL(r.Context(), deletedPhotoURL); delErr != nil {
-			s.logger.Warnf("miniapp R2 delete on feed delete: %v", delErr)
-		}
-	}
+	_ = deletedPhotoURL
 	w.Header().Set("Content-Type", "application/json; charset=utf-8")
 	_ = json.NewEncoder(w).Encode(map[string]any{"ok": true})
 }

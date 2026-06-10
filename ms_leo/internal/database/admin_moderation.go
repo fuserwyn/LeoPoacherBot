@@ -637,6 +637,158 @@ func (d *Database) AdminHidePackGroupMessage(packChatID, messageID int64) (bool,
 	return true, nil
 }
 
+// HiddenModerationItem — скрытый админом контент, который можно вернуть.
+type HiddenModerationItem struct {
+	Kind         string
+	ID           int64
+	ParentID     int64
+	AuthorUserID int64
+	AuthorName   string
+	Text         string
+	CreatedAt    time.Time
+}
+
+// CountHiddenModerationItems — сколько постов/комментов/сообщений чата скрыто в стае.
+func (d *Database) CountHiddenModerationItems(packChatID int64) (int, error) {
+	if packChatID == 0 {
+		return 0, nil
+	}
+	var n int
+	err := d.db.QueryRow(
+		`SELECT
+			(SELECT COUNT(*) FROM user_messages WHERE chat_id = $1 AND is_hidden = TRUE) +
+			(SELECT COUNT(*) FROM miniapp_training_feed_thread WHERE pack_chat_id = $1 AND is_hidden = TRUE) +
+			(SELECT COUNT(*) FROM miniapp_pack_group_chat WHERE pack_chat_id = $1 AND is_hidden = TRUE)`,
+		packChatID,
+	).Scan(&n)
+	if err != nil {
+		return 0, err
+	}
+	return n, nil
+}
+
+// ListHiddenModerationItems — последние скрытые элементы (все типы, по дате создания).
+func (d *Database) ListHiddenModerationItems(packChatID int64, limit int) ([]HiddenModerationItem, error) {
+	if packChatID == 0 {
+		return []HiddenModerationItem{}, nil
+	}
+	if limit <= 0 {
+		limit = 20
+	}
+	const q = `
+		SELECT kind, id, parent_id, author_user_id, author_name, text, created_at FROM (
+			SELECT
+				'feed_post'::text AS kind,
+				um.id,
+				0::bigint AS parent_id,
+				um.user_id AS author_user_id,
+				COALESCE(NULLIF(BTRIM(p.display_name), ''), NULLIF(BTRIM(um.username), ''), '') AS author_name,
+				um.message_text AS text,
+				um.created_at
+			FROM user_messages um
+			LEFT JOIN miniapp_user_profile p
+				ON p.user_id = um.user_id AND p.pack_chat_id = um.chat_id
+			WHERE um.chat_id = $1 AND um.is_hidden = TRUE
+			UNION ALL
+			SELECT
+				'thread_reply'::text,
+				t.id,
+				t.user_message_id,
+				t.from_user_id,
+				COALESCE(NULLIF(BTRIM(t.username), ''), ''),
+				t.message_text,
+				t.created_at
+			FROM miniapp_training_feed_thread t
+			WHERE t.pack_chat_id = $1 AND t.is_hidden = TRUE
+			UNION ALL
+			SELECT
+				'pack_group_message'::text,
+				c.id,
+				0::bigint,
+				c.from_user_id,
+				COALESCE(NULLIF(BTRIM(c.username), ''), ''),
+				c.message_text,
+				c.created_at
+			FROM miniapp_pack_group_chat c
+			WHERE c.pack_chat_id = $1 AND c.is_hidden = TRUE
+		) hidden
+		ORDER BY created_at DESC
+		LIMIT $2`
+	rows, err := d.db.Query(q, packChatID, limit)
+	if err != nil {
+		return nil, fmt.Errorf("list hidden moderation items: %w", err)
+	}
+	defer rows.Close()
+	var out []HiddenModerationItem
+	for rows.Next() {
+		var item HiddenModerationItem
+		if err := rows.Scan(
+			&item.Kind, &item.ID, &item.ParentID, &item.AuthorUserID, &item.AuthorName, &item.Text, &item.CreatedAt,
+		); err != nil {
+			return nil, err
+		}
+		out = append(out, item)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	if out == nil {
+		out = []HiddenModerationItem{}
+	}
+	return out, nil
+}
+
+// AdminUnhideFeedUserMessage — вернуть скрытый пост в ленту.
+func (d *Database) AdminUnhideFeedUserMessage(packChatID, messageID int64) (bool, error) {
+	if packChatID == 0 || messageID == 0 {
+		return false, nil
+	}
+	res, err := d.db.Exec(
+		`UPDATE user_messages SET is_hidden = FALSE
+		 WHERE id = $1 AND chat_id = $2 AND is_hidden = TRUE`,
+		messageID, packChatID,
+	)
+	if err != nil {
+		return false, fmt.Errorf("unhide user_message: %w", err)
+	}
+	n, _ := res.RowsAffected()
+	return n > 0, nil
+}
+
+// AdminUnhideTrainingFeedThreadReply — вернуть скрытый комментарий в треде.
+func (d *Database) AdminUnhideTrainingFeedThreadReply(packChatID, threadReplyID int64) (bool, error) {
+	if packChatID == 0 || threadReplyID == 0 {
+		return false, nil
+	}
+	res, err := d.db.Exec(
+		`UPDATE miniapp_training_feed_thread SET is_hidden = FALSE
+		 WHERE id = $1 AND pack_chat_id = $2 AND is_hidden = TRUE`,
+		threadReplyID, packChatID,
+	)
+	if err != nil {
+		return false, err
+	}
+	n, _ := res.RowsAffected()
+	return n > 0, nil
+}
+
+// AdminUnhidePackGroupMessage — вернуть скрытое сообщение в чате стаи.
+func (d *Database) AdminUnhidePackGroupMessage(packChatID, messageID int64) (bool, error) {
+	if packChatID == 0 || messageID == 0 {
+		return false, nil
+	}
+	res, err := d.db.Exec(
+		`UPDATE miniapp_pack_group_chat SET is_hidden = FALSE
+		 WHERE id = $1 AND pack_chat_id = $2 AND is_hidden = TRUE`,
+		messageID, packChatID,
+	)
+	if err != nil {
+		return false, err
+	}
+	n, _ := res.RowsAffected()
+	return n > 0, nil
+}
+
 // AdminDeleteAllFeedMessagesByUser — удаляет все посты пользователя из ленты вместе с тредами,
 // реакциями, голосами и жалобами. Возвращает количество удалённых постов.
 func (d *Database) AdminDeleteAllFeedMessagesByUser(packChatID, userID int64) (int64, error) {

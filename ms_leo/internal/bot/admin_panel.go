@@ -174,6 +174,8 @@ func (b *Bot) handleAdminCallbackQuery(callback *tgbotapi.CallbackQuery) {
 		b.showAdminFeedReportsInbox(callback.Message.Chat.ID)
 	case "admin_feed_reports_back":
 		b.showAdminFeedReportsInbox(callback.Message.Chat.ID)
+	case "admin_hidden_inbox":
+		b.showAdminHiddenContentInbox(callback.Message.Chat.ID)
 	case "admin_mode_feed_text":
 		b.startAdminFlow(callback.From.ID, "feed_text")
 		b.api.Send(tgbotapi.NewMessage(callback.Message.Chat.ID, "📝 Напиши текст для ленты стаи. Дальше выберешь автора (Лео/Админ) и время публикации."))
@@ -404,14 +406,26 @@ func (b *Bot) showAdminSupportInbox(chatID int64) {
 	if n, err := b.db.CountOpenMiniappFeedReports(b.config.MonetizedChatID); err == nil {
 		openReports = n
 	}
+	hiddenCount := 0
+	if n, err := b.db.CountHiddenModerationItems(b.config.MonetizedChatID); err == nil {
+		hiddenCount = n
+	}
 	if len(items) == 0 {
 		text.WriteString("Диалогов пока нет.")
-		rows := make([][]tgbotapi.InlineKeyboardButton, 0, 2)
+		rows := make([][]tgbotapi.InlineKeyboardButton, 0, 3)
 		if openReports > 0 {
 			rows = append(rows, tgbotapi.NewInlineKeyboardRow(
 				tgbotapi.NewInlineKeyboardButtonData(
 					fmt.Sprintf("🚨 Жалобы на ленту (%d)", openReports),
 					"admin_feed_reports",
+				),
+			))
+		}
+		if hiddenCount > 0 {
+			rows = append(rows, tgbotapi.NewInlineKeyboardRow(
+				tgbotapi.NewInlineKeyboardButtonData(
+					fmt.Sprintf("🙈 Скрытое (%d)", hiddenCount),
+					"admin_hidden_inbox",
 				),
 			))
 		}
@@ -425,12 +439,20 @@ func (b *Bot) showAdminSupportInbox(chatID int64) {
 	}
 
 	text.WriteString("Последние диалоги:\n\n")
-	rows := make([][]tgbotapi.InlineKeyboardButton, 0, len(items)+2)
+	rows := make([][]tgbotapi.InlineKeyboardButton, 0, len(items)+3)
 	if openReports > 0 {
 		rows = append(rows, tgbotapi.NewInlineKeyboardRow(
 			tgbotapi.NewInlineKeyboardButtonData(
 				fmt.Sprintf("🚨 Жалобы на ленту (%d)", openReports),
 				"admin_feed_reports",
+			),
+		))
+	}
+	if hiddenCount > 0 {
+		rows = append(rows, tgbotapi.NewInlineKeyboardRow(
+			tgbotapi.NewInlineKeyboardButtonData(
+				fmt.Sprintf("🙈 Скрытое (%d)", hiddenCount),
+				"admin_hidden_inbox",
 			),
 		))
 	}
@@ -623,7 +645,6 @@ func (b *Bot) showAdminFeedReport(chatID, reportID int64) {
 				muteBtn,
 			),
 			tgbotapi.NewInlineKeyboardRow(
-				tgbotapi.NewInlineKeyboardButtonData("🗑 Удалить", "admin_feed_report_del_"+strconv.FormatInt(item.ID, 10)),
 				tgbotapi.NewInlineKeyboardButtonData("✅ Обработано", "admin_feed_report_dismiss_"+strconv.FormatInt(item.ID, 10)),
 			),
 			tgbotapi.NewInlineKeyboardRow(

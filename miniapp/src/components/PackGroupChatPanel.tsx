@@ -1344,12 +1344,14 @@ export function PackGroupChatPanel({
                           type="button"
                           className="packroom__del"
                           onClick={() => {
-                            const q = mine ? "Удалить сообщение?" : "Удалить сообщение участника как админ?";
+                            const q = mine
+                              ? "Удалить сообщение?"
+                              : "Скрыть сообщение участника?\n\nВернуть можно в боте: Поддержка → Скрытое.";
                             if (!window.confirm(q)) return;
                             void removeMine(m.id);
                           }}
                         >
-                          Удалить
+                          {mine ? "Удалить" : "Скрыть"}
                         </button>
                       )}
                       {activeReactions.length > 0 && (

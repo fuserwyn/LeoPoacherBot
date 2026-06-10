@@ -1,6 +1,7 @@
 package domain
 
 import (
+	"database/sql"
 	"time"
 )
 
@@ -83,6 +84,7 @@ type PackActivityRow struct {
 	TrainingPhotoURL string
 	// PinnedAt — момент закрепления объявления админом (nil = не закреплено).
 	PinnedAt *time.Time
+	EditedAt sql.NullTime
 }
 
 // PackGroupChatReaction — эмодзи-реакция на сообщение общего чата.

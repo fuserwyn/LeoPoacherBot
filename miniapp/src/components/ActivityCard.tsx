@@ -92,6 +92,8 @@ export type ActivityCardThreadReply = {
   likeMe?: boolean;
   /** Имена лайкнувших комментарий (для поповера «кто лайкнул»). */
   likeVoters?: VoterDTO[] | string[];
+  /** Комментарий редактировался после публикации. */
+  edited?: boolean;
 };
 
 export type ActivityCardThreadComposer = {
@@ -100,6 +102,17 @@ export type ActivityCardThreadComposer = {
   /** Текст берём из поля ввода в момент отправки (надёжнее в Telegram WebView, чем только React state).
    *  photo — опциональное фото к комментарию. postAs — голос: себя/Лео/админ (для админов). */
   onSubmit: (text: string, photo?: File | null, postAs?: ThreadPostAs) => void;
+  posting: boolean;
+  /** Режим правки своего комментария (id строки треда). */
+  editReplyId?: number;
+  onCancelEdit?: () => void;
+};
+
+export type ActivityCardPostEdit = {
+  draft: string;
+  onDraftChange: (v: string) => void;
+  onSave: () => void;
+  onCancel: () => void;
   posting: boolean;
 };
 
@@ -381,7 +394,7 @@ export type ActivityCardProps = {
   /** Пожаловаться на пост (не свой). */
   onReport?: () => void;
   reportPosting?: boolean;
-  /** Удалить пост (админ). */
+  /** Скрыть пост (админ; можно вернуть в «Скрытое»). */
   onAdminDelete?: () => void;
   adminDeletePosting?: boolean;
   /** Объявление закреплено сверху ленты (пометка «закреплено» + сворачиваемый текст). */
@@ -398,6 +411,14 @@ export type ActivityCardProps = {
   /** Пожаловаться на комментарий в треде. */
   onThreadReplyReport?: (threadReplyId: number) => void;
   threadReplyReporting?: Record<number, boolean>;
+  /** Начать правку своего поста (training_done / healthy). */
+  onStartEditPost?: () => void;
+  /** Режим правки текста поста. */
+  postEdit?: ActivityCardPostEdit;
+  /** Пост редактировался после публикации. */
+  commentEdited?: boolean;
+  /** Начать правку своего комментария (только голос «от себя»). */
+  onThreadReplyEdit?: (threadReplyId: number, text: string) => void;
   /** Есть непрочитанные ответы в треде (участник или Лео). */
   hasUnreadThread?: boolean;
   /** Пользователь открыл тред — сбросить локальный/серверный unread. */
@@ -446,6 +467,10 @@ export function ActivityCard({
   pinPosting = false,
   onThreadReplyReport,
   threadReplyReporting = {},
+  onStartEditPost,
+  postEdit,
+  commentEdited = false,
+  onThreadReplyEdit,
   hasUnreadThread = false,
   onThreadOpened,
 }: ActivityCardProps) {
@@ -499,10 +524,14 @@ export function ActivityCard({
   const submitThreadComment = () => {
     if (!threadComposer || threadComposer.posting) return;
     const raw = threadInputRef.current?.value ?? threadComposer.draft;
-    if (raw.trim() === "" && !threadPhoto) return;
-    threadComposer.onSubmit(raw, threadPhoto, adminVoiceAvailable ? threadPostAs : "self");
-    setThreadPhoto(null);
-    if (threadPhotoInputRef.current) threadPhotoInputRef.current.value = "";
+    const editing = threadComposer.editReplyId != null && threadComposer.editReplyId > 0;
+    if (raw.trim() === "" && !threadPhoto && !editing) return;
+    if (editing && raw.trim() === "") return;
+    threadComposer.onSubmit(raw, editing ? null : threadPhoto, adminVoiceAvailable ? threadPostAs : "self");
+    if (!editing) {
+      setThreadPhoto(null);
+      if (threadPhotoInputRef.current) threadPhotoInputRef.current.value = "";
+    }
   };
 
   useEffect(() => {
@@ -601,13 +630,16 @@ export function ActivityCard({
       items.push({ label: pinned ? "Открепить" : "Закрепить", onClick: onTogglePin });
     }
     if (onAdminDelete) {
-      items.push({ label: "Удалить пост", onClick: onAdminDelete, danger: true });
+      items.push({ label: "Скрыть пост", onClick: onAdminDelete, danger: true });
+    }
+    if (onStartEditPost) {
+      items.push({ label: "Изменить", onClick: onStartEditPost });
     }
     if (onReport) {
       items.push({ label: "Пожаловаться на публикацию", onClick: onReport });
     }
     return items;
-  }, [onToggleFollow, isFriend, onTogglePin, pinned, onAdminDelete, onReport]);
+  }, [onToggleFollow, isFriend, onTogglePin, pinned, onAdminDelete, onStartEditPost, onReport]);
   const cardHeadMenuPosting = reportPosting || adminDeletePosting || pinPosting || followPosting;
 
   // Долгое нажатие на весь пост — показать, кто его лайкнул (все реакции).
@@ -655,7 +687,10 @@ export function ActivityCard({
             )}
           </div>
           <div className="act-card__row act-card__row--sub">
-            <p className="act-card__time">{timeAgo}</p>
+            <p className="act-card__time">
+              {timeAgo}
+              {commentEdited ? <span className="act-card__edited"> · изменено</span> : null}
+            </p>
             {showStreak && (
               <span
                 className="pill pill--streak"
@@ -681,7 +716,27 @@ export function ActivityCard({
           <span className="act-card__type-ico">{emoji}</span> {activity}
         </p>
         {details.trim() !== "" && <p className="act-card__details">{details}</p>}
-        {comment &&
+        {postEdit ? (
+          <div className="act-card__post-edit">
+            <textarea
+              className="act-card__post-edit-input"
+              rows={4}
+              value={postEdit.draft}
+              onChange={(e) => postEdit.onDraftChange(e.target.value)}
+              maxLength={4000}
+              disabled={postEdit.posting}
+            />
+            <div className="act-card__post-edit-actions">
+              <button type="button" className="act-card__post-edit-cancel" disabled={postEdit.posting} onClick={postEdit.onCancel}>
+                Отмена
+              </button>
+              <button type="button" className="act-card__post-edit-save" disabled={postEdit.posting} onClick={postEdit.onSave}>
+                {postEdit.posting ? "…" : "Сохранить"}
+              </button>
+            </div>
+          </div>
+        ) : (
+          comment &&
           (canCollapseComment ? (
             <div className="act-card__comment-collapsible">
               <p
@@ -700,7 +755,8 @@ export function ActivityCard({
             </div>
           ) : (
             <p className="act-card__comment">{comment}</p>
-          ))}
+          ))
+        )}
         {poll && poll.options.length > 0 && (
           <div className="act-card__poll" role="group" aria-label="Опрос">
             {poll.options.map((option, optionIndex) => (
@@ -834,18 +890,36 @@ export function ActivityCard({
                                       )}
                                     </div>
                                     <div className="act-card__thread-subrow">
-                                      <span className="act-card__thread-time muted">{tr.timeAgo}</span>
-                                      {onThreadReplyDelete != null && (tr.isYou || isAdmin) && (
-                                        <button
-                                          type="button"
-                                          className="act-card__thread-del"
-                                          disabled={Boolean(threadReplyDeleting[tr.id])}
-                                          onClick={() => onThreadReplyDelete(tr.id)}
-                                          title={!tr.isYou ? "Удалить как админ" : undefined}
+                                      <span className="act-card__thread-time muted">
+                                        {tr.timeAgo}
+                                        {tr.edited ? <span className="act-card__edited"> · изменено</span> : null}
+                                      </span>
+                                      <div className="act-card__thread-item-actions">
+                                        {tr.isYou && !leo && !adminVoice && onThreadReplyEdit != null && (
+                                          <button
+                                            type="button"
+                                            className="act-card__thread-edit"
+                                            onClick={() => {
+                                              setThreadOpen(true);
+                                              onThreadReplyEdit(tr.id, tr.text);
+                                              window.setTimeout(() => threadInputRef.current?.focus(), 80);
+                                            }}
+                                          >
+                                            Изменить
+                                          </button>
+                                        )}
+                                        {onThreadReplyDelete != null && (tr.isYou || isAdmin) && (
+                                          <button
+                                            type="button"
+                                            className="act-card__thread-del"
+                                            disabled={Boolean(threadReplyDeleting[tr.id])}
+                                            onClick={() => onThreadReplyDelete(tr.id)}
+                                          title={!tr.isYou ? "Скрыть как админ" : undefined}
                                         >
-                                          {threadReplyDeleting[tr.id] ? "…" : "Удалить"}
-                                        </button>
-                                      )}
+                                          {threadReplyDeleting[tr.id] ? "…" : tr.isYou ? "Удалить" : "Скрыть"}
+                                          </button>
+                                        )}
+                                      </div>
                                     </div>
                                   </div>
                                 </div>
@@ -919,7 +993,24 @@ export function ActivityCard({
                 </div>
                 {threadComposer && (
                     <div className="act-card__thread-compose" ref={threadComposeRef}>
-                    {threadReplyIntent != null && (
+                    {threadComposer.editReplyId != null && threadComposer.editReplyId > 0 && (
+                      <div className="act-card__reply-intent act-card__reply-intent--edit">
+                        <div className="act-card__reply-intent-row">
+                          <span className="act-card__reply-intent-label">Редактирование комментария</span>
+                          {threadComposer.onCancelEdit != null && (
+                            <button
+                              type="button"
+                              className="act-card__reply-intent-cancel"
+                              aria-label="Отменить редактирование"
+                              onClick={() => threadComposer.onCancelEdit?.()}
+                            >
+                              ✕
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    )}
+                    {threadReplyIntent != null && threadComposer.editReplyId == null && (
                       <div className="act-card__reply-intent">
                         <div className="act-card__reply-intent-row">
                           <span className="act-card__reply-intent-label">
@@ -941,7 +1032,7 @@ export function ActivityCard({
                         )}
                       </div>
                     )}
-                    {threadPhotoPreview && (
+                    {threadPhotoPreview && threadComposer.editReplyId == null && (
                       <div className="act-card__thread-photo-preview">
                         <img
                           className="act-card__thread-photo-preview-img"
@@ -977,9 +1068,11 @@ export function ActivityCard({
                       className="act-card__thread-input"
                       rows={2}
                       placeholder={
-                        threadReplyIntent
-                          ? `Сообщение для ${threadReplyIntent.authorLabel}…`
-                          : "Написать комментарий…"
+                        threadComposer.editReplyId != null
+                          ? "Изменить комментарий…"
+                          : threadReplyIntent
+                            ? `Сообщение для ${threadReplyIntent.authorLabel}…`
+                            : "Написать комментарий…"
                       }
                       value={threadComposer.draft}
                       onChange={(e) => threadComposer.onDraftChange(e.target.value)}
@@ -1004,16 +1097,18 @@ export function ActivityCard({
                       }}
                     />
                     <div className="act-card__thread-compose-actions">
-                      <button
-                        type="button"
-                        className="act-card__thread-attach"
-                        aria-label="Прикрепить фото"
-                        disabled={threadComposer.posting}
-                        onClick={() => threadPhotoInputRef.current?.click()}
-                      >
-                        📎
-                      </button>
-                      {adminVoiceAvailable && (
+                      {threadComposer.editReplyId == null && (
+                        <button
+                          type="button"
+                          className="act-card__thread-attach"
+                          aria-label="Прикрепить фото"
+                          disabled={threadComposer.posting}
+                          onClick={() => threadPhotoInputRef.current?.click()}
+                        >
+                          📎
+                        </button>
+                      )}
+                      {adminVoiceAvailable && threadComposer.editReplyId == null && (
                         <div className="act-card__thread-voice" role="group" aria-label="От чьего имени комментировать">
                           {(
                             [
@@ -1043,7 +1138,11 @@ export function ActivityCard({
                         disabled={threadComposer.posting}
                         onClick={() => submitThreadComment()}
                       >
-                        {threadComposer.posting ? "…" : "Отправить"}
+                        {threadComposer.posting
+                          ? "…"
+                          : threadComposer.editReplyId != null
+                            ? "Сохранить"
+                            : "Отправить"}
                       </button>
                     </div>
                     {pendingThreadCrop &&

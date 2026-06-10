@@ -354,8 +354,30 @@ func (b *Bot) handleAdminUserMgmtCallback(callback *tgbotapi.CallbackQuery) bool
 	case strings.HasPrefix(data, "admin_feed_report_del_"):
 		reportID, err := strconv.ParseInt(strings.TrimPrefix(data, "admin_feed_report_del_"), 10, 64)
 		if err == nil && reportID > 0 {
-			b.adminDeleteReportedContent(chatID, reportID)
+			b.adminHideReportedContent(chatID, reportID)
 		}
+		return true
+
+	case strings.HasPrefix(data, "admin_hidden_restore_post_"):
+		id, err := strconv.ParseInt(strings.TrimPrefix(data, "admin_hidden_restore_post_"), 10, 64)
+		if err == nil && id > 0 {
+			b.adminRestoreHiddenContent(chatID, "feed_post", id)
+		}
+		return true
+	case strings.HasPrefix(data, "admin_hidden_restore_thread_"):
+		id, err := strconv.ParseInt(strings.TrimPrefix(data, "admin_hidden_restore_thread_"), 10, 64)
+		if err == nil && id > 0 {
+			b.adminRestoreHiddenContent(chatID, "thread_reply", id)
+		}
+		return true
+	case strings.HasPrefix(data, "admin_hidden_restore_chat_"):
+		id, err := strconv.ParseInt(strings.TrimPrefix(data, "admin_hidden_restore_chat_"), 10, 64)
+		if err == nil && id > 0 {
+			b.adminRestoreHiddenContent(chatID, "pack_group_message", id)
+		}
+		return true
+	case data == "admin_hidden_inbox":
+		b.showAdminHiddenContentInbox(chatID)
 		return true
 
 	case strings.HasPrefix(data, "admin_feed_report_hide_"):
@@ -939,11 +961,14 @@ func (b *Bot) adminHideReportedContent(chatID, reportID int64) {
 	if item.TargetUserID > 0 {
 		count := b.recordUGCViolation(item.TargetUserID, packChatID, false)
 		b.api.Send(tgbotapi.NewMessage(chatID, fmt.Sprintf(
-			"🙈 Скрыто: %s. Нарушений у автора: %d. Жалоба #%d закрыта.",
+			"🙈 Скрыто: %s. Нарушений у автора: %d. Жалоба #%d закрыта.\n\nВернуть: Поддержка → Скрытое.",
 			label, count, reportID,
 		)))
 	} else {
-		b.api.Send(tgbotapi.NewMessage(chatID, fmt.Sprintf("🙈 Скрыто: %s. Жалоба #%d закрыта.", label, reportID)))
+		b.api.Send(tgbotapi.NewMessage(chatID, fmt.Sprintf(
+			"🙈 Скрыто: %s. Жалоба #%d закрыта.\n\nВернуть: Поддержка → Скрытое.",
+			label, reportID,
+		)))
 	}
 	_, _ = b.db.DismissMiniappFeedReport(packChatID, reportID)
 	b.trackReportResolved(reportID, chatID, item.TargetUserID, "hide")

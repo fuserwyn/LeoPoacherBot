@@ -110,6 +110,7 @@ type PackFeedItem struct {
 	// IsPinned — объявление закреплено админом (висит сверху ленты с пометкой «объявление»).
 	IsPinned bool   `json:"is_pinned,omitempty"`
 	PinnedAt string `json:"pinned_at,omitempty"`
+	EditedAt string `json:"edited_at,omitempty"`
 }
 
 // PackFeedForViewer — лента стаи из user_messages. sinceID > 0 — только id новее (polling).
@@ -169,6 +170,9 @@ func (b *Bot) packFeedItemFromRow(r *domain.PackActivityRow, viewerUserID, chatI
 	if r.PinnedAt != nil {
 		item.IsPinned = true
 		item.PinnedAt = r.PinnedAt.UTC().Format("2006-01-02T15:04:05Z07:00")
+	}
+	if r.EditedAt.Valid {
+		item.EditedAt = r.EditedAt.Time.UTC().Format("2006-01-02T15:04:05Z07:00")
 	}
 	return item
 }

@@ -833,6 +833,85 @@
   text-decoration: none;
 }
 
+.act-card__thread-item-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.act-card__thread-edit {
+  flex-shrink: 0;
+  padding: 2px 8px;
+  font-size: 12px;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.act-card__edited {
+  font-size: inherit;
+  color: var(--text-muted);
+}
+
+.act-card__post-edit {
+  margin-top: 8px;
+}
+
+.act-card__post-edit-input {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 10px 12px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border-subtle);
+  background: var(--surface-elevated);
+  color: var(--text);
+  font: inherit;
+  line-height: 1.4;
+  resize: vertical;
+  min-height: 88px;
+}
+
+.act-card__post-edit-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.act-card__post-edit-cancel,
+.act-card__post-edit-save {
+  padding: 6px 12px;
+  border-radius: var(--radius-sm);
+  border: none;
+  font: inherit;
+  cursor: pointer;
+}
+
+.act-card__post-edit-cancel {
+  background: transparent;
+  color: var(--text-muted);
+}
+
+.act-card__post-edit-save {
+  background: var(--accent);
+  color: #fff;
+}
+
+.act-card__post-edit-cancel:disabled,
+.act-card__post-edit-save:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.act-card__reply-intent--edit {
+  border-left: 3px solid rgba(96, 212, 154, 0.75);
+}
+
 /* Свои комментарии — зелёная подсветка (отличие от оранжевого Лео и нейтральных чужих). */
 .act-card__thread-item--you {
   background: rgba(46, 167, 110, 0.12);

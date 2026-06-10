@@ -35,7 +35,8 @@ func (d *Database) ListPackActivityFeed(chatID int64, limit int, sinceUTC *time.
 			um.created_at,
 			COALESCE(ml.streak_days, 0)::int,
 			COALESCE(um.training_photo_url, ''),
-			um.pinned_at
+			um.pinned_at,
+			um.edited_at
 		FROM user_messages um
 		LEFT JOIN training_state ml
 			ON ml.user_id = um.user_id AND ml.chat_id = um.chat_id AND ml.is_deleted = FALSE
@@ -59,7 +60,7 @@ func (d *Database) ListPackActivityFeed(chatID int64, limit int, sinceUTC *time.
 		var r domain.PackActivityRow
 		var createdAt time.Time
 		if err := rows.Scan(
-			&r.ID, &r.UserID, &r.ChatID, &r.Username, &r.MessageText, &r.MessageType, &createdAt, &r.StreakDays, &r.TrainingPhotoURL, &r.PinnedAt,
+			&r.ID, &r.UserID, &r.ChatID, &r.Username, &r.MessageText, &r.MessageType, &createdAt, &r.StreakDays, &r.TrainingPhotoURL, &r.PinnedAt, &r.EditedAt,
 		); err != nil {
 			return nil, err
 		}
@@ -97,7 +98,8 @@ func (d *Database) ListPackActivityFeedAfterID(chatID int64, sinceID int64, limi
 			um.created_at,
 			COALESCE(ml.streak_days, 0)::int,
 			COALESCE(um.training_photo_url, ''),
-			um.pinned_at
+			um.pinned_at,
+			um.edited_at
 		FROM user_messages um
 		LEFT JOIN training_state ml
 			ON ml.user_id = um.user_id AND ml.chat_id = um.chat_id AND ml.is_deleted = FALSE
@@ -121,7 +123,7 @@ func (d *Database) ListPackActivityFeedAfterID(chatID int64, sinceID int64, limi
 		var r domain.PackActivityRow
 		var createdAt time.Time
 		if err := rows.Scan(
-			&r.ID, &r.UserID, &r.ChatID, &r.Username, &r.MessageText, &r.MessageType, &createdAt, &r.StreakDays, &r.TrainingPhotoURL, &r.PinnedAt,
+			&r.ID, &r.UserID, &r.ChatID, &r.Username, &r.MessageText, &r.MessageType, &createdAt, &r.StreakDays, &r.TrainingPhotoURL, &r.PinnedAt, &r.EditedAt,
 		); err != nil {
 			return nil, err
 		}
@@ -151,7 +153,8 @@ func (d *Database) ListPinnedAdminPosts(chatID int64) ([]*domain.PackActivityRow
 			um.created_at,
 			COALESCE(ml.streak_days, 0)::int,
 			COALESCE(um.training_photo_url, ''),
-			um.pinned_at
+			um.pinned_at,
+			um.edited_at
 		FROM user_messages um
 		LEFT JOIN training_state ml
 			ON ml.user_id = um.user_id AND ml.chat_id = um.chat_id AND ml.is_deleted = FALSE
@@ -175,7 +178,7 @@ func (d *Database) ListPinnedAdminPosts(chatID int64) ([]*domain.PackActivityRow
 		var r domain.PackActivityRow
 		var createdAt time.Time
 		if err := rows.Scan(
-			&r.ID, &r.UserID, &r.ChatID, &r.Username, &r.MessageText, &r.MessageType, &createdAt, &r.StreakDays, &r.TrainingPhotoURL, &r.PinnedAt,
+			&r.ID, &r.UserID, &r.ChatID, &r.Username, &r.MessageText, &r.MessageType, &createdAt, &r.StreakDays, &r.TrainingPhotoURL, &r.PinnedAt, &r.EditedAt,
 		); err != nil {
 			return nil, err
 		}

@@ -135,6 +135,7 @@ export type PackFeedThreadReplyDTO = {
   like_me?: boolean;
   /** Имена лайкнувших комментарий (для поповера «кто лайкнул»). */
   like_voters?: VoterDTO[] | string[];
+  edited_at?: string;
 };
 
 export type PackFeedItemDTO = {
@@ -159,7 +160,54 @@ export type PackFeedItemDTO = {
   /** Объявление закреплено админом (висит сверху ленты). */
   is_pinned?: boolean;
   pinned_at?: string;
+  edited_at?: string;
 };
+
+/** Текст поста для поля редактирования (без служебных префиксов ленты). */
+export function extractEditableFeedPostText(raw: string, type: string): string {
+  const t = raw.trim();
+  if (type === "healthy") {
+    return stripLeadingFeedHashtag(t, "#healthy");
+  }
+  if (type === "training_done") {
+    return stripLeadingCategoryFromTrainingReport(stripFirstLineTrainingDoneTag(t));
+  }
+  return t;
+}
+
+/** Собирает message_text для API из отредактированного текста пользователя. */
+export function buildFeedPostTextForSave(originalRaw: string, type: string, edited: string): string {
+  const body = edited.trim();
+  if (!body) return body;
+  if (type === "healthy") {
+    const head = originalRaw.trim().match(/^(#healthy\b[^\n]*)/i)?.[1];
+    if (head) return `${head}${body ? `\n${body}` : ""}`;
+    return `#healthy\n${body}`;
+  }
+  if (type === "training_done") {
+    const trimmed = originalRaw.trim();
+    const prefix = trimmed.match(/^(#training_done\s*[—–-]\s*)/i)?.[1] ?? "#training_done — ";
+    const withoutTag = trimmed.replace(/^#training_done\s*[—–-]\s*/i, "").trim();
+    const nl = withoutTag.indexOf("\n");
+    const firstLine = nl >= 0 ? withoutTag.slice(0, nl) : withoutTag;
+    const kindMatch = firstLine.match(/^([^,]+),\s*(.+)$/);
+    if (!kindMatch || !/\d+\s*мин/i.test(kindMatch[2])) {
+      return `${prefix}${body}`;
+    }
+    const kind = kindMatch[1];
+    const editedNl = body.indexOf("\n");
+    const editedFirst = editedNl >= 0 ? body.slice(0, editedNl).trim() : body.trim();
+    const editedRest = editedNl >= 0 ? body.slice(editedNl + 1).trim() : "";
+    const newFirstLine = /^[^,]+,\s*.+\d+\s*мин/i.test(editedFirst) ? editedFirst : `${kind}, ${editedFirst}`;
+    if (editedRest) return `${prefix}${newFirstLine}\n${editedRest}`;
+    return `${prefix}${newFirstLine}`;
+  }
+  return body;
+}
+
+export function feedPostEditable(type: string, isYou: boolean): boolean {
+  return isYou && (type === "training_done" || type === "healthy");
+}
 
 /** Сводит авторитетный набор закреплённых (с бэка) в текущую ленту:
  *  обновляет/добавляет закреплённые, снимает флаг с откреплённых. */

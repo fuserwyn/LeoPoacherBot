@@ -14,6 +14,9 @@ import {
   resolveFeedAvatarUrl,
   resolveTrainingPhotoUrl,
   sortPackFeedItemsDesc,
+  extractEditableFeedPostText,
+  buildFeedPostTextForSave,
+  feedPostEditable,
   type PackFeedItemDTO,
   type PackFeedThreadReplyDTO,
 } from "../lib/packFeed";
@@ -159,6 +162,12 @@ export function FeedScreen({
   const [feedDeletePosting, setFeedDeletePosting] = useState<Record<number, boolean>>({});
   const [feedPinPosting, setFeedPinPosting] = useState<Record<number, boolean>>({});
   const [threadReplyReporting, setThreadReplyReporting] = useState<Record<number, boolean>>({});
+  const [postEditId, setPostEditId] = useState<number | null>(null);
+  const [postEditDrafts, setPostEditDrafts] = useState<Record<number, string>>({});
+  const [postEditPosting, setPostEditPosting] = useState<Record<number, boolean>>({});
+  const [threadEditTargets, setThreadEditTargets] = useState<
+    Record<number, { threadReplyId: number; originalText: string } | undefined>
+  >({});
   /** Ответ на конкретное сообщение треда (reply_to_id) — ключ id отчёта user_messages. */
   const [threadReplyTargets, setThreadReplyTargets] = useState<
     Record<number, { replyToThreadId: number; authorLabel: string; excerpt: string } | undefined>
@@ -567,6 +576,131 @@ export function FeedScreen({
     [apiBase, initData, syncFeed, showAlert],
   );
 
+  const editFeedPost = useCallback(
+    async (item: PackFeedItemDTO) => {
+      const draft = (postEditDrafts[item.id] ?? "").trim();
+      if (!draft) {
+        showAlert("Текст не может быть пустым.");
+        return;
+      }
+      if (!apiBase || !initData) return;
+      const payloadText = buildFeedPostTextForSave(item.text, item.type, draft);
+      setPostEditPosting((p) => ({ ...p, [item.id]: true }));
+      try {
+        const res = await fetch(`${apiBase}/api/miniapp/feed/edit`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            init_data: initData,
+            user_message_id: item.id,
+            text: payloadText,
+          }),
+        });
+        const j = (await res.json().catch(() => ({}))) as { error?: string; message?: string };
+        if (!res.ok) {
+          if (isModerationError(j.error)) {
+            showAlert(moderationUserMessage(j.error, j.message));
+            return;
+          }
+          const errMap: Record<string, string> = {
+            empty_text: "Текст не может быть пустым",
+            text_too_long: "Слишком длинный текст",
+            not_found: "Пост не найден (обнови ленту)",
+            forbidden: "Нет доступа",
+            chat_mismatch: "Открой мини-апп из чата стаи",
+            feed_edit_error: "Не удалось сохранить",
+          };
+          showAlert(errMap[j.error ?? ""] ?? j.error ?? `Ошибка ${res.status}`);
+          return;
+        }
+        setPostEditId(null);
+        setPostEditDrafts((d) => {
+          const next = { ...d };
+          delete next[item.id];
+          return next;
+        });
+        setFeedItems((prev) =>
+          prev.map((it) =>
+            it.id === item.id
+              ? { ...it, text: payloadText, edited_at: new Date().toISOString() }
+              : it,
+          ),
+        );
+        await syncFeed({ full: true, silent: true });
+      } catch (e) {
+        showAlert(e instanceof Error ? e.message : "Сеть");
+      } finally {
+        setPostEditPosting((p) => ({ ...p, [item.id]: false }));
+      }
+    },
+    [apiBase, initData, postEditDrafts, showAlert, syncFeed],
+  );
+
+  const editTrainingThreadReply = useCallback(
+    async (
+      trainingUserMessageId: number,
+      threadReplyId: number,
+      text: string,
+      originalText: string,
+    ) => {
+      const t = text.trim();
+      if (!t) {
+        showAlert("Комментарий не может быть пустым.");
+        return;
+      }
+      if (!apiBase || !initData) return;
+      setThreadPosting((p) => ({ ...p, [trainingUserMessageId]: true }));
+      try {
+        const res = await fetch(`${apiBase}/api/miniapp/feed/training/thread/edit`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            init_data: initData,
+            thread_reply_id: threadReplyId,
+            text: t,
+          }),
+        });
+        const j = (await res.json().catch(() => ({}))) as {
+          error?: string;
+          message?: string;
+          thread?: PackFeedThreadReplyDTO[];
+        };
+        if (!res.ok) {
+          if (isModerationError(j.error)) {
+            showAlert(moderationUserMessage(j.error, j.message));
+            return;
+          }
+          const errMap: Record<string, string> = {
+            empty_text: "Пустой комментарий",
+            text_too_long: "Слишком длинно (максимум 500 символов)",
+            not_found: "Комментарий не найден (обнови ленту)",
+            forbidden: "Нет доступа",
+            chat_mismatch: "Открой мини-апп из чата стаи",
+            thread_edit_error: "Не удалось сохранить",
+          };
+          showAlert(errMap[j.error ?? ""] ?? j.error ?? `Ошибка ${res.status}`);
+          return;
+        }
+        setThreadEditTargets((r) => ({ ...r, [trainingUserMessageId]: undefined }));
+        setThreadDrafts((d) => ({ ...d, [trainingUserMessageId]: "" }));
+        const updated = j.thread;
+        if (Array.isArray(updated)) {
+          setFeedItems((prev) =>
+            prev.map((it) => (it.id === trainingUserMessageId ? { ...it, thread: updated } : it)),
+          );
+        } else {
+          await syncFeed({ full: true, silent: true });
+        }
+      } catch (e) {
+        setThreadDrafts((d) => ({ ...d, [trainingUserMessageId]: originalText }));
+        showAlert(e instanceof Error ? e.message : "Сеть");
+      } finally {
+        setThreadPosting((p) => ({ ...p, [trainingUserMessageId]: false }));
+      }
+    },
+    [apiBase, initData, showAlert, syncFeed],
+  );
+
   const deleteTrainingThreadReply = useCallback(
     async (trainingUserMessageId: number, threadReplyId: number) => {
       if (!apiBase || !initData) return;
@@ -608,9 +742,16 @@ export function FeedScreen({
     [apiBase, initData, syncFeed, showAlert],
   );
 
-  const deleteFeedPost = useCallback(
+  const hideFeedPost = useCallback(
     async (userMessageId: number) => {
       if (!apiBase || !initData || !isAdmin) return;
+      if (
+        !window.confirm(
+          "Скрыть эту публикацию?\n\nОна исчезнет из ленты, но админы смогут вернуть её в «Скрытое».",
+        )
+      ) {
+        return;
+      }
       setFeedDeletePosting((p) => ({ ...p, [userMessageId]: true }));
       try {
         const res = await fetch(`${apiBase}/api/miniapp/feed/delete`, {
@@ -621,10 +762,10 @@ export function FeedScreen({
         const j = (await res.json().catch(() => ({}))) as { error?: string };
         if (!res.ok) {
           const errMap: Record<string, string> = {
-            not_found: "Пост не найден или уже удалён",
-            forbidden: "Нет прав на удаление",
+            not_found: "Пост не найден или уже скрыт",
+            forbidden: "Нет прав",
             chat_mismatch: "Открой мини-апп из чата стаи",
-            feed_delete_error: "Не удалось удалить",
+            feed_delete_error: "Не удалось скрыть",
           };
           showAlert(errMap[j.error ?? ""] ?? j.error ?? `Ошибка ${res.status}`);
           return;
@@ -745,6 +886,20 @@ export function FeedScreen({
         return;
       }
       void reportFeedContent(userMessageId);
+    },
+    [reportFeedContent],
+  );
+
+  const confirmReportComment = useCallback(
+    (userMessageId: number, threadReplyId: number) => {
+      if (
+        !window.confirm(
+          "Отправить жалобу на этот комментарий?\n\nАдмины проверят его в разделе поддержки.",
+        )
+      ) {
+        return;
+      }
+      void reportFeedContent(userMessageId, threadReplyId);
     },
     [reportFeedContent],
   );
@@ -1210,10 +1365,44 @@ export function FeedScreen({
                     likeCount: tr.like_count ?? 0,
                     likeMe: Boolean(tr.like_me),
                     likeVoters: Array.isArray(tr.like_voters) ? tr.like_voters : undefined,
+                    edited: Boolean(tr.edited_at),
                   };
                 });
                 const canReportCard = !it.is_you && !isLeoSystemFeed;
                 const canAdminDeleteCard = isAdmin;
+                const canEditPost = feedPostEditable(it.type, it.is_you);
+                const postEditProps: Partial<ActivityCardProps> = canEditPost
+                  ? {
+                      onStartEditPost: () => {
+                        setPostEditId(it.id);
+                        setPostEditDrafts((d) => ({
+                          ...d,
+                          [it.id]: extractEditableFeedPostText(it.text, it.type),
+                        }));
+                      },
+                      commentEdited: Boolean(it.edited_at),
+                      ...(postEditId === it.id
+                        ? {
+                            postEdit: {
+                              draft:
+                                postEditDrafts[it.id] ?? extractEditableFeedPostText(it.text, it.type),
+                              onDraftChange: (v: string) =>
+                                setPostEditDrafts((d) => ({ ...d, [it.id]: v })),
+                              onSave: () => void editFeedPost(it),
+                              onCancel: () => {
+                                setPostEditId((cur) => (cur === it.id ? null : cur));
+                                setPostEditDrafts((d) => {
+                                  const next = { ...d };
+                                  delete next[it.id];
+                                  return next;
+                                });
+                              },
+                              posting: postEditPosting[it.id] ?? false,
+                            },
+                          }
+                        : {}),
+                    }
+                  : {};
                 // Подписка возможна только на реального участника стаи (не свой пост, не системная карточка Лео).
                 const canFollowAuthor = !it.is_you && !isLeoSystemFeed && it.user_id > 0;
                 const followProps: Partial<ActivityCardProps> = canFollowAuthor
@@ -1230,6 +1419,7 @@ export function FeedScreen({
                         {...base}
                         {...pinnedLeoProps}
                         {...followProps}
+                        {...postEditProps}
                         comment={adminPostText ?? base.comment}
                         pinned={isPinnedAnnouncement}
                         commentCollapsible={adminPostCollapsible}
@@ -1241,7 +1431,7 @@ export function FeedScreen({
                         }
                         onReport={canReportCard ? () => confirmReportPublication(it.id) : undefined}
                         reportPosting={feedReportPosting[it.id] ?? false}
-                        onAdminDelete={canAdminDeleteCard ? () => void deleteFeedPost(it.id) : undefined}
+                        onAdminDelete={canAdminDeleteCard ? () => void hideFeedPost(it.id) : undefined}
                         adminDeletePosting={feedDeletePosting[it.id] ?? false}
                         poll={
                           it.poll
@@ -1266,6 +1456,7 @@ export function FeedScreen({
                       {...base}
                       {...pinnedLeoProps}
                       {...followProps}
+                      {...postEditProps}
                       comment={adminPostText ?? base.comment}
                       pinned={isPinnedAnnouncement}
                       commentCollapsible={adminPostCollapsible}
@@ -1292,6 +1483,14 @@ export function FeedScreen({
                       threadReplies={threadReplies}
                       onThreadReplyDelete={(replyId) => void deleteTrainingThreadReply(it.id, replyId)}
                       onThreadReplyLike={(replyId) => void toggleTrainingThreadLike(it.id, replyId)}
+                      onThreadReplyEdit={(replyId, text) => {
+                        setThreadEditTargets((r) => ({
+                          ...r,
+                          [it.id]: { threadReplyId: replyId, originalText: text },
+                        }));
+                        setThreadDrafts((d) => ({ ...d, [it.id]: text }));
+                        setThreadReplyTargets((r) => ({ ...r, [it.id]: undefined }));
+                      }}
                       threadReplyDeleting={threadReplyDeleting}
                       isAdmin={isAdmin}
                       adminVoiceAvailable={isAdmin && isAdminAnnouncement}
@@ -1312,15 +1511,37 @@ export function FeedScreen({
                       threadComposer={{
                         draft: threadDrafts[it.id] ?? "",
                         onDraftChange: (v) => setThreadDrafts((d) => ({ ...d, [it.id]: v })),
-                        onSubmit: (text, photo, postAs) =>
-                          void postTrainingThread(it.id, text, threadReplyTargets[it.id]?.replyToThreadId, photo, postAs),
+                        onSubmit: (text, photo, postAs) => {
+                          const edit = threadEditTargets[it.id];
+                          if (edit) {
+                            void editTrainingThreadReply(
+                              it.id,
+                              edit.threadReplyId,
+                              text,
+                              edit.originalText,
+                            );
+                            return;
+                          }
+                          void postTrainingThread(
+                            it.id,
+                            text,
+                            threadReplyTargets[it.id]?.replyToThreadId,
+                            photo,
+                            postAs,
+                          );
+                        },
                         posting: threadPosting[it.id] ?? false,
+                        editReplyId: threadEditTargets[it.id]?.threadReplyId,
+                        onCancelEdit: () => {
+                          setThreadEditTargets((r) => ({ ...r, [it.id]: undefined }));
+                          setThreadDrafts((d) => ({ ...d, [it.id]: "" }));
+                        },
                       }}
                       onReport={canReportCard ? () => confirmReportPublication(it.id) : undefined}
                       reportPosting={feedReportPosting[it.id] ?? false}
-                      onAdminDelete={canAdminDeleteCard ? () => void deleteFeedPost(it.id) : undefined}
+                      onAdminDelete={canAdminDeleteCard ? () => void hideFeedPost(it.id) : undefined}
                       adminDeletePosting={feedDeletePosting[it.id] ?? false}
-                      onThreadReplyReport={(replyId) => void reportFeedContent(it.id, replyId)}
+                      onThreadReplyReport={(replyId) => confirmReportComment(it.id, replyId)}
                       threadReplyReporting={threadReplyReporting}
                     />
                   </div>

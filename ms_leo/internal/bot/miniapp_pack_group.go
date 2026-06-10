@@ -533,14 +533,14 @@ func (b *Bot) DeleteMiniAppPackGroupMessage(viewerUserID int64, initD initdata.I
 	// Админ (в т.ч. динамический) удаляет ЛЮБОЕ сообщение в чате стаи (модерация).
 	// Обычный участник — только своё.
 	if b.isAdminTelegramUser(viewerUserID) {
-		deleted, err := b.db.AdminDeletePackGroupMessage(chatID, messageID)
+		hidden, err := b.db.AdminHidePackGroupMessage(chatID, messageID)
 		if err != nil {
 			return false, err
 		}
-		if deleted {
+		if hidden {
 			_ = b.db.DeletePackGroupUnreadByMessageID(messageID)
 		}
-		return deleted, nil
+		return hidden, nil
 	}
 	ok, err := b.db.UserInPackOrPaid(viewerUserID, chatID, b.config.PaywallEnabled)
 	if err != nil {

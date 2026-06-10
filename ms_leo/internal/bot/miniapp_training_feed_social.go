@@ -423,7 +423,7 @@ func (b *Bot) PackTrainingFeedThreadDelete(viewerUserID int64, initD initdata.In
 		if !ok {
 			return 0, ErrTrainingFeedThreadDeleteNotFound
 		}
-		deleted, derr := b.db.AdminDeleteTrainingFeedThreadReply(chatID, threadReplyID)
+		deleted, derr := b.db.AdminHideTrainingFeedThreadReply(chatID, threadReplyID)
 		if derr != nil {
 			return 0, derr
 		}
@@ -737,34 +737,38 @@ func (b *Bot) enrichPackFeedTrainingSocial(items []PackFeedItem, viewerUserID in
 	return items
 }
 
-// PackFeedAdminDeletePost — админ удаляет любой пост ленты стаи (user_messages).
-// Возвращает URL удалённого фото тренировки (пусто, если фото не было) — чтобы вызывающий
-// мог подчистить объект в хранилище (R2). Ошибку получения URL глотаем: удаление поста важнее.
-func (b *Bot) PackFeedAdminDeletePost(viewerUserID int64, initD initdata.InitData, userMessageID int64) (deletedPhotoURL string, err error) {
+// PackFeedAdminHidePost — админ скрывает пост ленты (soft hide, можно вернуть в «Скрытое»).
+func (b *Bot) PackFeedAdminHidePost(viewerUserID int64, initD initdata.InitData, userMessageID int64) error {
 	if err := b.AssertMiniAppPackChatAligns(initD); err != nil {
-		return "", err
+		return err
 	}
 	if b == nil || b.db == nil {
-		return "", fmt.Errorf("bot unavailable")
+		return fmt.Errorf("bot unavailable")
 	}
 	if !b.isAdminTelegramUser(viewerUserID) {
-		return "", ErrPackFeedForbidden
+		return ErrPackFeedForbidden
 	}
 	if userMessageID <= 0 {
-		return "", ErrTrainingFeedParentNotFound
+		return ErrTrainingFeedParentNotFound
 	}
 	chatID := b.config.MonetizedChatID
 	if chatID == 0 {
-		return "", ErrTrainingFeedParentNotFound
+		return ErrTrainingFeedParentNotFound
 	}
-	// Берём URL фото до удаления строки.
-	photoURL, _ := b.db.GetTrainingPhotoURLByMessageID(chatID, userMessageID)
-	ok, delErr := b.db.AdminDeleteFeedUserMessage(chatID, userMessageID)
-	if delErr != nil {
-		return "", delErr
+	ok, err := b.db.AdminHideFeedUserMessage(chatID, userMessageID)
+	if err != nil {
+		return err
 	}
 	if !ok {
-		return "", ErrTrainingFeedParentNotFound
+		return ErrTrainingFeedParentNotFound
 	}
-	return photoURL, nil
+	return nil
+}
+
+// PackFeedAdminDeletePost — устаревшее имя; скрывает пост (не удаляет из БД).
+func (b *Bot) PackFeedAdminDeletePost(viewerUserID int64, initD initdata.InitData, userMessageID int64) (deletedPhotoURL string, err error) {
+	if err := b.PackFeedAdminHidePost(viewerUserID, initD, userMessageID); err != nil {
+		return "", err
+	}
+	return "", nil
 }
