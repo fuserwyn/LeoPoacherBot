@@ -15,7 +15,9 @@ import (
 	"leo-bot/internal/config"
 	"leo-bot/internal/database"
 	"leo-bot/internal/logger"
+	"leo-bot/internal/metrics"
 	"leo-bot/internal/miniappapi"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
 
 func main() {
@@ -55,7 +57,9 @@ func main() {
 	// HTTP для Mini App: POST init_data + text → тот же путь, что getUpdates (личка).
 	// В Railway укажи публичный URL этого сервиса в VITE бота/мини-апpa (без path).
 	if p := os.Getenv("PORT"); p != "" {
-		addr := "0.0.0.0:" + p
+		// Слушаем на [::] (IPv6, принимает и IPv4): Railway private network (*.railway.internal)
+		// работает только по IPv6, иначе Prometheus не достучится до /metrics.
+		addr := "[::]:" + p
 		mediaDir := "data/miniapp_media"
 		if abs, err := filepath.Abs(mediaDir); err == nil {
 			mediaDir = abs
@@ -76,10 +80,16 @@ func main() {
 			logger.Infof("Workout photos: local disk %s", mediaDir)
 		}
 		h := miniappapi.New(bot, cfg.APIToken, logger, publicBase, mediaDir, r2)
+		// Wrap handler с middleware для метрик
+		wrapped := metrics.HTTPMiddleware(h)
+		// Добавляем /metrics эндпоинт
+		mux := http.NewServeMux()
+		mux.Handle("/metrics", promhttp.Handler())
+		mux.Handle("/", wrapped)
 		// Долгий ответ ИИ: WriteTimeout 0 = без лимита на запись тела ответа (иначе обрыв посреди JSON).
 		srv := &http.Server{
 			Addr:              addr,
-			Handler:           h,
+			Handler:           mux,
 			ReadHeaderTimeout: 20 * time.Second,
 			ReadTimeout:       0,
 			WriteTimeout:      0,
