@@ -15,6 +15,7 @@ import (
 	"leo-bot/internal/domain"
 	"leo-bot/internal/game/leopardmoney"
 	"leo-bot/internal/logger"
+	"leo-bot/internal/metrics"
 	"leo-bot/internal/moderation"
 	"leo-bot/internal/prompts"
 	"leo-bot/internal/rag"
@@ -281,6 +282,8 @@ func (b *Bot) getUserLocalDate(offsetFromMoscow int) string {
 }
 
 func (b *Bot) handleUpdate(update tgbotapi.Update) {
+	metrics.BotUpdatesReceived.Inc()
+
 	// Обрабатываем callback queries (нажатия на inline кнопки)
 	if update.CallbackQuery != nil {
 		b.handleCallbackQuery(update.CallbackQuery)
@@ -288,6 +291,7 @@ func (b *Bot) handleUpdate(update tgbotapi.Update) {
 	}
 
 	if update.PreCheckoutQuery != nil {
+		metrics.PaymentRequests.WithLabelValues("precheckout").Inc()
 		b.handlePaywallPreCheckout(update.PreCheckoutQuery)
 		return
 	}
@@ -307,6 +311,7 @@ func (b *Bot) handleUpdate(update tgbotapi.Update) {
 
 	msg := update.Message
 	if msg.SuccessfulPayment != nil {
+		metrics.PaymentRequests.WithLabelValues("success").Inc()
 		b.handlePaywallSuccessfulPayment(msg)
 		return
 	}
