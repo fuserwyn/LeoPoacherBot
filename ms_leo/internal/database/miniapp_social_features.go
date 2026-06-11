@@ -77,7 +77,7 @@ func (d *Database) ListDueWorkoutReminderCandidates(packChatID int64) ([]Workout
 		       r.remind_hour,
 		       COALESCE(ts.timezone_offset_from_moscow, 0),
 		       ts.last_training_date,
-		       r.last_sent_msk_date
+		       to_char(r.last_sent_msk_date, 'YYYY-MM-DD')
 		FROM miniapp_workout_reminders r
 		JOIN training_state ts
 			ON ts.user_id = r.user_id AND ts.chat_id = r.pack_chat_id
