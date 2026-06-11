@@ -730,7 +730,7 @@ export function ProfileScreen({
       <h2 className="section-title">Друзья по стае</h2>
       <div className="profile__friends">
         <p className="profile__hint muted">
-          Подписаться можно в ленте: открой отчёт и выбери «Следить за леопардом».
+          Подписаться можно в ленте: открой отчёт и выбери «Следить за тренировками».
         </p>
         <button
           type="button"
@@ -744,7 +744,7 @@ export function ProfileScreen({
             <p className="muted">Загрузка…</p>
           ) : followingList.length === 0 ? (
             <p className="profile__hint muted">
-              Пока ты ни на кого не подписан. Найди леопарда в ленте и нажми «Следить за леопардом».
+              Пока ты ни на кого не подписан. Найди отчёт в ленте и нажми «Следить за тренировками».
             </p>
           ) : (
             <ul className="profile__friends-list">

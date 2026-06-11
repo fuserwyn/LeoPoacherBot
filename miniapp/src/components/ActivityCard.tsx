@@ -624,7 +624,7 @@ export function ActivityCard({
   const cardHeadMenuItems = useMemo(() => {
     const items: { label: string; onClick: () => void; danger?: boolean }[] = [];
     if (onToggleFollow) {
-      items.push({ label: isFriend ? "Не следить за леопардом" : "Следить за леопардом", onClick: onToggleFollow });
+      items.push({ label: isFriend ? "Не следить за тренировками" : "Следить за тренировками", onClick: onToggleFollow });
     }
     if (onTogglePin) {
       items.push({ label: pinned ? "Открепить" : "Закрепить", onClick: onTogglePin });
