@@ -1286,6 +1286,17 @@ var Migrations = []Migration{
 			ALTER TABLE miniapp_workout_reminders ALTER COLUMN enabled SET DEFAULT TRUE;
 		`,
 	},
+	{
+		Version:     67,
+		Description: "Сброс существующих напоминаний в выкл: opt-in для всех (галочка отжата по умолчанию)",
+		// Колонка enabled исторически была DEFAULT TRUE, поэтому у части пользователей
+		// строки уже стоят с enabled=TRUE, хотя они не включали галочку осознанно.
+		// Разово гасим всё — дальше включение только вручную.
+		UpSQL: `
+			UPDATE miniapp_workout_reminders SET enabled = FALSE WHERE enabled = TRUE;
+		`,
+		DownSQL: ``,
+	},
 }
 
 // MigrationRecord представляет запись о выполненной миграции
