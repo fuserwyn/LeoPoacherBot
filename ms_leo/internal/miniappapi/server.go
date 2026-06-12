@@ -478,6 +478,7 @@ func (s *Server) handlePostFeed(w http.ResponseWriter, r *http.Request) {
 	var body struct {
 		InitData string `json:"init_data"`
 		SinceID  int64  `json:"since_id"`
+		BeforeID int64  `json:"before_id"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
 		s.jsonErr(w, http.StatusBadRequest, "invalid_json")
@@ -501,7 +502,7 @@ func (s *Server) handlePostFeed(w http.ResponseWriter, r *http.Request) {
 		s.jsonErr(w, http.StatusBadRequest, "user_missing")
 		return
 	}
-	items, err := s.bot.PackFeedForViewer(parsed.User.ID, parsed, body.InitData, body.SinceID)
+	items, err := s.bot.PackFeedForViewer(parsed.User.ID, parsed, body.InitData, body.SinceID, body.BeforeID)
 	if err != nil {
 		if errors.Is(err, bot.ErrMiniAppChatMismatch) {
 			s.jsonErr(w, http.StatusConflict, "chat_mismatch")
@@ -517,10 +518,15 @@ func (s *Server) handlePostFeed(w http.ResponseWriter, r *http.Request) {
 	}
 	// Закреплённые объявления — авторитетный текущий набор (в т.ч. при incremental polling),
 	// чтобы фронт синхронизировал закреп/откреп даже для старых постов вне окна выдачи.
-	pinned, pErr := s.bot.PackFeedPinnedForViewer(parsed.User.ID, parsed, body.InitData)
-	if pErr != nil {
-		s.logger.Warnf("pack feed pinned: %v", pErr)
-		pinned = nil
+	// Для подгрузки вниз (before_id) закрепы уже есть на фронте — не дёргаем повторно.
+	var pinned []bot.PackFeedItem
+	if body.BeforeID <= 0 {
+		p, pErr := s.bot.PackFeedPinnedForViewer(parsed.User.ID, parsed, body.InitData)
+		if pErr != nil {
+			s.logger.Warnf("pack feed pinned: %v", pErr)
+			p = nil
+		}
+		pinned = p
 	}
 	w.Header().Set("Content-Type", "application/json; charset=utf-8")
 	_ = json.NewEncoder(w).Encode(map[string]any{"ok": true, "items": items, "pinned": pinned})

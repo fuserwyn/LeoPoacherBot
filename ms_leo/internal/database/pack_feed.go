@@ -139,6 +139,70 @@ func (d *Database) ListPackActivityFeedAfterID(chatID int64, sinceID int64, limi
 	return out, nil
 }
 
+// ListPackActivityFeedBeforeID — более старые записи ленты с id < beforeID (подгрузка вниз
+// при скролле мини-аппа). Порядок и фильтры совпадают с ListPackActivityFeed.
+func (d *Database) ListPackActivityFeedBeforeID(chatID int64, beforeID int64, limit int) ([]*domain.PackActivityRow, error) {
+	if beforeID <= 0 {
+		return []*domain.PackActivityRow{}, nil
+	}
+	if limit <= 0 {
+		limit = 50
+	}
+	if limit > 100 {
+		limit = 100
+	}
+	const q = `
+		SELECT
+			um.id,
+			um.user_id,
+			um.chat_id,
+			COALESCE(NULLIF(BTRIM(p.display_name), ''), NULLIF(BTRIM(um.username), ''), 'user' || um.user_id::text),
+			um.message_text,
+			um.message_type,
+			um.created_at,
+			COALESCE(ml.streak_days, 0)::int,
+			COALESCE(um.training_photo_url, ''),
+			um.pinned_at,
+			um.edited_at
+		FROM user_messages um
+		LEFT JOIN training_state ml
+			ON ml.user_id = um.user_id AND ml.chat_id = um.chat_id AND ml.is_deleted = FALSE
+		LEFT JOIN miniapp_user_profile p
+			ON p.user_id = um.user_id AND p.pack_chat_id = um.chat_id
+		WHERE um.chat_id = $1
+		  AND um.id < $2
+		  AND COALESCE(um.is_hidden, FALSE) = FALSE
+		  AND um.message_type IN ('training_done', 'pack_join', 'pack_rejoin', 'daily_wisdom', 'pack_removed', 'admin_post', 'admin_poll')
+		ORDER BY um.id DESC
+		LIMIT $3
+	`
+	rows, err := d.db.Query(q, chatID, beforeID, limit)
+	if err != nil {
+		return nil, fmt.Errorf("pack activity feed before id: %w", err)
+	}
+	defer rows.Close()
+
+	var out []*domain.PackActivityRow
+	for rows.Next() {
+		var r domain.PackActivityRow
+		var createdAt time.Time
+		if err := rows.Scan(
+			&r.ID, &r.UserID, &r.ChatID, &r.Username, &r.MessageText, &r.MessageType, &createdAt, &r.StreakDays, &r.TrainingPhotoURL, &r.PinnedAt, &r.EditedAt,
+		); err != nil {
+			return nil, err
+		}
+		r.CreatedAt = createdAt
+		out = append(out, &r)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	if out == nil {
+		out = []*domain.PackActivityRow{}
+	}
+	return out, nil
+}
+
 // ListPinnedAdminPosts — закреплённые админ-объявления стаи (pinned_at IS NOT NULL),
 // свежезакреплённые сверху. Только admin_post/admin_poll могут быть закреплены.
 func (d *Database) ListPinnedAdminPosts(chatID int64) ([]*domain.PackActivityRow, error) {

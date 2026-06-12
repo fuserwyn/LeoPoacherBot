@@ -113,9 +113,10 @@ type PackFeedItem struct {
 	EditedAt string `json:"edited_at,omitempty"`
 }
 
-// PackFeedForViewer — лента стаи из user_messages. sinceID > 0 — только id новее (polling).
+// PackFeedForViewer — лента стаи из user_messages. sinceID > 0 — только id новее (polling),
+// beforeID > 0 — более старые id (подгрузка вниз при скролле). sinceID имеет приоритет.
 // initD сверяется с MONETIZED_CHAT_ID; initDataRaw — для прокси аватаров.
-func (b *Bot) PackFeedForViewer(viewerUserID int64, initD initdata.InitData, initDataRaw string, sinceID int64) ([]PackFeedItem, error) {
+func (b *Bot) PackFeedForViewer(viewerUserID int64, initD initdata.InitData, initDataRaw string, sinceID int64, beforeID int64) ([]PackFeedItem, error) {
 	if err := b.PackFeedAssertViewerAccess(viewerUserID, initD); err != nil {
 		return nil, err
 	}
@@ -129,9 +130,13 @@ func (b *Bot) PackFeedForViewer(viewerUserID int64, initD initdata.InitData, ini
 	}
 	var rows []*domain.PackActivityRow
 	var err error
-	if sinceID > 0 {
+	switch {
+	case sinceID > 0:
 		rows, err = b.db.ListPackActivityFeedAfterID(chatID, sinceID, 30)
-	} else {
+	case beforeID > 0:
+		// Подгрузка вниз: более старые записи относительно самого старого видимого id.
+		rows, err = b.db.ListPackActivityFeedBeforeID(chatID, beforeID, 50)
+	default:
 		// Показываем общую историю стаи для всех участников, без персональной отсечки "с момента входа".
 		rows, err = b.db.ListPackActivityFeed(chatID, 50, nil)
 	}

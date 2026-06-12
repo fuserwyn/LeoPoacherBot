@@ -425,6 +425,18 @@
   font-size: 0.9rem;
 }
 
+.feed__older {
+  min-height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 8px 0 4px;
+}
+
+.feed__older .feed__load {
+  margin: 0;
+}
+
 .feed__section-row {
   display: flex;
   align-items: center;

@@ -49,6 +49,19 @@ function bumpMaxFeedId(maxRef: { current: number }, items: PackFeedItemDTO[]) {
   }
 }
 
+/**
+ * Минимальный id обычной (не закреплённой) записи — курсор «загрузить ещё старее».
+ * Закрепы исключаем: они подняты наверх из произвольной глубины и не задают границу окна.
+ */
+function minRegularFeedId(items: PackFeedItemDTO[]): number {
+  let min = 0;
+  for (const it of items) {
+    if (it.id <= 0 || it.is_pinned) continue;
+    if (min === 0 || it.id < min) min = it.id;
+  }
+  return min;
+}
+
 type Props = {
   streak: number;
   userId: number;
@@ -181,9 +194,17 @@ export function FeedScreen({
   const [viewportStyle, setViewportStyle] = useState<FeedViewportStyle>({});
   const feedHeaderRef = useRef<HTMLDivElement>(null);
   const maxFeedIdRef = useRef(0);
+  /** Самый старый загруженный id обычной ленты (без закрепов) — курсор подгрузки вниз. */
+  const minFeedIdRef = useRef(0);
   const loadedOnceRef = useRef(false);
   /** Идёт полный синк — чтобы не плодить дубли (двойной fetch на маунте, наложение поллинга и пост-экшн-синков). */
   const fullSyncInFlightRef = useRef(false);
+  /** Есть ли ещё более старые записи (false — дошли до конца истории). */
+  const [hasMoreOlder, setHasMoreOlder] = useState(true);
+  const [loadingOlder, setLoadingOlder] = useState(false);
+  const loadingOlderRef = useRef(false);
+  /** Маркер у низа списка: когда виден — подтягиваем более старые записи. */
+  const olderSentinelRef = useRef<HTMLDivElement>(null);
 
   const categoryFilterSet = useMemo(() => new Set(feedCategoryIds), [feedCategoryIds]);
 
@@ -345,9 +366,13 @@ export function FeedScreen({
         const incoming = j.items ?? [];
         const pinned = j.pinned ?? [];
         if (full || sinceId === 0) {
-          setFeedItems(reconcilePinnedFeed(incoming, pinned));
+          const reconciled = reconcilePinnedFeed(incoming, pinned);
+          setFeedItems(reconciled);
           maxFeedIdRef.current = 0;
           bumpMaxFeedId(maxFeedIdRef, incoming);
+          // Курсор и флаг «есть ещё старее» восстанавливаем по свежему окну (50 записей с бэка).
+          minFeedIdRef.current = minRegularFeedId(reconciled);
+          setHasMoreOlder(incoming.length >= 50);
           if (
             optimisticFeedItem &&
             feedHasMatchingTrainingReport(incoming, optimisticFeedItem.text, optimisticFeedItem.user_id)
@@ -381,6 +406,57 @@ export function FeedScreen({
     },
     [inTelegram, initData, optimisticFeedItem, onOptimisticConsumed],
   );
+
+  /** Подгрузка более старых записей (скролл вниз): before_id = самый старый загруженный id. */
+  const loadOlder = useCallback(async () => {
+    if (!apiBase || !inTelegram || !initData) return;
+    if (loadingOlderRef.current) return;
+    const beforeId = minFeedIdRef.current;
+    if (beforeId <= 0) return;
+    loadingOlderRef.current = true;
+    setLoadingOlder(true);
+    try {
+      const res = await fetch(`${apiBase}/api/miniapp/feed`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ init_data: initData, before_id: beforeId }),
+      });
+      const j = (await res.json().catch(() => ({}))) as { ok?: boolean; items?: PackFeedItemDTO[]; error?: string };
+      if (!res.ok) return;
+      const older = j.items ?? [];
+      if (older.length === 0) {
+        setHasMoreOlder(false);
+        return;
+      }
+      setFeedItems((prev) => {
+        const next = mergePackFeedIncremental(prev, older);
+        minFeedIdRef.current = minRegularFeedId(next);
+        return next;
+      });
+      // Меньше полной страницы — значит история исчерпана.
+      if (older.length < 50) setHasMoreOlder(false);
+    } catch {
+      // Тихо: повторим при следующем скролле/обновлении.
+    } finally {
+      loadingOlderRef.current = false;
+      setLoadingOlder(false);
+    }
+  }, [inTelegram, initData]);
+
+  // Бесконечный скролл: наблюдаем маркер у низа списка и подгружаем старые записи заранее.
+  useEffect(() => {
+    const sentinel = olderSentinelRef.current;
+    if (!sentinel) return;
+    if (!hasMoreOlder || useMockFeed) return;
+    const io = new IntersectionObserver(
+      (entries) => {
+        if (entries.some((e) => e.isIntersecting)) void loadOlder();
+      },
+      { rootMargin: "600px 0px" },
+    );
+    io.observe(sentinel);
+    return () => io.disconnect();
+  }, [hasMoreOlder, useMockFeed, loadOlder, feedItems.length]);
 
   const toggleFollowAuthor = useCallback(
     async (authorId: number, currentlyFriend: boolean) => {
@@ -1548,6 +1624,15 @@ export function FeedScreen({
                   </div>
                 );
               })}
+            {!useMockFeed && !loading && feedItems.length > 0 && (
+              <div ref={olderSentinelRef} className="feed__older" aria-hidden={!loadingOlder}>
+                {loadingOlder ? (
+                  <p className="feed__load muted">Загрузка истории…</p>
+                ) : !hasMoreOlder ? (
+                  <p className="feed__load muted">Это начало истории стаи</p>
+                ) : null}
+              </div>
+            )}
           </div>
       </div>
       </div>
