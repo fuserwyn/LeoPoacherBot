@@ -22,9 +22,11 @@ type WorkoutReminderDue struct {
 	LastSentMskDate          sql.NullString // YYYY-MM-DD МСК последней отправки (идемпотентность)
 }
 
-// GetWorkoutReminderSettings — настройки напоминания. Если строки нет — дефолт (вкл, 19:00 локально).
+// GetWorkoutReminderSettings — настройки напоминания. Если строки нет — дефолт (ВЫКЛ, 19:00 локально).
+// Напоминание по умолчанию выключено: планировщик шлёт только тем, у кого есть строка с enabled=TRUE,
+// поэтому витрина должна честно показывать «выкл», пока пользователь сам не включит галочку.
 func (d *Database) GetWorkoutReminderSettings(userID, packChatID int64) (WorkoutReminderSettings, error) {
-	def := WorkoutReminderSettings{Enabled: true, RemindHour: 19}
+	def := WorkoutReminderSettings{Enabled: false, RemindHour: 19}
 	if d == nil || userID == 0 || packChatID == 0 {
 		return def, nil
 	}

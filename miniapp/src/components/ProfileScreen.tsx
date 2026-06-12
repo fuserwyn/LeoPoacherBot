@@ -132,7 +132,8 @@ export function ProfileScreen({
   const saveStreakAvail = Math.max(0, saveStreakMax - saveStreakUsed);
 
   // Напоминания «внеси тренировку»: вкл/выкл + час по локальному времени пользователя.
-  const [reminderEnabled, setReminderEnabled] = useState(true);
+  // По умолчанию ВЫКЛ — напоминание приходит, только если пользователь сам включил галочку.
+  const [reminderEnabled, setReminderEnabled] = useState(false);
   const [reminderHour, setReminderHour] = useState(19);
   const [reminderLoading, setReminderLoading] = useState(true);
   const [reminderBusy, setReminderBusy] = useState(false);
@@ -142,7 +143,6 @@ export function ProfileScreen({
   const [friendsLoading, setFriendsLoading] = useState(false);
   const [followingOpen, setFollowingOpen] = useState(false);
   const [friendBusyId, setFriendBusyId] = useState<number | null>(null);
-  const [friendNotifyBusyId, setFriendNotifyBusyId] = useState<number | null>(null);
 
   useEffect(() => {
     setCups(xp);
@@ -390,38 +390,6 @@ export function ProfileScreen({
       }
     },
     [inTelegram, initData, friendBusyId, showAlert],
-  );
-
-  const toggleFriendNotify = useCallback(
-    async (member: FriendMember, enabled: boolean) => {
-      if (!api || !inTelegram || !initData?.trim() || friendNotifyBusyId !== null) return;
-      setFriendNotifyBusyId(member.user_id);
-      setFriends((list) =>
-        list.map((m) => (m.user_id === member.user_id ? { ...m, notify_workouts: enabled } : m)),
-      );
-      try {
-        const res = await fetch(`${api}/api/miniapp/friends/notify`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ init_data: initData, target_id: member.user_id, enabled }),
-        });
-        const j = (await res.json().catch(() => ({}))) as { ok?: boolean; error?: string };
-        if (!res.ok || !j.ok) {
-          setFriends((list) =>
-            list.map((m) => (m.user_id === member.user_id ? { ...m, notify_workouts: !enabled } : m)),
-          );
-          showAlert(j.error ?? `Уведомления: ошибка ${res.status}`);
-        }
-      } catch (e) {
-        setFriends((list) =>
-          list.map((m) => (m.user_id === member.user_id ? { ...m, notify_workouts: !enabled } : m)),
-        );
-        showAlert(e instanceof Error ? e.message : "Сеть");
-      } finally {
-        setFriendNotifyBusyId(null);
-      }
-    },
-    [inTelegram, initData, friendNotifyBusyId, showAlert],
   );
 
   // Подписки подгружаем только при раскрытии «Слежу за».
@@ -756,24 +724,16 @@ export function ProfileScreen({
                       <span className="profile__friend-streak muted">🔥 {m.streak_days}</span>
                     )}
                   </span>
-                  <label className="profile__friend-notify" title="Уведомления о тренировках в Telegram">
+                  <label className="profile__friend-notify" title="Подписка на тренировки">
                     <span className="profile__friend-notify-label muted">🔔</span>
                     <input
                       type="checkbox"
                       className="profile__friend-notify-toggle"
-                      checked={m.notify_workouts}
-                      disabled={friendNotifyBusyId === m.user_id}
-                      onChange={(e) => void toggleFriendNotify(m, e.target.checked)}
+                      checked={m.following}
+                      disabled={friendBusyId === m.user_id}
+                      onChange={() => void toggleFollow(m)}
                     />
                   </label>
-                  <button
-                    type="button"
-                    className="profile__friend-btn profile__friend-btn--following"
-                    onClick={() => void toggleFollow(m)}
-                    disabled={friendBusyId === m.user_id}
-                  >
-                    Отписаться
-                  </button>
                 </li>
               ))}
             </ul>

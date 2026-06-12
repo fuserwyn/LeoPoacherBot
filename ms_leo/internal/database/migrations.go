@@ -1276,6 +1276,16 @@ var Migrations = []Migration{
 			DROP TABLE IF EXISTS miniapp_feed_report_admin_notifies;
 		`,
 	},
+	{
+		Version:     66,
+		Description: "Напоминание о тренировке выключено по умолчанию (opt-in)",
+		UpSQL: `
+			ALTER TABLE miniapp_workout_reminders ALTER COLUMN enabled SET DEFAULT FALSE;
+		`,
+		DownSQL: `
+			ALTER TABLE miniapp_workout_reminders ALTER COLUMN enabled SET DEFAULT TRUE;
+		`,
+	},
 }
 
 // MigrationRecord представляет запись о выполненной миграции
