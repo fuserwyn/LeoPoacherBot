@@ -10,6 +10,8 @@ import { RulesScreen } from "./components/RulesScreen";
 import { TabKeepAlive } from "./components/TabKeepAlive";
 import { MiniappRemovedScreen } from "./components/MiniappRemovedScreen";
 import { SupportScreen } from "./components/SupportScreen";
+import { AchievementToast } from "./components/AchievementToast";
+import { earnedAchievementKeys, type AchievementKey } from "./lib/achievements";
 import { buildOptimisticTrainingFeedItem, type PackFeedItemDTO } from "./lib/packFeed";
 import { sendMiniappPrivateText, sendMiniappTrainingWithPhoto } from "./lib/miniappPrivateSend";
 import { fetchLeoPendingCount } from "./lib/leoPersonalInbox";
@@ -70,6 +72,9 @@ export function App() {
   const [accessGateStatus, setAccessGateStatus] = useState<AccessGateStatus>("checking");
   const [isAdmin, setIsAdmin] = useState(false);
   const tzSyncedRef = useRef(false);
+  // Очередь тостов «Ачивка получена!» — показываем по одному, дедуп по ключам.
+  const [achievementQueue, setAchievementQueue] = useState<AchievementKey[]>([]);
+  const currentAchievement = achievementQueue[0] ?? null;
 
   // §3: miniapp_opened — один раз, как только есть валидный initData в Telegram.
   useEffect(() => {
@@ -108,6 +113,37 @@ export function App() {
   const clearPackGroupBadge = useCallback(() => setPackGroupUnread(0), []);
   const clearFeedThreadBadge = useCallback(() => setFeedThreadUnread(0), []);
 
+  // Сверяем открытые ачивки с тем, что пользователь уже видел (localStorage по user_id),
+  // и ставим новые в очередь тостов. Первый запуск на устройстве — тихая базовая линия,
+  // чтобы не сыпать уведомлениями за давно открытые ачивки.
+  const notifyNewAchievements = useCallback((uid: number, achCount: number, wk: number) => {
+    if (!uid) return;
+    const storageKey = `fl_seen_achievements_${uid}`;
+    const earned = earnedAchievementKeys(achCount, wk);
+    let raw: string | null = null;
+    try {
+      raw = localStorage.getItem(storageKey);
+    } catch {
+      return; // приватный режим / нет доступа к storage — не спамим
+    }
+    if (raw === null) {
+      try { localStorage.setItem(storageKey, JSON.stringify(earned)); } catch { /* ignore */ }
+      return;
+    }
+    let seen: string[] = [];
+    try {
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed)) seen = parsed.filter((k): k is string => typeof k === "string");
+    } catch {
+      seen = [];
+    }
+    const fresh = earned.filter((k) => !seen.includes(k));
+    if (fresh.length === 0) return;
+    setAchievementQueue((q) => [...q, ...fresh.filter((k) => !q.includes(k))]);
+    tg?.HapticFeedback?.notificationOccurred?.("success");
+    try { localStorage.setItem(storageKey, JSON.stringify(earned)); } catch { /* ignore */ }
+  }, [tg]);
+
   const refreshProfileStats = useCallback(async () => {
     const apiBase = (import.meta.env.VITE_MINIAPP_API_URL as string | undefined)?.replace(/\/$/, "") ?? "";
     if (accessGateStatus !== "ok" || !inTelegram || !initData?.trim() || !apiBase) return;
@@ -141,9 +177,12 @@ export function App() {
       setStreak(typeof j.streak_days === "number" ? j.streak_days : 0);
       setRecordStreak(typeof j.max_streak_days === "number" ? j.max_streak_days : 0);
       setXP(typeof j.xp === "number" ? j.xp : 0);
-      setAchievementCount(typeof j.achievement_count === "number" ? j.achievement_count : 0);
+      const achCount = typeof j.achievement_count === "number" ? j.achievement_count : 0;
+      const workoutsTotal = typeof j.workouts_total === "number" ? j.workouts_total : 0;
+      setAchievementCount(achCount);
       setAchievementsMax(typeof j.achievements_max === "number" ? j.achievements_max : 9);
-      setWorkouts(typeof j.workouts_total === "number" ? j.workouts_total : 0);
+      setWorkouts(workoutsTotal);
+      notifyNewAchievements(userId, achCount, workoutsTotal);
       // Автоопределение часового пояса из устройства: приводим хранимое смещение к зоне телефона.
       if (!tzSyncedRef.current) {
         tzSyncedRef.current = true;
@@ -153,7 +192,7 @@ export function App() {
     } catch {
       return;
     }
-  }, [accessGateStatus, inTelegram, initData]);
+  }, [accessGateStatus, inTelegram, initData, userId, notifyNewAchievements]);
 
   useEffect(() => {
     void refreshAccessStatus();
@@ -299,6 +338,14 @@ export function App() {
 
       {supportOpen ? (
         <SupportScreen initData={initData} inTelegram={inTelegram} showAlert={showAlert} />
+      ) : null}
+
+      {currentAchievement ? (
+        <AchievementToast
+          key={currentAchievement}
+          achievementKey={currentAchievement}
+          onDone={() => setAchievementQueue((q) => q.slice(1))}
+        />
       ) : null}
 
       <BottomNav

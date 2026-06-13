@@ -1,0 +1,96 @@
+.achievement-toast {
+  position: fixed;
+  left: 50%;
+  top: calc(var(--safe-top, 0px) + 12px);
+  z-index: 200;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: min(360px, calc(100vw - 24px));
+  padding: 12px 16px;
+  border-radius: 16px;
+  border: 1px solid color-mix(in srgb, var(--accent) 55%, transparent);
+  background: linear-gradient(180deg, var(--card) 0%, var(--card-inner) 100%);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.45), 0 0 0 1px rgba(255, 255, 255, 0.04) inset;
+  color: var(--text);
+  cursor: pointer;
+  transform: translateX(-50%);
+  animation: achievement-toast-in 320ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.achievement-toast.is-leaving {
+  animation: achievement-toast-out 280ms ease forwards;
+}
+
+.achievement-toast__icon {
+  flex: 0 0 auto;
+  width: 44px;
+  height: 44px;
+  display: grid;
+  place-items: center;
+  font-size: 24px;
+  line-height: 1;
+  border-radius: 50%;
+  background: var(--accent-dim);
+  animation: achievement-toast-pop 520ms cubic-bezier(0.34, 1.56, 0.64, 1) 120ms both;
+}
+
+.achievement-toast__text {
+  min-width: 0;
+}
+
+.achievement-toast__title {
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  color: var(--accent);
+}
+
+.achievement-toast__label {
+  margin-top: 2px;
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+@keyframes achievement-toast-in {
+  from {
+    opacity: 0;
+    transform: translate(-50%, -16px);
+  }
+  to {
+    opacity: 1;
+    transform: translate(-50%, 0);
+  }
+}
+
+@keyframes achievement-toast-out {
+  to {
+    opacity: 0;
+    transform: translate(-50%, -16px);
+  }
+}
+
+@keyframes achievement-toast-pop {
+  0% {
+    transform: scale(0.4);
+  }
+  60% {
+    transform: scale(1.12);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .achievement-toast,
+  .achievement-toast.is-leaving,
+  .achievement-toast__icon {
+    animation: none;
+  }
+}

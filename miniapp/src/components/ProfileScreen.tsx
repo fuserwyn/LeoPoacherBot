@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { STREAK_ACHIEVEMENTS, WORKOUT_ACHIEVEMENTS, workoutsWordRu } from "../lib/achievements";
 import { inactivityHighlight } from "../lib/inactivityHighlight";
 import { cupsLevelProgressBarPct, formatCupsLevelProgressLabel, miniappCupsLevelProgress, miniappLevelFromCups, miniappLevelName } from "../lib/miniappLevel";
 import { effectiveStreakDays, streakBurnLabel } from "../lib/streakLabel";
@@ -55,43 +56,6 @@ type Props = {
   /** Вкладка «Профиль» видима (keep-alive). */
   active?: boolean;
 };
-
-const STREAK_ACHIEVEMENTS = [
-  { days: 7, colorClass: "profile__achievement--7", variant: "paw" },
-  { days: 14, colorClass: "profile__achievement--14", variant: "paw" },
-  { days: 30, colorClass: "profile__achievement--30", variant: "paw" },
-  { days: 42, colorClass: "profile__achievement--42", variant: "heart" },
-  { days: 60, colorClass: "profile__achievement--60", variant: "paw" },
-  { days: 90, colorClass: "profile__achievement--90", variant: "paw" },
-  { days: 180, colorClass: "profile__achievement--180", variant: "paw" },
-  { days: 365, colorClass: "profile__achievement--365", variant: "paw" },
-  { days: 420, colorClass: "profile__achievement--420", variant: "paw-crown" },
-] as const;
-
-// Ачивки за общее число тренировок. «Заработано» считаем на фронте из total workouts —
-// бэкенд про эти пороги не знает (это чисто визуальная витрина в профиле).
-// variant: внутри звезды лапка ("paw") или сердце ("heart", для 42 — как у стрика).
-const WORKOUT_ACHIEVEMENTS = [
-  { count: 10, variant: "paw" },
-  { count: 20, variant: "paw" },
-  { count: 42, variant: "heart" },
-  { count: 50, variant: "paw" },
-  { count: 100, variant: "paw" },
-  { count: 200, variant: "paw" },
-  { count: 420, variant: "crown" }, // звезда с короной
-  { count: 500, variant: "paw" },
-  { count: 1000, variant: "leo" }, // медитирующий Лео
-] as const;
-
-// Правильное склонение: 1 тренировка, 2-4 тренировки, 5-20 тренировок.
-function workoutsWordRu(n: number): string {
-  const mod100 = n % 100;
-  if (mod100 >= 11 && mod100 <= 14) return "тренировок";
-  const mod10 = n % 10;
-  if (mod10 === 1) return "тренировка";
-  if (mod10 >= 2 && mod10 <= 4) return "тренировки";
-  return "тренировок";
-}
 
 export function ProfileScreen({
   name,
