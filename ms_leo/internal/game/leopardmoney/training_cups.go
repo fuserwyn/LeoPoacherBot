@@ -103,6 +103,8 @@ var (
 	// Мини-апп: «бег, 15 мин, инт. 3/5». Старые записи в ленте могли начинаться с #training_done — префикс опционален при разборе.
 	reTrainingHeader = regexp.MustCompile(`(?i)^(?:#training_done\s*[—–\-]\s*)?([^,]+),\s*(\d+)\s*мин`)
 	reIntensity      = regexp.MustCompile(`(?i)инт\.?\s*(\d+)`)
+	// Несколько видов в одном отчёте: «бег + плавание». Разделитель «+» (или «/») между видами.
+	reKindSplit = regexp.MustCompile(`\s*[+/]\s*`)
 )
 
 // labelToCategoryID — русские подписи из UI (нижний регистр) → id.
@@ -134,21 +136,58 @@ func IsTrainingReportLine(text string) bool {
 	return ok
 }
 
-// ParseTrainingDoneReport — первая строка отчёта мини-аппа, например «бег, 15 мин, инт. 3/5».
-// Возвращает ok=false, если нет распознанного заголовка (тогда начисление — минимум 1 кубок снаружи).
-func ParseTrainingDoneReport(text string) (durationMin, intensity int, categoryID string, ok bool) {
+// parseCategoryIDs — один или несколько видов из «сырой» подписи заголовка.
+// «бег + плавание» → ["run","swim"]; неизвестная подпись или пусто → ["other"]. Дубли схлопываются.
+func parseCategoryIDs(rawLabel string) []string {
+	parts := reKindSplit.Split(strings.TrimSpace(strings.ToLower(rawLabel)), -1)
+	ids := make([]string, 0, len(parts))
+	seen := make(map[string]bool, len(parts))
+	for _, p := range parts {
+		p = strings.TrimSpace(p)
+		if p == "" {
+			continue
+		}
+		cat := labelToCategoryID[p]
+		if cat == "" {
+			cat = "other"
+		}
+		if !seen[cat] {
+			seen[cat] = true
+			ids = append(ids, cat)
+		}
+	}
+	if len(ids) == 0 {
+		return []string{"other"}
+	}
+	return ids
+}
+
+// bestCategoryID — вид с максимальным коэффициентом (за него дают больше кубков). При равенстве — первый.
+func bestCategoryID(categoryIDs []string) string {
+	best := "other"
+	bestCoef := -1.0
+	for _, id := range categoryIDs {
+		if c := ActivityCoeff(id); c > bestCoef {
+			bestCoef = c
+			best = id
+		}
+	}
+	return best
+}
+
+// parseTrainingDoneReport — общий разбор первой строки отчёта: длительность, интенсивность, список видов.
+func parseTrainingDoneReport(text string) (durationMin, intensity int, categoryIDs []string, ok bool) {
 	line := strings.TrimSpace(text)
 	if i := strings.IndexByte(line, '\n'); i >= 0 {
 		line = strings.TrimSpace(line[:i])
 	}
 	m := reTrainingHeader.FindStringSubmatch(line)
 	if len(m) < 3 {
-		return 0, 0, "other", false
+		return 0, 0, []string{"other"}, false
 	}
-	rawLabel := strings.TrimSpace(strings.ToLower(m[1]))
 	dur, err := strconv.Atoi(m[2])
 	if err != nil || dur <= 0 {
-		return 0, 0, "other", false
+		return 0, 0, []string{"other"}, false
 	}
 	intensity = 1
 	if im := reIntensity.FindStringSubmatch(line); len(im) >= 2 {
@@ -156,11 +195,24 @@ func ParseTrainingDoneReport(text string) (durationMin, intensity int, categoryI
 			intensity = v
 		}
 	}
-	cat := labelToCategoryID[rawLabel]
-	if cat == "" {
-		cat = "other"
+	return dur, intensity, parseCategoryIDs(m[1]), true
+}
+
+// ParseTrainingDoneReportCategories — все виды из отчёта (порядок — как ввёл пользователь).
+// Для мультивыбора «бег + плавание» вернёт ["run","swim"].
+func ParseTrainingDoneReportCategories(text string) (durationMin, intensity int, categoryIDs []string, ok bool) {
+	return parseTrainingDoneReport(text)
+}
+
+// ParseTrainingDoneReport — первая строка отчёта мини-аппа, например «бег, 15 мин, инт. 3/5».
+// При нескольких видах возвращает самый «дорогой» (с максимальным коэффициентом) — кубки начисляются за него.
+// Возвращает ok=false, если нет распознанного заголовка (тогда начисление — минимум 1 кубок снаружи).
+func ParseTrainingDoneReport(text string) (durationMin, intensity int, categoryID string, ok bool) {
+	dur, inten, cats, ok := parseTrainingDoneReport(text)
+	if !ok {
+		return 0, 0, "other", false
 	}
-	return dur, intensity, cat, true
+	return dur, inten, bestCategoryID(cats), true
 }
 
 // TrainingCupsFromParts — кубки по формуле §2.2: (длительность×интенсивность×тип)/5, округление до целого,

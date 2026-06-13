@@ -60,10 +60,14 @@ func trainingReportSemanticHint(reportText string) string {
 	sb.WriteString("ВАЖНО ПРО ФОРМАТ ОТЧЁТА MINI APP:\n")
 	sb.WriteString("Первая строка имеет вид: <тип тренировки>, <минуты> мин, инт. <N>/5 (отчёт из мини-аппа).\n")
 	sb.WriteString("`инт.` здесь всегда означает ИНТЕНСИВНОСТЬ нагрузки по шкале 1..5. Это НЕ интервалы, НЕ интервалка и НЕ вид тренировки.\n")
-	if durationMin, intensity, categoryID, ok := leopardmoney.ParseTrainingDoneReport(reportText); ok {
+	if durationMin, intensity, categoryIDs, ok := leopardmoney.ParseTrainingDoneReportCategories(reportText); ok {
+		labels := make([]string, 0, len(categoryIDs))
+		for _, id := range categoryIDs {
+			labels = append(labels, trainingCategoryLabelRu(id))
+		}
 		sb.WriteString(fmt.Sprintf(
 			"Для этого отчёта распознано: тип = %s; длительность = %d мин; интенсивность = %d/5.\n",
-			trainingCategoryLabelRu(categoryID), durationMin, intensity,
+			strings.Join(labels, " + "), durationMin, intensity,
 		))
 	}
 	return sb.String()

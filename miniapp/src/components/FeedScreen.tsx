@@ -324,13 +324,14 @@ export function FeedScreen({
   const feedSubtabBadge = (count: number) => (count > 9 ? "9+" : count > 0 ? String(count) : null);
 
   const syncFeed = useCallback(
-    async (opts?: { full?: boolean; silent?: boolean }) => {
+    async (opts?: { full?: boolean; silent?: boolean; reset?: boolean }) => {
       if (!apiBase || !inTelegram || !initData) {
         setLoading(false);
         setUseMockFeed(true);
         setFeedItems([]);
         setErr(null);
         maxFeedIdRef.current = 0;
+        minFeedIdRef.current = 0;
         return;
       }
       const full = opts?.full === true || maxFeedIdRef.current === 0;
@@ -367,12 +368,35 @@ export function FeedScreen({
         const pinned = j.pinned ?? [];
         if (full || sinceId === 0) {
           const reconciled = reconcilePinnedFeed(incoming, pinned);
-          setFeedItems(reconciled);
+          if (opts?.reset) {
+            // Явная перезагрузка (маунт / refreshToken / pull-to-refresh): окно с нуля.
+            setFeedItems(reconciled);
+            minFeedIdRef.current = minRegularFeedId(reconciled);
+            setHasMoreOlder(incoming.length >= 50);
+          } else {
+            // Обычный полный синк (поллинг тредов/реакций, пост-экшн): НЕ схлопываем ленту —
+            // сохраняем уже догруженные старые страницы, иначе бесконечная переподгрузка.
+            setFeedItems((prev) => {
+              if (prev.length === 0) {
+                minFeedIdRef.current = minRegularFeedId(reconciled);
+                return reconciled;
+              }
+              const windowMinId = minRegularFeedId(reconciled);
+              const olderKept =
+                windowMinId > 0
+                  ? prev.filter((p) => p.id > 0 && p.id < windowMinId && !p.is_pinned)
+                  : [];
+              const next =
+                olderKept.length > 0 ? sortPackFeedItemsDesc([...reconciled, ...olderKept]) : reconciled;
+              minFeedIdRef.current = minRegularFeedId(next);
+              return next;
+            });
+            // hasMoreOlder выставляем только на самой первой загрузке окна; дальше им
+            // управляет loadOlder (станет false, когда дойдём до начала истории).
+            if (!loadedOnceRef.current) setHasMoreOlder(incoming.length >= 50);
+          }
           maxFeedIdRef.current = 0;
           bumpMaxFeedId(maxFeedIdRef, incoming);
-          // Курсор и флаг «есть ещё старее» восстанавливаем по свежему окну (50 записей с бэка).
-          minFeedIdRef.current = minRegularFeedId(reconciled);
-          setHasMoreOlder(incoming.length >= 50);
           if (
             optimisticFeedItem &&
             feedHasMatchingTrainingReport(incoming, optimisticFeedItem.text, optimisticFeedItem.user_id)
@@ -1029,13 +1053,15 @@ export function FeedScreen({
 
   useEffect(() => {
     maxFeedIdRef.current = 0;
+    minFeedIdRef.current = 0;
     loadedOnceRef.current = false;
-    if (active) void syncFeed({ full: true });
+    setHasMoreOlder(true);
+    if (active) void syncFeed({ full: true, reset: true });
   }, [refreshToken, syncFeed, active]);
 
   useEffect(() => {
     if (!active || loadedOnceRef.current) return;
-    void syncFeed({ full: true });
+    void syncFeed({ full: true, reset: true });
   }, [active, syncFeed]);
 
   useEffect(() => {
@@ -1152,7 +1178,9 @@ export function FeedScreen({
   const handlePullRefresh = useCallback(async () => {
     hapticLight();
     maxFeedIdRef.current = 0;
-    await Promise.all([syncFeed({ full: true }), Promise.resolve(onRefreshAll?.())]);
+    minFeedIdRef.current = 0;
+    setHasMoreOlder(true);
+    await Promise.all([syncFeed({ full: true, reset: true }), Promise.resolve(onRefreshAll?.())]);
   }, [syncFeed, onRefreshAll, hapticLight]);
 
   const ptr = usePullToRefresh({
@@ -1336,7 +1364,9 @@ export function FeedScreen({
                 onClick={() => {
                   window.scrollTo({ top: 0, behavior: "smooth" });
                   maxFeedIdRef.current = 0;
-                  void syncFeed({ full: true });
+                  minFeedIdRef.current = 0;
+                  setHasMoreOlder(true);
+                  void syncFeed({ full: true, reset: true });
                 }}
                 aria-label="Обновить ленту"
                 title="Обновить"
