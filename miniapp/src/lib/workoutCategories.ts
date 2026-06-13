@@ -72,6 +72,9 @@ export function trainingDoneCategoryEmoji(text: string): string {
   return ID_TO_EMOJI[cat] ?? "💪";
 }
 
+/** Несколько видов в одном отчёте: «бег + плавание». Разделители — «+» и «/». */
+const KIND_SPLIT_RE = /\s*[+/]\s*/;
+
 /**
  * Заголовок карточки вместо общего «Тренировка»: тип из строки отчёта.
  * Для своего вида из поля «Другое» показываем то, что ввёл пользователь (а не «Другое»).
@@ -92,12 +95,35 @@ function parseTrainingDoneRawKind(text: string): string | null {
   return m[1].trim();
 }
 
-/** Первая строка отчёта: «бег, 15 мин, инт. 3/5» (старые — с префиксом #training_done). */
+/** Один вид из «сырой» подписи (нижний регистр → id); неизвестный → "other". */
+function rawKindToCategory(raw: string): WorkoutCategoryId {
+  return LABEL_TO_ID[raw.trim().toLowerCase()] ?? "other";
+}
+
+/**
+ * Первая строка отчёта: «бег, 15 мин, инт. 3/5» (старые — с префиксом #training_done).
+ * При мультивыборе возвращает первый вид; для полного списка — {@link parseTrainingDoneCategories}.
+ */
 export function parseTrainingDoneCategory(text: string): WorkoutCategoryId | null {
+  const cats = parseTrainingDoneCategories(text);
+  return cats.length > 0 ? cats[0] : null;
+}
+
+/** Все виды из отчёта (мультивыбор «бег + плавание» → ["run","swim"]); пустой массив, если формат не распознан. */
+export function parseTrainingDoneCategories(text: string): WorkoutCategoryId[] {
   const raw = parseTrainingDoneRawKind(text);
-  if (raw === null) return null;
-  if (LABEL_TO_ID[raw.toLowerCase()]) return LABEL_TO_ID[raw.toLowerCase()];
-  return "other";
+  if (raw === null) return [];
+  const seen = new Set<WorkoutCategoryId>();
+  const ids: WorkoutCategoryId[] = [];
+  for (const part of raw.split(KIND_SPLIT_RE)) {
+    if (!part.trim()) continue;
+    const id = rawKindToCategory(part);
+    if (!seen.has(id)) {
+      seen.add(id);
+      ids.push(id);
+    }
+  }
+  return ids;
 }
 
 /**
@@ -122,21 +148,20 @@ export function stripLeadingCategoryFromTrainingReport(text: string): string {
   return body.trim();
 }
 
-/** Совпадение с выбранным фильтром категории (для `training_done`). */
+/** Совпадение с выбранным фильтром категории (для `training_done`). Пост с несколькими видами матчится по любому из них. */
 export function trainingDoneMatchesCategory(text: string, filterId: WorkoutCategoryId): boolean {
-  const cat = parseTrainingDoneCategory(text);
-  if (cat == null) return filterId === "other";
-  if (filterId === "other") return cat === "other";
-  return cat === filterId;
+  const cats = parseTrainingDoneCategories(text);
+  if (cats.length === 0) return filterId === "other";
+  return cats.includes(filterId);
 }
 
-/** Мультивыбор: отчёт попадает в ленту, если его тип есть в `selected` (не пустом). */
+/** Мультивыбор фильтра: отчёт попадает в ленту, если хотя бы один его вид есть в `selected` (не пустом). */
 export function trainingDoneMatchesAnyCategory(
   text: string,
   selected: ReadonlySet<WorkoutCategoryId>,
 ): boolean {
   if (selected.size === 0) return true;
-  const cat = parseTrainingDoneCategory(text);
-  if (cat !== null) return selected.has(cat);
-  return selected.has("other");
+  const cats = parseTrainingDoneCategories(text);
+  if (cats.length === 0) return selected.has("other");
+  return cats.some((c) => selected.has(c));
 }

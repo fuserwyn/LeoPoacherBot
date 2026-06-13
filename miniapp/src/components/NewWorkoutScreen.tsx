@@ -115,7 +115,8 @@ type Props = {
   showAlert?: (message: string) => void;
   /** Сохранение отчёта: верни false, чтобы не закрывать шторку (например, при ошибке сети). */
   onSave: (payload: {
-    type: string;
+    /** Один или несколько видов спорта (мультивыбор). Кубки — за самый эффективный. */
+    types: WorkoutCategoryId[];
     min: number;
     intensity: 1 | 2 | 3 | 4 | 5;
     /** Свой вид активности, если выбрано «Другое». */
@@ -151,7 +152,11 @@ export function NewWorkoutScreen({ onClose, onSave, showAlert }: Props) {
   const [inputFocused, setInputFocused] = useState(false);
   const showKeyboardBar = inputFocused;
 
-  const [type, setType] = useState<WorkoutCategoryId | "">("");
+  const [types, setTypes] = useState<WorkoutCategoryId[]>([]);
+  const otherSelected = types.includes("other");
+  const toggleType = useCallback((id: WorkoutCategoryId) => {
+    setTypes((prev) => (prev.includes(id) ? prev.filter((t) => t !== id) : [...prev, id]));
+  }, []);
   const [min, setMin] = useState(15);
   const [minDraft, setMinDraft] = useState("15");
   const [intensity, setIntensity] = useState<1 | 2 | 3 | 4 | 5>(3);
@@ -183,30 +188,30 @@ export function NewWorkoutScreen({ onClose, onSave, showAlert }: Props) {
   // При выборе «Другое» сразу ставим фокус в поле своего типа и подматываем его
   // над клавиатурой — иначе оно появляется под клавиатурой и не видно, куда вводить.
   useEffect(() => {
-    if (type !== "other") return;
+    if (!otherSelected) return;
     const el = otherInputRef.current;
     if (!el) return;
     el.focus({ preventScroll: true });
     window.setTimeout(nudgeActiveIntoView, 180);
-  }, [type, nudgeActiveIntoView]);
+  }, [otherSelected, nudgeActiveIntoView]);
 
   const handleSubmit = useCallback(async () => {
     if (busy) return;
-    if (!type) {
+    if (types.length === 0) {
       (showAlert ?? window.alert)("Выбери тип тренировки.");
       return;
     }
-    if (type === "other" && !otherLabel.trim()) {
+    if (otherSelected && !otherLabel.trim()) {
       (showAlert ?? window.alert)("Укажи свой тип активности или выбери категорию из списка.");
       return;
     }
     setBusy(true);
     try {
       const r = await onSave({
-        type,
+        types,
         min,
         intensity,
-        otherLabel: type === "other" ? otherLabel.trim() : undefined,
+        otherLabel: otherSelected ? otherLabel.trim() : undefined,
         note: note.trim(),
         photo,
       });
@@ -214,7 +219,7 @@ export function NewWorkoutScreen({ onClose, onSave, showAlert }: Props) {
     } finally {
       setBusy(false);
     }
-  }, [busy, type, otherLabel, min, intensity, note, photo, onSave, onClose, showAlert]);
+  }, [busy, types, otherSelected, otherLabel, min, intensity, note, photo, onSave, onClose, showAlert]);
 
   useEffect(() => {
     let raf = 0;
@@ -348,15 +353,15 @@ export function NewWorkoutScreen({ onClose, onSave, showAlert }: Props) {
 
         <div className="nwo__upper">
           <h2 className="nwo__sec">Тип</h2>
-          <div className="nwo__types-scroll" role="group" aria-label="Тип тренировки">
+          <div className="nwo__types-scroll" role="group" aria-label="Тип тренировки (можно выбрать несколько)">
             {TYPES.map((t) => (
               <button
                 key={t.id}
                 type="button"
                 className="chip nwo__type-chip"
                 title={t.label}
-                aria-pressed={type === t.id}
-                onClick={() => setType(t.id)}
+                aria-pressed={types.includes(t.id)}
+                onClick={() => toggleType(t.id)}
               >
                 <span className="nwo__type-emoji" aria-hidden>
                   {t.emoji}
@@ -365,7 +370,7 @@ export function NewWorkoutScreen({ onClose, onSave, showAlert }: Props) {
               </button>
             ))}
           </div>
-          {type === "other" && (
+          {otherSelected && (
             <div className="nwo__other-field">
               <label className="nwo__other-label" htmlFor="nwo-other-type">
                 Свой тип

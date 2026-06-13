@@ -44,6 +44,30 @@ func TestParseTrainingDoneReport(t *testing.T) {
 	}
 }
 
+func TestParseTrainingDoneReport_multiSport(t *testing.T) {
+	// Кубки — за самый эффективный вид (макс. коэффициент): плавание (1.2) против йоги (0.8).
+	text := "йога + плавание, 30 мин, инт. 3/5"
+	d, in, cat, ok := ParseTrainingDoneReport(text)
+	if !ok || d != 30 || in != 3 || cat != "swim" {
+		t.Fatalf("got ok=%v d=%d in=%d cat=%q (want swim)", ok, d, in, cat)
+	}
+	// 30×3×1.2/5 = 21.6 → 22 кубка (за плавание), а не 14 (за йогу).
+	if got := TrainingCupsFromReportText(text); got != 22 {
+		t.Fatalf("cups=%d want 22 (best of йога/плавание)", got)
+	}
+
+	// Все виды доступны для подсказки в исходном порядке, дубли схлопнуты.
+	_, _, cats, ok := ParseTrainingDoneReportCategories("плавание + бег + плавание, 20 мин, инт. 2/5")
+	if !ok || len(cats) != 2 || cats[0] != "swim" || cats[1] != "run" {
+		t.Fatalf("categories=%v ok=%v", cats, ok)
+	}
+
+	// «+» с hiit (1.5) даёт максимум независимо от порядка.
+	if got := TrainingCupsFromReportText("ходьба + hiit, 30 мин, инт. 5/5"); got != 45 {
+		t.Fatalf("cups=%d want 45 (hiit best)", got)
+	}
+}
+
 func TestLevelFromTotalCups(t *testing.T) {
 	if LevelFromTotalCups(0) != 1 || LevelFromTotalCups(419) != 1 {
 		t.Fatal("L1")

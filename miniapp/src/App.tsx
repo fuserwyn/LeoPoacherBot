@@ -337,7 +337,7 @@ export function App() {
         <NewWorkoutScreen
           showAlert={showAlert}
           onClose={() => setWorkoutOpen(false)}
-          onSave={async ({ type, min, intensity, note, photo, otherLabel }) => {
+          onSave={async ({ types, min, intensity, note, photo, otherLabel }) => {
             if (!inTelegram || !initData) {
               showAlert("Открой мини-апп из Telegram (нужен initData).");
               return false;
@@ -361,10 +361,10 @@ export function App() {
               pole: "пилон",
               other: "другое",
             };
-            let kind = labels[type] ?? type;
-            if (type === "other" && otherLabel?.trim()) {
-              kind = otherLabel.trim();
-            }
+            // Несколько видов объединяем через « + » — бэкенд начислит кубки за самый эффективный.
+            const kind = types
+              .map((t) => (t === "other" && otherLabel?.trim() ? otherLabel.trim() : labels[t] ?? t))
+              .join(" + ");
             const base = `${kind}, ${min} мин, инт. ${intensity}/5`;
             const line = note ? `${base}\n\n${note}` : base;
             tg?.HapticFeedback?.impactOccurred?.("medium");
