@@ -1,8 +1,9 @@
 /* Полноэкранная форма. Чипы/кнопки как лента: .feed__filter-chip; заголовки секций — .section-title; кнопка — .feed__btn */
 .nwo {
-  /* Размеры подобраны так, чтобы вся форма (заметка + 17 типов + минуты +
+  /* Размеры подобраны так, чтобы вся форма (заметка + типы + минуты +
      интенсивность + кнопка) помещалась без прокрутки даже на Android, где
-     метрики шрифта шире и чипы переносятся в больше рядов. */
+     метрики шрифта шире и чипы переносятся в больше рядов. Сами типы при
+     переполнении прокручиваются внутри своего «барабана» (.nwo__types-scroll). */
   --nwo-chip-fs: 0.84rem;
   --nwo-chip-lh: 1.2;
   --nwo-chip-pad-y: 5px;
@@ -142,6 +143,37 @@
   align-content: flex-start;
   flex-shrink: 0;
   padding-bottom: 2px;
+  /* «Барабан»: типов больше, чем влезает в ~3 ряда — крутим только эту секцию,
+     а остальная форма (минуты/интенсивность/кнопка) остаётся на месте. */
+  max-height: var(--nwo-types-max-h, 96px);
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
+  /* Мягкое затухание сверху/снизу — подсказка, что секция прокручивается. */
+  -webkit-mask-image: linear-gradient(
+    to bottom,
+    transparent 0,
+    #000 8px,
+    #000 calc(100% - 8px),
+    transparent 100%
+  );
+  mask-image: linear-gradient(
+    to bottom,
+    transparent 0,
+    #000 8px,
+    #000 calc(100% - 8px),
+    transparent 100%
+  );
+  scrollbar-width: thin;
+}
+
+.nwo__types-scroll::-webkit-scrollbar {
+  width: 3px;
+}
+
+.nwo__types-scroll::-webkit-scrollbar-thumb {
+  background: var(--border-subtle, #2a2a36);
+  border-radius: 999px;
 }
 
 .nwo .nwo__type-chip {
@@ -149,8 +181,8 @@
   display: inline-flex;
   align-items: center;
   gap: 3px;
-  /* Чуть компактнее по вертикали, чтобы 17 типов (с «Пилоном») не добавляли
-     лишний ряд и форма вписывалась в экран без прокрутки. */
+  /* Компактнее по вертикали: больше типов помещается в видимые ряды «барабана»
+     (.nwo__types-scroll прокручивается, остальная форма — без скролла). */
   padding: 4px 9px;
   font: var(--nwo-mi-font);
   border-radius: 999px;

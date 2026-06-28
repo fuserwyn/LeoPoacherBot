@@ -16,6 +16,24 @@ import (
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 )
 
+// photoSubjectLogicHint — правило о том, что человек на фото не обязательно автор отчёта.
+// Автор мог снимать сам (быть за кадром), а в кадре — его спутник/попутчик или посторонний.
+// Если пол виден и не совпадает с полом автора — это точно не автор; не приписывай его
+// действия/предметы (напиток, экипировку и т.п.) автору и не путай его с автором.
+func photoSubjectLogicHint(userGender string) string {
+	base := "ЛОГИКА ФОТО: человек в кадре — НЕ обязательно автор отчёта. Автор мог фотографировать сам и быть за кадром, " +
+		"а на фото — его спутник/попутчик или посторонний. Не приписывай автору то, что делает или держит другой человек на фото " +
+		"(напиток, еду, экипировку), и не обращайся к попавшему в кадр как к автору."
+	switch strings.TrimSpace(strings.ToLower(userGender)) {
+	case "f":
+		return base + " Автор — женщина: если на фото мужчина, это точно НЕ она (скорее её спутник) — не говори, что это сделала/взяла она."
+	case "m":
+		return base + " Автор — мужчина: если на фото женщина, это точно НЕ он (скорее его спутница) — не говори, что это сделал/взял он."
+	default:
+		return base + " Если виден явный пол человека в кадре, а он не похож на автора — считай это спутником, а не автором."
+	}
+}
+
 func trainingCategoryLabelRu(categoryID string) string {
 	switch strings.TrimSpace(strings.ToLower(categoryID)) {
 	case "run":
@@ -50,6 +68,10 @@ func trainingCategoryLabelRu(categoryID string) string {
 		return "скакалка"
 	case "pole":
 		return "пилон"
+	case "rollerblade":
+		return "ролики"
+	case "basketball":
+		return "баскетбол"
 	default:
 		return "другое"
 	}
@@ -209,6 +231,7 @@ func (b *Bot) generateLeoTrainingFeedEncouragement(
 	ctxBuilder.WriteString(trainingReportSemanticHint(reportText))
 	if strings.TrimSpace(photoDesc) != "" {
 		ctxBuilder.WriteString("\nФото, приложенное к отчёту (что на нём, по данным vision — можно мягко обыграть, но не выдумывай лишнего): " + strings.TrimSpace(photoDesc) + "\n")
+		ctxBuilder.WriteString(photoSubjectLogicHint(userGender) + "\n")
 	}
 	if wrapped := moderation.WrapUserContent("training_report", moderation.TextForTrainingModeration(reportText)); wrapped != "" {
 		ctxBuilder.WriteString(wrapped)
@@ -700,6 +723,7 @@ func (b *Bot) LeoReplyInFeedThread(
 	}
 	if strings.TrimSpace(photoDesc) != "" {
 		ctxBody.WriteString("\nФото, приложенное к отчёту (по данным vision — можно обыграть, если участник про него спрашивает; не выдумывай): " + strings.TrimSpace(photoDesc) + "\n")
+		ctxBody.WriteString(photoSubjectLogicHint("") + "\n")
 	}
 	if strings.TrimSpace(commentPhotoDesc) != "" {
 		ctxBody.WriteString("\nФото, которое собеседник приложил к своему последнему комментарию (по данным vision — отреагируй на него, если он про него спрашивает; не выдумывай деталей): " + strings.TrimSpace(commentPhotoDesc) + "\n")

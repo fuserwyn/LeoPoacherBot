@@ -16,6 +16,8 @@ export type WorkoutCategoryId =
   | "strength"
   | "jump_rope"
   | "pole"
+  | "rollerblade"
+  | "basketball"
   | "other";
 
 export type WorkoutCategoryOption = { id: WorkoutCategoryId; label: string; emoji: string };
@@ -38,6 +40,8 @@ export const WORKOUT_CATEGORY_OPTIONS: WorkoutCategoryOption[] = [
   { id: "strength", label: "Силовая", emoji: "🏋️" },
   { id: "jump_rope", label: "Скакалка", emoji: "🪢" },
   { id: "pole", label: "Пилон", emoji: "🤸" },
+  { id: "rollerblade", label: "Ролики", emoji: "🛼" },
+  { id: "basketball", label: "Баскетбол", emoji: "🏀" },
   { id: "other", label: "Другое", emoji: "✨" },
 ];
 
