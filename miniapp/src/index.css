@@ -44,6 +44,9 @@
   --leo-bubble-bg: #1a2a1f;
   --leo-bubble-border: #2a4a33;
   --leo-bubble-fg: #c4e0cc;
+  --me-bubble-bg: linear-gradient(135deg, #1f6b47 0%, #2ea76e 100%);
+  --me-bubble-fg: #f2fff8;
+  --me-bubble-border: rgba(180, 240, 210, 0.35);
   --radius-sm: 12px;
   --radius-md: 16px;
   --radius-lg: 20px;
@@ -95,6 +98,9 @@
   --leo-bubble-bg: #e7f4ec;
   --leo-bubble-border: rgba(46, 167, 110, 0.3);
   --leo-bubble-fg: #245d44;
+  --me-bubble-bg: linear-gradient(135deg, #cdeede 0%, #b3e4ca 100%);
+  --me-bubble-fg: #1f5d40;
+  --me-bubble-border: rgba(46, 167, 110, 0.3);
 }
 
 *,

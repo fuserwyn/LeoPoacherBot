@@ -354,7 +354,7 @@ html.app-keyboard-open .packroom {
 .packroom__more-toggle:hover:not(:disabled),
 .packroom__more-toggle:focus-visible,
 .packroom__more-toggle--open {
-  color: rgba(220, 220, 235, 0.98);
+  color: var(--text);
 }
 
 .packroom__more-toggle:disabled {
@@ -504,10 +504,10 @@ html.app-keyboard-open .packroom {
 }
 
 .packroom__row--me .packroom__bubble {
-  background: linear-gradient(135deg, #1f6b47 0%, #2ea76e 100%);
-  color: #f2fff8;
-  border: 1px solid rgba(180, 240, 210, 0.35);
-  box-shadow: 0 2px 14px rgba(46, 167, 110, 0.38);
+  background: var(--me-bubble-bg);
+  color: var(--me-bubble-fg);
+  border: 1px solid var(--me-bubble-border);
+  box-shadow: var(--shadow-card);
   border-bottom-right-radius: 6px;
 }
 
@@ -597,7 +597,7 @@ html.app-keyboard-open .packroom {
 }
 
 .packroom__row--me .packroom__quote {
-  border-left-color: rgba(210, 255, 230, 0.75);
+  border-left-color: rgba(46, 167, 110, 0.6);
   background: var(--fill-soft);
 }
 
@@ -610,21 +610,21 @@ html.app-keyboard-open .packroom {
   font-weight: 700;
   font-size: 12px;
   line-height: 1.25;
-  color: rgba(120, 170, 255, 0.98);
+  color: var(--text);
 }
 
 .packroom__row--me .packroom__quote-author {
-  color: rgba(220, 255, 235, 0.98);
+  color: var(--me-bubble-fg);
 }
 
 .packroom__row--leo .packroom__quote-author {
-  color: rgba(140, 220, 170, 0.98);
+  color: var(--leo-bubble-fg);
 }
 
 .packroom__quote-text {
   display: block;
   line-height: 1.35;
-  color: rgba(220, 220, 235, 0.82);
+  color: var(--text-muted);
   white-space: pre-wrap;
   overflow-wrap: anywhere;
   word-break: break-word;
@@ -632,7 +632,7 @@ html.app-keyboard-open .packroom {
 }
 
 .packroom__row--me .packroom__quote-text {
-  color: rgba(240, 255, 248, 0.88);
+  color: var(--me-bubble-fg);
 }
 
 .packroom__quote-text--muted {
