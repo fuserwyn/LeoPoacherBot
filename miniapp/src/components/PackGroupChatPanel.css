@@ -53,8 +53,8 @@
   gap: 8px;
   padding: 7px 10px;
   border-radius: 12px;
-  background: rgba(255, 255, 255, 0.05);
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: var(--fill-soft);
+  border: 1px solid var(--fill-strong);
 }
 
 .packroom__search-ico {
@@ -75,7 +75,7 @@
 }
 
 .packroom__search-input::placeholder {
-  color: rgba(255, 255, 255, 0.4);
+  color: var(--text-muted);
 }
 
 .packroom__search-btn {
@@ -86,7 +86,7 @@
   height: 26px;
   border-radius: 8px;
   border: none;
-  background: rgba(255, 255, 255, 0.08);
+  background: var(--fill-strong);
   color: inherit;
   font-size: 11px;
   line-height: 1;
@@ -107,7 +107,7 @@
   background: var(--card, #14141c);
   border: 1px solid var(--border-subtle, #2a2a36);
   border-radius: 12px;
-  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.45);
+  box-shadow: var(--shadow-pop);
   padding: 4px;
 }
 
@@ -141,7 +141,7 @@
 }
 
 .packroom__search-result:hover {
-  background: rgba(255, 255, 255, 0.06);
+  background: var(--fill-soft);
 }
 
 .packroom__search-result--old {
@@ -372,7 +372,7 @@ html.app-keyboard-open .packroom {
   background: var(--card, #14141c);
   border: 1px solid var(--border-subtle, #2a2a36);
   border-radius: 12px;
-  box-shadow: 0 10px 32px rgba(0, 0, 0, 0.45);
+  box-shadow: var(--shadow-pop);
   touch-action: pan-y;
 }
 
@@ -417,7 +417,7 @@ html.app-keyboard-open .packroom {
 
 .packroom__more-item:hover,
 .packroom__more-item:focus-visible {
-  background: rgba(255, 255, 255, 0.06);
+  background: var(--fill-soft);
 }
 
 .packroom__react-chips {
@@ -490,16 +490,16 @@ html.app-keyboard-open .packroom {
 }
 
 .packroom__row--leo .packroom__bubble {
-  background: #1a2a1f;
-  border: 1px solid #2a4a33;
-  color: #c4e0cc;
+  background: var(--leo-bubble-bg);
+  border: 1px solid var(--leo-bubble-border);
+  color: var(--leo-bubble-fg);
   border-bottom-left-radius: 6px;
 }
 
 .packroom__row--oth .packroom__bubble {
-  background: #1a1a24;
-  border: 1px solid #2a2a36;
-  color: #c8c8d4;
+  background: var(--card-inner);
+  border: 1px solid var(--border-subtle);
+  color: var(--text);
   border-bottom-left-radius: 6px;
 }
 
@@ -579,7 +579,7 @@ html.app-keyboard-open .packroom {
   border-radius: 8px;
   border: none;
   border-left: 3px solid rgba(90, 140, 255, 0.7);
-  background: rgba(0, 0, 0, 0.22);
+  background: var(--fill-strong);
   font: inherit;
   font-size: 12px;
   max-width: 100%;
@@ -598,7 +598,7 @@ html.app-keyboard-open .packroom {
 
 .packroom__row--me .packroom__quote {
   border-left-color: rgba(210, 255, 230, 0.75);
-  background: rgba(0, 0, 0, 0.16);
+  background: var(--fill-soft);
 }
 
 .packroom__row--leo .packroom__quote {
@@ -712,9 +712,9 @@ html.app-keyboard-open .packroom__form {
   flex: 1;
   min-height: 40px;
   border-radius: 10px;
-  border: 1px solid #2a2a36;
-  background: #14141c;
-  color: #e8e8f0;
+  border: 1px solid var(--border-subtle);
+  background: var(--card);
+  color: var(--text);
   padding: 0 10px;
   font-size: 0.9rem;
   box-sizing: border-box;
@@ -755,9 +755,9 @@ html.app-keyboard-open .packroom__form {
   height: 40px;
   flex-shrink: 0;
   border-radius: 10px;
-  border: 1px solid #2a2a36;
-  background: #14141c;
-  color: #e8e8f0;
+  border: 1px solid var(--border-subtle);
+  background: var(--card);
+  color: var(--text);
   font-size: 1.1rem;
   cursor: pointer;
   display: flex;
@@ -775,8 +775,8 @@ html.app-keyboard-open .packroom__form {
   gap: 8px;
   padding: 6px 8px;
   border-radius: 10px;
-  background: #14141c;
-  border: 1px solid #2a2a36;
+  background: var(--card);
+  border: 1px solid var(--border-subtle);
 }
 
 .packroom__photo-pending-img {
@@ -803,8 +803,8 @@ html.app-keyboard-open .packroom__form {
   height: 26px;
   border-radius: 50%;
   border: none;
-  background: rgba(255, 255, 255, 0.08);
-  color: #e8e8f0;
+  background: var(--fill-strong);
+  color: var(--text);
   cursor: pointer;
 }
 

@@ -41,6 +41,9 @@
   --pinned-bg: rgba(236, 160, 60, 0.16);
   --pinned-fg: #f2d9a0;
   --pinned-border: rgba(236, 160, 60, 0.35);
+  --leo-bubble-bg: #1a2a1f;
+  --leo-bubble-border: #2a4a33;
+  --leo-bubble-fg: #c4e0cc;
   --radius-sm: 12px;
   --radius-md: 16px;
   --radius-lg: 20px;
@@ -89,6 +92,9 @@
   --pinned-bg: rgba(236, 160, 60, 0.16);
   --pinned-fg: #8a5a12;
   --pinned-border: rgba(236, 160, 60, 0.35);
+  --leo-bubble-bg: #e7f4ec;
+  --leo-bubble-border: rgba(46, 167, 110, 0.3);
+  --leo-bubble-fg: #245d44;
 }
 
 *,
