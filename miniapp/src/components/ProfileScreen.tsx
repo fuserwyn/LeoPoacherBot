@@ -3,6 +3,7 @@ import { STREAK_ACHIEVEMENTS, WORKOUT_ACHIEVEMENTS, workoutsWordRu } from "../li
 import { inactivityHighlight } from "../lib/inactivityHighlight";
 import { cupsLevelProgressBarPct, formatCupsLevelProgressLabel, miniappCupsLevelProgress, miniappLevelFromCups, miniappLevelName } from "../lib/miniappLevel";
 import { effectiveStreakDays, streakBurnLabel } from "../lib/streakLabel";
+import { getStoredTheme, setTheme, type ThemeMode } from "../lib/theme";
 import "./ProfileScreen.css";
 
 const api = (import.meta.env.VITE_MINIAPP_API_URL as string | undefined)?.replace(/\/$/, "") ?? "";
@@ -78,6 +79,11 @@ export function ProfileScreen({
   active = true,
 }: Props) {
   const [cups, setCups] = useState(xp);
+  const [theme, setThemeState] = useState<ThemeMode>(() => getStoredTheme());
+  const changeTheme = useCallback((mode: ThemeMode) => {
+    setTheme(mode);
+    setThemeState(mode);
+  }, []);
   const [profile, setProfile] = useState<ProfileData>(EMPTY_PROFILE);
   const [savedProfile, setSavedProfile] = useState<ProfileData>(EMPTY_PROFILE);
   const [profileLoading, setProfileLoading] = useState(true);
@@ -1061,6 +1067,28 @@ export function ProfileScreen({
             {profileSaving ? "Сохраняю…" : "Сохранить"}
           </button>
         )}
+      </div>
+
+      <div className="profile__theme">
+        <h2 className="section-title">Тема</h2>
+        <div className="profile__theme-seg" role="group" aria-label="Тема оформления">
+          <button
+            type="button"
+            className={`profile__theme-opt ${theme === "dark" ? "is-active" : ""}`}
+            aria-pressed={theme === "dark"}
+            onClick={() => changeTheme("dark")}
+          >
+            🌙 Тёмная
+          </button>
+          <button
+            type="button"
+            className={`profile__theme-opt ${theme === "light" ? "is-active" : ""}`}
+            aria-pressed={theme === "light"}
+            onClick={() => changeTheme("light")}
+          >
+            ☀️ Светлая
+          </button>
+        </div>
       </div>
 
       <div className="profile__support">

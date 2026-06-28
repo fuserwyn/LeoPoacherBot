@@ -186,9 +186,9 @@
   flex: 0 0 auto;
   padding: 5px 14px;
   border-radius: 999px;
-  border: 1px solid var(--border-subtle, #2a2a36);
-  background: #14141c;
-  color: var(--muted, #8b8b9a);
+  border: 1px solid var(--border-subtle);
+  background: var(--card-inner);
+  color: var(--muted);
   font-size: 0.72rem;
   font-weight: 600;
   line-height: 1.25;
@@ -199,9 +199,9 @@
 }
 
 .feed__filter-pill.is-active {
-  background: #1e2a4a;
-  color: #e8e8f0;
-  border-color: #3d5aee;
+  background: var(--tab-active-bg);
+  color: var(--tab-active-fg);
+  border-color: var(--tab-active-border);
 }
 
 .feed__filter-cats {
@@ -226,9 +226,9 @@
   flex-shrink: 0;
   padding: 5px 12px;
   border-radius: 999px;
-  border: 1px solid var(--border-subtle, #2a2a36);
-  background: #14141c;
-  color: var(--text, #e8e8f0);
+  border: 1px solid var(--border-subtle);
+  background: var(--card-inner);
+  color: var(--text);
   font-size: 0.7rem;
   font-weight: 600;
   line-height: 1.2;
@@ -240,9 +240,9 @@
 }
 
 .feed__filter-chip.is-active {
-  border-color: rgba(255, 90, 31, 0.65);
-  background: rgba(255, 90, 31, 0.12);
-  color: var(--accent, #ff7a45);
+  border-color: color-mix(in srgb, var(--accent) 55%, transparent);
+  background: var(--accent-dim);
+  color: var(--accent);
 }
 
 .feed__filter-chip-emoji {
@@ -260,18 +260,18 @@
   flex: 1;
   padding: 6px 10px;
   border-radius: 8px;
-  border: 1px solid var(--border-subtle, #2a2a36);
-  background: #14141c;
-  color: var(--muted, #8b8b9a);
+  border: 1px solid var(--border-subtle);
+  background: var(--card-inner);
+  color: var(--muted);
   font-size: 0.82rem;
   font-weight: 600;
   cursor: pointer;
 }
 
 .feed__subtab.is-active {
-  background: #1e2a4a;
-  color: #e8e8f0;
-  border-color: #3d5aee;
+  background: var(--tab-active-bg);
+  color: var(--tab-active-fg);
+  border-color: var(--tab-active-border);
 }
 
 .feed__subtab-inner {
@@ -414,7 +414,7 @@
 }
 
 .feed__err {
-  color: #e8a08a;
+  color: #c0492f;
   font-size: 0.9rem;
   margin: 0 0 10px;
 }
@@ -461,9 +461,9 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  border: 1px solid var(--border-subtle, #2a2a36);
-  background: #1a1a24;
-  color: var(--muted, #8b8b9a);
+  border: 1px solid var(--border-subtle);
+  background: var(--card);
+  color: var(--muted);
   border-radius: 8px;
   font-size: 1.1rem;
   cursor: pointer;
@@ -471,8 +471,8 @@
 }
 
 .feed__refresh-btn:not(:disabled):hover {
-  color: var(--text, #e8e8f0);
-  border-color: rgba(255, 255, 255, 0.2);
+  color: var(--text);
+  border-color: rgba(51, 48, 74, 0.25);
 }
 
 .feed__refresh-btn:disabled {

@@ -189,7 +189,7 @@
 .profile__xp-fill {
   height: 100%;
   border-radius: 999px;
-  background: linear-gradient(90deg, #ff5a1f, #ff8c4a);
+  background: linear-gradient(90deg, var(--accent), var(--accent-2));
   transition: width 0.25s ease;
 }
 
@@ -802,7 +802,7 @@
   margin-top: 4px;
   padding: 14px 20px;
   border-radius: 999px;
-  background: linear-gradient(180deg, #ff6a35, #e54a15);
+  background: linear-gradient(180deg, color-mix(in srgb, var(--accent) 88%, #ffffff 12%), var(--accent));
   color: #fff;
   font-size: 15px;
   font-weight: 700;
@@ -990,7 +990,7 @@ html.app-keyboard-open .profile__health-actions--keyboard {
 }
 
 .profile__friends-toggle.is-active {
-  background: linear-gradient(180deg, #ff6a35, #e54a15);
+  background: linear-gradient(180deg, color-mix(in srgb, var(--accent) 88%, #ffffff 12%), var(--accent));
   border-color: transparent;
   color: #fff;
 }
@@ -1075,7 +1075,7 @@ html.app-keyboard-open .profile__health-actions--keyboard {
 }
 
 .profile__friend-btn--following {
-  background: linear-gradient(180deg, #ff6a35, #e54a15);
+  background: linear-gradient(180deg, color-mix(in srgb, var(--accent) 88%, #ffffff 12%), var(--accent));
   border-color: transparent;
   color: #fff;
 }
@@ -1083,4 +1083,37 @@ html.app-keyboard-open .profile__health-actions--keyboard {
 .profile__friend-btn:disabled {
   opacity: 0.55;
   cursor: not-allowed;
+}
+
+/* Переключатель темы (работает в обеих темах — на токенах). */
+.profile__theme {
+  margin-top: 18px;
+}
+
+.profile__theme-seg {
+  display: flex;
+  gap: 6px;
+  padding: 4px;
+  border-radius: 999px;
+  background: var(--card-inner);
+  border: 1px solid var(--border-subtle);
+}
+
+.profile__theme-opt {
+  flex: 1;
+  padding: 8px 12px;
+  border-radius: 999px;
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--text-muted);
+  font-size: 0.9rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s, border-color 0.15s;
+}
+
+.profile__theme-opt.is-active {
+  background: var(--accent-dim);
+  border-color: color-mix(in srgb, var(--accent) 55%, transparent);
+  color: var(--accent);
 }

@@ -41,8 +41,8 @@
   border: 1px solid color-mix(in srgb, var(--accent) 65%, #ffffff 35%);
   background: linear-gradient(180deg, color-mix(in srgb, var(--accent) 82%, #ffffff 18%) 0%, var(--accent) 100%);
   box-shadow:
-    0 8px 18px rgba(0, 0, 0, 0.3),
-    0 0 0 1px rgba(255, 255, 255, 0.14) inset;
+    0 8px 18px color-mix(in srgb, var(--accent) 30%, transparent),
+    0 0 0 1px rgba(255, 255, 255, 0.35) inset;
   color: #ffffff;
   display: grid;
   place-items: center;

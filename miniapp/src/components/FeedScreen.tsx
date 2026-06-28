@@ -113,13 +113,75 @@ function mockFallback(streak: number, reason: MockFeedReason): ActivityCardProps
   });
   switch (reason) {
     case "no-api":
+      // Локальный предпросмотр (без бэкенда): несколько демо-записей, чтобы видеть тему.
       return [
-        card(
-          "ℹ️",
-          "Нет API",
-          "VITE_MINIAPP_API_URL",
-          "Включи URL бота в билде, чтобы тянуть реальные отчёты из чата стаи.",
-        ),
+        {
+          avatar: "🌸",
+          name: "Анна",
+          streak: 12,
+          timeAgo: "5 мин",
+          emoji: "🚴",
+          activity: "Велосипед",
+          details: "90 мин · инт. 3/5 · 20 км",
+          comment: "Доехала до фонтана и обратно, ноги горят 🔥",
+          aiText: "Анна, 20 км — серьёзный заезд. Ритм у тебя уже свой.",
+          trainingPhotoUrl: "https://picsum.photos/seed/leobike/640/420",
+          reactions: [
+            { emoji: "🔥", count: 4, me: false },
+            { emoji: "💪", count: 2, me: true },
+          ],
+        },
+        {
+          avatar: "🐯",
+          name: "Олег",
+          streak: 5,
+          timeAgo: "1 ч",
+          emoji: "🏃",
+          activity: "Бег",
+          details: "30 мин · инт. 4/5 · 5 км",
+          comment: "Утренняя пробежка перед работой.",
+          reactions: [{ emoji: "❤️", count: 7, me: false }],
+        },
+        {
+          avatar: "🧘‍♀️",
+          name: "Лена",
+          streak: 30,
+          timeAgo: "3 ч",
+          emoji: "🧘",
+          activity: "Йога",
+          details: "45 мин · инт. 2/5",
+          comment: "Растянулась, спина сказала спасибо.",
+          aiText: "Лена, 30 дней подряд — это характер. Спокойно и верно.",
+          reactions: [
+            { emoji: "🧘", count: 3, me: false },
+            { emoji: "❤️", count: 5, me: true },
+          ],
+        },
+        {
+          avatar: "🏀",
+          name: "Макс",
+          streak: 8,
+          timeAgo: "вчера",
+          emoji: "🏀",
+          activity: "Баскетбол",
+          details: "60 мин · инт. 4/5",
+          comment: "Дворовый матч 3х3, выложились полностью.",
+          reactions: [{ emoji: "🔥", count: 6, me: false }],
+        },
+        {
+          avatar: "🛼",
+          name: "Катя",
+          streak: 3,
+          timeAgo: "вчера",
+          emoji: "🛼",
+          activity: "Ролики",
+          details: "40 мин · инт. 3/5",
+          comment: "Накаталась по набережной на закате.",
+          reactions: [
+            { emoji: "😍", count: 9, me: true },
+            { emoji: "🔥", count: 2, me: false },
+          ],
+        },
       ];
     case "no-telegram":
       return [

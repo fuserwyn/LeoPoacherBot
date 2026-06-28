@@ -8,6 +8,18 @@
     />
     <meta name="theme-color" content="#0d0d12" />
     <title>Leopard</title>
+    <script>
+      /* Тема до первого кадра — без мигания. По умолчанию тёмная. */
+      (function () {
+        try {
+          var q = new URLSearchParams(location.search).get("theme");
+          var t = q === "light" || q === "dark" ? q : localStorage.getItem("leo-theme") === "light" ? "light" : "dark";
+          document.documentElement.setAttribute("data-theme", t);
+          var m = document.querySelector('meta[name="theme-color"]');
+          if (m) m.setAttribute("content", t === "light" ? "#f5f1f5" : "#0d0d12");
+        } catch (e) {}
+      })();
+    </script>
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
   </head>
   <body>

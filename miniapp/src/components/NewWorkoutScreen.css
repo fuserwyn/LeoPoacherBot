@@ -8,9 +8,9 @@
   --nwo-chip-lh: 1.2;
   --nwo-chip-pad-y: 5px;
   --nwo-chip-pad-x: 9px;
-  --nwo-chip-bg: #14141c;
-  --nwo-chip-on-border: rgba(255, 90, 31, 0.65);
-  --nwo-chip-on-bg: rgba(255, 90, 31, 0.12);
+  --nwo-chip-bg: var(--card);
+  --nwo-chip-on-border: color-mix(in srgb, var(--accent) 60%, transparent);
+  --nwo-chip-on-bg: var(--accent-dim);
   --nwo-chip-on-color: var(--accent, #ff7a45);
   --nwo-emoji-fs: 1rem;
   --nwo-mi-font: 600 var(--nwo-chip-fs) / var(--nwo-chip-lh) var(--font);
@@ -288,7 +288,7 @@
 .nwo__min-custom-input:focus {
   outline: none;
   border-color: var(--nwo-chip-on-border);
-  box-shadow: 0 0 0 1px rgba(255, 90, 31, 0.35);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent) 35%, transparent);
 }
 
 .nwo__min-custom-input::placeholder {
@@ -504,11 +504,11 @@
   width: 100%;
   padding: 12px 16px;
   border-radius: 10px;
-  border: 1px solid rgba(255, 90, 31, 0.45);
-  background: linear-gradient(180deg, #ff6a35, #e54a15);
+  border: 1px solid color-mix(in srgb, var(--accent) 45%, transparent);
+  background: linear-gradient(180deg, #e878ab, #d44f8a);
   color: #fff;
   font: 600 var(--nwo-action-fs) / var(--nwo-chip-lh) var(--font);
-  box-shadow: 0 3px 12px rgba(255, 90, 31, 0.22);
+  box-shadow: 0 3px 12px color-mix(in srgb, var(--accent) 22%, transparent);
   cursor: pointer;
 }
 
@@ -546,13 +546,13 @@
   width: 100%;
   padding: 10px 16px;
   border-radius: 10px;
-  border: 1px solid rgba(255, 90, 31, 0.45);
-  background: linear-gradient(180deg, #ff6a35, #e54a15);
+  border: 1px solid color-mix(in srgb, var(--accent) 45%, transparent);
+  background: linear-gradient(180deg, #e878ab, #d44f8a);
   color: #fff;
   font: 700 var(--nwo-action-fs) / 1.2 var(--font);
   letter-spacing: 0.04em;
   text-transform: uppercase;
-  box-shadow: 0 3px 12px rgba(255, 90, 31, 0.22);
+  box-shadow: 0 3px 12px color-mix(in srgb, var(--accent) 22%, transparent);
   cursor: pointer;
 }
 

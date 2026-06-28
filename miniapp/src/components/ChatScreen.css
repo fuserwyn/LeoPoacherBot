@@ -3,16 +3,16 @@
   padding: 10px 12px;
   font-size: 0.8rem;
   line-height: 1.4;
-  color: #e8c4a0;
-  background: #2a1f14;
-  border: 1px solid rgba(255, 160, 60, 0.35);
+  color: var(--warn-fg);
+  background: var(--warn-bg);
+  border: 1px solid var(--warn-border);
   border-radius: 10px;
 }
 
 .chat__code {
   font-size: 0.78em;
   padding: 0 4px;
-  background: #1a1210;
+  background: var(--card-inner);
   border-radius: 4px;
 }
 
@@ -42,7 +42,7 @@
   justify-content: center;
   gap: 5px;
   padding: 10px 16px 8px;
-  border-bottom: 1px solid var(--line, #24242c);
+  border-bottom: 1px solid var(--border-subtle);
   position: sticky;
   top: 0;
   background: var(--bg, #0d0d12);
@@ -65,7 +65,7 @@
   border-radius: 50%;
   object-fit: cover;
   border: 2px solid rgba(236, 72, 137, 0.35);
-  background: #1a1210;
+  background: var(--card-inner);
 }
 
 .chat__head-typing {
@@ -78,10 +78,10 @@
   min-width: 22px;
   min-height: 16px;
   padding: 2px 4px;
-  background: #1a1a24;
-  border: 1px solid #2a2a36;
+  background: var(--card-inner);
+  border: 1px solid var(--border-subtle);
   border-radius: 8px;
-  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.4);
+  box-shadow: 0 1px 4px rgba(52, 44, 71, 0.15);
 }
 
 .chat__head-typing-dots {
@@ -221,8 +221,8 @@ html.app-keyboard-open .chat {
   border-radius: 50%;
   object-fit: cover;
   flex-shrink: 0;
-  border: 1px solid #2a2a36;
-  background: #14141c;
+  border: 1px solid var(--border-subtle);
+  background: var(--card);
   align-self: flex-end;
   margin-bottom: 2px;
 }
@@ -293,9 +293,9 @@ html.app-keyboard-open .chat {
 }
 
 .chat__bubble--sys {
-  background: #1a1a24;
-  color: #c8c8d4;
-  border: 1px solid #2a2a36;
+  background: var(--card-inner);
+  color: var(--text);
+  border: 1px solid var(--border-subtle);
   border-bottom-left-radius: 4px;
 }
 
@@ -326,9 +326,9 @@ html.app-keyboard-open .chat__form {
   flex: 1;
   min-height: 44px;
   border-radius: 12px;
-  border: 1px solid #2a2a36;
-  background: #14141c;
-  color: #e8e8f0;
+  border: 1px solid var(--border-subtle);
+  background: var(--card);
+  color: var(--text);
   padding: 0 14px;
   font-size: 1rem;
   outline: none;
@@ -398,9 +398,9 @@ html.app-keyboard-open .chat__form {
   width: 44px;
   height: 44px;
   border-radius: 12px;
-  border: 1px solid #2a2a36;
-  background: #14141c;
-  color: #c8c8d4;
+  border: 1px solid var(--border-subtle);
+  background: var(--card);
+  color: var(--text);
   font-size: 1.15rem;
   cursor: pointer;
   display: flex;
@@ -420,8 +420,8 @@ html.app-keyboard-open .chat__form {
   gap: 10px;
   margin: 0 12px;
   padding: 8px 10px;
-  background: #14141c;
-  border: 1px solid #2a2a36;
+  background: var(--card);
+  border: 1px solid var(--border-subtle);
   border-radius: 12px;
 }
 
@@ -449,8 +449,8 @@ html.app-keyboard-open .chat__form {
   height: 28px;
   border-radius: 8px;
   border: none;
-  background: #2a2a36;
-  color: #e8e8f0;
+  background: var(--fill-strong);
+  color: var(--text);
   font-size: 0.85rem;
   cursor: pointer;
 }

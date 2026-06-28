@@ -45,19 +45,19 @@
 }
 
 .act-card--leo {
-  border-color: rgba(255, 90, 31, 0.35);
-  background: linear-gradient(160deg, var(--card) 0%, rgba(255, 90, 31, 0.07) 100%);
+  border-color: color-mix(in srgb, var(--accent) 35%, transparent);
+  background: linear-gradient(160deg, var(--card) 0%, color-mix(in srgb, var(--accent) 7%, transparent) 100%);
 }
 
 .act-card--light {
   background: var(--card);
-  border-color: rgba(255, 255, 255, 0.78);
-  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.08);
+  border-color: var(--border-subtle);
+  box-shadow: 0 0 0 1px var(--fill-strong);
 }
 
 .act-card--light .act-card__avatar {
-  background: rgba(255, 255, 255, 0.06);
-  border: 1px solid rgba(255, 255, 255, 0.42);
+  background: var(--fill-soft);
+  border: 1px solid var(--border-subtle);
 }
 
 .act-card__head {
@@ -118,7 +118,7 @@
   background: var(--card, #14141c);
   border: 1px solid var(--border-subtle, #2a2a36);
   border-radius: var(--radius-md, 12px);
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
+  box-shadow: var(--shadow-pop);
 }
 
 /* Портал в body: позиция задаётся useLikersPopover (не обрезается overflow треда). */
@@ -147,11 +147,11 @@
 
 .act-card__menu-item:hover,
 .act-card__menu-item:focus-visible {
-  background: rgba(255, 255, 255, 0.06);
+  background: var(--fill-soft);
 }
 
 .act-card__menu-item--danger {
-  color: #f87171;
+  color: #d6453d;
 }
 
 .act-card__avatar {
@@ -339,9 +339,9 @@
   font-size: 10px;
   font-weight: 600;
   line-height: 1.6;
-  color: #f2d9a0;
-  background: rgba(236, 160, 60, 0.16);
-  border: 1px solid rgba(236, 160, 60, 0.35);
+  color: var(--pinned-fg);
+  background: var(--pinned-bg);
+  border: 1px solid var(--pinned-border);
   border-radius: 999px;
   white-space: nowrap;
 }
@@ -385,7 +385,7 @@
   padding: 8px 12px;
   border-radius: 10px;
   border: 1px solid var(--border-subtle);
-  background: rgba(255, 255, 255, 0.04);
+  background: var(--fill-subtle);
   color: var(--text);
   text-align: left;
   font: inherit;
@@ -393,9 +393,9 @@
 }
 
 .act-card__poll-option--selected {
-  border-color: rgba(255, 255, 255, 0.92);
-  background: rgba(255, 255, 255, 0.08);
-  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.12);
+  border-color: var(--accent);
+  background: var(--fill-strong);
+  box-shadow: inset 0 0 0 1px var(--border-subtle);
 }
 
 .act-card__poll-label {
@@ -420,19 +420,19 @@
 }
 
 .act-card--light .act-card__poll-option {
-  border-color: rgba(255, 255, 255, 0.55);
+  border-color: var(--border-subtle);
 }
 
 .act-card--light .act-card__poll-option--selected {
-  border-color: rgba(255, 255, 255, 0.92);
+  border-color: var(--accent);
 }
 
 .act-card__ai {
-  background: #111118;
+  background: var(--ai-bg);
   border-radius: var(--radius-sm);
   padding: 6px 8px;
   margin-bottom: 6px;
-  border: 1px solid rgba(255, 90, 31, 0.2);
+  border: 1px solid color-mix(in srgb, var(--accent) 20%, transparent);
 }
 
 .act-card__ai-label {
@@ -490,7 +490,7 @@
   border-radius: 12px;
   background: var(--popover, #1e1f24);
   border: 1px solid var(--border-subtle);
-  box-shadow: 0 10px 26px rgba(0, 0, 0, 0.45);
+  box-shadow: var(--shadow-pop);
 }
 
 .act-card__likers-head {
@@ -550,7 +550,7 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  background: rgba(255, 255, 255, 0.1);
+  background: var(--fill-strong);
   font-size: 11px;
   font-weight: 700;
   color: var(--text-muted);
@@ -585,14 +585,14 @@
   font-size: 18px;
   line-height: 1;
   letter-spacing: 1px;
-  background: rgba(255, 255, 255, 0.08);
-  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: var(--fill-strong);
+  border: 1px solid var(--border-subtle);
   color: var(--text-muted);
   cursor: pointer;
 }
 
 .act-card__react-toggle--open {
-  border-color: rgba(255, 90, 31, 0.45);
+  border-color: color-mix(in srgb, var(--accent) 45%, transparent);
   color: var(--accent);
 }
 
@@ -610,7 +610,7 @@
   background: var(--card);
   border: 1px solid var(--border-subtle);
   border-radius: var(--radius-md);
-  box-shadow: 0 8px 28px rgba(0, 0, 0, 0.45);
+  box-shadow: var(--shadow-pop);
   -webkit-overflow-scrolling: touch;
 }
 
@@ -625,7 +625,7 @@
   font-size: 14px;
   padding: 4px 6px;
   border-radius: 999px;
-  background: rgba(255, 255, 255, 0.05);
+  background: var(--fill-soft);
   border: 1px solid transparent;
   color: inherit;
   cursor: pointer;
@@ -642,8 +642,8 @@
 }
 
 .act-card__react-btn--mine {
-  border-color: rgba(255, 90, 31, 0.55);
-  background: rgba(255, 90, 31, 0.12);
+  border-color: color-mix(in srgb, var(--accent) 55%, transparent);
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
 }
 
 .act-card__react-cnt {
@@ -698,11 +698,11 @@
 }
 
 .act-card__thread-toggle:hover {
-  background: rgba(255, 255, 255, 0.04);
+  background: var(--fill-subtle);
 }
 
 .act-card__thread-toggle--unread {
-  border-color: rgba(255, 106, 43, 0.45);
+  border-color: color-mix(in srgb, var(--accent) 45%, transparent);
 }
 
 .act-card__thread-unread-dot {
@@ -927,15 +927,15 @@
 }
 
 .act-card__thread-item--you .act-card__thread-author {
-  color: #9ee0bc;
+  color: #1f9d63;
 }
 
 .act-card__thread-item--leo .act-card__thread-author {
-  color: #ff8a50;
+  color: #d9613f;
 }
 
 .act-card__thread-item--leo {
-  background: rgba(255, 90, 31, 0.06);
+  background: color-mix(in srgb, var(--accent) 6%, transparent);
   margin: 0 -4px;
   padding: 10px 8px;
   border-radius: var(--radius-sm);
@@ -958,8 +958,8 @@
   margin: 6px 0 4px;
   padding: 8px 10px;
   border-radius: 8px;
-  border-left: 3px solid rgba(255, 90, 31, 0.55);
-  background: rgba(0, 0, 0, 0.18);
+  border-left: 3px solid color-mix(in srgb, var(--accent) 55%, transparent);
+  background: var(--fill-subtle);
   font-size: 13px;
 }
 
@@ -1053,7 +1053,7 @@
   height: 28px;
   border: none;
   border-radius: 8px;
-  background: rgba(255, 255, 255, 0.08);
+  background: var(--fill-strong);
   color: var(--text-muted);
   cursor: pointer;
   font-size: 16px;
@@ -1130,7 +1130,7 @@
   border-radius: 999px;
   border: none;
   background: var(--accent);
-  color: #111;
+  color: #fff;
   font-weight: 600;
   cursor: pointer;
 }
@@ -1192,7 +1192,7 @@
 }
 
 .act-card__thread-voice-btn--active {
-  background: rgba(255, 90, 31, 0.95);
+  background: color-mix(in srgb, var(--accent) 95%, transparent);
   color: #fff;
 }
 
@@ -1206,8 +1206,8 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  background: rgba(255, 90, 31, 0.14);
-  border: 1px solid rgba(255, 90, 31, 0.4);
+  background: color-mix(in srgb, var(--accent) 14%, transparent);
+  border: 1px solid color-mix(in srgb, var(--accent) 40%, transparent);
   font-size: 14px;
   line-height: 1;
 }
