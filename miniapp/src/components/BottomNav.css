@@ -27,10 +27,16 @@
   flex: 1;
   max-width: 76px;
   color: var(--text-muted);
-  font-size: 9px;
+  font-size: 10px;
   font-weight: 500;
   padding: 4px 0 0;
   transition: color 0.15s ease;
+}
+
+/* Эмодзи-иконки таббара: явный размер (иначе наследуют 10px подписи и мелкие). */
+.bottom-nav__icon {
+  font-size: 23px;
+  line-height: 1;
 }
 
 .bottom-nav__add {
