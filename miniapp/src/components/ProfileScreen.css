@@ -1,5 +1,5 @@
 .profile {
-  padding: 8px 16px 24px;
+  padding: 8px 16px 10px;
   max-width: 520px;
   margin: 0 auto;
 }
@@ -930,7 +930,7 @@ html.app-keyboard-open .profile__health-actions--keyboard {
 
 .profile__support {
   margin-top: 18px;
-  margin-bottom: 8px;
+  margin-bottom: 0;
 }
 
 .profile__support-btn {
