@@ -1297,6 +1297,18 @@ var Migrations = []Migration{
 		`,
 		DownSQL: ``,
 	},
+	{
+		Version:     68,
+		Description: "Снапшот кубков при удалении (cups_at_deletion) — для восстановления аккаунта админом",
+		UpSQL: `
+			ALTER TABLE training_state
+			ADD COLUMN IF NOT EXISTS cups_at_deletion INTEGER DEFAULT 0;
+		`,
+		DownSQL: `
+			ALTER TABLE training_state
+			DROP COLUMN IF EXISTS cups_at_deletion;
+		`,
+	},
 }
 
 // MigrationRecord представляет запись о выполненной миграции

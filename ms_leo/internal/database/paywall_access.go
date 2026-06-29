@@ -187,6 +187,27 @@ func (d *Database) ExpirePaywallAccessForUser(userID, monetizedChatID int64) err
 	return nil
 }
 
+// RestorePaywallAccessForUser — возвращает доступ удалённому юзеру (обратно к ExpirePaywallAccessForUser):
+// снимает протухание у его последней completed-заявки, делая доступ снова бессрочным (NULL).
+// Идемпотентно; возвращает true, если была затронута строка (был платёж и доступ восстановлен).
+func (d *Database) RestorePaywallAccessForUser(userID, monetizedChatID int64) (bool, error) {
+	const q = `
+		UPDATE paywall_access_requests
+		SET access_expires_at = NULL
+		WHERE id = (
+			SELECT id FROM paywall_access_requests
+			WHERE user_id = $1 AND monetized_chat_id = $2 AND status = 'completed'
+			ORDER BY completed_at DESC NULLS LAST, id DESC
+			LIMIT 1
+		)`
+	res, err := d.db.Exec(q, userID, monetizedChatID)
+	if err != nil {
+		return false, fmt.Errorf("restore paywall access: %w", err)
+	}
+	n, _ := res.RowsAffected()
+	return n == 1, nil
+}
+
 // SetPaywallYookassaPaymentID — сохраняет id платежа ЮKassa для опроса API, если вебхук не дошёл.
 func (d *Database) SetPaywallYookassaPaymentID(reqID int64, yookassaPaymentID string) error {
 	const q = `

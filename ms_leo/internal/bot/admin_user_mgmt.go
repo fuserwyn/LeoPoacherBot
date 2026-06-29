@@ -153,6 +153,13 @@ func (b *Bot) showAdminUserCard(chatID, targetUserID int64) {
 		rows = append(rows, tgbotapi.NewInlineKeyboardRow(
 			tgbotapi.NewInlineKeyboardButtonData("⛔️ Удалить из стаи", "admin_user_del_"+strconv.FormatInt(targetUserID, 10)),
 		))
+	} else {
+		rows = append(rows, tgbotapi.NewInlineKeyboardRow(
+			tgbotapi.NewInlineKeyboardButtonData("♻️ Вернуть с достижениями", "admin_user_restore_full_"+strconv.FormatInt(targetUserID, 10)),
+		))
+		rows = append(rows, tgbotapi.NewInlineKeyboardRow(
+			tgbotapi.NewInlineKeyboardButtonData("🆕 Вернуть с нуля", "admin_user_restore_scratch_"+strconv.FormatInt(targetUserID, 10)),
+		))
 	}
 	rows = append(rows, tgbotapi.NewInlineKeyboardRow(
 		tgbotapi.NewInlineKeyboardButtonData("📋 К списку", "admin_users_list_0"),
@@ -334,6 +341,20 @@ func (b *Bot) handleAdminUserMgmtCallback(callback *tgbotapi.CallbackQuery) bool
 		targetID, ok := parseTarget("admin_user_del_yes_")
 		if ok {
 			b.adminDeleteUser(chatID, targetID)
+		}
+		return true
+
+	case strings.HasPrefix(data, "admin_user_restore_full_"):
+		targetID, ok := parseTarget("admin_user_restore_full_")
+		if ok {
+			b.adminRestoreUser(chatID, targetID, true)
+		}
+		return true
+
+	case strings.HasPrefix(data, "admin_user_restore_scratch_"):
+		targetID, ok := parseTarget("admin_user_restore_scratch_")
+		if ok {
+			b.adminRestoreUser(chatID, targetID, false)
 		}
 		return true
 
@@ -841,6 +862,65 @@ func (b *Bot) adminDeleteUser(chatID, targetUserID int64) {
 	}
 	b.removeUser(targetUserID, packChatID, username)
 	b.api.Send(tgbotapi.NewMessage(chatID, fmt.Sprintf("✅ Пользователь %d удалён из стаи.", targetUserID)))
+}
+
+// adminRestoreUser возвращает удалённого Лео юзера. withProgress=true — с достижениями
+// (ачивки/рекорд сохраняются, кубки восстанавливаются из снапшота cups_at_deletion);
+// false — с нуля (как обычный возврат: ачивки и кубки обнулены). В обоих случаях возвращаем
+// доступ к мини-аппу, делаем чистый старт таймера неактивности и обновляем меню-кнопку.
+func (b *Bot) adminRestoreUser(chatID, targetUserID int64, withProgress bool) {
+	packChatID := b.adminPackChatID()
+	if packChatID == 0 {
+		b.api.Send(tgbotapi.NewMessage(chatID, "❌ Не настроен MonetizedChatID."))
+		return
+	}
+	ml, err := b.db.GetMessageLogAnyState(targetUserID, packChatID)
+	if err != nil || ml == nil {
+		b.api.Send(tgbotapi.NewMessage(chatID, "❌ Пользователь не найден."))
+		return
+	}
+	if !ml.IsDeleted {
+		b.api.Send(tgbotapi.NewMessage(chatID, "ℹ️ Пользователь уже активен в стае."))
+		b.showAdminUserCard(chatID, targetUserID)
+		return
+	}
+	username := strings.TrimSpace(ml.Username)
+	if username == "" {
+		username = fmt.Sprintf("User%d", targetUserID)
+	}
+
+	var restored bool
+	if withProgress {
+		restored, err = b.db.RestoreDeletedUserWithProgress(targetUserID, packChatID, ml.Username)
+	} else {
+		restored, err = b.db.ReactivateReturnedUser(targetUserID, packChatID, ml.Username)
+	}
+	if err != nil {
+		b.api.Send(tgbotapi.NewMessage(chatID, "❌ Ошибка восстановления: "+err.Error()))
+		return
+	}
+	if !restored {
+		b.api.Send(tgbotapi.NewMessage(chatID, "❌ Не удалось восстановить (нет записи пользователя)."))
+		return
+	}
+
+	// Возвращаем доступ к мини-аппу (обратно к ExpirePaywallAccessForUser при удалении).
+	if _, accErr := b.db.RestorePaywallAccessForUser(targetUserID, packChatID); accErr != nil {
+		b.logger.Warnf("admin restore: restore paywall access user=%d: %v", targetUserID, accErr)
+	}
+	// Чистый старт таймера неактивности (RestoreDeletedUserWithProgress/ReactivateReturnedUser
+	// выставили timer_start_time = NULL — startTimer пишет NOW и регистрирует дни 5/6/7/8).
+	b.startTimer(targetUserID, packChatID, username)
+	// Кикнутому скрывали web_app-кнопку — форсируем её обратно.
+	invalidateMiniappMenuButtonCache(targetUserID)
+	b.applyMiniappMenuButtonForUser(targetUserID)
+
+	mode := "с нуля"
+	if withProgress {
+		mode = "с достижениями"
+	}
+	b.api.Send(tgbotapi.NewMessage(chatID, fmt.Sprintf("✅ Пользователь %d восстановлен в стае (%s). Доступ возвращён, таймер неактивности запущен заново.", targetUserID, mode)))
+	b.showAdminUserCard(chatID, targetUserID)
 }
 
 func (b *Bot) adminDeleteMessageByRef(ref string) (bool, string) {

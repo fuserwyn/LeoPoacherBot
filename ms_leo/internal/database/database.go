@@ -522,12 +522,15 @@ func (d *Database) CountUsersWithCups(chatID int64, minCups int) (int, error) {
 func (d *Database) MarkUserAsDeleted(userID, chatID int64) error {
 	// cups_earned = 0: кубки сгорают при удалении из стаи (per правил).
 	// streak_days = 0: стрик сбрасывается. max_streak_days — пожизненный рекорд, не трогаем.
+	// cups_at_deletion = старые cups_earned (RHS считается по старым значениям) — снапшот для
+	// восстановления аккаунта админом «с достижениями». achievement_count тоже не трогаем.
 	query := `
 		UPDATE training_state
-		SET is_deleted  = TRUE,
-		    cups_earned = 0,
-		    streak_days = 0,
-		    updated_at  = $3
+		SET is_deleted       = TRUE,
+		    cups_at_deletion = cups_earned,
+		    cups_earned      = 0,
+		    streak_days      = 0,
+		    updated_at       = $3
 		WHERE user_id = $1 AND chat_id = $2
 	`
 	moscowTime := utils.FormatMoscowTime(utils.GetMoscowTime())
@@ -617,6 +620,39 @@ func (d *Database) ReactivateReturnedUser(userID, chatID int64, username string)
 		return false, err
 	}
 	return true, nil
+}
+
+// RestoreDeletedUserWithProgress — админ-восстановление удалённого юзера «с достижениями»:
+// в отличие от ReactivateReturnedUser, НЕ обнуляет achievement_count и возвращает кубки из
+// снапшота cups_at_deletion (max_streak_days и так пожизненный). Текущий стрик — с нуля
+// (его надо набрать заново), таймер — чистый старт (его выставит startTimer). Возвращает
+// false, если активной (или удалённой) записи юзера в чате нет.
+func (d *Database) RestoreDeletedUserWithProgress(userID, chatID int64, username string) (bool, error) {
+	const q = `
+		UPDATE training_state
+		SET is_deleted        = FALSE,
+		    cups_earned       = GREATEST(cups_earned, COALESCE(cups_at_deletion, 0)),
+		    streak_days       = 0,
+		    has_training_done = FALSE,
+		    has_sick_leave    = FALSE,
+		    has_healthy       = FALSE,
+		    sick_leave_start_time = NULL,
+		    sick_leave_end_time   = NULL,
+		    sick_time         = NULL,
+		    timer_start_time  = NULL,
+		    returned_at       = (NOW() AT TIME ZONE 'Europe/Moscow'),
+		    return_count      = COALESCE(return_count, 0) + 1,
+		    username          = CASE WHEN NULLIF($3, '') IS NULL THEN username ELSE $3 END,
+		    updated_at        = $4
+		WHERE user_id = $1 AND chat_id = $2
+	`
+	now := utils.FormatMoscowTime(utils.GetMoscowTime())
+	res, err := d.db.Exec(q, userID, chatID, strings.TrimSpace(username), now)
+	if err != nil {
+		return false, err
+	}
+	n, _ := res.RowsAffected()
+	return n == 1, nil
 }
 
 func (d *Database) GetUserReturnCount(userID, chatID int64) (int, error) {
