@@ -641,12 +641,6 @@ export function ProfileScreen({
             <div className="stat-card__label">Дней подряд</div>
             <div className="stat-card__val">{displayStreak}</div>
           </div>
-          {burnLabel ? (
-            <div className="stat-card__burn" title={`Стрик ${burnLabel}`}>
-              {/* Неразрывный пробел между числом и единицей — чтобы «4 ч» не разрывалось «ч» на новую строку. */}
-              🔥 {burnLabel.replace(/ (ч|мин|день|дня|дней)(?=\s|$)/g, " $1")}
-            </div>
-          ) : null}
         </div>
         <div
           className={`stat-card${
@@ -665,6 +659,12 @@ export function ProfileScreen({
           <div className="stat-card__val">{workouts}</div>
         </div>
       </div>
+
+      {burnLabel ? (
+        <div className="profile__burn" title={`Стрик ${burnLabel}`}>
+          🔥 {burnLabel}
+        </div>
+      ) : null}
 
       <h2 className="section-title">Друзья по стае</h2>
       <div className="profile__friends">
