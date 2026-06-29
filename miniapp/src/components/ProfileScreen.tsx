@@ -643,7 +643,8 @@ export function ProfileScreen({
           </div>
           {burnLabel ? (
             <div className="stat-card__burn" title={`Стрик ${burnLabel}`}>
-              🔥 {burnLabel}
+              {/* Неразрывный пробел между числом и единицей — чтобы «4 ч» не разрывалось «ч» на новую строку. */}
+              🔥 {burnLabel.replace(/ (ч|мин|день|дня|дней)(?=\s|$)/g, " $1")}
             </div>
           ) : null}
         </div>

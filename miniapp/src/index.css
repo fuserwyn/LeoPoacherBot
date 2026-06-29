@@ -134,7 +134,10 @@ body {
 #root {
   max-width: 100vw;
   overflow-x: clip;
-  padding-bottom: calc(88px + var(--safe-bottom));
+  /* Резервируем ровно высоту таббара (её публикует BottomNav в --bottom-nav-h,
+     уже с учётом safe-area), иначе при изменении высоты таббара появлялся зазор
+     между контентом и таббаром. Фоллбэк до замера — прежние 88px + safe. */
+  padding-bottom: var(--bottom-nav-h, calc(88px + var(--safe-bottom)));
 }
 
 /* При вводе текста: таббар на bottom:0, не поднимается с клавиатурой (скрыт за ней). */
