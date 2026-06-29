@@ -597,7 +597,7 @@ html.app-keyboard-open .packroom {
 }
 
 .packroom__row--me .packroom__quote {
-  border-left-color: rgba(46, 167, 110, 0.6);
+  border-left-color: rgba(255, 255, 255, 0.55);
   background: var(--fill-soft);
 }
 
