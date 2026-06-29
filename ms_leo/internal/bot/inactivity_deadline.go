@@ -76,5 +76,16 @@ func inactivityKickDeadline(ml *domain.MessageLog, now time.Time) (time.Time, bo
 		return grace, true
 	}
 
+	// Защита от рассинхрона флагов больничного (легаси-импорт с обоими флагами,
+	// has_healthy без end_time и т.п.): если по данным юзер «вышел из больничного»,
+	// но корректный дедлайн не посчитался, НЕ кикаем мгновенно по старому D0 —
+	// даём грейс минимум до ближайшей полуночи после now.
+	if ml.HasHealthy && ml.SickLeaveStartTime != nil {
+		grace := nextCalendarMidnightAfterMoscow(now)
+		if D0.Before(grace) {
+			return grace, true
+		}
+	}
+
 	return D0, true
 }

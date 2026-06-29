@@ -535,6 +535,27 @@ func (d *Database) MarkUserAsDeleted(userID, chatID int64) error {
 	return err
 }
 
+// ClearSickLeaveStateOnTraining — любая тренировка снимает больничный и сбрасывает таймер
+// неактивности «начисто». Без этого тренировка во время больничного не сбрасывала флаги
+// (has_sick_leave/has_healthy/sick_*), состояние рассинхронизировалось и inactivityKickDeadline
+// уходил в фоллбэк со старым (прошедшим) дедлайном → юзера кикало сразу по возвращении.
+// timer_start_time здесь НЕ трогаем — его выставляет startTimer (NOW) в обработчике тренировки.
+func (d *Database) ClearSickLeaveStateOnTraining(userID, chatID int64) error {
+	const query = `
+		UPDATE training_state
+		SET has_sick_leave        = FALSE,
+		    has_healthy           = FALSE,
+		    sick_leave_start_time = NULL,
+		    sick_leave_end_time   = NULL,
+		    sick_time             = NULL,
+		    updated_at            = $3
+		WHERE user_id = $1 AND chat_id = $2
+	`
+	moscowTime := utils.FormatMoscowTime(utils.GetMoscowTime())
+	_, err := d.db.Exec(query, userID, chatID, moscowTime)
+	return err
+}
+
 // LogDeletionEvent пишет событие удаления пользователя и статус доставки DM.
 func (d *Database) LogDeletionEvent(userID, chatID int64, dmStatus, errorText string) error {
 	const query = `

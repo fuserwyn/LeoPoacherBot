@@ -3,7 +3,62 @@ package bot
 import (
 	"testing"
 	"time"
+
+	"leo-bot/internal/domain"
+	"leo-bot/internal/utils"
 )
+
+// Баг-сценарий: остаток 3 дня на старте больничного, болел месяц, вышел через #healthy
+// → должно остаться ~3 дня (а раньше из-за рассинхрона флагов кикало сразу).
+func TestInactivityKickDeadline_SickLeaveLeftoverPreserved(t *testing.T) {
+	moscow := time.FixedZone("MSK", 3*3600)
+	lastTraining := time.Date(2026, 6, 1, 12, 0, 0, 0, moscow)
+	d0 := removalDeadlineLocal(lastTraining, 0)        // 9 июня 00:00 MSK
+	sickStart := d0.Add(-3 * 24 * time.Hour)           // остаток = 3 дня
+	sickEnd := sickStart.Add(30 * 24 * time.Hour)      // болел месяц
+	now := sickEnd.Add(time.Minute)                    // только что #healthy
+
+	ml := &domain.MessageLog{
+		TimerStartTime:           strPtr(utils.FormatMoscowTime(lastTraining)),
+		TimezoneOffsetFromMoscow: 0,
+		HasSickLeave:             false,
+		HasHealthy:               true,
+		SickLeaveStartTime:       strPtr(utils.FormatMoscowTime(sickStart)),
+		SickLeaveEndTime:         strPtr(utils.FormatMoscowTime(sickEnd)),
+	}
+	deadline, ok := inactivityKickDeadline(ml, now)
+	if !ok {
+		t.Fatal("expected ok=true")
+	}
+	remaining := deadline.Sub(now)
+	if remaining < 2*24*time.Hour || remaining > 4*24*time.Hour {
+		t.Errorf("expected ~3 days remaining after recovery, got %v", remaining)
+	}
+}
+
+// Рассинхрон флагов (легаси-импорт ставит оба флага, end_time нет) не должен давать
+// мгновенный кик по старому дедлайну — защитный грейс до ближайшей полуночи.
+func TestInactivityKickDeadline_InconsistentFlagsNoImmediateKick(t *testing.T) {
+	moscow := time.FixedZone("MSK", 3*3600)
+	lastTraining := time.Date(2026, 5, 1, 12, 0, 0, 0, moscow) // D0 давно в прошлом
+	sickStart := time.Date(2026, 5, 5, 12, 0, 0, 0, moscow)
+	now := time.Date(2026, 6, 1, 10, 0, 0, 0, moscow)
+
+	ml := &domain.MessageLog{
+		TimerStartTime:     strPtr(utils.FormatMoscowTime(lastTraining)),
+		HasSickLeave:       true, // оба флага — рассинхрон
+		HasHealthy:         true,
+		SickLeaveStartTime: strPtr(utils.FormatMoscowTime(sickStart)),
+		SickLeaveEndTime:   nil,
+	}
+	deadline, ok := inactivityKickDeadline(ml, now)
+	if !ok {
+		t.Fatal("expected ok=true")
+	}
+	if !deadline.After(now) {
+		t.Errorf("expected future grace deadline, got %v (now %v) — immediate-kick regression", deadline, now)
+	}
+}
 
 func TestRemovalDeadlineLocal(t *testing.T) {
 	moscowLoc := time.FixedZone("MSK", 3*3600)

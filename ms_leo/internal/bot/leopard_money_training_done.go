@@ -296,6 +296,13 @@ func (b *Bot) handleLeopardMoneyTrainingDone(msg *tgbotapi.Message, personalRepl
 	packChatID := b.kickChatIDForMessage(msg)
 	b.startTimer(msg.From.ID, packChatID, username)
 
+	// Любая тренировка снимает больничный «начисто» и даёт свежее окно неактивности
+	// (startTimer уже выставил timer_start = NOW). Без этого тренировка во время больничного
+	// не сбрасывала флаги — состояние рассинхронизировалось и юзера кикало по возвращении.
+	if err := b.db.ClearSickLeaveStateOnTraining(msg.From.ID, packChatID); err != nil {
+		b.logger.Errorf("Failed to clear sick leave state on training: %v", err)
+	}
+
 	messageLog, err := b.db.GetMessageLog(msg.From.ID, packChatID)
 	if err != nil {
 		b.logger.Errorf("Failed to get message log: %v", err)
