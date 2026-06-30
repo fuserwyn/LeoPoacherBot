@@ -1309,6 +1309,18 @@ var Migrations = []Migration{
 			DROP COLUMN IF EXISTS cups_at_deletion;
 		`,
 	},
+	{
+		Version:     69,
+		Description: "Причина скрытия поста (hidden_reason) — разделение «удалено админом» / «скрыто по жалобе»",
+		UpSQL: `
+			ALTER TABLE user_messages
+			ADD COLUMN IF NOT EXISTS hidden_reason TEXT;
+		`,
+		DownSQL: `
+			ALTER TABLE user_messages
+			DROP COLUMN IF EXISTS hidden_reason;
+		`,
+	},
 }
 
 // MigrationRecord представляет запись о выполненной миграции

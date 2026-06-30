@@ -551,14 +551,16 @@ func (d *Database) AdminDeletePackGroupMessage(packChatID, messageID int64) (boo
 }
 
 // AdminHideFeedUserMessage — soft hide поста ленты (остаётся в БД для аудита).
-func (d *Database) AdminHideFeedUserMessage(packChatID, messageID int64) (bool, error) {
+// reason различает бакеты в админ-инбоксе: "admin_delete" (удалил админ кнопкой)
+// или "report" (скрыто по жалобе). Пустой reason — без явной категории (легаси).
+func (d *Database) AdminHideFeedUserMessage(packChatID, messageID int64, reason string) (bool, error) {
 	if packChatID == 0 || messageID == 0 {
 		return false, nil
 	}
 	res, err := d.db.Exec(
-		`UPDATE user_messages SET is_hidden = TRUE
+		`UPDATE user_messages SET is_hidden = TRUE, hidden_reason = NULLIF($3, '')
 		  WHERE id = $1 AND chat_id = $2 AND COALESCE(is_hidden, FALSE) = FALSE`,
-		messageID, packChatID,
+		messageID, packChatID, strings.TrimSpace(reason),
 	)
 	if err != nil {
 		return false, fmt.Errorf("hide user_message: %w", err)
@@ -646,6 +648,8 @@ type HiddenModerationItem struct {
 	AuthorName   string
 	Text         string
 	CreatedAt    time.Time
+	// Reason — причина скрытия поста: "admin_delete" / "report" / "" (легаси/прочее).
+	Reason string
 }
 
 // CountHiddenModerationItems — сколько постов/комментов/сообщений чата скрыто в стае.
@@ -676,7 +680,7 @@ func (d *Database) ListHiddenModerationItems(packChatID int64, limit int) ([]Hid
 		limit = 20
 	}
 	const q = `
-		SELECT kind, id, parent_id, author_user_id, author_name, text, created_at FROM (
+		SELECT kind, id, parent_id, author_user_id, author_name, text, created_at, reason FROM (
 			SELECT
 				'feed_post'::text AS kind,
 				um.id,
@@ -684,7 +688,8 @@ func (d *Database) ListHiddenModerationItems(packChatID int64, limit int) ([]Hid
 				um.user_id AS author_user_id,
 				COALESCE(NULLIF(BTRIM(p.display_name), ''), NULLIF(BTRIM(um.username), ''), '') AS author_name,
 				um.message_text AS text,
-				um.created_at
+				um.created_at,
+				COALESCE(um.hidden_reason, '') AS reason
 			FROM user_messages um
 			LEFT JOIN miniapp_user_profile p
 				ON p.user_id = um.user_id AND p.pack_chat_id = um.chat_id
@@ -697,7 +702,8 @@ func (d *Database) ListHiddenModerationItems(packChatID int64, limit int) ([]Hid
 				t.from_user_id,
 				COALESCE(NULLIF(BTRIM(t.username), ''), ''),
 				t.message_text,
-				t.created_at
+				t.created_at,
+				''::text
 			FROM miniapp_training_feed_thread t
 			WHERE t.pack_chat_id = $1 AND t.is_hidden = TRUE
 			UNION ALL
@@ -708,7 +714,8 @@ func (d *Database) ListHiddenModerationItems(packChatID int64, limit int) ([]Hid
 				c.from_user_id,
 				COALESCE(NULLIF(BTRIM(c.username), ''), ''),
 				c.message_text,
-				c.created_at
+				c.created_at,
+				''::text
 			FROM miniapp_pack_group_chat c
 			WHERE c.pack_chat_id = $1 AND c.is_hidden = TRUE
 		) hidden
@@ -723,7 +730,7 @@ func (d *Database) ListHiddenModerationItems(packChatID int64, limit int) ([]Hid
 	for rows.Next() {
 		var item HiddenModerationItem
 		if err := rows.Scan(
-			&item.Kind, &item.ID, &item.ParentID, &item.AuthorUserID, &item.AuthorName, &item.Text, &item.CreatedAt,
+			&item.Kind, &item.ID, &item.ParentID, &item.AuthorUserID, &item.AuthorName, &item.Text, &item.CreatedAt, &item.Reason,
 		); err != nil {
 			return nil, err
 		}
@@ -744,7 +751,7 @@ func (d *Database) AdminUnhideFeedUserMessage(packChatID, messageID int64) (bool
 		return false, nil
 	}
 	res, err := d.db.Exec(
-		`UPDATE user_messages SET is_hidden = FALSE
+		`UPDATE user_messages SET is_hidden = FALSE, hidden_reason = NULL
 		 WHERE id = $1 AND chat_id = $2 AND is_hidden = TRUE`,
 		messageID, packChatID,
 	)

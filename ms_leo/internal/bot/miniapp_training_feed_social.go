@@ -755,7 +755,7 @@ func (b *Bot) PackFeedAdminHidePost(viewerUserID int64, initD initdata.InitData,
 	if chatID == 0 {
 		return ErrTrainingFeedParentNotFound
 	}
-	ok, err := b.db.AdminHideFeedUserMessage(chatID, userMessageID)
+	ok, err := b.db.AdminHideFeedUserMessage(chatID, userMessageID, "admin_delete")
 	if err != nil {
 		return err
 	}

@@ -1027,7 +1027,7 @@ func (b *Bot) adminHideReportedContent(chatID, reportID int64) {
 		ok, err = b.db.AdminHideTrainingFeedThreadReply(packChatID, item.ThreadReplyID)
 		label = fmt.Sprintf("комментарий t%d", item.ThreadReplyID)
 	default:
-		ok, err = b.db.AdminHideFeedUserMessage(packChatID, item.UserMessageID)
+		ok, err = b.db.AdminHideFeedUserMessage(packChatID, item.UserMessageID, "report")
 		label = fmt.Sprintf("пост #%d", item.UserMessageID)
 	}
 	if err != nil {
