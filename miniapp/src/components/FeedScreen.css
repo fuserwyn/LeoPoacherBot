@@ -480,6 +480,22 @@
   cursor: default;
 }
 
+.feed__refresh-ico {
+  display: inline-block;
+  line-height: 1;
+}
+
+.feed__refresh-btn.is-refreshing {
+  opacity: 1;
+  color: var(--accent);
+  border-color: var(--accent);
+  cursor: default;
+}
+
+.feed__refresh-btn.is-refreshing .feed__refresh-ico {
+  animation: feedPtrSpin 0.8s linear infinite;
+}
+
 /* Шире мобилки — лента занимает весь экран. На ≥1024px добавляется авто-сетка
    (2/3/4 колонки по ширине окна, минимум 420px на колонку). Mine/them различает
    зелёный border у своих — chat-сдвиг в гриде теряет смысл. */

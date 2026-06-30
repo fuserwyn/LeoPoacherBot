@@ -229,6 +229,7 @@ export function FeedScreen({
   const [feedItems, setFeedItems] = useState<PackFeedItemDTO[]>([]);
   const [useMockFeed, setUseMockFeed] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [manualRefreshing, setManualRefreshing] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const [threadDrafts, setThreadDrafts] = useState<Record<number, string>>({});
   const [threadPosting, setThreadPosting] = useState<Record<number, boolean>>({});
@@ -386,7 +387,7 @@ export function FeedScreen({
   const feedSubtabBadge = (count: number) => (count > 9 ? "9+" : count > 0 ? String(count) : null);
 
   const syncFeed = useCallback(
-    async (opts?: { full?: boolean; silent?: boolean; reset?: boolean }) => {
+    async (opts?: { full?: boolean; silent?: boolean; reset?: boolean; force?: boolean }) => {
       if (!apiBase || !inTelegram || !initData) {
         setLoading(false);
         setUseMockFeed(true);
@@ -400,7 +401,8 @@ export function FeedScreen({
       const sinceId = full ? 0 : maxFeedIdRef.current;
       // Дедуп: если полный синк уже выполняется, новый полный синк пропускаем
       // (защищает от двойного fetch на маунте и наложения поллинга/пост-экшн-синков).
-      if (full && fullSyncInFlightRef.current) return;
+      // force=true — ручное обновление по кнопке: дедуп игнорируем, чтобы клик всегда срабатывал.
+      if (full && !opts?.force && fullSyncInFlightRef.current) return;
       if (full) fullSyncInFlightRef.current = true;
       if (!opts?.silent) setErr(null);
       if (!opts?.silent && !loadedOnceRef.current) setLoading(true);
@@ -1421,19 +1423,29 @@ export function FeedScreen({
             {apiBase && inTelegram && initData && (
               <button
                 type="button"
-                className="feed__refresh-btn"
-                disabled={loading}
-                onClick={() => {
+                className={`feed__refresh-btn${manualRefreshing ? " is-refreshing" : ""}`}
+                disabled={loading || manualRefreshing}
+                onClick={async () => {
+                  if (manualRefreshing) return;
+                  setManualRefreshing(true);
                   window.scrollTo({ top: 0, behavior: "smooth" });
                   maxFeedIdRef.current = 0;
                   minFeedIdRef.current = 0;
                   setHasMoreOlder(true);
-                  void syncFeed({ full: true, reset: true });
+                  try {
+                    // force=true — игнорируем дедуп фоновых синков, чтобы клик всегда обновлял.
+                    await syncFeed({ full: true, reset: true, force: true });
+                    onRefreshAll?.();
+                  } finally {
+                    setManualRefreshing(false);
+                  }
                 }}
                 aria-label="Обновить ленту"
                 title="Обновить"
               >
-                {loading ? "…" : "↻"}
+                <span className="feed__refresh-ico" aria-hidden>
+                  ↻
+                </span>
               </button>
             )}
           </div>
