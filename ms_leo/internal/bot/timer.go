@@ -111,6 +111,18 @@ func (b *Bot) removeUser(userID, chatID int64, username string) {
 		return
 	}
 
+	// Защита от устаревшего removal-таймера: если дедлайн уже отодвинут (тренировка,
+	// возврат через админку, выход с больничного — всё сбрасывает timer_start = NOW),
+	// НЕ удаляем. Иначе ранее запланированный goroutine, не успевший отмениться через
+	// cancelTimer, добивал бы только что восстановленного/вернувшегося юзера.
+	if ml, mlErr := b.db.GetMessageLog(userID, chatID); mlErr == nil && ml != nil {
+		if !ml.IsDeleted && b.calculateRemainingTime(ml) > 0 {
+			b.logger.Infof("User %d (%s) not overdue anymore (timer was reset), cancelling removal", userID, username)
+			b.cancelTimer(userID)
+			return
+		}
+	}
+
 	dmStatus := "dm_skipped"
 	dmErrorText := ""
 	if chatID != userID {

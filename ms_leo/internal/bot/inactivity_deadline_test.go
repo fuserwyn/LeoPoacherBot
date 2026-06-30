@@ -120,3 +120,50 @@ func TestRemovalDeadlineLocal(t *testing.T) {
 		})
 	}
 }
+
+// Активный больничный «замораживает» остаток: сколько бы ни шло время болезни,
+// до кика остаётся столько же, сколько было на старте больничного (здесь ~3 дня).
+func TestInactivityKickDeadline_ActiveSickLeaveFreezesRemaining(t *testing.T) {
+	moscow := time.FixedZone("MSK", 3*3600)
+	lastTraining := time.Date(2026, 6, 1, 12, 0, 0, 0, moscow)
+	d0 := removalDeadlineLocal(lastTraining, 0)
+	sickStart := d0.Add(-3 * 24 * time.Hour) // остаток 3 дня на старте больничного
+
+	ml := &domain.MessageLog{
+		TimerStartTime:     strPtr(utils.FormatMoscowTime(lastTraining)),
+		HasSickLeave:       true,
+		HasHealthy:         false,
+		SickLeaveStartTime: strPtr(utils.FormatMoscowTime(sickStart)),
+	}
+	for _, daysSick := range []int{10, 40, 90} {
+		now := sickStart.Add(time.Duration(daysSick) * 24 * time.Hour)
+		dl, ok := inactivityKickDeadline(ml, now)
+		if !ok {
+			t.Fatalf("expected ok at day %d", daysSick)
+		}
+		remaining := dl.Sub(now)
+		if remaining < 2*24*time.Hour || remaining > 4*24*time.Hour {
+			t.Errorf("day %d: expected ~3 days frozen remaining, got %v", daysSick, remaining)
+		}
+	}
+}
+
+// Свежевосстановленный (через админку) или вернувшийся юзер: timer_start = NOW, флаги
+// больничного сняты → должно быть полноценное недельное окно, а не мгновенный кик.
+func TestInactivityKickDeadline_RestoredUserHasFreshWindow(t *testing.T) {
+	moscow := time.FixedZone("MSK", 3*3600)
+	now := time.Date(2026, 6, 10, 12, 0, 0, 0, moscow)
+
+	ml := &domain.MessageLog{
+		TimerStartTime: strPtr(utils.FormatMoscowTime(now)),
+		HasSickLeave:   false,
+		HasHealthy:     false,
+	}
+	dl, ok := inactivityKickDeadline(ml, now)
+	if !ok {
+		t.Fatal("expected ok=true")
+	}
+	if remaining := dl.Sub(now); remaining < 6*24*time.Hour {
+		t.Errorf("restored user must get a fresh ~week window, got %v", remaining)
+	}
+}
