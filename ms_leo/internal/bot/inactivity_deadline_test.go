@@ -167,3 +167,51 @@ func TestInactivityKickDeadline_RestoredUserHasFreshWindow(t *testing.T) {
 		t.Errorf("restored user must get a fresh ~week window, got %v", remaining)
 	}
 }
+
+// Сценарий: тренировка 1 июля, 4 июля больничный (остаток заморожен), 7 июля выход —
+// после #healthy остаток такой же, как на момент взятия больничного; дедлайн сдвигается на дни болезни.
+func TestInactivityKickDeadline_SickLeaveFrozenThenRecover_JulyScenario(t *testing.T) {
+	moscow := time.FixedZone("MSK", 3*3600)
+	lastTraining := time.Date(2026, 7, 1, 12, 0, 0, 0, moscow)
+	d0 := removalDeadlineLocal(lastTraining, 0) // 9 июля 00:00 MSK
+	sickStart := time.Date(2026, 7, 4, 12, 0, 0, 0, moscow)
+	sickEnd := time.Date(2026, 7, 7, 12, 0, 0, 0, moscow) // 4 дня на больничном
+	now := sickEnd.Add(time.Minute)
+
+	frozenAtSickStart := d0.Sub(sickStart)
+
+	mlActive := &domain.MessageLog{
+		TimerStartTime:     strPtr(utils.FormatMoscowTime(lastTraining)),
+		HasSickLeave:       true,
+		HasHealthy:         false,
+		SickLeaveStartTime: strPtr(utils.FormatMoscowTime(sickStart)),
+	}
+	dlActive, ok := inactivityKickDeadline(mlActive, sickStart.Add(48*time.Hour))
+	if !ok {
+		t.Fatal("active sick: expected ok")
+	}
+	if rem := dlActive.Sub(sickStart.Add(48 * time.Hour)); rem < frozenAtSickStart-time.Hour || rem > frozenAtSickStart+time.Hour {
+		t.Errorf("on sick leave remaining should stay frozen ~%v, got %v", frozenAtSickStart, rem)
+	}
+
+	mlRecovered := &domain.MessageLog{
+		TimerStartTime:       strPtr(utils.FormatMoscowTime(lastTraining)),
+		HasSickLeave:         false,
+		HasHealthy:           true,
+		SickLeaveStartTime:   strPtr(utils.FormatMoscowTime(sickStart)),
+		SickLeaveEndTime:     strPtr(utils.FormatMoscowTime(sickEnd)),
+		TimezoneOffsetFromMoscow: 0,
+	}
+	deadline, ok := inactivityKickDeadline(mlRecovered, now)
+	if !ok {
+		t.Fatal("after recovery: expected ok")
+	}
+	remainingAfter := deadline.Sub(now)
+	if remainingAfter < frozenAtSickStart-time.Hour || remainingAfter > frozenAtSickStart+time.Hour {
+		t.Errorf("after recovery want frozen remaining ~%v, got %v", frozenAtSickStart, remainingAfter)
+	}
+	wantDeadline := sickEnd.Add(frozenAtSickStart)
+	if deadline.Sub(wantDeadline) > time.Hour || wantDeadline.Sub(deadline) > time.Hour {
+		t.Errorf("deadline %v, want ~%v (выход + замороженный остаток)", deadline, wantDeadline)
+	}
+}

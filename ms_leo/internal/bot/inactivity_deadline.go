@@ -59,7 +59,7 @@ func inactivityKickDeadline(ml *domain.MessageLog, now time.Time) (time.Time, bo
 		return D0.Add(now.Sub(sickStart)), true
 	}
 
-	// После #healthy: сдвиг на длительность больничного и минимум до ближайшей полуночи после выхода.
+	// После #healthy: дедлайн = D₀ + длительность больничного (= момент выхода + остаток на старте больничного).
 	if ml.SickLeaveStartTime != nil && ml.SickLeaveEndTime != nil && ml.HasHealthy {
 		sickStart, e1 := utils.ParseMoscowTime(*ml.SickLeaveStartTime)
 		sickEnd, e2 := utils.ParseMoscowTime(*ml.SickLeaveEndTime)
@@ -69,7 +69,11 @@ func inactivityKickDeadline(ml *domain.MessageLog, now time.Time) (time.Time, bo
 		if timerStart.After(sickEnd) {
 			return D0, true
 		}
-		shifted := D0.Add(sickEnd.Sub(sickStart))
+		frozenRemaining := D0.Sub(sickStart)
+		if frozenRemaining < 0 {
+			frozenRemaining = 0
+		}
+		shifted := sickEnd.Add(frozenRemaining)
 		grace := nextCalendarMidnightAfterMoscow(sickEnd)
 		if shifted.After(grace) {
 			return shifted, true

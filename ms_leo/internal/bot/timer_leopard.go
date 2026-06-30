@@ -71,7 +71,8 @@ func (b *Bot) startTimerWithDuration(userID, chatID int64, username string, _ ti
 		b.logger.Errorf("parse timer start: %v", err)
 		return
 	}
-	b.scheduleLeopardMilestones(userID, chatID, username, timerStart, tzOffset, ch72, ch48, ch24, chRem)
+	removalAt := removalDeadlineLocal(timerStart, tzOffset)
+	b.scheduleLeopardMilestones(userID, chatID, username, removalAt, tzOffset, ch72, ch48, ch24, chRem)
 	b.logger.Infof("Started Leopard inactive chain for user %d (%s) from %s", userID, username, timerStartTime)
 }
 
@@ -100,14 +101,17 @@ func (b *Bot) restoreTimerWithDuration(userID, chatID int64, username string, re
 		b.logger.Errorf("restore timer parse: %v", err)
 		return
 	}
-	b.scheduleLeopardMilestones(userID, chatID, username, timerStart, tzOffsetFromMoscow, ch72, ch48, ch24, chRem)
-	b.logger.Infof("Restored Leopard inactive chain for user %d (%s), remaining until removal ~ %v", userID, username, remaining)
+	// Абсолютный дедлайн кика: now + remaining (учитывает заморозку на больничном и сдвиг после #healthy).
+	// Нельзя брать removalDeadlineLocal(timerStart) — это старый D₀ без паузы болезни.
+	now := utils.GetMoscowTime()
+	removalAt := now.Add(remaining)
+	b.scheduleLeopardMilestones(userID, chatID, username, removalAt, tzOffsetFromMoscow, ch72, ch48, ch24, chRem)
+	b.logger.Infof("Restored Leopard inactive chain for user %d (%s), removal at %s (~%v left, training anchor %s)", userID, username, removalAt.Format(time.RFC3339), remaining, timerStart.Format(time.RFC3339))
 }
 
-func (b *Bot) scheduleLeopardMilestones(userID, chatID int64, username string, timerStart time.Time, tzOffsetFromMoscow int, ch72, ch48, ch24, chRem chan bool) {
+func (b *Bot) scheduleLeopardMilestones(userID, chatID int64, username string, removalAt time.Time, tzOffsetFromMoscow int, ch72, ch48, ch24, chRem chan bool) {
 	now := utils.GetMoscowTime()
 	loc := userLocalLoc(tzOffsetFromMoscow)
-	removalAt := removalDeadlineLocal(timerStart, tzOffsetFromMoscow)
 	type milestone struct {
 		at      time.Time
 		ch      chan bool
