@@ -1,6 +1,7 @@
 package bot
 
 import (
+	"strings"
 	"time"
 
 	"leo-bot/internal/domain"
@@ -88,4 +89,38 @@ func inactivityKickDeadline(ml *domain.MessageLog, now time.Time) (time.Time, bo
 	}
 
 	return D0, true
+}
+
+// formatInactivityRemovalSummary — остаток до кика и локальный дедлайн (как в профиле мини-аппа).
+func (b *Bot) formatInactivityRemovalSummary(ml *domain.MessageLog) (remaining time.Duration, remainingText, deadlineLocal string) {
+	if b == nil || ml == nil {
+		return 0, "", ""
+	}
+	remaining = b.calculateRemainingTime(ml)
+	remainingText = b.formatDurationToDays(remaining)
+	now := utils.GetMoscowTime()
+	if dl, ok := inactivityKickDeadline(ml, now); ok && remaining > 0 {
+		loc := userLocalLoc(ml.TimezoneOffsetFromMoscow)
+		deadlineLocal = dl.In(loc).Format("02.01.2006, 15:04")
+	}
+	return remaining, remainingText, deadlineLocal
+}
+
+func sickLeaveRemovalNotice(remainingText, deadlineLocal string, afterRecovery bool) string {
+	var b strings.Builder
+	if afterRecovery {
+		b.WriteString("⏳ До удаления осталось: ")
+	} else {
+		b.WriteString("⏳ До удаления: ")
+	}
+	b.WriteString(remainingText)
+	if !afterRecovery {
+		b.WriteString(" — столько останется после выздоровления")
+	}
+	if deadlineLocal != "" {
+		b.WriteString("\n📅 Крайний срок: ")
+		b.WriteString(deadlineLocal)
+		b.WriteString(" (твоё время)")
+	}
+	return b.String()
 }

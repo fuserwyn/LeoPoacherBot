@@ -25,7 +25,9 @@ func (b *Bot) handleSickLeave(msg *tgbotapi.Message) {
 	}
 
 	if messageLog.HasSickLeave {
-		infoText := "✅ У тебя уже активен больничный. Отдыхай и возвращайся, когда восстановишься."
+		_, remainingText, deadlineLocal := b.formatInactivityRemovalSummary(messageLog)
+		infoText := "✅ У тебя уже активен больничный. Отдыхай и возвращайся, когда восстановишься.\n\n⏸️ Таймер остановлен.\n\n" +
+			sickLeaveRemovalNotice(remainingText, deadlineLocal, true)
 		b.notifyUserText(msg, infoText, "", msg.MessageID)
 		return
 	}
@@ -68,51 +70,9 @@ func (b *Bot) activateSickLeave(msg *tgbotapi.Message, messageLog *domain.Messag
 	messageLog.SickLeaveStartTime = &sickLeaveStartTime
 	b.logger.Infof("Set sick leave start time: %s", sickLeaveStartTime)
 
-	// Оставшееся до кика на момент начала больничного (дедлайн 00:00 МСК после 7×24ч + сдвиг паузы).
-	var remainingTime time.Duration
-	if messageLog.TimerStartTime != nil {
-		timerStart, err := utils.ParseMoscowTime(*messageLog.TimerStartTime)
-		if err == nil {
-			sickStart, err := utils.ParseMoscowTime(sickLeaveStartTime)
-			if err == nil {
-				deadline := removalDeadlineLocal(timerStart, messageLog.TimezoneOffsetFromMoscow)
-				remainingTime = deadline.Sub(sickStart)
-				if remainingTime <= 0 {
-					remainingTime = 0
-				}
-				b.logger.Infof("Timer start: %v, sick start: %v, removal deadline: %v, remaining time: %v", timerStart, sickStart, deadline, remainingTime)
-			} else {
-				remainingTime = 8 * 24 * time.Hour
-				b.logger.Errorf("Failed to parse sick start time: %v", err)
-			}
-		} else {
-			remainingTime = 8 * 24 * time.Hour
-			b.logger.Errorf("Failed to parse timer start time: %v", err)
-		}
-	} else {
-		remainingTime = 8 * 24 * time.Hour
-		b.logger.Warnf("Timer start time is nil, using full duration")
-	}
-
-	// Логируем рассчитанное время
-	b.logger.Infof("Calculated remaining time at sick leave start: %v", remainingTime)
-
 	// Обновляем флаги больничного
 	messageLog.HasSickLeave = true
 	messageLog.HasHealthy = false
-
-	// Добавляем подробное логирование перед сохранением
-	b.logger.Infof("Saving message log with fields:")
-	b.logger.Infof("  UserID: %d", messageLog.UserID)
-	b.logger.Infof("  ChatID: %d", messageLog.ChatID)
-	b.logger.Infof("  HasSickLeave: %t", messageLog.HasSickLeave)
-	b.logger.Infof("  HasHealthy: %t", messageLog.HasHealthy)
-	b.logger.Infof("  SickLeaveStartTime: %s", func() string {
-		if messageLog.SickLeaveStartTime != nil {
-			return *messageLog.SickLeaveStartTime
-		}
-		return "nil"
-	}())
 
 	if err := b.db.SaveMessageLog(messageLog); err != nil {
 		b.logger.Errorf("Failed to update message log: %v", err)
@@ -124,10 +84,13 @@ func (b *Bot) activateSickLeave(msg *tgbotapi.Message, messageLog *domain.Messag
 	// Отменяем существующие таймеры
 	b.cancelTimer(msg.From.ID)
 
-	// Форматируем оставшееся время
-	remainingTimeFormatted := b.formatDurationToDays(remainingTime)
+	remainingTime, remainingTimeFormatted, deadlineLocal := b.formatInactivityRemovalSummary(messageLog)
+	b.logger.Infof("Calculated remaining time at sick leave start (profile logic): %v", remainingTime)
 
-	messageText := fmt.Sprintf("🏥 Больничный принят! 🤒\n\n⏸️ Таймер приостановлен на время болезни\n\n❄️ После выздоровления останется: %s до удаления\n\n💪 Выздоравливай и возвращайся к тренировкам!\n\n📝 Когда поправишься, отправь #healthy для возобновления таймера", remainingTimeFormatted)
+	messageText := fmt.Sprintf(
+		"🏥 Больничный принят! 🤒\n\n⏸️ Таймер приостановлен на время болезни.\n\n%s\n\n💪 Выздоравливай и возвращайся к тренировкам!\n\n📝 Когда поправишься — «Выйти с больничного» в профиле или #healthy в чате.",
+		sickLeaveRemovalNotice(remainingTimeFormatted, deadlineLocal, false),
+	)
 
 	// ИИ‑приписка: пожелание выздоровления (5 предложений)
 	if b.aiClient != nil {
@@ -453,8 +416,8 @@ func (b *Bot) handleHealthy(msg *tgbotapi.Message) {
 		b.trackSickLeaveEnded(msg.From.ID, "manual") // §5: выздоровление по #healthy
 	}
 
-	// Рассчитываем оставшееся время используя исправленную функцию
-	remainingTime := b.calculateRemainingTime(messageLog)
+	// Рассчитываем оставшееся время (та же логика, что в профиле мини-аппа).
+	remainingTime, remainingTimeFormatted, deadlineLocal := b.formatInactivityRemovalSummary(messageLog)
 	b.logger.Infof("Calculated remaining time after recovery: %v", remainingTime)
 
 	// Проверяем, не истекло ли время
@@ -488,11 +451,11 @@ func (b *Bot) handleHealthy(msg *tgbotapi.Message) {
 		b.restoreTimerWithDuration(msg.From.ID, b.kickChatIDForMessage(msg), messageLog.Username, remainingTime, ts, messageLog.TimezoneOffsetFromMoscow)
 	}
 
-	// Форматируем оставшееся время
-	remainingTimeFormatted := b.formatDurationToDays(remainingTime)
-
 	// Отправляем подтверждение с информацией о времени до удаления
-	messageText := fmt.Sprintf("💪 Выздоровление принято! 🎉\n\n⏰ Таймер возобновлён с места остановки!\n\n⏳ До удаления осталось: %s", remainingTimeFormatted)
+	messageText := fmt.Sprintf(
+		"💪 Выздоровление принято! 🎉\n\n⏰ Таймер возобновлён с места остановки!\n\n%s",
+		sickLeaveRemovalNotice(remainingTimeFormatted, deadlineLocal, true),
+	)
 
 	// ИИ‑приписка: поздравление с выздоровлением (5 предложений)
 	if b.aiClient != nil {
