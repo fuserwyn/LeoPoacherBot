@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import { usePullToRefresh } from "../hooks/usePullToRefresh";
+import { tgConfirm } from "../lib/tgConfirm";
 import { ActivityCard, type ActivityCardProps } from "./ActivityCard";
 import { LEO_AVATAR_URL } from "../lib/leoAvatar";
 import { PackGroupChatPanel } from "./PackGroupChatPanel";
@@ -910,9 +911,9 @@ export function FeedScreen({
     async (userMessageId: number) => {
       if (!apiBase || !initData || !isAdmin) return;
       if (
-        !window.confirm(
-          "Скрыть эту публикацию?\n\nОна исчезнет из ленты, но админы смогут вернуть её в «Скрытое».",
-        )
+        !(await tgConfirm(
+          "Удалить публикацию из ленты?\n\nОна исчезнет у всех, но останется в админке (раздел «Скрытое») — оттуда её можно восстановить.",
+        ))
       ) {
         return;
       }
@@ -1041,11 +1042,11 @@ export function FeedScreen({
   );
 
   const confirmReportPublication = useCallback(
-    (userMessageId: number) => {
+    async (userMessageId: number) => {
       if (
-        !window.confirm(
+        !(await tgConfirm(
           "Отправить жалобу на эту публикацию?\n\nАдмины проверят её в разделе поддержки.",
-        )
+        ))
       ) {
         return;
       }
@@ -1055,11 +1056,11 @@ export function FeedScreen({
   );
 
   const confirmReportComment = useCallback(
-    (userMessageId: number, threadReplyId: number) => {
+    async (userMessageId: number, threadReplyId: number) => {
       if (
-        !window.confirm(
+        !(await tgConfirm(
           "Отправить жалобу на этот комментарий?\n\nАдмины проверят его в разделе поддержки.",
-        )
+        ))
       ) {
         return;
       }
