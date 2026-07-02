@@ -876,6 +876,50 @@
   min-height: 88px;
 }
 
+.act-card__post-edit-photo {
+  margin-top: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.act-card__post-edit-photo-img {
+  width: 100%;
+  max-height: 220px;
+  object-fit: cover;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border-subtle);
+}
+
+.act-card__post-edit-photo-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.act-card__post-edit-photo-btn,
+.act-card__post-edit-photo-remove {
+  padding: 6px 12px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border-subtle);
+  font: inherit;
+  cursor: pointer;
+  background: var(--surface-elevated);
+  color: var(--text);
+}
+
+.act-card__post-edit-photo-remove {
+  color: var(--danger, #e5484d);
+  border-color: transparent;
+  background: transparent;
+}
+
+.act-card__post-edit-photo-btn--disabled,
+.act-card__post-edit-photo-remove:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
 .act-card__post-edit-actions {
   display: flex;
   justify-content: flex-end;

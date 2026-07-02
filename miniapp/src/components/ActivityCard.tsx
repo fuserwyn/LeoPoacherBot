@@ -114,6 +114,14 @@ export type ActivityCardPostEdit = {
   onSave: () => void;
   onCancel: () => void;
   posting: boolean;
+  /** Текущее фото поста (готовый URL), если прикреплено. */
+  photoUrl?: string;
+  /** Прикрепить/заменить фото поста. */
+  onAttachPhoto?: (file: File) => void;
+  /** Удалить фото поста. */
+  onRemovePhoto?: () => void;
+  /** Идёт загрузка/удаление фото. */
+  photoBusy?: boolean;
 };
 
 /** Минимум реакций в строке до кнопки «⋯», если типов больше (остальное — в попапе); строка может переноситься (flex-wrap). */
@@ -726,6 +734,41 @@ export function ActivityCard({
               maxLength={4000}
               disabled={postEdit.posting}
             />
+            {(postEdit.onAttachPhoto || postEdit.photoUrl) && (
+              <div className="act-card__post-edit-photo">
+                {postEdit.photoUrl ? (
+                  <img className="act-card__post-edit-photo-img" src={postEdit.photoUrl} alt="" referrerPolicy="no-referrer" />
+                ) : null}
+                <div className="act-card__post-edit-photo-actions">
+                  {postEdit.onAttachPhoto && (
+                    <label className={`act-card__post-edit-photo-btn${postEdit.photoBusy || postEdit.posting ? " act-card__post-edit-photo-btn--disabled" : ""}`}>
+                      {postEdit.photoBusy ? "…" : postEdit.photoUrl ? "Заменить фото" : "Добавить фото"}
+                      <input
+                        type="file"
+                        accept="image/*"
+                        hidden
+                        disabled={postEdit.photoBusy || postEdit.posting}
+                        onChange={(e) => {
+                          const f = e.target.files?.[0];
+                          e.target.value = "";
+                          if (f) postEdit.onAttachPhoto?.(f);
+                        }}
+                      />
+                    </label>
+                  )}
+                  {postEdit.photoUrl && postEdit.onRemovePhoto && (
+                    <button
+                      type="button"
+                      className="act-card__post-edit-photo-remove"
+                      disabled={postEdit.photoBusy || postEdit.posting}
+                      onClick={() => postEdit.onRemovePhoto?.()}
+                    >
+                      Удалить фото
+                    </button>
+                  )}
+                </div>
+              </div>
+            )}
             <div className="act-card__post-edit-actions">
               <button type="button" className="act-card__post-edit-cancel" disabled={postEdit.posting} onClick={postEdit.onCancel}>
                 Отмена

@@ -242,6 +242,7 @@ export function FeedScreen({
   const [postEditId, setPostEditId] = useState<number | null>(null);
   const [postEditDrafts, setPostEditDrafts] = useState<Record<number, string>>({});
   const [postEditPosting, setPostEditPosting] = useState<Record<number, boolean>>({});
+  const [postPhotoBusy, setPostPhotoBusy] = useState<Record<number, boolean>>({});
   const [threadEditTargets, setThreadEditTargets] = useState<
     Record<number, { threadReplyId: number; originalText: string } | undefined>
   >({});
@@ -799,6 +800,83 @@ export function FeedScreen({
       }
     },
     [apiBase, initData, postEditDrafts, showAlert, syncFeed],
+  );
+
+  const setFeedPostPhoto = useCallback(
+    async (item: PackFeedItemDTO, file: File) => {
+      if (!apiBase || !initData) return;
+      setPostPhotoBusy((p) => ({ ...p, [item.id]: true }));
+      try {
+        const fd = new FormData();
+        fd.append("init_data", initData);
+        fd.append("user_message_id", String(item.id));
+        fd.append("photo", file);
+        const res = await fetch(`${apiBase}/api/miniapp/feed/photo`, { method: "POST", body: fd });
+        const j = (await res.json().catch(() => ({}))) as { error?: string; message?: string; photo_url?: string };
+        if (!res.ok) {
+          if (isModerationError(j.error)) {
+            showAlert(moderationUserMessage(j.error, j.message));
+            return;
+          }
+          const errMap: Record<string, string> = {
+            photo_too_large: "Фото слишком большое (до 6 МБ)",
+            unsupported_image: "Формат фото не поддерживается",
+            missing_photo: "Выбери фото",
+            invalid_multipart: "Не удалось прочитать фото — попробуй ещё раз",
+            not_found: "Пост не найден (обнови ленту)",
+            forbidden: "Нет доступа",
+            chat_mismatch: "Открой мини-апп из чата стаи",
+            feed_photo_error: "Не удалось сохранить фото",
+          };
+          showAlert(errMap[j.error ?? ""] ?? j.error ?? `Ошибка ${res.status}`);
+          return;
+        }
+        setFeedItems((prev) =>
+          prev.map((it) => (it.id === item.id ? { ...it, training_photo_url: j.photo_url } : it)),
+        );
+        await syncFeed({ full: true, silent: true });
+      } catch (e) {
+        showAlert(e instanceof Error ? e.message : "Сеть");
+      } finally {
+        setPostPhotoBusy((p) => ({ ...p, [item.id]: false }));
+      }
+    },
+    [apiBase, initData, showAlert, syncFeed],
+  );
+
+  const removeFeedPostPhoto = useCallback(
+    async (item: PackFeedItemDTO) => {
+      if (!apiBase || !initData) return;
+      if (!(await tgConfirm("Удалить фото из поста?"))) return;
+      setPostPhotoBusy((p) => ({ ...p, [item.id]: true }));
+      try {
+        const res = await fetch(`${apiBase}/api/miniapp/feed/photo/delete`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ init_data: initData, user_message_id: item.id }),
+        });
+        const j = (await res.json().catch(() => ({}))) as { error?: string };
+        if (!res.ok) {
+          const errMap: Record<string, string> = {
+            not_found: "Пост не найден (обнови ленту)",
+            forbidden: "Нет доступа",
+            chat_mismatch: "Открой мини-апп из чата стаи",
+            feed_photo_error: "Не удалось удалить фото",
+          };
+          showAlert(errMap[j.error ?? ""] ?? j.error ?? `Ошибка ${res.status}`);
+          return;
+        }
+        setFeedItems((prev) =>
+          prev.map((it) => (it.id === item.id ? { ...it, training_photo_url: undefined } : it)),
+        );
+        await syncFeed({ full: true, silent: true });
+      } catch (e) {
+        showAlert(e instanceof Error ? e.message : "Сеть");
+      } finally {
+        setPostPhotoBusy((p) => ({ ...p, [item.id]: false }));
+      }
+    },
+    [apiBase, initData, showAlert, syncFeed],
   );
 
   const editTrainingThreadReply = useCallback(
@@ -1580,6 +1658,12 @@ export function FeedScreen({
                                 });
                               },
                               posting: postEditPosting[it.id] ?? false,
+                              photoUrl: resolveTrainingPhotoUrl(it.training_photo_url),
+                              onAttachPhoto: (file: File) => void setFeedPostPhoto(it, file),
+                              onRemovePhoto: it.training_photo_url
+                                ? () => void removeFeedPostPhoto(it)
+                                : undefined,
+                              photoBusy: postPhotoBusy[it.id] ?? false,
                             },
                           }
                         : {}),

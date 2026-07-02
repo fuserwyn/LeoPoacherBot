@@ -29,6 +29,27 @@ func (d *Database) UpdateUserMessageTextByAuthor(messageID, chatID, actorUserID 
 	return n > 0, nil
 }
 
+// UpdateUserMessagePhotoURLByAuthor — прикрепить/заменить/удалить (пустая строка) фото своего поста
+// ленты (training_done / healthy). Пустой URL пишет NULL (фото убрано). edited_at не трогаем — это не правка текста.
+func (d *Database) UpdateUserMessagePhotoURLByAuthor(messageID, chatID, actorUserID int64, photoURL string) (bool, error) {
+	if messageID == 0 || chatID == 0 || actorUserID == 0 {
+		return false, nil
+	}
+	res, err := d.db.Exec(
+		`UPDATE user_messages
+		 SET training_photo_url = NULLIF($4, '')
+		 WHERE id = $1 AND chat_id = $2 AND user_id = $3
+		   AND COALESCE(is_hidden, FALSE) = FALSE
+		   AND message_type IN ('training_done', 'healthy')`,
+		messageID, chatID, actorUserID, photoURL,
+	)
+	if err != nil {
+		return false, err
+	}
+	n, _ := res.RowsAffected()
+	return n > 0, nil
+}
+
 // GetTrainingPhotoURLByMessageID возвращает URL фото тренировки поста ленты (пусто, если фото нет).
 // Нужен, чтобы удалить объект из хранилища при удалении поста.
 func (d *Database) GetTrainingPhotoURLByMessageID(chatID, messageID int64) (string, error) {

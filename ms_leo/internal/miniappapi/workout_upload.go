@@ -1,6 +1,7 @@
 package miniappapi
 
 import (
+	"context"
 	"crypto/rand"
 	"encoding/hex"
 	"encoding/json"
@@ -418,6 +419,163 @@ func (s *Server) handlePostPackGroupMessageWithPhoto(w http.ResponseWriter, r *h
 		out["reply_text"] = miniRes.ReplyText
 	}
 	_ = json.NewEncoder(w).Encode(out)
+}
+
+// deleteStoredPhotoBestEffort удаляет объект фото из хранилища (R2 или локальный диск) по публичному URL.
+// Best-effort: чужие/легаси-ссылки и ошибки только логируются.
+func (s *Server) deleteStoredPhotoBestEffort(ctx context.Context, rawURL string) {
+	rawURL = strings.TrimSpace(rawURL)
+	if rawURL == "" {
+		return
+	}
+	if s.r2 != nil {
+		if err := s.r2.DeleteByURL(ctx, rawURL); err != nil {
+			s.logger.Warnf("delete feed photo (r2): %v", err)
+		}
+		return
+	}
+	if s.mediaDirAbsolute == "" {
+		return
+	}
+	idx := strings.Index(rawURL, miniappMediaPathSegment)
+	if idx < 0 {
+		return
+	}
+	base := filepath.Base(rawURL[idx+len(miniappMediaPathSegment):])
+	if base == "" || base == "." || strings.Contains(base, "..") || strings.ContainsAny(base, "/?#") {
+		return
+	}
+	if err := os.Remove(filepath.Join(s.mediaDirAbsolute, base)); err != nil && !os.IsNotExist(err) {
+		s.logger.Warnf("delete feed photo (disk): %v", err)
+	}
+}
+
+const miniappMediaPathSegment = "/api/miniapp/media/"
+
+// writeFeedPhotoError отображает ошибку правки фото поста в HTTP-статус/код.
+func (s *Server) writeFeedPhotoError(w http.ResponseWriter, err error) {
+	switch {
+	case errors.Is(err, bot.ErrMiniAppChatMismatch):
+		s.jsonErr(w, http.StatusConflict, "chat_mismatch")
+	case errors.Is(err, bot.ErrTrainingFeedSocialForbidden):
+		s.jsonErr(w, http.StatusForbidden, "forbidden")
+	case errors.Is(err, bot.ErrTrainingFeedThreadEmpty):
+		s.jsonErr(w, http.StatusBadRequest, "missing_photo")
+	case errors.Is(err, bot.ErrTrainingFeedParentNotFound):
+		s.jsonErr(w, http.StatusNotFound, "not_found")
+	default:
+		s.logger.Errorf("feed photo: %v", err)
+		s.jsonErr(w, http.StatusInternalServerError, "feed_photo_error")
+	}
+}
+
+// handlePostFeedPhoto — прикрепить или заменить фото своего поста ленты (multipart: init_data, user_message_id, photo).
+func (s *Server) handlePostFeedPhoto(w http.ResponseWriter, r *http.Request) {
+	corsWriteHeaders(w, r)
+	if s.bot == nil || s.token == "" {
+		s.jsonErr(w, http.StatusServiceUnavailable, "server_unavailable")
+		return
+	}
+	if err := r.ParseMultipartForm(maxWorkoutPhotoBytes + 65536); err != nil {
+		s.jsonErr(w, http.StatusBadRequest, "invalid_multipart")
+		return
+	}
+	initD := strings.TrimSpace(r.FormValue("init_data"))
+	if initD == "" {
+		s.jsonErr(w, http.StatusBadRequest, "missing_init_data")
+		return
+	}
+	var userMessageID int64
+	if v := strings.TrimSpace(r.FormValue("user_message_id")); v != "" {
+		userMessageID, _ = strconv.ParseInt(v, 10, 64)
+	}
+	if userMessageID == 0 {
+		s.jsonErr(w, http.StatusBadRequest, "missing_user_message_id")
+		return
+	}
+	if err := initdata.Validate(initD, s.token, 24*time.Hour); err != nil {
+		s.logger.Warnf("miniapp feed photo init_data invalid: %v", err)
+		s.jsonErr(w, http.StatusUnauthorized, "invalid_init_data")
+		return
+	}
+	parsed, err := initdata.Parse(initD)
+	if err != nil || parsed.User.ID == 0 {
+		s.jsonErr(w, http.StatusBadRequest, "parse_init_data")
+		return
+	}
+	fs := r.MultipartForm.File["photo"]
+	if len(fs) == 0 {
+		s.jsonErr(w, http.StatusBadRequest, "missing_photo")
+		return
+	}
+	file, err := fs[0].Open()
+	if err != nil {
+		s.jsonErr(w, http.StatusBadRequest, "photo_open_error")
+		return
+	}
+	defer file.Close()
+
+	publicURL, ok := s.storeUploadedPhoto(w, r, file)
+	if !ok {
+		return
+	}
+	oldPhotoURL, perr := s.bot.PackFeedPostSetPhoto(parsed.User.ID, parsed, userMessageID, publicURL)
+	if perr != nil {
+		// Пост не обновился — прибираем только что загруженный объект, чтобы не копить мусор.
+		s.deleteStoredPhotoBestEffort(r.Context(), publicURL)
+		s.writeFeedPhotoError(w, perr)
+		return
+	}
+	if oldPhotoURL != "" {
+		s.deleteStoredPhotoBestEffort(r.Context(), oldPhotoURL)
+	}
+	w.Header().Set("Content-Type", "application/json; charset=utf-8")
+	_ = json.NewEncoder(w).Encode(map[string]any{"ok": true, "photo_url": publicURL})
+}
+
+// handlePostFeedPhotoDelete — удалить фото своего поста ленты (JSON: init_data, user_message_id).
+func (s *Server) handlePostFeedPhotoDelete(w http.ResponseWriter, r *http.Request) {
+	corsWriteHeaders(w, r)
+	if s.bot == nil || s.token == "" {
+		s.jsonErr(w, http.StatusServiceUnavailable, "server_unavailable")
+		return
+	}
+	var body struct {
+		InitData      string `json:"init_data"`
+		UserMessageID int64  `json:"user_message_id"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		s.jsonErr(w, http.StatusBadRequest, "invalid_json")
+		return
+	}
+	if body.InitData == "" {
+		s.jsonErr(w, http.StatusBadRequest, "missing_init_data")
+		return
+	}
+	if body.UserMessageID == 0 {
+		s.jsonErr(w, http.StatusBadRequest, "missing_user_message_id")
+		return
+	}
+	if err := initdata.Validate(body.InitData, s.token, 24*time.Hour); err != nil {
+		s.logger.Warnf("miniapp feed photo delete init_data invalid: %v", err)
+		s.jsonErr(w, http.StatusUnauthorized, "invalid_init_data")
+		return
+	}
+	parsed, err := initdata.Parse(body.InitData)
+	if err != nil || parsed.User.ID == 0 {
+		s.jsonErr(w, http.StatusBadRequest, "parse_init_data")
+		return
+	}
+	oldPhotoURL, perr := s.bot.PackFeedPostDeletePhoto(parsed.User.ID, parsed, body.UserMessageID)
+	if perr != nil {
+		s.writeFeedPhotoError(w, perr)
+		return
+	}
+	if oldPhotoURL != "" {
+		s.deleteStoredPhotoBestEffort(r.Context(), oldPhotoURL)
+	}
+	w.Header().Set("Content-Type", "application/json; charset=utf-8")
+	_ = json.NewEncoder(w).Encode(map[string]any{"ok": true})
 }
 
 func (s *Server) handleGetMiniappMedia(w http.ResponseWriter, r *http.Request) {

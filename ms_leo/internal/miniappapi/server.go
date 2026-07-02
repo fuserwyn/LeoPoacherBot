@@ -83,6 +83,10 @@ func (s *Server) serve(w http.ResponseWriter, r *http.Request) {
 		s.handlePostFeedEdit(w, r)
 	case path == "/api/miniapp/feed/delete" && r.Method == http.MethodPost:
 		s.handlePostFeedDelete(w, r)
+	case path == "/api/miniapp/feed/photo" && r.Method == http.MethodPost:
+		s.handlePostFeedPhoto(w, r)
+	case path == "/api/miniapp/feed/photo/delete" && r.Method == http.MethodPost:
+		s.handlePostFeedPhotoDelete(w, r)
 	case path == "/api/miniapp/feed/pin" && r.Method == http.MethodPost:
 		s.handlePostFeedPin(w, r)
 	case path == "/api/miniapp/feed/training/thread/like" && r.Method == http.MethodPost:

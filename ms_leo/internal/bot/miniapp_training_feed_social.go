@@ -531,6 +531,56 @@ func (b *Bot) PackFeedPostEdit(viewerUserID int64, initD initdata.InitData, user
 	return nil
 }
 
+// PackFeedPostSetPhoto — прикрепить/заменить фото своего поста ленты (training_done / healthy).
+// Возвращает URL прежнего фото (пусто, если его не было или оно совпадает) — вызывающий слой удалит его из хранилища.
+func (b *Bot) PackFeedPostSetPhoto(viewerUserID int64, initD initdata.InitData, userMessageID int64, newPhotoURL string) (oldPhotoURL string, err error) {
+	newPhotoURL = strings.TrimSpace(newPhotoURL)
+	if newPhotoURL == "" {
+		return "", ErrTrainingFeedThreadEmpty
+	}
+	return b.packFeedPostUpdatePhoto(viewerUserID, initD, userMessageID, newPhotoURL)
+}
+
+// PackFeedPostDeletePhoto — удалить фото своего поста ленты. Возвращает URL удалённого фото (для очистки хранилища).
+func (b *Bot) PackFeedPostDeletePhoto(viewerUserID int64, initD initdata.InitData, userMessageID int64) (oldPhotoURL string, err error) {
+	return b.packFeedPostUpdatePhoto(viewerUserID, initD, userMessageID, "")
+}
+
+func (b *Bot) packFeedPostUpdatePhoto(viewerUserID int64, initD initdata.InitData, userMessageID int64, newPhotoURL string) (oldPhotoURL string, err error) {
+	if err := b.AssertMiniAppPackChatAligns(initD); err != nil {
+		return "", err
+	}
+	if err := b.assertPackFeedSocialViewer(viewerUserID); err != nil {
+		return "", err
+	}
+	if userMessageID == 0 {
+		return "", ErrTrainingFeedParentNotFound
+	}
+	chatID := b.config.MonetizedChatID
+	typ, has, err := b.db.GetUserMessageTypeByIDForChat(userMessageID, chatID)
+	if err != nil {
+		return "", err
+	}
+	if !has || (typ != "training_done" && typ != "healthy") {
+		return "", ErrTrainingFeedParentNotFound
+	}
+	oldPhotoURL, err = b.db.GetTrainingPhotoURLByMessageID(chatID, userMessageID)
+	if err != nil {
+		return "", err
+	}
+	updated, err := b.db.UpdateUserMessagePhotoURLByAuthor(userMessageID, chatID, viewerUserID, newPhotoURL)
+	if err != nil {
+		return "", err
+	}
+	if !updated {
+		return "", ErrTrainingFeedParentNotFound
+	}
+	if strings.TrimSpace(oldPhotoURL) == strings.TrimSpace(newPhotoURL) {
+		return "", nil
+	}
+	return strings.TrimSpace(oldPhotoURL), nil
+}
+
 // PackTrainingFeedThreadLikeToggle — лайк комментария в треде training_done.
 func (b *Bot) PackTrainingFeedThreadLikeToggle(viewerUserID int64, initD initdata.InitData, threadReplyID int64) (parentUserMessageID int64, err error) {
 	if err := b.AssertMiniAppPackChatAligns(initD); err != nil {
