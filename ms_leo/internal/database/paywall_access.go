@@ -188,12 +188,14 @@ func (d *Database) ExpirePaywallAccessForUser(userID, monetizedChatID int64) err
 }
 
 // RestorePaywallAccessForUser — возвращает доступ удалённому юзеру (обратно к ExpirePaywallAccessForUser):
-// снимает протухание у его последней completed-заявки, делая доступ снова бессрочным (NULL).
+// делает доступ у его последней completed-заявки снова бессрочным ('infinity').
+// ВАЖНО: активный доступ = access_expires_at IS NOT NULL AND > NOW() (см. UserHasActivePaywallAccess),
+// поэтому бессрочный — это 'infinity'::timestamptz, а НЕ NULL (NULL = нет доступа).
 // Идемпотентно; возвращает true, если была затронута строка (был платёж и доступ восстановлен).
 func (d *Database) RestorePaywallAccessForUser(userID, monetizedChatID int64) (bool, error) {
 	const q = `
 		UPDATE paywall_access_requests
-		SET access_expires_at = NULL
+		SET access_expires_at = 'infinity'::timestamptz
 		WHERE id = (
 			SELECT id FROM paywall_access_requests
 			WHERE user_id = $1 AND monetized_chat_id = $2 AND status = 'completed'
