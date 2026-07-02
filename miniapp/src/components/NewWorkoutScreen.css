@@ -2,8 +2,9 @@
 .nwo {
   /* Размеры подобраны так, чтобы вся форма (заметка + типы + минуты +
      интенсивность + кнопка) помещалась без прокрутки даже на Android, где
-     метрики шрифта шире и чипы переносятся в больше рядов. Сами типы при
-     переполнении прокручиваются внутри своего «барабана» (.nwo__types-scroll). */
+     метрики шрифта шире и чипы переносятся в больше рядов. Если всё же не
+     помещается — прокручивается вся форма целиком (.nwo__body), без отдельного
+     вложенного скролла у списка типов. */
   --nwo-chip-fs: 0.84rem;
   --nwo-chip-lh: 1.2;
   --nwo-chip-pad-y: 5px;
@@ -143,37 +144,9 @@
   align-content: flex-start;
   flex-shrink: 0;
   padding-bottom: 2px;
-  /* «Барабан»: типов больше, чем влезает в ~3 ряда — крутим только эту секцию,
-     а остальная форма (минуты/интенсивность/кнопка) остаётся на месте. */
-  max-height: var(--nwo-types-max-h, 96px);
-  overflow-y: auto;
-  -webkit-overflow-scrolling: touch;
-  overscroll-behavior: contain;
-  /* Мягкое затухание сверху/снизу — подсказка, что секция прокручивается. */
-  -webkit-mask-image: linear-gradient(
-    to bottom,
-    transparent 0,
-    #000 8px,
-    #000 calc(100% - 8px),
-    transparent 100%
-  );
-  mask-image: linear-gradient(
-    to bottom,
-    transparent 0,
-    #000 8px,
-    #000 calc(100% - 8px),
-    transparent 100%
-  );
-  scrollbar-width: thin;
-}
-
-.nwo__types-scroll::-webkit-scrollbar {
-  width: 3px;
-}
-
-.nwo__types-scroll::-webkit-scrollbar-thumb {
-  background: var(--border-subtle, #2a2a36);
-  border-radius: 999px;
+  /* Все типы видны сразу и просто переносятся на новые ряды. Отдельного
+     внутреннего «барабана» нет — при нехватке места прокручивается вся форма
+     (.nwo__body), а не спрятанный мини-скролл, который непонятно как крутить. */
 }
 
 .nwo .nwo__type-chip {
@@ -181,8 +154,8 @@
   display: inline-flex;
   align-items: center;
   gap: 3px;
-  /* Компактнее по вертикали: больше типов помещается в видимые ряды «барабана»
-     (.nwo__types-scroll прокручивается, остальная форма — без скролла). */
+  /* Компактнее по вертикали: типы занимают меньше рядов, вся форма помещается
+     без прокрутки на большинстве экранов. */
   padding: 4px 9px;
   font: var(--nwo-mi-font);
   border-radius: 999px;
