@@ -1,6 +1,6 @@
-import { useRef, useState, useEffect, useLayoutEffect, useCallback, useMemo } from "react";
+import { useRef, useState, useEffect, useLayoutEffect, useCallback, useMemo, type MouseEvent as ReactMouseEvent } from "react";
 import { createPortal } from "react-dom";
-import { LikersPopover, useChipPress, useLikersPopover, useLongPress, type Liker, type LikerGroup } from "./Likers";
+import { LikersPopover, ReactionPickerPopover, useChipPress, useLikersPopover, type Liker, type LikerGroup } from "./Likers";
 import { PhotoCropper } from "./PhotoCropper";
 import { LEO_AVATAR_URL } from "../lib/leoAvatar";
 import { resolveFeedAvatarUrl, type VoterDTO } from "../lib/packFeed";
@@ -625,7 +625,10 @@ export function ActivityCard({
     };
   }, [lightboxOpen]);
 
-  const showReact = reactions.length > 0 || onReactionClick != null;
+  // Реакции с реальными голосами показываем строкой под постом (как «уже поставленные»
+  // реакции в Telegram). Пустой набор ничего не рисует.
+  const activeReactions = reactions.filter((r) => r.count > 0);
+  const canReact = onReactionClick != null;
   const hasThread = threadReplies.length > 0 || threadComposer != null;
   const threadCount = threadReplies.length;
   const showStreak = !hideStreak && name.trim() !== "Админ";
@@ -650,24 +653,39 @@ export function ActivityCard({
   }, [onToggleFollow, isFriend, onTogglePin, pinned, onAdminDelete, onStartEditPost, onReport]);
   const cardHeadMenuPosting = reportPosting || adminDeletePosting || pinPosting || followPosting;
 
-  // Долгое нажатие на весь пост — показать, кто его лайкнул (все реакции).
+  // Как в Telegram: реакций на посте не видно, ряд эмодзи для выбора всплывает
+  // при тапе по самому посту. Тапы по кнопкам/ссылкам/фото/треду/меню — не считаются.
   const cardRef = useRef<HTMLElement>(null);
-  const cardLikers = useLikersPopover(cardRef);
-  const cardLikerGroups: LikerGroup[] = reactions
-    .filter((r) => r.count > 0 && Array.isArray(r.voters) && r.voters.length > 0)
-    .map((r) => ({ emoji: r.emoji, voters: votersToLikers(r.voters) }));
-  const cardPress = useLongPress(() => {
-    if (cardLikerGroups.length > 0) cardLikers.setOpen(true);
-  });
+  const picker = useLikersPopover(cardRef);
+  const onCardTap = (e: ReactMouseEvent) => {
+    if (!canReact) return;
+    const el = e.target as HTMLElement | null;
+    if (
+      el?.closest(
+        'button, a, input, textarea, label, select, [role="button"], [role="menuitem"], [role="dialog"], [contenteditable="true"], .act-card__react, .act-card__thread, .act-card__photo-wrap, .act-card__poll, .act-card__lightbox, .act-card__likers, .act-card__react-picker',
+      )
+    ) {
+      return;
+    }
+    picker.setOpen(true);
+  };
 
   return (
     <article
       ref={cardRef}
-      {...cardPress}
-      className={`act-card${hideStreak ? " act-card--leo" : ""}${lightTone ? " act-card--light" : ""}${threadOpen && hasThread ? " act-card--thread-open" : ""}${trainingPhotoUrl ? " act-card--has-photo" : ""}${canCollapseComment && commentExpanded ? " act-card--comment-expanded" : ""}`}
+      onClick={onCardTap}
+      className={`act-card${hideStreak ? " act-card--leo" : ""}${lightTone ? " act-card--light" : ""}${threadOpen && hasThread ? " act-card--thread-open" : ""}${trainingPhotoUrl ? " act-card--has-photo" : ""}${canCollapseComment && commentExpanded ? " act-card--comment-expanded" : ""}${canReact ? " act-card--reactable" : ""}`}
     >
-      {cardLikers.open && cardLikerGroups.length > 0 && (
-        <LikersPopover groups={cardLikerGroups} popRef={cardLikers.popRef} style={cardLikers.style} />
+      {picker.open && canReact && (
+        <ReactionPickerPopover
+          reactions={reactions}
+          popRef={picker.popRef}
+          style={picker.style}
+          onPick={(emoji) => {
+            onReactionClick?.(emoji);
+            picker.setOpen(false);
+          }}
+        />
       )}
       <header className="act-card__head">
         <div className="act-card__avatar" aria-hidden>
@@ -847,9 +865,9 @@ export function ActivityCard({
           </div>
         )}
       </div>
-      {showReact && (
+      {activeReactions.length > 0 && (
         <div className="act-card__react" role="group" aria-label="Реакции">
-          <TrainingReactionsBar reactions={reactions} onReactionClick={onReactionClick} />
+          <TrainingReactionsBar reactions={activeReactions} onReactionClick={onReactionClick} />
         </div>
       )}
       {hasThread && (

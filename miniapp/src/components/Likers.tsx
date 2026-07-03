@@ -131,6 +131,40 @@ function LikerAvatar({ photoUrl, name }: { photoUrl?: string; name: string }) {
   );
 }
 
+/**
+ * Всплывающий выбор реакции (как в Telegram): горизонтальный ряд эмодзи в «таблетке».
+ * Портал в body, position: fixed по координатам из useLikersPopover. Тап по эмодзи —
+ * поставить/снять реакцию и закрыть окно. Своя реакция подсвечена.
+ */
+export function ReactionPickerPopover({
+  reactions,
+  onPick,
+  popRef,
+  style,
+}: {
+  reactions: { emoji: string; me?: boolean }[];
+  onPick: (emoji: string) => void;
+  popRef: RefObject<HTMLDivElement>;
+  style: CSSProperties;
+}) {
+  return createPortal(
+    <div className="act-card__react-picker" role="menu" aria-label="Выбор реакции" ref={popRef} style={style}>
+      {reactions.map((r) => (
+        <button
+          key={r.emoji}
+          type="button"
+          role="menuitem"
+          className={`act-card__react-pick${r.me ? " act-card__react-pick--mine" : ""}`}
+          onClick={() => onPick(r.emoji)}
+        >
+          {r.emoji}
+        </button>
+      ))}
+    </div>,
+    document.body,
+  );
+}
+
 /** Поповер со списком отреагировавших (портал в body, сгруппирован по эмодзи, со скроллом). */
 export function LikersPopover({
   groups,

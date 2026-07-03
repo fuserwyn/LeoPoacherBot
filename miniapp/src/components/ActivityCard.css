@@ -651,6 +651,54 @@
   color: var(--text-muted);
 }
 
+/* Всплывающий выбор реакции (Telegram-style): ряд эмодзи в «таблетке».
+   Портал в body, position: fixed (координаты из JS). */
+.act-card__react-picker {
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  max-width: min(calc(100vw - 16px), 340px);
+  padding: 5px 8px;
+  border-radius: 999px;
+  background: var(--popover, #1e1f24);
+  border: 1px solid var(--border-subtle);
+  box-shadow: var(--shadow-pop);
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
+}
+
+.act-card__react-pick {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  padding: 0;
+  font-size: 24px;
+  line-height: 1;
+  border: none;
+  border-radius: 50%;
+  background: transparent;
+  cursor: pointer;
+  transition: transform 0.12s ease, background 0.12s ease;
+  -webkit-tap-highlight-color: transparent;
+  -webkit-touch-callout: none;
+  user-select: none;
+}
+
+.act-card__react-pick:hover,
+.act-card__react-pick:active {
+  transform: scale(1.18);
+  background: var(--fill-strong);
+}
+
+.act-card__react-pick--mine {
+  background: color-mix(in srgb, var(--accent) 20%, transparent);
+}
+
 .act-card__thread {
   /* Один кегль для текста комментария и поля ввода (плейсхолдер в WebKit не всегда наследует font-size). */
   --act-thread-font-size: 12px;
