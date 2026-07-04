@@ -1,4 +1,4 @@
-import { useRef, useState, useEffect, useLayoutEffect, useCallback, useMemo, type MouseEvent as ReactMouseEvent } from "react";
+import { useRef, useState, useEffect, useLayoutEffect, useCallback, useMemo, type MouseEvent as ReactMouseEvent, type TouchEvent as ReactTouchEvent } from "react";
 import { createPortal } from "react-dom";
 import { LikersPopover, ReactionPickerPopover, useChipPress, useLikersPopover, type Liker, type LikerGroup } from "./Likers";
 import { PhotoCropper } from "./PhotoCropper";
@@ -654,26 +654,86 @@ export function ActivityCard({
   const cardHeadMenuPosting = reportPosting || adminDeletePosting || pinPosting || followPosting;
 
   // Как в Telegram: реакций на посте не видно, ряд эмодзи для выбора всплывает
-  // при тапе по самому посту. Тапы по кнопкам/ссылкам/фото/треду/меню — не считаются.
+  // при тапе/зажатии по самому посту. Тапы по кнопкам/ссылкам/фото/треду/меню — не считаются.
   const cardRef = useRef<HTMLElement>(null);
   const picker = useLikersPopover(cardRef);
-  const onCardTap = (e: ReactMouseEvent) => {
+
+  // Тап по посту не должен считаться, если пришёлся на интерактивный элемент.
+  const isInteractiveTarget = (target: EventTarget | null): boolean => {
+    const el = target as HTMLElement | null;
+    return !!el?.closest(
+      'button, a, input, textarea, label, select, [role="button"], [role="menuitem"], [role="dialog"], [contenteditable="true"], .act-card__react, .act-card__thread, .act-card__photo-wrap, .act-card__poll, .act-card__lightbox, .act-card__likers, .act-card__react-picker',
+    );
+  };
+  const openPicker = (target: EventTarget | null) => {
     if (!canReact) return;
-    const el = e.target as HTMLElement | null;
-    if (
-      el?.closest(
-        'button, a, input, textarea, label, select, [role="button"], [role="menuitem"], [role="dialog"], [contenteditable="true"], .act-card__react, .act-card__thread, .act-card__photo-wrap, .act-card__poll, .act-card__lightbox, .act-card__likers, .act-card__react-picker',
-      )
-    ) {
+    if (isInteractiveTarget(target)) return;
+    picker.setOpen(true);
+  };
+
+  // Надёжное открытие пикера на тач-вебвью Telegram: обычный click по большому
+  // скролл-контейнеру часто теряется при малейшем движении пальца, поэтому
+  // открываем и по touchend (тап без сдвига), и по зажатию (~350мс). Скролл
+  // (сдвиг пальца) отменяет жест и не открывает пикер.
+  const pressStart = useRef<{ x: number; y: number } | null>(null);
+  const pressMoved = useRef(false);
+  const pressFired = useRef(false);
+  const recentTouch = useRef(0);
+  const lpTimer = useRef<number | null>(null);
+  const clearLpTimer = () => {
+    if (lpTimer.current != null) {
+      window.clearTimeout(lpTimer.current);
+      lpTimer.current = null;
+    }
+  };
+
+  const onCardTouchStart = (e: ReactTouchEvent) => {
+    pressFired.current = false;
+    pressMoved.current = false;
+    const t = e.touches[0];
+    pressStart.current = t ? { x: t.clientX, y: t.clientY } : null;
+    const target = e.target;
+    clearLpTimer();
+    if (!canReact || isInteractiveTarget(target)) return;
+    lpTimer.current = window.setTimeout(() => {
+      if (pressMoved.current) return;
+      pressFired.current = true;
+      openPicker(target);
+    }, 350);
+  };
+  const onCardTouchMove = (e: ReactTouchEvent) => {
+    const t = e.touches[0];
+    const s = pressStart.current;
+    if (t && s && (Math.abs(t.clientX - s.x) > 10 || Math.abs(t.clientY - s.y) > 10)) {
+      pressMoved.current = true;
+      clearLpTimer();
+    }
+  };
+  const onCardTouchEnd = (e: ReactTouchEvent) => {
+    clearLpTimer();
+    recentTouch.current = Date.now();
+    if (pressFired.current) {
+      e.preventDefault();
       return;
     }
-    picker.setOpen(true);
+    if (pressMoved.current) return;
+    if (!canReact || isInteractiveTarget(e.target)) return;
+    e.preventDefault(); // гасим синтетический click, чтобы пикер не открывался дважды
+    openPicker(e.target);
+  };
+  const onCardClick = (e: ReactMouseEvent) => {
+    if (Date.now() - recentTouch.current < 600) return; // click после тача — уже обработали
+    openPicker(e.target);
   };
 
   return (
     <article
       ref={cardRef}
-      onClick={onCardTap}
+      onClick={onCardClick}
+      onTouchStart={onCardTouchStart}
+      onTouchMove={onCardTouchMove}
+      onTouchEnd={onCardTouchEnd}
+      onTouchCancel={clearLpTimer}
       className={`act-card${hideStreak ? " act-card--leo" : ""}${lightTone ? " act-card--light" : ""}${threadOpen && hasThread ? " act-card--thread-open" : ""}${trainingPhotoUrl ? " act-card--has-photo" : ""}${canCollapseComment && commentExpanded ? " act-card--comment-expanded" : ""}${canReact ? " act-card--reactable" : ""}`}
     >
       {picker.open && canReact && (
