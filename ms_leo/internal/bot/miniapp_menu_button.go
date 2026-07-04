@@ -2,6 +2,7 @@ package bot
 
 import (
 	"strconv"
+	"strings"
 	"sync"
 
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
@@ -77,6 +78,30 @@ func (b *Bot) setUserMenuButton(userID int64, kind string) error {
 	}
 	_, err := b.api.MakeRequest("setChatMenuButton", params)
 	return err
+}
+
+// miniappOpenInlineKeyboard возвращает inline-клавиатуру с одной web_app-кнопкой
+// «Открыть», которой оплатившему юзеру достаточно тапнуть прямо в сообщении, чтобы
+// открыть мини-аппу (не разворачивая синюю menu-кнопку). Возвращает nil, если:
+//   - не задан MINIAPP_WEB_APP_URL (тогда полагаемся только на menu-кнопку);
+//   - юзер ещё не оплатил / кикнут (paywallPrivateNeedsPayFirst) — кнопку не показываем.
+//
+// Внимание Telegram: inline web_app-кнопки работают только в ЛС и только если домен
+// URL привязан к боту в @BotFather (тот же web_app, что у menu-кнопки).
+func (b *Bot) miniappOpenInlineKeyboard(userID int64) *tgbotapi.InlineKeyboardMarkup {
+	if b == nil || userID == 0 {
+		return nil
+	}
+	url := strings.TrimSpace(b.config.MiniappWebAppURL)
+	if url == "" {
+		return nil
+	}
+	if b.paywallActive() && b.paywallPrivateNeedsPayFirst(userID) {
+		return nil
+	}
+	btn := tgbotapi.NewInlineKeyboardButtonWebApp("🐆 Открыть LeopardMiniApp", tgbotapi.WebAppInfo{URL: url})
+	kb := tgbotapi.NewInlineKeyboardMarkup(tgbotapi.NewInlineKeyboardRow(btn))
+	return &kb
 }
 
 // invalidateMiniappMenuButtonCache сбрасывает кеш для юзера: используем после

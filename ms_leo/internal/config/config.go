@@ -60,6 +60,12 @@ type Config struct {
 	// Используется для канонизации URL фото тренировки в ленте; должен совпадать с тем, что в VITE_MINIAPP_API_URL.
 	MiniappPublicBaseURL string
 
+	// MiniappWebAppURL — https-URL самой мини-аппы (тот же, что прописан в @BotFather как web_app).
+	// Если задан — оплатившему на /start и после оплаты вешаем inline-кнопку «Открыть» с web_app,
+	// чтобы мини-аппу можно было открыть одним тапом, не разворачивая меню. Пусто → кнопку не шлём
+	// (остаётся только синяя menu-кнопка). Домен должен быть привязан к боту в @BotFather.
+	MiniappWebAppURL string
+
 	// R2 (Cloudflare) — объектное хранилище для фото тренировок. Если заданы все поля,
 	// фото грузятся в бакет, иначе — на локальный диск (как раньше). S3-совместимый API.
 	R2AccountID       string
@@ -163,6 +169,7 @@ func Load() (*Config, error) {
 		YookassaCurrency:        ykCur,
 
 		MiniappPublicBaseURL: strings.TrimSpace(getEnv("MINIAPP_PUBLIC_BASE_URL", "")),
+		MiniappWebAppURL:     strings.TrimSpace(getEnv("MINIAPP_WEB_APP_URL", "")),
 
 		R2AccountID:       strings.TrimSpace(getEnv("R2_ACCOUNT_ID", "")),
 		R2AccessKeyID:     strings.TrimSpace(getEnv("R2_ACCESS_KEY_ID", "")),

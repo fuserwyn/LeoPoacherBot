@@ -950,6 +950,17 @@ func (b *Bot) handleStart(msg *tgbotapi.Message) {
 		if kb := b.privateBottomReplyKeyboard(msg.From.ID); kb != nil {
 			reply.ReplyMarkup = kb
 		}
+		// Оплатившему добавляем сообщение с inline-кнопкой «Открыть» мини-аппу —
+		// отдельным сообщением, чтобы не конфликтовать с reply-клавиатурой выше.
+		if b.paywallActive() && !b.paywallPrivateNeedsPayFirst(msg.From.ID) {
+			if ikb := b.miniappOpenInlineKeyboard(msg.From.ID); ikb != nil {
+				open := tgbotapi.NewMessage(msg.Chat.ID, "Открыть тренировки — тапни кнопку ниже 👇")
+				open.ReplyMarkup = *ikb
+				if _, err := b.api.Send(open); err != nil {
+					b.logger.Warnf("send miniapp open button user=%d: %v", msg.From.ID, err)
+				}
+			}
+		}
 	}
 
 	b.logger.Infof("Sending start message to chat %d", msg.Chat.ID)

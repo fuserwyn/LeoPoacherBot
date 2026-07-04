@@ -1185,7 +1185,12 @@ func (b *Bot) paywallDeliverAccessAfterPayment(userID int64, paywallRequestID in
 		welcomePending = !sent
 	}
 	if welcomePending {
-		if _, err := b.api.Send(tgbotapi.NewMessage(userID, b.paywallPostPaymentUserText())); err != nil {
+		welcomeMsg := tgbotapi.NewMessage(userID, b.paywallPostPaymentUserText())
+		// Сразу после оплаты — inline-кнопка «Открыть» мини-аппу одним тапом.
+		if ikb := b.miniappOpenInlineKeyboard(userID); ikb != nil {
+			welcomeMsg.ReplyMarkup = *ikb
+		}
+		if _, err := b.api.Send(welcomeMsg); err != nil {
 			b.logger.Errorf("paywall send done msg user=%d: %v", userID, err)
 			return err
 		}
