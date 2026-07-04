@@ -662,7 +662,7 @@ export function ActivityCard({
   const isInteractiveTarget = (target: EventTarget | null): boolean => {
     const el = target as HTMLElement | null;
     return !!el?.closest(
-      'button, a, input, textarea, label, select, [role="button"], [role="menuitem"], [role="dialog"], [contenteditable="true"], .act-card__react, .act-card__thread, .act-card__photo-wrap, .act-card__poll, .act-card__lightbox, .act-card__likers, .act-card__react-picker',
+      'button, a, input, textarea, label, select, [role="button"], [role="menuitem"], [role="dialog"], [contenteditable="true"], .act-card__thread, .act-card__photo-wrap, .act-card__poll, .act-card__lightbox, .act-card__likers, .act-card__react-picker',
     );
   };
   const openPicker = (target: EventTarget | null) => {
