@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { STREAK_ACHIEVEMENTS, WORKOUT_ACHIEVEMENTS, workoutsWordRu } from "../lib/achievements";
 import { inactivityHighlight } from "../lib/inactivityHighlight";
+import { inactiveDaysFromRemovalRemaining, removalRemainingUntil } from "../lib/inactivityRemoval";
 import { cupsLevelProgressBarPct, formatCupsLevelProgressLabel, miniappCupsLevelProgress, miniappLevelFromCups, miniappLevelName } from "../lib/miniappLevel";
 import { effectiveStreakDays, streakBurnLabel } from "../lib/streakLabel";
 import { getStoredTheme, setTheme, type ThemeMode } from "../lib/theme";
@@ -44,6 +45,8 @@ type Props = {
   daysSinceLastTraining: number;
   /** YYYY-MM-DD последней тренировки в локальном TZ пользователя. */
   lastTrainingDate?: string;
+  /** RFC3339 — дедлайн кика за неактивность (совпадает с таймером Лео). */
+  inactivityRemovalAt?: string;
   initData: string;
   inTelegram: boolean;
   /** Ссылка на аватар из Telegram WebApp (initDataUnsafe.user.photo_url), если бот открыл мини-апп. */
@@ -68,6 +71,7 @@ export function ProfileScreen({
   workouts,
   daysSinceLastTraining,
   lastTrainingDate,
+  inactivityRemovalAt,
   initData,
   inTelegram,
   userPhotoUrl,
@@ -107,6 +111,13 @@ export function ProfileScreen({
   const [reminderHour, setReminderHour] = useState(19);
   const [reminderLoading, setReminderLoading] = useState(true);
   const [reminderBusy, setReminderBusy] = useState(false);
+
+  // Подписка на «мудрость дня»: вкл/выкл + час по локальному времени пользователя.
+  // По умолчанию ВЫКЛ — мудрость приходит в личку бота, только если пользователь сам подписался.
+  const [wisdomEnabled, setWisdomEnabled] = useState(false);
+  const [wisdomHour, setWisdomHour] = useState(9);
+  const [wisdomLoading, setWisdomLoading] = useState(true);
+  const [wisdomBusy, setWisdomBusy] = useState(false);
 
   // Друзья по стае: только те, за кем viewer уже подписался в ленте.
   const [friends, setFriends] = useState<FriendMember[]>([]);
@@ -296,6 +307,72 @@ export function ProfileScreen({
     void loadReminder();
   }, [loadReminder, active]);
 
+  const loadWisdomSub = useCallback(async () => {
+    if (!api || !inTelegram || !initData?.trim()) {
+      setWisdomLoading(false);
+      return;
+    }
+    setWisdomLoading(true);
+    try {
+      const res = await fetch(`${api}/api/miniapp/wisdom-sub/load`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ init_data: initData }),
+      });
+      const j = (await res.json().catch(() => ({}))) as { ok?: boolean; enabled?: boolean; remind_hour?: number };
+      if (res.ok && j.ok) {
+        setWisdomEnabled(Boolean(j.enabled));
+        if (typeof j.remind_hour === "number" && j.remind_hour >= 0 && j.remind_hour <= 23) {
+          setWisdomHour(Math.trunc(j.remind_hour));
+        }
+      }
+    } catch {
+      // тихо: не критично
+    } finally {
+      setWisdomLoading(false);
+    }
+  }, [inTelegram, initData]);
+
+  const saveWisdomSub = useCallback(
+    async (enabled: boolean, hour: number) => {
+      if (!api || !inTelegram || !initData?.trim()) {
+        showAlert("Открой мини-апп из Telegram (нужен initData).");
+        return;
+      }
+      // Оптимистично применяем, чтобы UI не «прыгал».
+      const prevEnabled = wisdomEnabled;
+      const prevHour = wisdomHour;
+      setWisdomEnabled(enabled);
+      setWisdomHour(hour);
+      setWisdomBusy(true);
+      try {
+        const res = await fetch(`${api}/api/miniapp/wisdom-sub/save`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ init_data: initData, enabled, remind_hour: hour }),
+        });
+        const j = (await res.json().catch(() => ({}))) as { ok?: boolean; error?: string };
+        if (!res.ok || !j.ok) {
+          setWisdomEnabled(prevEnabled);
+          setWisdomHour(prevHour);
+          showAlert(j.error ?? `Мудрость дня: ошибка ${res.status}`);
+        }
+      } catch (e) {
+        setWisdomEnabled(prevEnabled);
+        setWisdomHour(prevHour);
+        showAlert(e instanceof Error ? e.message : "Сеть");
+      } finally {
+        setWisdomBusy(false);
+      }
+    },
+    [inTelegram, initData, wisdomEnabled, wisdomHour, showAlert],
+  );
+
+  useEffect(() => {
+    if (!active) return;
+    void loadWisdomSub();
+  }, [loadWisdomSub, active]);
+
   const loadFriends = useCallback(async () => {
     if (!api || !inTelegram || !initData?.trim()) {
       return;
@@ -435,9 +512,12 @@ export function ProfileScreen({
       setSickReason("");
       setOnSick(true);
       showAlert("Заявка отправлена. Ответ Лео — во вкладке Чат.");
-      setTimeout(() => void loadHealth(), 1200);
+      setTimeout(() => {
+        void loadHealth();
+        void onRefreshStats?.();
+      }, 1200);
     }
-  }, [sickReason, sendHealthMessage, loadHealth, showAlert]);
+  }, [sickReason, sendHealthMessage, loadHealth, onRefreshStats, showAlert]);
 
   const submitHealthy = useCallback(async () => {
     setHealthBusy(true);
@@ -450,9 +530,10 @@ export function ProfileScreen({
       setTimeout(() => {
         void loadHealth();
         void load();
+        void onRefreshStats?.();
       }, 1200);
     }
-  }, [sendHealthMessage, loadHealth, load, showAlert]);
+  }, [sendHealthMessage, loadHealth, load, onRefreshStats, showAlert]);
 
   const useSaveStreak = useCallback(async () => {
     if (!api || !inTelegram || !initData?.trim()) {
@@ -555,9 +636,17 @@ export function ProfileScreen({
     );
   })();
 
-  const inactiveHighlight = inactivityHighlight(daysSinceLastTraining);
-  const showDaysWithoutTraining = daysSinceLastTraining >= 5;
-  const showKickBanner = daysSinceLastTraining >= 7;
+  const removalRemaining = inactivityRemovalAt ? removalRemainingUntil(inactivityRemovalAt, now) : null;
+  const timerInactiveDays =
+    removalRemaining != null ? inactiveDaysFromRemovalRemaining(removalRemaining.ms) : null;
+  const hasTimerSync = Boolean(inactivityRemovalAt && removalRemaining);
+  const daysForKickUi = hasTimerSync
+    ? (timerInactiveDays ?? 0)
+    : daysSinceLastTraining;
+  const inactiveHighlight = onSick ? "none" : inactivityHighlight(daysForKickUi);
+  const showDaysWithoutTraining = !onSick && daysForKickUi >= 5;
+  const displayedInactiveDays = hasTimerSync && timerInactiveDays != null ? timerInactiveDays : daysSinceLastTraining;
+  const showKickBanner = !onSick && daysForKickUi >= 7;
 
   const healthActionsKeyboard = sickFormOpen && healthInputFocused;
 
@@ -606,15 +695,20 @@ export function ProfileScreen({
           {showDaysWithoutTraining ? (
             <p
               className={`profile__kick profile__kick--inactive-${inactiveHighlight}`}
-              title={`Дней без тренировок: ${daysSinceLastTraining}`}
+              title={`Дней без тренировок: ${displayedInactiveDays}`}
             >
-              Дней без тренировок: {daysSinceLastTraining}
+              Дней без тренировок: {displayedInactiveDays}
             </p>
           ) : null}
           {showKickBanner ? (
             <p className="profile__danger">ПОТРЕНИРУЙСЯ ДО 00:00 ИЛИ ЛЕО СЪЕСТ ТЕБЯ</p>
           ) : null}
         </div>
+        {onSick && removalRemaining ? (
+          <p className="profile__sick-timer muted">
+            После выхода с больничного до удаления: {removalRemaining.text}
+          </p>
+        ) : null}
         <div
           className="profile__xp"
           aria-label={`Кубки: ${cupProgressLabel}, уровень ${level}`}
@@ -1026,6 +1120,41 @@ export function ProfileScreen({
           {reminderEnabled
             ? "Если до этого часа не отмечена тренировка — Лео мягко напомнит"
             : "Напоминания выключены. Лео не будет писать о пропущенной тренировке."}
+        </p>
+      </div>
+
+      <div className="profile__reminder">
+        <label className="profile__reminder-row">
+          <span className="profile__reminder-label">Мудрость дня в личку</span>
+          <input
+            type="checkbox"
+            className="profile__reminder-toggle"
+            checked={wisdomEnabled}
+            disabled={wisdomLoading || wisdomBusy}
+            onChange={(e) => void saveWisdomSub(e.target.checked, wisdomHour)}
+          />
+        </label>
+        {wisdomEnabled && (
+          <label className="profile__field">
+            <span>Время мудрости (по твоему времени)</span>
+            <select
+              className="profile__input"
+              value={wisdomHour}
+              disabled={wisdomLoading || wisdomBusy}
+              onChange={(e) => void saveWisdomSub(true, Number(e.target.value))}
+            >
+              {Array.from({ length: 24 }, (_, h) => (
+                <option key={h} value={h}>
+                  {String(h).padStart(2, "0")}:00
+                </option>
+              ))}
+            </select>
+          </label>
+        )}
+        <p className="profile__hint muted">
+          {wisdomEnabled
+            ? "Каждый день в этот час Лео пришлёт короткую мудрость дня в личку"
+            : "Подписка выключена. Мудрость дня приходит только в чат стаи."}
         </p>
       </div>
 

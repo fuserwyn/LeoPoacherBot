@@ -69,6 +69,8 @@ export function App() {
   const [optimisticFeedItem, setOptimisticFeedItem] = useState<PackFeedItemDTO | null>(null);
   const [daysSinceLastTraining, setDaysSinceLastTraining] = useState<number>(-1);
   const [lastTrainingDate, setLastTrainingDate] = useState("");
+  /** RFC3339 — когда возможен кик за неактивность (тот же дедлайн, что в сообщении Лео). */
+  const [inactivityRemovalAt, setInactivityRemovalAt] = useState("");
   const [accessGateStatus, setAccessGateStatus] = useState<AccessGateStatus>("checking");
   const [isAdmin, setIsAdmin] = useState(false);
   const tzSyncedRef = useRef(false);
@@ -174,6 +176,7 @@ export function App() {
       setProfileDisplayName((j.display_name ?? "").trim());
       setDaysSinceLastTraining(typeof j.days_since_last_training === "number" ? j.days_since_last_training : -1);
       setLastTrainingDate(typeof j.last_training_date === "string" ? j.last_training_date.trim() : "");
+      setInactivityRemovalAt(typeof j.inactivity_removal_at === "string" ? j.inactivity_removal_at.trim() : "");
       setStreak(typeof j.streak_days === "number" ? j.streak_days : 0);
       setRecordStreak(typeof j.max_streak_days === "number" ? j.max_streak_days : 0);
       setXP(typeof j.xp === "number" ? j.xp : 0);
@@ -320,6 +323,7 @@ export function App() {
             achievementsMax={achievementsMax}
             daysSinceLastTraining={daysSinceLastTraining}
             lastTrainingDate={lastTrainingDate || undefined}
+            inactivityRemovalAt={inactivityRemovalAt || undefined}
             showAlert={showAlert}
             onProfileSaved={(displayName) => {
               setProfileDisplayName(displayName.trim());

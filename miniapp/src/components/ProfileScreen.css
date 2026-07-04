@@ -162,6 +162,14 @@
   line-height: 1;
 }
 
+.profile__sick-timer {
+  font-size: 12px;
+  line-height: 1.35;
+  margin: 0 auto 8px;
+  max-width: 320px;
+  text-align: center;
+}
+
 .profile__xp {
   display: flex;
   flex-direction: column;
