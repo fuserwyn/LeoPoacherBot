@@ -216,6 +216,8 @@ func (b *Bot) Start(ctx context.Context) error {
 	go b.startInactivityKickWatchdog(ctx)
 	// Напоминания «внеси тренировку» в локальный час пользователя (см. startWorkoutReminderScheduler).
 	go b.startWorkoutReminderScheduler(ctx)
+	// Подписка на «мудрость дня» в личку бота (см. startDailyWisdomSubscriptionScheduler).
+	go b.startDailyWisdomSubscriptionScheduler(ctx)
 
 	updatesCh := b.runGetUpdatesWithWebApp(ctx)
 
@@ -1622,6 +1624,13 @@ func (b *Bot) generateAndSendDailyWisdom() {
 	}
 
 	b.saveDailyWisdomPackFeed(wisdom)
+
+	// Сохраняем мудрость за сегодня, чтобы подписчики (см. startDailyWisdomSubscriptionScheduler)
+	// получили её в личку в свой локальный час.
+	mskToday := utils.GetMoscowTime().Format("2006-01-02")
+	if err := b.db.SaveDailyWisdomOfDay(mskToday, wisdom); err != nil {
+		b.logger.Warnf("save daily wisdom of day: %v", err)
+	}
 
 	packChatID := b.config.MonetizedChatID
 	for _, chatID := range chatIDs {

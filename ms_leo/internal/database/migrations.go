@@ -1321,6 +1321,31 @@ var Migrations = []Migration{
 			DROP COLUMN IF EXISTS hidden_reason;
 		`,
 	},
+	{
+		Version:     70,
+		Description: "Подписка на «мудрость дня» в личку бота + суточный лог сгенерированной мудрости",
+		UpSQL: `
+			CREATE TABLE IF NOT EXISTS daily_wisdom_log (
+				msk_date   DATE PRIMARY KEY,
+				text       TEXT NOT NULL,
+				created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT (NOW() AT TIME ZONE 'Europe/Moscow')
+			);
+
+			CREATE TABLE IF NOT EXISTS miniapp_wisdom_subscriptions (
+				user_id            BIGINT NOT NULL,
+				pack_chat_id       BIGINT NOT NULL,
+				enabled            BOOLEAN NOT NULL DEFAULT FALSE,
+				remind_hour        SMALLINT NOT NULL DEFAULT 9,
+				last_sent_msk_date DATE,
+				updated_at         TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT (NOW() AT TIME ZONE 'Europe/Moscow'),
+				PRIMARY KEY (user_id, pack_chat_id)
+			);
+		`,
+		DownSQL: `
+			DROP TABLE IF EXISTS miniapp_wisdom_subscriptions;
+			DROP TABLE IF EXISTS daily_wisdom_log;
+		`,
+	},
 }
 
 // MigrationRecord представляет запись о выполненной миграции

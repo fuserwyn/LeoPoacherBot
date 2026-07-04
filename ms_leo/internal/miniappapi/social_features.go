@@ -120,6 +120,63 @@ func (s *Server) handlePostReminderSave(w http.ResponseWriter, r *http.Request) 
 	})
 }
 
+func (s *Server) handlePostWisdomSubLoad(w http.ResponseWriter, r *http.Request) {
+	corsWriteHeaders(w, r)
+	var body struct {
+		InitData string `json:"init_data"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		s.jsonErr(w, http.StatusBadRequest, "invalid_json")
+		return
+	}
+	parsed, ok := s.authMiniapp(w, body.InitData)
+	if !ok {
+		return
+	}
+	view, err := s.bot.GetWisdomSubscriptionForViewer(parsed.User.ID, parsed)
+	if err != nil {
+		s.writeSocialErr(w, err)
+		return
+	}
+	w.Header().Set("Content-Type", "application/json; charset=utf-8")
+	_ = json.NewEncoder(w).Encode(map[string]any{
+		"ok":          true,
+		"enabled":     view.Enabled,
+		"remind_hour": view.RemindHour,
+	})
+}
+
+func (s *Server) handlePostWisdomSubSave(w http.ResponseWriter, r *http.Request) {
+	corsWriteHeaders(w, r)
+	var body struct {
+		InitData   string `json:"init_data"`
+		Enabled    bool   `json:"enabled"`
+		RemindHour int    `json:"remind_hour"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		s.jsonErr(w, http.StatusBadRequest, "invalid_json")
+		return
+	}
+	parsed, ok := s.authMiniapp(w, body.InitData)
+	if !ok {
+		return
+	}
+	if body.RemindHour < 0 || body.RemindHour > 23 {
+		s.jsonErr(w, http.StatusBadRequest, "invalid_hour")
+		return
+	}
+	if err := s.bot.SaveWisdomSubscriptionForViewer(parsed.User.ID, parsed, body.Enabled, body.RemindHour); err != nil {
+		s.writeSocialErr(w, err)
+		return
+	}
+	w.Header().Set("Content-Type", "application/json; charset=utf-8")
+	_ = json.NewEncoder(w).Encode(map[string]any{
+		"ok":          true,
+		"enabled":     body.Enabled,
+		"remind_hour": body.RemindHour,
+	})
+}
+
 func (s *Server) handlePostFriendsList(w http.ResponseWriter, r *http.Request) {
 	corsWriteHeaders(w, r)
 	var body struct {
