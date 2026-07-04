@@ -112,10 +112,10 @@ export function ProfileScreen({
   const [reminderLoading, setReminderLoading] = useState(true);
   const [reminderBusy, setReminderBusy] = useState(false);
 
-  // Подписка на «мудрость дня»: вкл/выкл + час по локальному времени пользователя.
-  // По умолчанию ВЫКЛ — мудрость приходит в личку бота, только если пользователь сам подписался.
+  // Подписка на «мудрость дня»: только вкл/выкл. Время фиксированное — 04:20 по локальному
+  // времени пользователя. По умолчанию ВЫКЛ — мудрость приходит в личку, только если подписался.
   const [wisdomEnabled, setWisdomEnabled] = useState(false);
-  const [wisdomHour, setWisdomHour] = useState(9);
+  const [wisdomHour, setWisdomHour] = useState(4);
   const [wisdomLoading, setWisdomLoading] = useState(true);
   const [wisdomBusy, setWisdomBusy] = useState(false);
 
@@ -1134,26 +1134,9 @@ export function ProfileScreen({
             onChange={(e) => void saveWisdomSub(e.target.checked, wisdomHour)}
           />
         </label>
-        {wisdomEnabled && (
-          <label className="profile__field">
-            <span>Время мудрости (по твоему времени)</span>
-            <select
-              className="profile__input"
-              value={wisdomHour}
-              disabled={wisdomLoading || wisdomBusy}
-              onChange={(e) => void saveWisdomSub(true, Number(e.target.value))}
-            >
-              {Array.from({ length: 24 }, (_, h) => (
-                <option key={h} value={h}>
-                  {String(h).padStart(2, "0")}:00
-                </option>
-              ))}
-            </select>
-          </label>
-        )}
         <p className="profile__hint muted">
           {wisdomEnabled
-            ? "Каждый день в этот час Лео пришлёт короткую мудрость дня в личку"
+            ? "Каждый день в 04:20 по твоему времени Лео пришлёт короткую мудрость дня в личку"
             : "Подписка выключена. Мудрость дня приходит только в чат стаи."}
         </p>
       </div>

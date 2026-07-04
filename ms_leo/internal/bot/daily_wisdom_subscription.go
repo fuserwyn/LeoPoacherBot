@@ -12,6 +12,13 @@ import (
 	initdata "github.com/telegram-mini-apps/init-data-golang"
 )
 
+// Мудрость дня всегда приходит в 04:20 по локальному времени пользователя.
+// Это фиксированное время (не настраивается): галочка в мини-аппе — только вкл/выкл.
+const (
+	wisdomLocalHour   = 4
+	wisdomLocalMinute = 20
+)
+
 // WisdomSubscriptionView — настройки подписки на «мудрость дня» для отдачи в мини-апп.
 type WisdomSubscriptionView struct {
 	Enabled    bool `json:"enabled"`
@@ -34,19 +41,18 @@ func (b *Bot) GetWisdomSubscriptionForViewer(viewerUserID int64, initD initdata.
 }
 
 // SaveWisdomSubscriptionForViewer — сохранить настройки подписки текущего пользователя.
-func (b *Bot) SaveWisdomSubscriptionForViewer(viewerUserID int64, initD initdata.InitData, enabled bool, remindHour int) error {
+// Час не настраивается: мудрость всегда приходит в 04:20 локального времени, поэтому
+// входящий remindHour игнорируется, а в БД пишется фиксированный wisdomLocalHour.
+func (b *Bot) SaveWisdomSubscriptionForViewer(viewerUserID int64, initD initdata.InitData, enabled bool, _ int) error {
 	if err := b.AssertMiniAppPackChatAligns(initD); err != nil {
 		return err
 	}
 	if err := b.assertPackFeedSocialViewer(viewerUserID); err != nil {
 		return err
 	}
-	if remindHour < 0 || remindHour > 23 {
-		return ErrTrainingFeedParentNotFound
-	}
 	return b.db.SaveWisdomSubscriptionSettings(viewerUserID, b.config.MonetizedChatID, database.WisdomSubscriptionSettings{
 		Enabled:    enabled,
-		RemindHour: remindHour,
+		RemindHour: wisdomLocalHour,
 	})
 }
 
@@ -109,10 +115,12 @@ func (b *Bot) runDailyWisdomSubscriptionSweep() {
 	mskToday := utils.GetMoscowTime().Format("2006-01-02")
 	sent := 0
 	for _, c := range candidates {
-		// Час рассылки в локальном TZ юзера.
+		// Мудрость приходит в фиксированные 04:20 локального времени пользователя.
+		// Окно — с 04:20 до конца часа: если свип чуть опоздал, отправка всё равно
+		// сработает, а идемпотентность по МСК-дате не даст задублировать.
 		loc := userLocalLoc(c.TimezoneOffsetFromMoscow)
 		localNow := utils.GetMoscowTime().In(loc)
-		if localNow.Hour() != c.RemindHour {
+		if localNow.Hour() != wisdomLocalHour || localNow.Minute() < wisdomLocalMinute {
 			continue
 		}
 		// Уже отправляли сегодня (по МСК-дате) — не дублируем.
