@@ -114,8 +114,12 @@ function clampWorkoutMinutes(n: number): number {
 type Props = {
   onClose: () => void;
   showAlert?: (message: string) => void;
-  /** Клик по «Хочу вносить не только спорт» — best-effort счётчик интереса к фиче. */
-  onNonSportInterest?: () => void;
+  /**
+   * Клик по «Хочу вносить не только спорт» — best-effort счётчик интереса к фиче.
+   * Верни false, если заявку не удалось отправить (нет initData) — тогда экран не
+   * блокирует повторную попытку и не показывает ложное «Спасибо».
+   */
+  onNonSportInterest?: () => boolean | void;
   /** Сохранение отчёта: верни false, чтобы не закрывать шторку (например, при ошибке сети). */
   onSave: (payload: {
     /** Один или несколько видов спорта (мультивыбор). Кубки — за самый эффективный. */
@@ -256,10 +260,18 @@ export function NewWorkoutScreen({ onClose, onSave, showAlert, onNonSportInteres
 
   const [nonSportSent, setNonSportSent] = useState(false);
   const handleNonSportInterest = useCallback(() => {
-    if (!nonSportSent) {
-      setNonSportSent(true);
-      onNonSportInterest?.();
+    if (nonSportSent) {
+      (showAlert ?? window.alert)("Спасибо за ваш интерес! Мы работаем над новым функционалом.");
+      return;
     }
+    // Заявку помечаем отправленной и благодарим только если она реально ушла.
+    // Иначе (нет initData) — не блокируем повтор и честно просим попробовать снова.
+    const dispatched = onNonSportInterest?.();
+    if (dispatched === false) {
+      (showAlert ?? window.alert)("Не получилось отправить заявку. Открой мини-апп из Telegram и попробуй ещё раз.");
+      return;
+    }
+    setNonSportSent(true);
     (showAlert ?? window.alert)("Спасибо за ваш интерес! Мы работаем над новым функционалом.");
   }, [nonSportSent, onNonSportInterest, showAlert]);
 

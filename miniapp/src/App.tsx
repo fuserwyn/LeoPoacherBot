@@ -388,7 +388,11 @@ export function App() {
         <NewWorkoutScreen
           showAlert={showAlert}
           onNonSportInterest={() => {
-            if (inTelegram && initData?.trim()) reportNonSportInterest(initData);
+            if (inTelegram && initData?.trim()) {
+              reportNonSportInterest(initData);
+              return true;
+            }
+            return false; // нет initData — заявка не ушла, экран покажет ретрай
           }}
           onClose={() => setWorkoutOpen(false)}
           onSave={async ({ types, min, intensity, note, photo, otherLabel }) => {
