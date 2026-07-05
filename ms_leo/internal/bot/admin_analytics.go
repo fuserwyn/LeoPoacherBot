@@ -88,6 +88,9 @@ func (b *Bot) showAdminAnalyticsMenu(chatID int64) {
 			tgbotapi.NewInlineKeyboardButtonData("🗂 Все события", "admin_an_overview_0"),
 		),
 		tgbotapi.NewInlineKeyboardRow(
+			tgbotapi.NewInlineKeyboardButtonData("🐆 Хочу не только спорт", "admin_an_nonsport_0"),
+		),
+		tgbotapi.NewInlineKeyboardRow(
 			tgbotapi.NewInlineKeyboardButtonData("⬅️ К админке", "admin_open"),
 		),
 	}
@@ -304,6 +307,27 @@ func (b *Bot) showAdminAnalyticsOverview(chatID int64, days int) {
 	b.sendAdminHTMLPreTable(chatID, "🗂 Все события", subtitle, tableText, kb)
 }
 
+// showAdminAnalyticsNonSport — счётчик заявок на фичу «хочу вносить не только спорт».
+// Событие non_sport_interest дедупится по пользователю, поэтому число = количество людей.
+func (b *Bot) showAdminAnalyticsNonSport(chatID int64, days int) {
+	counts, err := b.db.EventUniqueCounts(days)
+	if err != nil {
+		b.api.Send(tgbotapi.NewMessage(chatID, "❌ Не удалось загрузить счётчик: "+err.Error()))
+		return
+	}
+	n := counts[database.EventNonSportInterest]
+
+	var sb strings.Builder
+	sb.WriteString("🐆 Хочу вносить не только спорт\n\n")
+	sb.WriteString(fmt.Sprintf("Заявок на фичу: %d\n", n))
+	sb.WriteString("Период: " + analyticsPeriodLabel(days) + " · уникальные люди (по одной заявке на юзера)")
+
+	kb := &tgbotapi.InlineKeyboardMarkup{InlineKeyboard: analyticsBottomRows("admin_an_nonsport_", days)}
+	msg := tgbotapi.NewMessage(chatID, sb.String())
+	msg.ReplyMarkup = kb
+	b.api.Send(msg)
+}
+
 // handleAdminAnalyticsCallback — роутер callback'ов раздела аналитики.
 // Возвращает true, если callback относится к аналитике и обработан.
 func (b *Bot) handleAdminAnalyticsCallback(callback *tgbotapi.CallbackQuery) bool {
@@ -322,6 +346,7 @@ func (b *Bot) handleAdminAnalyticsCallback(callback *tgbotapi.CallbackQuery) boo
 		prefix string
 		render func(int64, int)
 	}{
+		{"admin_an_nonsport_", b.showAdminAnalyticsNonSport},
 		{"admin_an_overview_", b.showAdminAnalyticsOverview},
 		{"admin_an_channels_", b.showAdminAnalyticsChannels},
 		{"admin_an_kpi_", b.showAdminAnalyticsKPI},

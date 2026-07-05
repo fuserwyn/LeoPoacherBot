@@ -113,6 +113,8 @@ function clampWorkoutMinutes(n: number): number {
 type Props = {
   onClose: () => void;
   showAlert?: (message: string) => void;
+  /** Клик по «Хочу вносить не только спорт» — best-effort счётчик интереса к фиче. */
+  onNonSportInterest?: () => void;
   /** Сохранение отчёта: верни false, чтобы не закрывать шторку (например, при ошибке сети). */
   onSave: (payload: {
     /** Один или несколько видов спорта (мультивыбор). Кубки — за самый эффективный. */
@@ -134,7 +136,7 @@ const OTHER_LABEL_MAX = 80;
 /** Прикрепление фото к отчёту. Фото грузятся в Cloudflare R2 (см. R2_* в env). */
 const PHOTO_ENABLED = true;
 
-export function NewWorkoutScreen({ onClose, onSave, showAlert }: Props) {
+export function NewWorkoutScreen({ onClose, onSave, showAlert, onNonSportInterest }: Props) {
   const { visualH } = useViewportMetrics();
 
   useEffect(() => {
@@ -244,6 +246,15 @@ export function NewWorkoutScreen({ onClose, onSave, showAlert }: Props) {
       tgOff?.offEvent?.("viewportChanged", onVV);
     };
   }, [nudgeActiveIntoView]);
+
+  const [nonSportSent, setNonSportSent] = useState(false);
+  const handleNonSportInterest = useCallback(() => {
+    if (!nonSportSent) {
+      setNonSportSent(true);
+      onNonSportInterest?.();
+    }
+    (showAlert ?? window.alert)("Спасибо за ваш интерес! Мы работаем над новым функционалом.");
+  }, [nonSportSent, onNonSportInterest, showAlert]);
 
   const applyMinutes = useCallback((n: number) => {
     const m = clampWorkoutMinutes(n);
@@ -370,6 +381,9 @@ export function NewWorkoutScreen({ onClose, onSave, showAlert }: Props) {
               </button>
             ))}
           </div>
+          <button type="button" className="nwo__non-sport" onClick={handleNonSportInterest}>
+            Хочу вносить не только спорт
+          </button>
           {otherSelected && (
             <div className="nwo__other-field">
               <label className="nwo__other-label" htmlFor="nwo-other-type">

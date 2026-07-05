@@ -5,7 +5,7 @@
  */
 const apiBase = (import.meta.env.VITE_MINIAPP_API_URL as string | undefined)?.replace(/\/$/, "").trim() ?? "";
 
-export type MiniappAnalyticsEvent = "miniapp_opened" | "workout_log_started";
+export type MiniappAnalyticsEvent = "miniapp_opened" | "workout_log_started" | "non_sport_interest";
 
 function send(initData: string, event: MiniappAnalyticsEvent, entryPoint?: string): void {
   if (!apiBase || !initData) return;
@@ -33,6 +33,14 @@ export function reportMiniappOpened(initData: string, entryPoint = "miniapp"): v
 /** workout_log_started — каждый раз при открытии формы тренировки. */
 export function reportWorkoutLogStarted(initData: string): void {
   send(initData, "workout_log_started");
+}
+
+/**
+ * non_sport_interest — юзер нажал «Хочу вносить не только спорт» в форме тренировки.
+ * Счётчик запроса фичи; на сервере дедупится по пользователю (считаем людей, не клики).
+ */
+export function reportNonSportInterest(initData: string): void {
+  send(initData, "non_sport_interest");
 }
 
 /** Только для тестов. */

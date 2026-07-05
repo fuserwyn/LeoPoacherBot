@@ -124,11 +124,18 @@ func (s *Server) handlePostAnalyticsEvent(w http.ResponseWriter, r *http.Request
 	}
 	// Белый список клиентских событий.
 	var name string
+	// perUserOnce=true — считаем одно событие на пользователя (дедуп по idempotency_key),
+	// чтобы метрика отражала число людей, а не число кликов.
+	perUserOnce := false
 	switch body.Event {
 	case "miniapp_opened":
 		name = database.EventMiniappOpened
 	case "workout_log_started":
 		name = database.EventWorkoutLogStarted
+	case "non_sport_interest":
+		// Запрос фичи «хочу вносить не только спорт» — считаем уникальных желающих.
+		name = database.EventNonSportInterest
+		perUserOnce = true
 	default:
 		w.WriteHeader(http.StatusNoContent)
 		return
@@ -146,11 +153,15 @@ func (s *Server) handlePostAnalyticsEvent(w http.ResponseWriter, r *http.Request
 	if ep := sanitizeDiagField(body.EntryPoint); ep != "" {
 		payload["entry_point"] = ep
 	}
-	s.bot.TrackEvent(database.AnalyticsEvent{
+	ev := database.AnalyticsEvent{
 		Name:       name,
 		UserID:     parsed.User.ID,
 		TelegramID: parsed.User.ID,
 		Payload:    payload,
-	})
+	}
+	if perUserOnce {
+		ev.IdempotencyKey = fmt.Sprintf("%s:%d", name, parsed.User.ID)
+	}
+	s.bot.TrackEvent(ev)
 	w.WriteHeader(http.StatusNoContent)
 }

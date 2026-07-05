@@ -55,6 +55,9 @@ const (
 	EventComplaintFiled       = "complaint_filed"
 	EventReportResolved       = "report_resolved"
 	EventSupportButtonClicked = "support_button_clicked"
+
+	// Интерес к нон-спорт функционалу (счётчик запроса фичи «вносить не только спорт»)
+	EventNonSportInterest = "non_sport_interest"
 )
 
 // AnalyticsEvent — одно событие для записи в таблицу events.

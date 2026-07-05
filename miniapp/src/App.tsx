@@ -19,7 +19,7 @@ import { fetchFeedThreadUnreadSummary } from "./lib/feedThreadUnread";
 import { fetchPackGroupUnreadCount } from "./lib/packGroupUnread";
 import { ensureMiniappOnboarding } from "./lib/miniappOnboarding";
 import { syncDeviceTimezone } from "./lib/timezoneSync";
-import { reportMiniappOpened, reportWorkoutLogStarted } from "./lib/miniappEvents";
+import { reportMiniappOpened, reportWorkoutLogStarted, reportNonSportInterest } from "./lib/miniappEvents";
 import "./App.css";
 
 type Tab = "chat" | "feed" | "rules" | "profile";
@@ -387,6 +387,9 @@ export function App() {
       {workoutOpen && (
         <NewWorkoutScreen
           showAlert={showAlert}
+          onNonSportInterest={() => {
+            if (inTelegram && initData?.trim()) reportNonSportInterest(initData);
+          }}
           onClose={() => setWorkoutOpen(false)}
           onSave={async ({ types, min, intensity, note, photo, otherLabel }) => {
             if (!inTelegram || !initData) {

@@ -544,6 +544,25 @@
   flex-shrink: 0;
 }
 
+/* Кнопка-запрос фичи «вносить не только спорт» — ненавязчивая, под баблом видов. */
+.nwo__non-sport {
+  align-self: flex-start;
+  margin-top: 8px;
+  flex-shrink: 0;
+  padding: 6px 12px;
+  border-radius: 999px;
+  border: 1px dashed var(--border-subtle, #2a2a36);
+  background: transparent;
+  color: var(--text-label, #a0a0b0);
+  font: 600 var(--nwo-chip-fs) / var(--nwo-chip-lh) var(--font);
+  cursor: pointer;
+}
+
+.nwo__non-sport:active {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
 .nwo__other-label {
   display: block;
   font-size: var(--nwo-sec-fs);
