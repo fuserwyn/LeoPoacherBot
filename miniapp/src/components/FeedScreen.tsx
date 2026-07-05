@@ -18,6 +18,8 @@ import {
   extractEditableFeedPostText,
   buildFeedPostTextForSave,
   feedPostEditable,
+  feedItemKey,
+  isFeedMessage,
   type PackFeedItemDTO,
   type PackFeedThreadReplyDTO,
 } from "../lib/packFeed";
@@ -44,23 +46,29 @@ function applyOptimisticFeedItem(items: PackFeedItemDTO[], optimistic: PackFeedI
   return sortPackFeedItemsDesc([optimistic, ...items]);
 }
 
-function bumpMaxFeedId(maxRef: { current: number }, items: PackFeedItemDTO[]) {
+const tsMs = (s: string): number => Date.parse(s) || 0;
+
+/** Самое свежее created_at среди реальных записей (id>0) — курсор «новее» (since_ts). */
+function newestFeedTs(items: PackFeedItemDTO[]): string {
+  let best = "";
   for (const it of items) {
-    if (it.id > maxRef.current) maxRef.current = it.id;
+    if (it.id <= 0) continue;
+    if (best === "" || tsMs(it.created_at) > tsMs(best)) best = it.created_at;
   }
+  return best;
 }
 
 /**
- * Минимальный id обычной (не закреплённой) записи — курсор «загрузить ещё старее».
- * Закрепы исключаем: они подняты наверх из произвольной глубины и не задают границу окна.
+ * Самое старое created_at обычной (не закреплённой) записи — курсор «загрузить ещё старее»
+ * (before_ts). Закрепы и оптимистичные (id<0) исключаем: они не задают границу окна.
  */
-function minRegularFeedId(items: PackFeedItemDTO[]): number {
-  let min = 0;
+function minRegularFeedTs(items: PackFeedItemDTO[]): string {
+  let oldest = "";
   for (const it of items) {
     if (it.id <= 0 || it.is_pinned) continue;
-    if (min === 0 || it.id < min) min = it.id;
+    if (oldest === "" || tsMs(it.created_at) < tsMs(oldest)) oldest = it.created_at;
   }
-  return min;
+  return oldest;
 }
 
 type Props = {
@@ -254,13 +262,16 @@ export function FeedScreen({
   const [followPosting, setFollowPosting] = useState<Record<number, boolean>>({});
   /** Чьи отчёты показывать: все / только мои / только друзей (на кого подписан). */
   const [feedScope, setFeedScope] = useState<"all" | "mine" | "friends">("all");
+  /** Тип контента единой ленты: всё / только тренировки+системные / только сообщения чата. */
+  const [feedTypeFilter, setFeedTypeFilter] = useState<"all" | "training" | "message">("all");
   /** Мультивыбор типов тренировок (пусто = «все типы»). */
   const [feedCategoryIds, setFeedCategoryIds] = useState<WorkoutCategoryId[]>([]);
   const [viewportStyle, setViewportStyle] = useState<FeedViewportStyle>({});
   const feedHeaderRef = useRef<HTMLDivElement>(null);
-  const maxFeedIdRef = useRef(0);
-  /** Самый старый загруженный id обычной ленты (без закрепов) — курсор подгрузки вниз. */
-  const minFeedIdRef = useRef(0);
+  /** Самое свежее created_at в окне — курсор «новее» (since_ts) для инкрементального синка. */
+  const newestTsRef = useRef("");
+  /** Самое старое created_at обычной ленты (без закрепов) — курсор подгрузки вниз (before_ts). */
+  const oldestTsRef = useRef("");
   const loadedOnceRef = useRef(false);
   /** Идёт полный синк — чтобы не плодить дубли (двойной fetch на маунте, наложение поллинга и пост-экшн-синков). */
   const fullSyncInFlightRef = useRef(false);
@@ -288,6 +299,10 @@ export function FeedScreen({
       // Свой только что отправленный пост показываем всегда, даже если активен
       // фильтр по типам тренировок (иначе кажется, что отчёт не отправился).
       if (optimisticFeedItem && it.id === optimisticFeedItem.id) return true;
+      // Фильтр типа контента: тренировки/системные (feed) vs сообщения чата (message).
+      const message = isFeedMessage(it);
+      if (feedTypeFilter === "training" && message) return false;
+      if (feedTypeFilter === "message" && !message) return false;
       if (feedScope === "mine" && !it.is_you) return false;
       if (feedScope === "friends" && !it.is_friend) return false;
       if (feedCategoryIds.length > 0) {
@@ -296,7 +311,7 @@ export function FeedScreen({
       }
       return true;
     });
-  }, [feedWithOptimistic, feedScope, feedCategoryIds, categoryFilterSet, optimisticFeedItem]);
+  }, [feedWithOptimistic, feedScope, feedTypeFilter, feedCategoryIds, categoryFilterSet, optimisticFeedItem]);
 
   // Закреплённые объявления — сверху ленты (свежезакреплённые первыми), остальное — хронологически.
   const orderedFeedItems = useMemo(() => {
@@ -397,12 +412,12 @@ export function FeedScreen({
         setUseMockFeed(true);
         setFeedItems([]);
         setErr(null);
-        maxFeedIdRef.current = 0;
-        minFeedIdRef.current = 0;
+        newestTsRef.current = "";
+        oldestTsRef.current = "";
         return;
       }
-      const full = opts?.full === true || maxFeedIdRef.current === 0;
-      const sinceId = full ? 0 : maxFeedIdRef.current;
+      const full = opts?.full === true || newestTsRef.current === "";
+      const sinceTs = full ? "" : newestTsRef.current;
       // Дедуп: если полный синк уже выполняется, новый полный синк пропускаем
       // (защищает от двойного fetch на маунте и наложения поллинга/пост-экшн-синков).
       // force=true — ручное обновление по кнопке: дедуп игнорируем, чтобы клик всегда срабатывал.
@@ -415,7 +430,7 @@ export function FeedScreen({
         const res = await fetch(`${apiBase}/api/miniapp/feed`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ init_data: initData, since_id: sinceId }),
+          body: JSON.stringify({ init_data: initData, ...(sinceTs ? { since_ts: sinceTs } : {}) }),
         });
         const j = (await res.json().catch(() => ({}))) as { ok?: boolean; items?: PackFeedItemDTO[]; pinned?: PackFeedItemDTO[]; error?: string };
         if (!res.ok) {
@@ -434,37 +449,39 @@ export function FeedScreen({
         setErr(null);
         const incoming = j.items ?? [];
         const pinned = j.pinned ?? [];
-        if (full || sinceId === 0) {
+        if (full || sinceTs === "") {
           const reconciled = reconcilePinnedFeed(incoming, pinned);
           if (opts?.reset) {
             // Явная перезагрузка (маунт / refreshToken / pull-to-refresh): окно с нуля.
             setFeedItems(reconciled);
-            minFeedIdRef.current = minRegularFeedId(reconciled);
+            oldestTsRef.current = minRegularFeedTs(reconciled);
             setHasMoreOlder(incoming.length >= 50);
           } else {
             // Обычный полный синк (поллинг тредов/реакций, пост-экшн): НЕ схлопываем ленту —
             // сохраняем уже догруженные старые страницы, иначе бесконечная переподгрузка.
             setFeedItems((prev) => {
               if (prev.length === 0) {
-                minFeedIdRef.current = minRegularFeedId(reconciled);
+                oldestTsRef.current = minRegularFeedTs(reconciled);
                 return reconciled;
               }
-              const windowMinId = minRegularFeedId(reconciled);
+              const windowOldestTs = minRegularFeedTs(reconciled);
               const olderKept =
-                windowMinId > 0
-                  ? prev.filter((p) => p.id > 0 && p.id < windowMinId && !p.is_pinned)
+                windowOldestTs !== ""
+                  ? prev.filter((p) => p.id > 0 && !p.is_pinned && tsMs(p.created_at) < tsMs(windowOldestTs))
                   : [];
               const next =
                 olderKept.length > 0 ? sortPackFeedItemsDesc([...reconciled, ...olderKept]) : reconciled;
-              minFeedIdRef.current = minRegularFeedId(next);
+              oldestTsRef.current = minRegularFeedTs(next);
               return next;
             });
             // hasMoreOlder выставляем только на самой первой загрузке окна; дальше им
             // управляет loadOlder (станет false, когда дойдём до начала истории).
             if (!loadedOnceRef.current) setHasMoreOlder(incoming.length >= 50);
           }
-          maxFeedIdRef.current = 0;
-          bumpMaxFeedId(maxFeedIdRef, incoming);
+          {
+            const n = newestFeedTs(incoming);
+            if (n !== "") newestTsRef.current = n;
+          }
           if (
             optimisticFeedItem &&
             feedHasMatchingTrainingReport(incoming, optimisticFeedItem.text, optimisticFeedItem.user_id)
@@ -475,7 +492,8 @@ export function FeedScreen({
           setFeedItems((prev) => {
             const merged = mergePackFeedIncremental(prev, incoming);
             const next = reconcilePinnedFeed(merged, pinned);
-            bumpMaxFeedId(maxFeedIdRef, incoming);
+            const n = newestFeedTs(incoming);
+            if (n !== "" && tsMs(n) > tsMs(newestTsRef.current)) newestTsRef.current = n;
             if (
               optimisticFeedItem &&
               feedHasMatchingTrainingReport(next, optimisticFeedItem.text, optimisticFeedItem.user_id)
@@ -499,19 +517,19 @@ export function FeedScreen({
     [inTelegram, initData, optimisticFeedItem, onOptimisticConsumed],
   );
 
-  /** Подгрузка более старых записей (скролл вниз): before_id = самый старый загруженный id. */
+  /** Подгрузка более старых записей (скролл вниз): before_ts = самое старое видимое created_at. */
   const loadOlder = useCallback(async () => {
     if (!apiBase || !inTelegram || !initData) return;
     if (loadingOlderRef.current) return;
-    const beforeId = minFeedIdRef.current;
-    if (beforeId <= 0) return;
+    const beforeTs = oldestTsRef.current;
+    if (beforeTs === "") return;
     loadingOlderRef.current = true;
     setLoadingOlder(true);
     try {
       const res = await fetch(`${apiBase}/api/miniapp/feed`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ init_data: initData, before_id: beforeId }),
+        body: JSON.stringify({ init_data: initData, before_ts: beforeTs }),
       });
       const j = (await res.json().catch(() => ({}))) as { ok?: boolean; items?: PackFeedItemDTO[]; error?: string };
       if (!res.ok) return;
@@ -520,16 +538,16 @@ export function FeedScreen({
         setHasMoreOlder(false);
         return;
       }
-      // Курсор реально ушёл «глубже» — иначе (все id уже были) насос застрянет: стоп.
-      // Считаем ДО setFeedItems: updater у React 18 выполняется асинхронно (в фазе
-      // рендера), поэтому чтение флага сразу после setState вернуло бы устаревший false
-      // и подгрузка стопорилась после первой же страницы. Все older имеют id < before_id,
-      // так что их минимум и есть новый курсор.
-      const olderMin = minRegularFeedId(older);
-      const advanced = olderMin > 0 && (minFeedIdRef.current === 0 || olderMin < minFeedIdRef.current);
+      // Курсор реально ушёл «глубже» — иначе (все записи уже были) насос застрянет: стоп.
+      // Считаем ДО setFeedItems: updater у React 18 выполняется асинхронно, поэтому чтение
+      // флага сразу после setState вернуло бы устаревшее значение. Все older старше before_ts,
+      // так что их самое старое created_at и есть новый курсор.
+      const olderOldest = minRegularFeedTs(older);
+      const advanced =
+        olderOldest !== "" && (oldestTsRef.current === "" || tsMs(olderOldest) < tsMs(oldestTsRef.current));
       setFeedItems((prev) => {
         const next = mergePackFeedIncremental(prev, older);
-        minFeedIdRef.current = minRegularFeedId(next);
+        oldestTsRef.current = minRegularFeedTs(next);
         return next;
       });
       // Меньше полной страницы или курсор не сдвинулся — история исчерпана.
@@ -620,7 +638,7 @@ export function FeedScreen({
       const applyToggle = () =>
         setFeedItems((prev) =>
           prev.map((it) =>
-            it.id === userMessageId
+            it.id === userMessageId && !isFeedMessage(it)
               ? { ...it, reactions: optimisticTogglePackFeedReaction(it.reactions, emoji) }
               : it,
           ),
@@ -637,6 +655,46 @@ export function FeedScreen({
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ init_data: initData, user_message_id: userMessageId, emoji }),
+          });
+          const j = (await res.json().catch(() => ({}))) as { error?: string };
+          if (!res.ok) {
+            applyToggle();
+            showAlert(j.error === "invalid_emoji" ? "Такую реакцию нельзя" : j.error ?? `Ошибка ${res.status}`);
+            return;
+          }
+          void syncFeed({ full: true, silent: true });
+        } catch (e) {
+          applyToggle();
+          showAlert(e instanceof Error ? e.message : "Сеть");
+        }
+      })();
+    },
+    [apiBase, initData, syncFeed, showAlert, hapticLight],
+  );
+
+  // Реакция на сообщение общего чата в единой ленте (эндпоинт pack-group).
+  const postMessageReact = useCallback(
+    (messageId: number, emoji: string) => {
+      if (!apiBase || !initData) return;
+      hapticLight();
+
+      const applyToggle = () =>
+        setFeedItems((prev) =>
+          prev.map((it) =>
+            it.id === messageId && isFeedMessage(it)
+              ? { ...it, reactions: optimisticTogglePackFeedReaction(it.reactions, emoji) }
+              : it,
+          ),
+        );
+
+      applyToggle();
+
+      void (async () => {
+        try {
+          const res = await fetch(`${apiBase}/api/miniapp/pack-group/react`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ init_data: initData, message_id: messageId, emoji }),
           });
           const j = (await res.json().catch(() => ({}))) as { error?: string };
           if (!res.ok) {
@@ -1224,8 +1282,8 @@ export function FeedScreen({
   );
 
   useEffect(() => {
-    maxFeedIdRef.current = 0;
-    minFeedIdRef.current = 0;
+    newestTsRef.current = "";
+    oldestTsRef.current = "";
     loadedOnceRef.current = false;
     setHasMoreOlder(true);
     if (active) void syncFeed({ full: true, reset: true });
@@ -1349,8 +1407,8 @@ export function FeedScreen({
 
   const handlePullRefresh = useCallback(async () => {
     hapticLight();
-    maxFeedIdRef.current = 0;
-    minFeedIdRef.current = 0;
+    newestTsRef.current = "";
+    oldestTsRef.current = "";
     setHasMoreOlder(true);
     await Promise.all([syncFeed({ full: true, reset: true }), Promise.resolve(onRefreshAll?.())]);
   }, [syncFeed, onRefreshAll, hapticLight]);
@@ -1427,6 +1485,29 @@ export function FeedScreen({
         </div>
         {sub === "activity" && (
           <div className="feed__filters" aria-label="Фильтры ленты" data-no-ptr>
+            <div className="feed__filter-scope" role="group" aria-label="Тип контента">
+              <button
+                type="button"
+                className={`feed__filter-pill${feedTypeFilter === "all" ? " is-active" : ""}`}
+                onClick={() => setFeedTypeFilter("all")}
+              >
+                Всё
+              </button>
+              <button
+                type="button"
+                className={`feed__filter-pill${feedTypeFilter === "training" ? " is-active" : ""}`}
+                onClick={() => setFeedTypeFilter("training")}
+              >
+                Тренировки
+              </button>
+              <button
+                type="button"
+                className={`feed__filter-pill${feedTypeFilter === "message" ? " is-active" : ""}`}
+                onClick={() => setFeedTypeFilter("message")}
+              >
+                Сообщения
+              </button>
+            </div>
             <div className="feed__filter-scope" role="group" aria-label="Чьи отчёты">
               <button
                 type="button"
@@ -1450,6 +1531,7 @@ export function FeedScreen({
                 Мои
               </button>
             </div>
+            {feedTypeFilter !== "message" && (
             <div className="feed__filter-cats" role="group" aria-label="Тип тренировки">
               <div
                 role="button"
@@ -1492,6 +1574,7 @@ export function FeedScreen({
                 );
               })}
             </div>
+            )}
           </div>
         )}
         </div>
@@ -1537,8 +1620,8 @@ export function FeedScreen({
                   if (manualRefreshing) return;
                   setManualRefreshing(true);
                   window.scrollTo({ top: 0, behavior: "smooth" });
-                  maxFeedIdRef.current = 0;
-                  minFeedIdRef.current = 0;
+                  newestTsRef.current = "";
+                  oldestTsRef.current = "";
                   setHasMoreOlder(true);
                   try {
                     // force=true — игнорируем дедуп фоновых синков, чтобы клик всегда обновлял.
@@ -1606,8 +1689,11 @@ export function FeedScreen({
                   it.type === "healthy" ||
                   it.type === "admin_post" ||
                   it.type === "admin_poll";
+                // Сообщение общего чата в единой ленте: реакции есть, тред (комменты) — Фаза 4.
+                const isMessage = isFeedMessage(it);
                 const supportsReactions =
                   supportsThread ||
+                  isMessage ||
                   it.type === "pack_join" ||
                   it.type === "pack_rejoin" ||
                   it.type === "daily_wisdom";
@@ -1656,10 +1742,12 @@ export function FeedScreen({
                     edited: Boolean(tr.edited_at),
                   };
                 });
-                const canReportCard = !it.is_you && !isLeoSystemFeed;
-                const canAdminDeleteCard = isAdmin;
+                // Жалобы/удаление/редактирование сообщений идут через другие эндпоинты
+                // (pack-group) — включим в Фазе 4; пока у сообщений только реакции.
+                const canReportCard = !it.is_you && !isLeoSystemFeed && !isMessage;
+                const canAdminDeleteCard = isAdmin && !isMessage;
                 const isOwnPost = it.is_you || (userId > 0 && it.user_id === userId);
-                const canEditPost = feedPostEditable(it.type, isOwnPost);
+                const canEditPost = feedPostEditable(it.type, isOwnPost) && !isMessage;
                 const postEditProps: Partial<ActivityCardProps> = canEditPost
                   ? {
                       onStartEditPost: () => {
@@ -1709,7 +1797,7 @@ export function FeedScreen({
                   : {};
                 if (!supportsThread) {
                   return (
-                    <div key={it.id} className={`${slotClass}${isPinnedAnnouncement ? " feed__card-slot--pinned" : ""}`}>
+                    <div key={feedItemKey(it)} className={`${slotClass}${isPinnedAnnouncement ? " feed__card-slot--pinned" : ""}`}>
                       <ActivityCard
                         {...base}
                         {...pinnedLeoProps}
@@ -1722,7 +1810,12 @@ export function FeedScreen({
                         pinPosting={feedPinPosting[it.id] ?? false}
                         reactions={supportsReactions ? mergeFeedReactionsForType(it.type, it.reactions) : undefined}
                         onReactionClick={
-                          supportsReactions ? (emoji) => void postTrainingReact(it.id, emoji) : undefined
+                          supportsReactions
+                            ? (emoji) =>
+                                isMessage
+                                  ? void postMessageReact(it.id, emoji)
+                                  : void postTrainingReact(it.id, emoji)
+                            : undefined
                         }
                         onReport={canReportCard ? () => confirmReportPublication(it.id) : undefined}
                         reportPosting={feedReportPosting[it.id] ?? false}
@@ -1746,7 +1839,7 @@ export function FeedScreen({
                   );
                 }
                 return (
-                  <div key={it.id} className={`${slotClass}${isPinnedAnnouncement ? " feed__card-slot--pinned" : ""}`}>
+                  <div key={feedItemKey(it)} className={`${slotClass}${isPinnedAnnouncement ? " feed__card-slot--pinned" : ""}`}>
                     <ActivityCard
                       {...base}
                       {...pinnedLeoProps}

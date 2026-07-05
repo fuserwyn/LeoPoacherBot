@@ -1346,6 +1346,25 @@ var Migrations = []Migration{
 			DROP TABLE IF EXISTS daily_wisdom_log;
 		`,
 	},
+	{
+		Version:     71,
+		Description: "Единая лента: baseline id общего чата (старые сообщения в ленту не тянем)",
+		UpSQL: `
+			CREATE TABLE IF NOT EXISTS unified_feed_meta (
+				id                       INT PRIMARY KEY DEFAULT 1,
+				pack_message_baseline_id BIGINT NOT NULL DEFAULT 0,
+				CONSTRAINT unified_feed_meta_singleton CHECK (id = 1)
+			);
+			-- Фиксируем текущий максимум id чата: в объединённую ленту попадут только
+			-- сообщения, созданные после накатывания этой миграции (id > baseline).
+			INSERT INTO unified_feed_meta (id, pack_message_baseline_id)
+			SELECT 1, COALESCE(MAX(id), 0) FROM miniapp_pack_group_chat
+			ON CONFLICT (id) DO NOTHING;
+		`,
+		DownSQL: `
+			DROP TABLE IF EXISTS unified_feed_meta;
+		`,
+	},
 }
 
 // MigrationRecord представляет запись о выполненной миграции

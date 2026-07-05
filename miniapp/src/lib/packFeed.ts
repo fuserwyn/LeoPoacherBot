@@ -143,6 +143,10 @@ export type PackFeedItemDTO = {
   user_id: number;
   username: string;
   type: string;
+  /** Источник записи: "feed" (тренировки/системные, user_messages) или
+   *  "message" (сообщение общего чата, miniapp_pack_group_chat). id уникален только
+   *  внутри источника — ключевать/дедупить записи нужно по `feedItemKey`. */
+  source?: "feed" | "message";
   text: string;
   created_at: string;
   streak_days: number;
@@ -206,7 +210,18 @@ export function buildFeedPostTextForSave(originalRaw: string, type: string, edit
 }
 
 export function feedPostEditable(type: string, isYou: boolean): boolean {
-  return isYou && (type === "training_done" || type === "healthy");
+  return isYou && (type === "training_done" || type === "healthy" || type === "pack_message");
+}
+
+/** Стабильный ключ записи единой ленты: id уникален только внутри источника,
+ *  поэтому ключуем/дедупим как `${source}:${id}` ("feed" по умолчанию). */
+export function feedItemKey(d: Pick<PackFeedItemDTO, "id" | "source">): string {
+  return `${d.source ?? "feed"}:${d.id}`;
+}
+
+/** true — запись является сообщением общего чата (карточка pack_message). */
+export function isFeedMessage(d: Pick<PackFeedItemDTO, "type" | "source">): boolean {
+  return d.type === "pack_message" || d.source === "message";
 }
 
 /** Сводит авторитетный набор закреплённых (с бэка) в текущую ленту:
@@ -215,10 +230,10 @@ export function reconcilePinnedFeed(
   prev: PackFeedItemDTO[],
   pinned: PackFeedItemDTO[],
 ): PackFeedItemDTO[] {
-  const pinnedById = new Map(pinned.map((p) => [p.id, p]));
+  const pinnedByKey = new Map(pinned.map((p) => [feedItemKey(p), p]));
   let changed = false;
   const next = prev.map((it) => {
-    const p = pinnedById.get(it.id);
+    const p = pinnedByKey.get(feedItemKey(it));
     if (p) {
       changed = true;
       return { ...it, ...p, is_pinned: true };
@@ -230,7 +245,7 @@ export function reconcilePinnedFeed(
     return it;
   });
   for (const p of pinned) {
-    if (!next.some((it) => it.id === p.id)) {
+    if (!next.some((it) => feedItemKey(it) === feedItemKey(p))) {
       changed = true;
       next.push({ ...p, is_pinned: true });
     }
@@ -249,7 +264,7 @@ export function mergeFeedReactionsForType(
   type: string,
   fromServer?: PackFeedReactionDTO[],
 ): { emoji: string; count: number; me: boolean; voters?: VoterDTO[] | string[] }[] {
-  if (type === "training_done" || type === "daily_wisdom") {
+  if (type === "training_done" || type === "daily_wisdom" || type === "pack_message") {
     return mergeTrainingFeedReactions(fromServer);
   }
   if (type === "pack_join" || type === "pack_rejoin") {
@@ -350,6 +365,8 @@ function typeMeta(t: string): { emoji: string; activity: string; details: string
       return { emoji: "🗳️", activity: "Админ · опрос", details: "Голосование в miniapp" };
     case "inactive_notice":
       return { emoji: "⏳", activity: "Лео · напоминание стае", details: "Таймер неактивности (дубль контекста)" };
+    case "pack_message":
+      return { emoji: "💬", activity: "", details: "" };
     default:
       return { emoji: "📝", activity: t, details: "Сообщение" };
   }
@@ -457,6 +474,21 @@ export function dtoToCard(d: PackFeedItemDTO): ActivityCardProps {
       comment: d.poll?.question?.trim() || comment,
     };
   }
+  if (d.type === "pack_message") {
+    // Сообщение общего чата как карточка ленты: автор + текст (+ фото), без стрика/активности.
+    return {
+      avatar: (pic || "").trim() || avatarFor(d.username),
+      name: d.is_you ? "Ты" : d.username || `Участник ${d.user_id}`,
+      streak: 0,
+      hideStreak: true,
+      timeAgo: formatLocalDateTime(d.created_at),
+      emoji: "",
+      activity: "",
+      details: "",
+      comment,
+      trainingPhotoUrl: resolveTrainingPhotoUrl(d.training_photo_url),
+    };
+  }
   return {
     avatar: (pic || "").trim() || avatarFor(d.username),
     name: d.is_you ? "Ты" : d.username || `Участник ${d.user_id}`,
@@ -489,8 +521,8 @@ function trainingReportFirstLineKey(text: string): string {
 /** Добавляет только новые id; снимает временную optimistic-карточку при совпадении отчёта. */
 export function mergePackFeedIncremental(prev: PackFeedItemDTO[], incoming: PackFeedItemDTO[]): PackFeedItemDTO[] {
   if (incoming.length === 0) return prev;
-  const known = new Set(prev.map((i) => i.id));
-  const fresh = incoming.filter((i) => !known.has(i.id));
+  const known = new Set(prev.map((i) => feedItemKey(i)));
+  const fresh = incoming.filter((i) => !known.has(feedItemKey(i)));
   if (fresh.length === 0) return prev;
   const withoutOptimistic = prev.filter((p) => {
     if (p.id >= 0) return true;

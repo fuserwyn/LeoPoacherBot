@@ -477,6 +477,20 @@ func (s *Server) handlePostFeedTrainingThreadUnreadClear(w http.ResponseWriter, 
 	_ = json.NewEncoder(w).Encode(map[string]any{"ok": true})
 }
 
+// parseFeedCursorTS — курсор единой ленты из RFC3339-строки. Пусто/битое → nil (без курсора).
+func parseFeedCursorTS(s string) *time.Time {
+	s = strings.TrimSpace(s)
+	if s == "" {
+		return nil
+	}
+	t, err := time.Parse(time.RFC3339, s)
+	if err != nil {
+		return nil
+	}
+	tu := t.UTC()
+	return &tu
+}
+
 func (s *Server) handlePostFeed(w http.ResponseWriter, r *http.Request) {
 	corsWriteHeaders(w, r)
 	if s.bot == nil || s.token == "" {
@@ -485,8 +499,10 @@ func (s *Server) handlePostFeed(w http.ResponseWriter, r *http.Request) {
 	}
 	var body struct {
 		InitData string `json:"init_data"`
-		SinceID  int64  `json:"since_id"`
-		BeforeID int64  `json:"before_id"`
+		// Курсоры единой ленты — по времени (RFC3339). since_ts: только новее (polling),
+		// before_ts: более старые (подгрузка вниз). since_ts имеет приоритет.
+		SinceTS  string `json:"since_ts"`
+		BeforeTS string `json:"before_ts"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
 		s.jsonErr(w, http.StatusBadRequest, "invalid_json")
@@ -510,7 +526,9 @@ func (s *Server) handlePostFeed(w http.ResponseWriter, r *http.Request) {
 		s.jsonErr(w, http.StatusBadRequest, "user_missing")
 		return
 	}
-	items, err := s.bot.PackFeedForViewer(parsed.User.ID, parsed, body.InitData, body.SinceID, body.BeforeID)
+	sinceTS := parseFeedCursorTS(body.SinceTS)
+	beforeTS := parseFeedCursorTS(body.BeforeTS)
+	items, err := s.bot.PackFeedForViewer(parsed.User.ID, parsed, body.InitData, sinceTS, beforeTS)
 	if err != nil {
 		if errors.Is(err, bot.ErrMiniAppChatMismatch) {
 			s.jsonErr(w, http.StatusConflict, "chat_mismatch")
@@ -526,9 +544,9 @@ func (s *Server) handlePostFeed(w http.ResponseWriter, r *http.Request) {
 	}
 	// Закреплённые объявления — авторитетный текущий набор (в т.ч. при incremental polling),
 	// чтобы фронт синхронизировал закреп/откреп даже для старых постов вне окна выдачи.
-	// Для подгрузки вниз (before_id) закрепы уже есть на фронте — не дёргаем повторно.
+	// Для подгрузки вниз (before_ts) закрепы уже есть на фронте — не дёргаем повторно.
 	var pinned []bot.PackFeedItem
-	if body.BeforeID <= 0 {
+	if beforeTS == nil {
 		p, pErr := s.bot.PackFeedPinnedForViewer(parsed.User.ID, parsed, body.InitData)
 		if pErr != nil {
 			s.logger.Warnf("pack feed pinned: %v", pErr)
