@@ -614,7 +614,7 @@
   flex-shrink: 0;
   padding: 6px 12px;
   border-radius: 999px;
-  border: 1px dashed var(--border-subtle, #2a2a36);
+  border: 1px solid var(--border-subtle, #2a2a36);
   background: transparent;
   color: var(--text-label, #a0a0b0);
   font: 600 var(--nwo-chip-fs) / var(--nwo-chip-lh) var(--font);
