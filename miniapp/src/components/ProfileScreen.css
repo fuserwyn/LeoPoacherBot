@@ -946,6 +946,27 @@ html.app-keyboard-open .profile__health-actions--keyboard {
 }
 
 /* Напоминания */
+/* Единый раздел «Уведомления» — обособленная карточка с заметным заголовком,
+   чтобы читался как отдельный раздел, а не терялся среди настроек профиля. */
+.profile__notif {
+  margin-bottom: 24px;
+  padding: 14px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border-subtle);
+  background: var(--card-inner);
+}
+
+.profile__notif-title {
+  margin-top: 0;
+  margin-bottom: 12px;
+  font-size: 13px;
+  color: var(--accent);
+}
+
+.profile__notif .profile__reminder {
+  margin-bottom: 0;
+}
+
 .profile__reminder {
   display: flex;
   flex-direction: column;

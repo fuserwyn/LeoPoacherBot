@@ -1152,9 +1152,10 @@ export function ProfileScreen({
         </div>
       )}
 
-      <h2 className="section-title">Уведомления</h2>
-      <div className="profile__reminder">
-        <label className="profile__reminder-row">
+      <section className="profile__notif">
+        <h2 className="section-title profile__notif-title">🔔 Уведомления</h2>
+        <div className="profile__reminder">
+          <label className="profile__reminder-row">
           <span className="profile__reminder-label">Напоминать внести тренировку</span>
           <input
             type="checkbox"
@@ -1218,7 +1219,8 @@ export function ProfileScreen({
             ? "Лео напишет в личку, когда кто-то лайкнет твою тренировку или комментарий в ленте"
             : "Уведомления выключены. О лайках на твоих постах и комментариях писать не будем."}
         </p>
-      </div>
+        </div>
+      </section>
 
       <h2 className="section-title">Профиль (для Лео)</h2>
       {profileLoading && <p className="muted">Загрузка профиля…</p>}
