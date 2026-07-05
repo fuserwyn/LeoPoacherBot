@@ -318,6 +318,7 @@ export function NewWorkoutScreen({ onClose, onSave, showAlert, onNonSportInteres
       <div className="nwo__body" ref={bodyRef}>
         <div className="nwo__note-block">
           <h2 className="nwo__sec">Описание</h2>
+          <div className="nwo__note-wrap">
           <textarea
             ref={noteTaRef}
             className="nwo__note"
@@ -343,11 +344,10 @@ export function NewWorkoutScreen({ onClose, onSave, showAlert, onNonSportInteres
               }, 80);
             }}
           />
-          <p className="nwo__note-cnt" aria-live="polite">
-            <span className="nwo__note-cnt-inner">
-              {note.length}/{NOTE_MAX}
-            </span>
-          </p>
+          <span className="nwo__note-cnt" aria-live="polite">
+            {note.length}/{NOTE_MAX}
+          </span>
+          </div>
           {PHOTO_ENABLED && (
             <div className="nwo__photo-row">
               <label className="nwo__photo-add">
@@ -389,6 +389,9 @@ export function NewWorkoutScreen({ onClose, onSave, showAlert, onNonSportInteres
                   </button>
                 </>
               ) : null}
+              <button type="button" className="nwo__non-sport" onClick={handleNonSportInterest}>
+                Хочу вносить не только спорт
+              </button>
             </div>
           )}
         </div>
@@ -412,9 +415,6 @@ export function NewWorkoutScreen({ onClose, onSave, showAlert, onNonSportInteres
               </button>
             ))}
           </div>
-          <button type="button" className="nwo__non-sport" onClick={handleNonSportInterest}>
-            Хочу вносить не только спорт
-          </button>
           {otherSelected && (
             <div className="nwo__other-field">
               <label className="nwo__other-label" htmlFor="nwo-other-type">
