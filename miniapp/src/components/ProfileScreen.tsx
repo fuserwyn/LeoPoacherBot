@@ -1186,9 +1186,7 @@ export function ProfileScreen({
             ? "Если до этого часа не отмечена тренировка — Лео мягко напомнит"
             : "Напоминания выключены. Лео не будет писать о пропущенной тренировке."}
         </p>
-      </div>
 
-      <div className="profile__reminder">
         <label className="profile__reminder-row">
           <span className="profile__reminder-label">Мудрость дня в личку</span>
           <input
@@ -1204,9 +1202,7 @@ export function ProfileScreen({
             ? "Каждый день в 04:20 по твоему времени Лео пришлёт короткую мудрость дня в личку"
             : "Подписка выключена. Мудрость дня приходит только в чат стаи."}
         </p>
-      </div>
 
-      <div className="profile__reminder">
         <label className="profile__reminder-row">
           <span className="profile__reminder-label">Лайки на постах и в ленте</span>
           <input
