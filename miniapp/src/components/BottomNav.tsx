@@ -17,6 +17,8 @@ type Props = {
   onProfile: () => void;
   /** Отправка текстового сообщения в общую ленту (компоуз-поле). Возвращает true при успехе. */
   onSendMessage?: (text: string) => Promise<boolean> | boolean;
+  /** Показывать компоуз-поле. На экране тренировки/поддержки скрываем (там своё поле ввода). */
+  showCompose?: boolean;
 };
 
 export function BottomNav({
@@ -29,6 +31,7 @@ export function BottomNav({
   onRules,
   onProfile,
   onSendMessage,
+  showCompose = true,
 }: Props) {
   const leoBadge = leoBadgeCount > 0 ? (leoBadgeCount > 9 ? "9+" : String(leoBadgeCount)) : null;
   const feedBadge = feedBadgeCount > 0 ? (feedBadgeCount > 9 ? "9+" : String(feedBadgeCount)) : null;
@@ -115,40 +118,55 @@ export function BottomNav({
       </button>
 
       {/* Компоуз: поле ввода + «+» — единый блок публикации в ленту.
-          Текст → сообщение в ленту; «+» → форма тренировки. */}
-      <form
-        className="bottom-nav__compose"
-        onSubmit={(e) => {
-          e.preventDefault();
-          void submitMessage();
-        }}
-      >
-        <input
-          ref={inputRef}
-          className="bottom-nav__compose-input"
-          value={msg}
-          onChange={(e) => setMsg(e.target.value)}
-          onFocus={onComposeFocus}
-          onBlur={onComposeBlur}
-          placeholder="Написать в ленту…"
-          aria-label="Сообщение в ленту стаи"
-          maxLength={4000}
-          autoComplete="off"
-          enterKeyHint="send"
-          disabled={sending}
-        />
-        <button
-          type="submit"
-          className="bottom-nav__compose-send"
-          disabled={sending || !msg.trim()}
-          aria-label="Отправить сообщение в ленту"
-          title="Отправить в ленту"
+          Текст → сообщение в ленту; «+» → форма тренировки.
+          На экране тренировки/поддержки поле скрыто (там своё поле ввода) — только «+». */}
+      {showCompose ? (
+        <form
+          className="bottom-nav__compose"
+          onSubmit={(e) => {
+            e.preventDefault();
+            void submitMessage();
+          }}
         >
-          {sending ? "…" : "➤"}
-        </button>
+          <input
+            ref={inputRef}
+            className="bottom-nav__compose-input"
+            value={msg}
+            onChange={(e) => setMsg(e.target.value)}
+            onFocus={onComposeFocus}
+            onBlur={onComposeBlur}
+            placeholder="Написать в ленту…"
+            aria-label="Сообщение в ленту стаи"
+            maxLength={4000}
+            autoComplete="off"
+            enterKeyHint="send"
+            disabled={sending}
+          />
+          <button
+            type="submit"
+            className="bottom-nav__compose-send"
+            disabled={sending || !msg.trim()}
+            aria-label="Отправить сообщение в ленту"
+            title="Отправить в ленту"
+          >
+            {sending ? "…" : "➤"}
+          </button>
+          <button
+            type="button"
+            className="bottom-nav__add"
+            onClick={onAddWorkout}
+            aria-label="Добавить тренировку"
+            title="Добавить тренировку"
+          >
+            <span className="bottom-nav__add-plus" aria-hidden>
+              +
+            </span>
+          </button>
+        </form>
+      ) : (
         <button
           type="button"
-          className="bottom-nav__add"
+          className="bottom-nav__add bottom-nav__add--solo"
           onClick={onAddWorkout}
           aria-label="Добавить тренировку"
           title="Добавить тренировку"
@@ -157,7 +175,7 @@ export function BottomNav({
             +
           </span>
         </button>
-      </form>
+      )}
 
       <button
         type="button"

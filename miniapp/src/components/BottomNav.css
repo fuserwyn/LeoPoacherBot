@@ -124,6 +124,12 @@
   transition: transform 0.15s ease, filter 0.15s ease;
 }
 
+/* Одиночная «+» (без компоуз-поля, напр. на экране тренировки) — по центру бара. */
+.bottom-nav__add--solo {
+  margin-left: auto;
+  margin-right: auto;
+}
+
 .bottom-nav__add:hover {
   filter: brightness(1.03);
 }

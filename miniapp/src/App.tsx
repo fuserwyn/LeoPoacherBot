@@ -404,6 +404,7 @@ export function App() {
         active={tab}
         leoBadgeCount={leoPending}
         feedBadgeCount={feedUnread}
+        showCompose={tabsVisible}
         onChat={() => {
           setWorkoutOpen(false);
           setSupportOpen(false);
