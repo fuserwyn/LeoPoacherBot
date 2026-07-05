@@ -24,13 +24,75 @@
   align-items: center;
   gap: 2px;
   min-width: 0;
-  flex: 1;
-  max-width: 76px;
+  /* Боковые вкладки — по содержимому; центр отдаём компоуз-полю. */
+  flex: 0 0 auto;
+  width: 48px;
   color: var(--text-muted);
   font-size: 10px;
   font-weight: 500;
   padding: 4px 0 0;
   transition: color 0.15s ease;
+}
+
+/* Компоуз: поле ввода + «+»/отправка — единый блок публикации в ленту. */
+.bottom-nav__compose {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0 4px 6px;
+  padding: 3px 3px 3px 12px;
+  border-radius: 24px;
+  background: color-mix(in srgb, var(--text-muted) 14%, transparent);
+  border: 1px solid var(--border-subtle);
+}
+
+.bottom-nav__compose-input {
+  flex: 1 1 auto;
+  min-width: 0;
+  background: transparent;
+  border: none;
+  outline: none;
+  color: var(--text, #fff);
+  font-size: 15px;
+  line-height: 1.2;
+  padding: 8px 0;
+}
+
+.bottom-nav__compose-input::placeholder {
+  color: var(--text-muted);
+}
+
+.bottom-nav__compose-send {
+  flex: 0 0 auto;
+  width: 42px;
+  height: 42px;
+  border-radius: 50%;
+  border: 1px solid color-mix(in srgb, var(--accent) 65%, #ffffff 35%);
+  background: linear-gradient(180deg, color-mix(in srgb, var(--accent) 82%, #ffffff 18%) 0%, var(--accent) 100%);
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.35) inset;
+  color: #ffffff;
+  display: grid;
+  place-items: center;
+  font-size: 16px;
+  transition: transform 0.15s ease, filter 0.15s ease;
+}
+
+.bottom-nav__compose-send:active {
+  transform: scale(0.96);
+}
+
+/* «+» внутри компоуза компактнее standalone-версии. */
+.bottom-nav__compose .bottom-nav__add {
+  width: 42px;
+  height: 42px;
+  margin-bottom: 0;
+}
+
+.bottom-nav__compose .bottom-nav__add-plus {
+  font-size: 26px;
+  margin-top: -1px;
 }
 
 /* Эмодзи-иконки таббара: явный размер (иначе наследуют 10px подписи и мелкие). */

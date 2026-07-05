@@ -1,4 +1,4 @@
-import { useLayoutEffect, useRef } from "react";
+import { useLayoutEffect, useRef, useState } from "react";
 import { measureBottomNavOffset } from "../lib/bottomNavOffset";
 import "./BottomNav.css";
 
@@ -15,6 +15,8 @@ type Props = {
   onAddWorkout: () => void;
   onRules: () => void;
   onProfile: () => void;
+  /** Отправка текстового сообщения в общую ленту (компоуз-поле). Возвращает true при успехе. */
+  onSendMessage?: (text: string) => Promise<boolean> | boolean;
 };
 
 export function BottomNav({
@@ -26,10 +28,14 @@ export function BottomNav({
   onAddWorkout,
   onRules,
   onProfile,
+  onSendMessage,
 }: Props) {
   const leoBadge = leoBadgeCount > 0 ? (leoBadgeCount > 9 ? "9+" : String(leoBadgeCount)) : null;
   const feedBadge = feedBadgeCount > 0 ? (feedBadgeCount > 9 ? "9+" : String(feedBadgeCount)) : null;
   const navRef = useRef<HTMLElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
+  const [msg, setMsg] = useState("");
+  const [sending, setSending] = useState(false);
 
   // Публикуем высоту таббара в --bottom-nav-h, чтобы оверлеи (например, #training_done) могли её зарезервировать.
   useLayoutEffect(() => {
@@ -50,6 +56,27 @@ export function BottomNav({
     };
   }, []);
 
+  // Пока сфокусировано компоуз-поле — держим таббар видимым и над клавиатурой
+  // (иначе html.app-keyboard-open прячет весь бар вместе с полем ввода).
+  const onComposeFocus = () => {
+    document.documentElement.classList.add("app-nav-compose-open");
+  };
+  const onComposeBlur = () => {
+    document.documentElement.classList.remove("app-nav-compose-open");
+  };
+
+  const submitMessage = async () => {
+    const t = msg.trim();
+    if (!t || sending || !onSendMessage) return;
+    setSending(true);
+    try {
+      const ok = await onSendMessage(t);
+      if (ok) setMsg("");
+    } finally {
+      setSending(false);
+    }
+  };
+
   return (
     <nav ref={navRef} className="bottom-nav" role="navigation" aria-label="Основное меню">
       <button
@@ -62,7 +89,7 @@ export function BottomNav({
         <span className="bottom-nav__icon-wrap" aria-hidden>
           <span className="bottom-nav__icon">🐆</span>
           {feedBadge && (
-            <span className="bottom-nav__badge bottom-nav__badge--feed" title="Новые ответы в ленте или чате стаи">
+            <span className="bottom-nav__badge bottom-nav__badge--feed" title="Новые ответы в ленте стаи">
               {feedBadge}
             </span>
           )}
@@ -86,17 +113,54 @@ export function BottomNav({
         </span>
         <span className="bottom-nav__label">Лео</span>
       </button>
-      <button
-        type="button"
-        className="bottom-nav__add"
-        onClick={onAddWorkout}
-        aria-label="Добавить тренировку"
-        title="Добавить тренировку"
+
+      {/* Компоуз: поле ввода + «+» — единый блок публикации в ленту.
+          Текст → сообщение в ленту; «+» → форма тренировки. */}
+      <form
+        className="bottom-nav__compose"
+        onSubmit={(e) => {
+          e.preventDefault();
+          void submitMessage();
+        }}
       >
-        <span className="bottom-nav__add-plus" aria-hidden>
-          +
-        </span>
-      </button>
+        <input
+          ref={inputRef}
+          className="bottom-nav__compose-input"
+          value={msg}
+          onChange={(e) => setMsg(e.target.value)}
+          onFocus={onComposeFocus}
+          onBlur={onComposeBlur}
+          placeholder="Написать в ленту…"
+          aria-label="Сообщение в ленту стаи"
+          maxLength={4000}
+          autoComplete="off"
+          enterKeyHint="send"
+          disabled={sending}
+        />
+        {msg.trim() ? (
+          <button
+            type="submit"
+            className="bottom-nav__compose-send"
+            disabled={sending}
+            aria-label="Отправить сообщение в ленту"
+          >
+            {sending ? "…" : "➤"}
+          </button>
+        ) : (
+          <button
+            type="button"
+            className="bottom-nav__add"
+            onClick={onAddWorkout}
+            aria-label="Добавить тренировку"
+            title="Добавить тренировку"
+          >
+            <span className="bottom-nav__add-plus" aria-hidden>
+              +
+            </span>
+          </button>
+        )}
+      </form>
+
       <button
         type="button"
         className={`bottom-nav__item ${active === "rules" ? "is-active" : ""}`}

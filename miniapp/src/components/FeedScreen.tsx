@@ -3,7 +3,6 @@ import { usePullToRefresh } from "../hooks/usePullToRefresh";
 import { tgConfirm } from "../lib/tgConfirm";
 import { ActivityCard, type ActivityCardProps } from "./ActivityCard";
 import { LEO_AVATAR_URL } from "../lib/leoAvatar";
-import { PackGroupChatPanel } from "./PackGroupChatPanel";
 import {
   dtoToCard,
   feedHasMatchingTrainingReport,
@@ -85,21 +84,18 @@ type Props = {
   onRefreshAll?: () => Promise<void> | void;
   /** Вкладка «Стая» видима (keep-alive). */
   active?: boolean;
-  /** Обновить бейджи таббара (после открытия общего чата). */
+  /** Обновить бейджи таббара. */
   onRefreshTabBadges?: () => void;
-  /** Сразу убрать бейдж общего чата из UI. */
-  onPackGroupChatOpened?: () => void;
-  /** Непрочитанные комментарии в ленте (бейдж подвкладки). */
+  /** Непрочитанные комментарии к твоим отчётам (бейдж на вкладке «Стая»). */
   feedThreadUnreadCount?: number;
-  /** Мгновенно убрать бейдж «Лента» из UI (после просмотра подвкладки). */
+  /** Мгновенно убрать бейдж «Стая» из UI (после просмотра ленты). */
   onFeedThreadRead?: () => void;
-  /** Непрочитанные ответы в общем чате (бейдж подвкладки). */
-  packGroupUnreadCount?: number;
   /** Админ может удалять любой пост ленты. */
   isAdmin?: boolean;
 };
 
-type Sub = "activity" | "room";
+// Единый поток — подвкладок больше нет; тип оставлен для совместимости эффектов.
+type Sub = "activity";
 
 type FeedViewportStyle = CSSProperties & {
   "--feed-vvh"?: string;
@@ -226,13 +222,11 @@ export function FeedScreen({
   onRefreshAll,
   active = true,
   onRefreshTabBadges,
-  onPackGroupChatOpened,
   feedThreadUnreadCount = 0,
   onFeedThreadRead,
-  packGroupUnreadCount = 0,
   isAdmin = false,
 }: Props) {
-  const [sub, setSub] = useState<Sub>("activity");
+  const [sub] = useState<Sub>("activity");
   const [unreadFeedCardIds, setUnreadFeedCardIds] = useState<Set<number>>(() => new Set());
 
   const [feedItems, setFeedItems] = useState<PackFeedItemDTO[]>([]);
@@ -402,8 +396,6 @@ export function FeedScreen({
     onFeedThreadRead,
     onRefreshTabBadges,
   ]);
-
-  const feedSubtabBadge = (count: number) => (count > 9 ? "9+" : count > 0 ? String(count) : null);
 
   const syncFeed = useCallback(
     async (opts?: { full?: boolean; silent?: boolean; reset?: boolean; force?: boolean }) => {
@@ -1446,43 +1438,6 @@ export function FeedScreen({
             </div>
           </div>
         </header>
-        <div className="feed__subtabs" role="tablist" aria-label="Стая">
-          <button
-            type="button"
-            className={`feed__subtab ${sub === "activity" ? "is-active" : ""}`}
-            onClick={() => setSub("activity")}
-            role="tab"
-            aria-selected={sub === "activity"}
-          >
-            <span className="feed__subtab-inner">
-              Лента
-              {feedSubtabBadge(feedThreadUnreadCount) != null ? (
-                <span className="feed__subtab-badge" aria-hidden>
-                  {feedSubtabBadge(feedThreadUnreadCount)}
-                </span>
-              ) : null}
-            </span>
-          </button>
-          <button
-            type="button"
-            className={`feed__subtab ${sub === "room" ? "is-active" : ""}`}
-            onClick={() => {
-              onPackGroupChatOpened?.();
-              setSub("room");
-            }}
-            role="tab"
-            aria-selected={sub === "room"}
-          >
-            <span className="feed__subtab-inner">
-              Чат
-              {feedSubtabBadge(packGroupUnreadCount) != null ? (
-                <span className="feed__subtab-badge" aria-hidden>
-                  {feedSubtabBadge(packGroupUnreadCount)}
-                </span>
-              ) : null}
-            </span>
-          </button>
-        </div>
         {sub === "activity" && (
           <div className="feed__filters" aria-label="Фильтры ленты" data-no-ptr>
             <div className="feed__filter-scope" role="group" aria-label="Тип контента">
@@ -1592,22 +1547,6 @@ export function FeedScreen({
           {ptrStatusText ? <span className="feed__ptr-label">{ptrStatusText}</span> : null}
         </div>
       ) : null}
-      <div className={`feed__subpane${sub !== "room" ? " feed__subpane--hidden" : ""}`}>
-        <PackGroupChatPanel
-          active={active && sub === "room"}
-          initData={initData}
-          inTelegram={inTelegram}
-          meId={userId}
-          showAlert={showAlert}
-          isAdmin={isAdmin}
-          onRefreshTabBadges={onRefreshTabBadges}
-          onPackGroupChatOpened={onPackGroupChatOpened}
-          onHaptic={() => {
-            const w = window.Telegram?.WebApp;
-            w?.HapticFeedback?.impactOccurred?.("light");
-          }}
-        />
-      </div>
       <div className={`feed__subpane${sub !== "activity" ? " feed__subpane--hidden" : ""}`}>
           <div className="feed__section-row">
             <h2 className="section-title feed__section-title">Тренировки стаи</h2>

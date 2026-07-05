@@ -14,6 +14,7 @@ import { AchievementToast } from "./components/AchievementToast";
 import { earnedAchievementKeys, type AchievementKey } from "./lib/achievements";
 import { buildOptimisticTrainingFeedItem, type PackFeedItemDTO } from "./lib/packFeed";
 import { sendMiniappPrivateText, sendMiniappTrainingWithPhoto } from "./lib/miniappPrivateSend";
+import { isModerationError, moderationUserMessage } from "./lib/moderationMessages";
 import { fetchLeoPendingCount } from "./lib/leoPersonalInbox";
 import { fetchFeedThreadUnreadSummary } from "./lib/feedThreadUnread";
 import { fetchPackGroupUnreadCount } from "./lib/packGroupUnread";
@@ -254,6 +255,55 @@ export function App() {
     clearLeoBadge();
   }, [clearLeoBadge]);
 
+  // Отправка текстового сообщения в общую ленту из компоуз-поля таббара.
+  // Пишется в чат стаи (miniapp_pack_group_chat) и появляется карточкой в ленте.
+  const sendFeedMessage = useCallback(
+    async (text: string): Promise<boolean> => {
+      const t = text.trim();
+      if (!t) return false;
+      if (!inTelegram || !initData) {
+        showAlert("Открой мини-апп из Telegram.");
+        return false;
+      }
+      const apiBase = (import.meta.env.VITE_MINIAPP_API_URL as string | undefined)?.replace(/\/$/, "") ?? "";
+      if (!apiBase) {
+        showAlert("Сборка без VITE_MINIAPP_API_URL.");
+        return false;
+      }
+      try {
+        const res = await fetch(`${apiBase}/api/miniapp/pack-group/messages`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ init_data: initData, text: t }),
+        });
+        const j = (await res.json().catch(() => ({}))) as { error?: string; message?: string };
+        if (!res.ok) {
+          if (isModerationError(j.error)) {
+            showAlert(moderationUserMessage(j.error, j.message));
+            return false;
+          }
+          const errMap: Record<string, string> = {
+            empty_text: "Пустое сообщение",
+            text_too_long: "Слишком длинное сообщение",
+            chat_mismatch: "Открой мини-апп из чата стаи",
+            forbidden: "Нет доступа",
+          };
+          showAlert(errMap[j.error ?? ""] ?? j.error ?? `Ошибка ${res.status}`);
+          return false;
+        }
+        tg?.HapticFeedback?.impactOccurred?.("light");
+        setTab("feed");
+        setFeedRefreshToken((v) => v + 1);
+        void refreshTabBadges();
+        return true;
+      } catch (e) {
+        showAlert(e instanceof Error ? e.message : "Сеть");
+        return false;
+      }
+    },
+    [inTelegram, initData, showAlert, tg, refreshTabBadges],
+  );
+
   const effectiveName = profileDisplayName.trim() || name.trim() || "друг";
   const tabsVisible = !supportOpen && !workoutOpen;
 
@@ -285,12 +335,10 @@ export function App() {
             onOptimisticConsumed={() => setOptimisticFeedItem(null)}
             feedThreadUnreadCount={feedThreadUnread}
             onFeedThreadRead={clearFeedThreadBadge}
-            packGroupUnreadCount={packGroupUnread}
             onRefreshAll={async () => {
               await Promise.all([refreshProfileStats(), refreshTabBadges()]);
             }}
             onRefreshTabBadges={refreshTabBadges}
-            onPackGroupChatOpened={clearPackGroupBadge}
             isAdmin={isAdmin}
           />
         </TabKeepAlive>
@@ -365,8 +413,10 @@ export function App() {
         onFeed={() => {
           setWorkoutOpen(false);
           setSupportOpen(false);
+          clearPackGroupBadge();
           setTab("feed");
         }}
+        onSendMessage={sendFeedMessage}
         onAddWorkout={() => {
           setSupportOpen(false);
           setWorkoutOpen(true);

@@ -146,6 +146,14 @@ html.app-keyboard-open .bottom-nav {
   pointer-events: none;
 }
 
+/* Исключение: фокус в компоуз-поле таббара — бар остаётся видимым и поднимается
+   над клавиатурой (иначе поле ввода пряталось бы вместе с баром). */
+html.app-keyboard-open.app-nav-compose-open .bottom-nav {
+  visibility: visible;
+  pointer-events: auto;
+  bottom: max(var(--safe-bottom, 0px), var(--app-keyboard-bottom, 0px));
+}
+
 html.app-keyboard-open #root {
   padding-bottom: var(--safe-bottom);
 }
