@@ -5,6 +5,7 @@ import { PhotoCropper } from "./PhotoCropper";
 import { LEO_AVATAR_URL } from "../lib/leoAvatar";
 import { resolveFeedAvatarUrl, type VoterDTO } from "../lib/packFeed";
 import { streakStreakAriaLabel } from "../lib/streakLabel";
+import { hapticImpact } from "../lib/haptics";
 import "./ActivityCard.css";
 
 /** Голоса с бэкенда → строки списка лайкнувших (имя + отрезолвленный URL аватара).
@@ -668,6 +669,7 @@ export function ActivityCard({
   const openPicker = (target: EventTarget | null) => {
     if (!canReact) return;
     if (isInteractiveTarget(target)) return;
+    if (!picker.open) hapticImpact("light"); // тактильный отклик на появление ряда эмодзи
     picker.setOpen(true);
   };
 
