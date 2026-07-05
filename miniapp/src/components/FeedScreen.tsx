@@ -1641,48 +1641,48 @@ export function FeedScreen({
         </header>
         {sub === "activity" && (
           <div className="feed__filters" aria-label="Фильтры ленты" data-no-ptr>
-            <div className="feed__filter-scope" role="group" aria-label="Тип контента">
+            {/* Единый ряд фильтров: тип контента (Тренировки/Сообщения) и «чьи»
+                (Друзья/Мои) — независимые измерения, работают как пересечение (И).
+                Напр. «Друзья» + «Сообщения» → сообщения только друзей. «Все» —
+                сброс обоих измерений; активна, когда ни один фильтр не выбран. */}
+            <div className="feed__filter-scope" role="group" aria-label="Фильтры ленты">
               <button
                 type="button"
-                className={`feed__filter-pill${feedTypeFilter === "all" ? " is-active" : ""}`}
-                onClick={() => setFeedTypeFilter("all")}
+                className={`feed__filter-pill${
+                  feedTypeFilter === "all" && feedScope === "all" ? " is-active" : ""
+                }`}
+                onClick={() => {
+                  setFeedTypeFilter("all");
+                  setFeedScope("all");
+                }}
               >
-                Всё
+                Все
               </button>
               <button
                 type="button"
                 className={`feed__filter-pill${feedTypeFilter === "training" ? " is-active" : ""}`}
-                onClick={() => setFeedTypeFilter("training")}
+                onClick={() => setFeedTypeFilter((p) => (p === "training" ? "all" : "training"))}
               >
                 Тренировки
               </button>
               <button
                 type="button"
                 className={`feed__filter-pill${feedTypeFilter === "message" ? " is-active" : ""}`}
-                onClick={() => setFeedTypeFilter("message")}
+                onClick={() => setFeedTypeFilter((p) => (p === "message" ? "all" : "message"))}
               >
                 Сообщения
-              </button>
-            </div>
-            <div className="feed__filter-scope" role="group" aria-label="Чьи отчёты">
-              <button
-                type="button"
-                className={`feed__filter-pill${feedScope === "all" ? " is-active" : ""}`}
-                onClick={() => setFeedScope("all")}
-              >
-                Все
               </button>
               <button
                 type="button"
                 className={`feed__filter-pill${feedScope === "friends" ? " is-active" : ""}`}
-                onClick={() => setFeedScope("friends")}
+                onClick={() => setFeedScope((p) => (p === "friends" ? "all" : "friends"))}
               >
                 Друзья
               </button>
               <button
                 type="button"
                 className={`feed__filter-pill${feedScope === "mine" ? " is-active" : ""}`}
-                onClick={() => setFeedScope("mine")}
+                onClick={() => setFeedScope((p) => (p === "mine" ? "all" : "mine"))}
               >
                 Мои
               </button>
