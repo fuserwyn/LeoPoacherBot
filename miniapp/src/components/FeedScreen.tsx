@@ -252,6 +252,12 @@ export function FeedScreen({
   const [threadReplyTargets, setThreadReplyTargets] = useState<
     Record<number, { replyToThreadId: number; authorLabel: string; excerpt: string } | undefined>
   >({});
+  /** Черновики/статусы комментов к сообщениям (pack_message) — ключ id сообщения-карточки. */
+  const [msgThreadDrafts, setMsgThreadDrafts] = useState<Record<number, string>>({});
+  const [msgThreadPosting, setMsgThreadPosting] = useState<Record<number, boolean>>({});
+  const [msgThreadEdit, setMsgThreadEdit] = useState<
+    Record<number, { replyId: number; originalText: string } | undefined>
+  >({});
   /** Идёт запрос подписки/отписки — ключ user_id автора. */
   const [followPosting, setFollowPosting] = useState<Record<number, boolean>>({});
   /** Чьи отчёты показывать: все / только мои / только друзей (на кого подписан). */
@@ -702,6 +708,186 @@ export function FeedScreen({
       })();
     },
     [apiBase, initData, syncFeed, showAlert, hapticLight],
+  );
+
+  // --- Комменты (треды) к сообщениям pack_message: коммент = сообщение чата с reply_to ---
+
+  // Публикация коммента под сообщением-карточкой (текст и/или фото).
+  const postMessageComment = useCallback(
+    async (cardId: number, text: string, photo?: File | null) => {
+      const t = text.trim();
+      if (!t && !photo) {
+        showAlert("Введи текст комментария или прикрепи фото.");
+        return;
+      }
+      if (!apiBase || !initData) return;
+      setMsgThreadPosting((p) => ({ ...p, [cardId]: true }));
+      try {
+        let res: Response;
+        if (photo) {
+          const fd = new FormData();
+          fd.append("init_data", initData);
+          fd.append("text", t);
+          fd.append("reply_to_id", String(cardId));
+          fd.append("photo", photo, photo.name || "photo.jpg");
+          res = await fetch(`${apiBase}/api/miniapp/pack-group/messages/photo`, { method: "POST", body: fd });
+        } else {
+          res = await fetch(`${apiBase}/api/miniapp/pack-group/messages`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ init_data: initData, text: t, reply_to_id: cardId }),
+          });
+        }
+        const j = (await res.json().catch(() => ({}))) as { error?: string; message?: string };
+        if (!res.ok) {
+          if (isModerationError(j.error)) {
+            showAlert(moderationUserMessage(j.error, j.message));
+            return;
+          }
+          showAlert(j.error ?? `Ошибка ${res.status}`);
+          return;
+        }
+        setMsgThreadDrafts((d) => ({ ...d, [cardId]: "" }));
+        await syncFeed({ full: true, silent: true });
+      } catch (e) {
+        showAlert(e instanceof Error ? e.message : "Сеть");
+      } finally {
+        setMsgThreadPosting((p) => ({ ...p, [cardId]: false }));
+      }
+    },
+    [apiBase, initData, syncFeed, showAlert],
+  );
+
+  // Редактирование своего коммента-сообщения.
+  const editMessageComment = useCallback(
+    async (cardId: number, replyId: number, text: string) => {
+      const t = text.trim();
+      if (!t) {
+        showAlert("Комментарий не может быть пустым.");
+        return;
+      }
+      if (!apiBase || !initData) return;
+      setMsgThreadPosting((p) => ({ ...p, [cardId]: true }));
+      try {
+        const res = await fetch(`${apiBase}/api/miniapp/pack-group/messages/edit`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ init_data: initData, message_id: replyId, text: t }),
+        });
+        const j = (await res.json().catch(() => ({}))) as { error?: string; message?: string };
+        if (!res.ok) {
+          if (isModerationError(j.error)) {
+            showAlert(moderationUserMessage(j.error, j.message));
+            return;
+          }
+          showAlert(j.error ?? `Ошибка ${res.status}`);
+          return;
+        }
+        setMsgThreadEdit((r) => ({ ...r, [cardId]: undefined }));
+        setMsgThreadDrafts((d) => ({ ...d, [cardId]: "" }));
+        await syncFeed({ full: true, silent: true });
+      } catch (e) {
+        showAlert(e instanceof Error ? e.message : "Сеть");
+      } finally {
+        setMsgThreadPosting((p) => ({ ...p, [cardId]: false }));
+      }
+    },
+    [apiBase, initData, syncFeed, showAlert],
+  );
+
+  // Удаление/скрытие коммента-сообщения (своё — удалить, админ — скрыть).
+  const deleteMessageComment = useCallback(
+    async (replyId: number) => {
+      if (!apiBase || !initData) return;
+      setThreadReplyDeleting((p) => ({ ...p, [replyId]: true }));
+      try {
+        const res = await fetch(`${apiBase}/api/miniapp/pack-group/messages/delete`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ init_data: initData, message_id: replyId }),
+        });
+        const j = (await res.json().catch(() => ({}))) as { error?: string };
+        if (!res.ok) {
+          showAlert(j.error ?? `Ошибка ${res.status}`);
+          return;
+        }
+        await syncFeed({ full: true, silent: true });
+      } catch (e) {
+        showAlert(e instanceof Error ? e.message : "Сеть");
+      } finally {
+        setThreadReplyDeleting((p) => ({ ...p, [replyId]: false }));
+      }
+    },
+    [apiBase, initData, syncFeed, showAlert],
+  );
+
+  // Жалоба на сообщение или коммент (оба — сообщения чата).
+  const reportMessageContent = useCallback(
+    async (messageId: number) => {
+      if (!apiBase || !initData) return;
+      setThreadReplyReporting((p) => ({ ...p, [messageId]: true }));
+      setFeedReportPosting((p) => ({ ...p, [messageId]: true }));
+      try {
+        const res = await fetch(`${apiBase}/api/miniapp/pack-group/report`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ init_data: initData, message_id: messageId }),
+        });
+        const j = (await res.json().catch(() => ({}))) as { error?: string };
+        if (!res.ok) {
+          const errMap: Record<string, string> = {
+            cannot_report_self: "Нельзя пожаловаться на своё сообщение",
+            cannot_report_leo: "На это сообщение пожаловаться нельзя",
+            already_reported: "Ты уже отправлял жалобу на это",
+          };
+          showAlert(errMap[j.error ?? ""] ?? j.error ?? `Ошибка ${res.status}`);
+          return;
+        }
+        showAlert("Жалоба отправлена. Админы увидят её в поддержке.");
+      } catch (e) {
+        showAlert(e instanceof Error ? e.message : "Сеть");
+      } finally {
+        setThreadReplyReporting((p) => ({ ...p, [messageId]: false }));
+        setFeedReportPosting((p) => ({ ...p, [messageId]: false }));
+      }
+    },
+    [apiBase, initData, showAlert],
+  );
+
+  const confirmReportMessage = useCallback(
+    async (messageId: number) => {
+      if (!(await tgConfirm("Отправить жалобу?\n\nАдмины проверят её в разделе поддержки."))) return;
+      void reportMessageContent(messageId);
+    },
+    [reportMessageContent],
+  );
+
+  // Удаление/скрытие сообщения-карточки (своё — удалить, админ — скрыть).
+  const deleteMessageCard = useCallback(
+    async (cardId: number) => {
+      if (!apiBase || !initData) return;
+      if (!(await tgConfirm("Удалить сообщение из ленты?"))) return;
+      setFeedDeletePosting((p) => ({ ...p, [cardId]: true }));
+      try {
+        const res = await fetch(`${apiBase}/api/miniapp/pack-group/messages/delete`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ init_data: initData, message_id: cardId }),
+        });
+        const j = (await res.json().catch(() => ({}))) as { error?: string };
+        if (!res.ok) {
+          showAlert(j.error ?? `Ошибка ${res.status}`);
+          return;
+        }
+        setFeedItems((prev) => prev.filter((it) => !(it.id === cardId && isFeedMessage(it))));
+        await syncFeed({ full: true, silent: true });
+      } catch (e) {
+        showAlert(e instanceof Error ? e.message : "Сеть");
+      } finally {
+        setFeedDeletePosting((p) => ({ ...p, [cardId]: false }));
+      }
+    },
+    [apiBase, initData, syncFeed, showAlert],
   );
 
   const voteFeedPoll = useCallback(
@@ -1734,6 +1920,51 @@ export function FeedScreen({
                       followPosting: followPosting[it.user_id] ?? false,
                     }
                   : {};
+                if (isMessage) {
+                  // Сообщение чата в ленте: реакции + фото + комменты (тред из ответов).
+                  return (
+                    <div key={feedItemKey(it)} className={slotClass}>
+                      <ActivityCard
+                        {...base}
+                        {...followProps}
+                        reactions={mergeFeedReactionsForType("pack_message", it.reactions)}
+                        onReactionClick={(emoji) => void postMessageReact(it.id, emoji)}
+                        onReport={!it.is_you ? () => void confirmReportMessage(it.id) : undefined}
+                        reportPosting={feedReportPosting[it.id] ?? false}
+                        onAdminDelete={it.is_you || isAdmin ? () => void deleteMessageCard(it.id) : undefined}
+                        adminDeletePosting={feedDeletePosting[it.id] ?? false}
+                        threadReplies={threadReplies}
+                        onThreadReplyDelete={(rid) => void deleteMessageComment(rid)}
+                        onThreadReplyEdit={(rid, text) => {
+                          setMsgThreadEdit((r) => ({ ...r, [it.id]: { replyId: rid, originalText: text } }));
+                          setMsgThreadDrafts((d) => ({ ...d, [it.id]: text }));
+                        }}
+                        onThreadReplyReport={(rid) => void confirmReportMessage(rid)}
+                        threadReplyDeleting={threadReplyDeleting}
+                        threadReplyReporting={threadReplyReporting}
+                        isAdmin={isAdmin}
+                        threadComposer={{
+                          draft: msgThreadDrafts[it.id] ?? "",
+                          onDraftChange: (v) => setMsgThreadDrafts((d) => ({ ...d, [it.id]: v })),
+                          onSubmit: (text, photo) => {
+                            const edit = msgThreadEdit[it.id];
+                            if (edit) {
+                              void editMessageComment(it.id, edit.replyId, text);
+                              return;
+                            }
+                            void postMessageComment(it.id, text, photo);
+                          },
+                          posting: msgThreadPosting[it.id] ?? false,
+                          editReplyId: msgThreadEdit[it.id]?.replyId,
+                          onCancelEdit: () => {
+                            setMsgThreadEdit((r) => ({ ...r, [it.id]: undefined }));
+                            setMsgThreadDrafts((d) => ({ ...d, [it.id]: "" }));
+                          },
+                        }}
+                      />
+                    </div>
+                  );
+                }
                 if (!supportsThread) {
                   return (
                     <div key={feedItemKey(it)} className={`${slotClass}${isPinnedAnnouncement ? " feed__card-slot--pinned" : ""}`}>

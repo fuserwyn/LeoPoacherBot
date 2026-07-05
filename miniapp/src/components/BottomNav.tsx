@@ -137,28 +137,26 @@ export function BottomNav({
           enterKeyHint="send"
           disabled={sending}
         />
-        {msg.trim() ? (
-          <button
-            type="submit"
-            className="bottom-nav__compose-send"
-            disabled={sending}
-            aria-label="Отправить сообщение в ленту"
-          >
-            {sending ? "…" : "➤"}
-          </button>
-        ) : (
-          <button
-            type="button"
-            className="bottom-nav__add"
-            onClick={onAddWorkout}
-            aria-label="Добавить тренировку"
-            title="Добавить тренировку"
-          >
-            <span className="bottom-nav__add-plus" aria-hidden>
-              +
-            </span>
-          </button>
-        )}
+        <button
+          type="submit"
+          className="bottom-nav__compose-send"
+          disabled={sending || !msg.trim()}
+          aria-label="Отправить сообщение в ленту"
+          title="Отправить в ленту"
+        >
+          {sending ? "…" : "➤"}
+        </button>
+        <button
+          type="button"
+          className="bottom-nav__add"
+          onClick={onAddWorkout}
+          aria-label="Добавить тренировку"
+          title="Добавить тренировку"
+        >
+          <span className="bottom-nav__add-plus" aria-hidden>
+            +
+          </span>
+        </button>
       </form>
 
       <button

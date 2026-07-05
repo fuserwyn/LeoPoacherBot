@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/lib/pq"
+
 	"leo-bot/internal/domain"
 )
 
@@ -92,13 +94,16 @@ func (d *Database) ListPackActivityFeedAfterTS(chatID int64, sinceTS time.Time, 
 	return scanPackActivityRows(d, q, chatID, sinceTS.UTC(), limit)
 }
 
-// packGroupFeedSelect — SELECT для сообщений чата, попадающих в единую ленту.
+// packGroupFeedSelect — SELECT сообщений чата верхнего уровня для единой ленты.
 // $1 = pack_chat_id, $2 = baseline id (в ленту только id > baseline).
+// reply_to_id IS NULL — ответы не идут отдельными карточками: они подтягиваются
+// как комментарии (тред) под родительским сообщением.
 const packGroupFeedSelect = `
 	SELECT id, from_user_id, COALESCE(username, ''), is_leo, message_text, created_at, reply_to_id, edited_at, COALESCE(photo_url, '')
 	FROM miniapp_pack_group_chat
 	WHERE pack_chat_id = $1
 	  AND COALESCE(is_hidden, FALSE) = FALSE
+	  AND reply_to_id IS NULL
 	  AND id > $2
 `
 
@@ -142,6 +147,37 @@ func (d *Database) ListPackGroupChatFeedAfterTS(chatID, baselineID int64, sinceT
 	limit = clampFeedLimit(limit)
 	q := packGroupFeedSelect + ` AND created_at > $3 ORDER BY created_at DESC, id DESC LIMIT $4`
 	return scanPackGroupRows(d, q, chatID, baselineID, sinceTS.UTC(), limit)
+}
+
+// ListPackGroupRepliesForMessages — ответы-комментарии к сообщениям ленты, сгруппированные
+// по родителю (reply_to_id). Порядок внутри треда — по времени (старые сверху).
+func (d *Database) ListPackGroupRepliesForMessages(chatID int64, parentIDs []int64) (map[int64][]PackGroupChatRow, error) {
+	out := map[int64][]PackGroupChatRow{}
+	if chatID == 0 || len(parentIDs) == 0 {
+		return out, nil
+	}
+	rows, err := d.db.Query(`
+		SELECT id, from_user_id, COALESCE(username, ''), is_leo, message_text, created_at, reply_to_id, edited_at, COALESCE(photo_url, '')
+		FROM miniapp_pack_group_chat
+		WHERE pack_chat_id = $1
+		  AND COALESCE(is_hidden, FALSE) = FALSE
+		  AND reply_to_id = ANY($2)
+		ORDER BY created_at ASC, id ASC
+	`, chatID, pq.Array(parentIDs))
+	if err != nil {
+		return nil, fmt.Errorf("list pack group replies: %w", err)
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var m PackGroupChatRow
+		if err := rows.Scan(&m.ID, &m.FromUserID, &m.Username, &m.IsLeo, &m.MessageText, &m.CreatedAt, &m.ReplyToID, &m.EditedAt, &m.PhotoURL); err != nil {
+			return nil, err
+		}
+		if m.ReplyToID.Valid {
+			out[m.ReplyToID.Int64] = append(out[m.ReplyToID.Int64], m)
+		}
+	}
+	return out, rows.Err()
 }
 
 // GetPackMessageBaselineID — граница отсечки старых сообщений чата (см. миграцию 71).

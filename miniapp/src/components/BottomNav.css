@@ -66,8 +66,8 @@
 
 .bottom-nav__compose-send {
   flex: 0 0 auto;
-  width: 42px;
-  height: 42px;
+  width: 40px;
+  height: 40px;
   border-radius: 50%;
   border: 1px solid color-mix(in srgb, var(--accent) 65%, #ffffff 35%);
   background: linear-gradient(180deg, color-mix(in srgb, var(--accent) 82%, #ffffff 18%) 0%, var(--accent) 100%);
@@ -75,23 +75,29 @@
   color: #ffffff;
   display: grid;
   place-items: center;
-  font-size: 16px;
-  transition: transform 0.15s ease, filter 0.15s ease;
+  font-size: 15px;
+  transition: transform 0.15s ease, filter 0.15s ease, opacity 0.15s ease;
 }
 
 .bottom-nav__compose-send:active {
   transform: scale(0.96);
 }
 
+/* Нет текста — кнопка отправки приглушена (акцент остаётся у «+»). */
+.bottom-nav__compose-send:disabled {
+  opacity: 0.4;
+  filter: grayscale(0.4);
+}
+
 /* «+» внутри компоуза компактнее standalone-версии. */
 .bottom-nav__compose .bottom-nav__add {
-  width: 42px;
-  height: 42px;
+  width: 40px;
+  height: 40px;
   margin-bottom: 0;
 }
 
 .bottom-nav__compose .bottom-nav__add-plus {
-  font-size: 26px;
+  font-size: 25px;
   margin-top: -1px;
 }
 

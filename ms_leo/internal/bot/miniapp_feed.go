@@ -202,6 +202,7 @@ func (b *Bot) PackFeedForViewer(viewerUserID int64, initD initdata.InitData, ini
 			}
 			msgItems = append(msgItems, b.packFeedItemFromMessage(m, viewerUserID, chatID, packTitle))
 		}
+		msgItems = b.enrichPackFeedMessageThreads(msgItems, viewerUserID, chatID, initDataRaw)
 	}
 
 	// --- Мёрж по времени (новые сверху) + ограничение страницы ---
@@ -233,6 +234,77 @@ func (b *Bot) packFeedItemFromMessage(m *domain.PackGroupChatMessage, viewerUser
 		item.Reactions = convertPackGroupReactions(m.Reactions)
 	}
 	return item
+}
+
+// enrichPackFeedMessageThreads — подтягивает комментарии (ответы) к сообщениям ленты
+// как тред. Комментарий = сообщение чата с reply_to_id на карточку; поэтому переиспользуем
+// хранилище общего чата (вставка/редакт/удаление/фото — существующими эндпоинтами).
+func (b *Bot) enrichPackFeedMessageThreads(items []PackFeedItem, viewerUserID, chatID int64, initDataRaw string) []PackFeedItem {
+	if b == nil || b.db == nil || chatID == 0 || len(items) == 0 {
+		return items
+	}
+	ids := make([]int64, 0, len(items))
+	for _, it := range items {
+		if it.Source == "message" && it.ID > 0 {
+			ids = append(ids, it.ID)
+		}
+	}
+	if len(ids) == 0 {
+		return items
+	}
+	repliesByParent, err := b.db.ListPackGroupRepliesForMessages(chatID, ids)
+	if err != nil {
+		b.logger.Warnf("pack feed message threads: %v", err)
+		return items
+	}
+	if len(repliesByParent) == 0 {
+		return items
+	}
+	// Собираем все ответы в domain-сообщения для обогащения аватарами (по user_id).
+	msgByID := make(map[int64]*domain.PackGroupChatMessage)
+	allMsgs := make([]*domain.PackGroupChatMessage, 0)
+	for _, rows := range repliesByParent {
+		for _, r := range rows {
+			m := packGroupRowToMessage(r)
+			if m.PhotoURL != "" {
+				m.PhotoURL = b.canonicalMiniappTrainingPhotoURL(m.PhotoURL)
+			}
+			mp := &m
+			msgByID[m.ID] = mp
+			allMsgs = append(allMsgs, mp)
+		}
+	}
+	allMsgs = b.enrichPackGroupChatAuthorPhotos(allMsgs, chatID, initDataRaw)
+	for i := range items {
+		if items[i].Source != "message" {
+			continue
+		}
+		rows := repliesByParent[items[i].ID]
+		if len(rows) == 0 {
+			continue
+		}
+		thread := make([]PackFeedThreadReply, 0, len(rows))
+		for _, r := range rows {
+			m := msgByID[r.ID]
+			if m == nil {
+				continue
+			}
+			thread = append(thread, PackFeedThreadReply{
+				ID:             m.ID,
+				UserID:         m.UserID,
+				Username:       m.Username,
+				Text:           m.Text,
+				CreatedAt:      m.CreatedAt,
+				IsYou:          m.UserID == viewerUserID && !m.IsLeo,
+				IsLeo:          m.IsLeo,
+				AuthorPhotoURL: m.AuthorPhotoURL,
+				PhotoURL:       m.PhotoURL,
+				EditedAt:       m.EditedAt,
+			})
+		}
+		items[i].Thread = thread
+	}
+	return items
 }
 
 // convertPackGroupReactions — реакции чата → реакции ленты (одинаковая форма).
