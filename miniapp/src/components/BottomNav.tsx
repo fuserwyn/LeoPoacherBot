@@ -116,17 +116,6 @@ export function BottomNav({
             >
               {sending ? "…" : "➤"}
             </button>
-            <button
-              type="button"
-              className="bottom-nav__add"
-              onClick={onAddWorkout}
-              aria-label="Добавить тренировку"
-              title="Добавить тренировку"
-            >
-              <span className="bottom-nav__add-plus" aria-hidden>
-                +
-              </span>
-            </button>
           </form>
         </div>
       ) : null}
@@ -166,21 +155,18 @@ export function BottomNav({
         <span className="bottom-nav__label">Лео</span>
       </button>
 
-      {/* Когда компоуз-поле скрыто (экран тренировки/поддержки) — «+» остаётся
-          в таббаре по центру, чтобы добавить тренировку можно было отовсюду. */}
-      {!showCompose ? (
-        <button
-          type="button"
-          className="bottom-nav__add bottom-nav__add--solo"
-          onClick={onAddWorkout}
-          aria-label="Добавить тренировку"
-          title="Добавить тренировку"
-        >
-          <span className="bottom-nav__add-plus" aria-hidden>
-            +
-          </span>
-        </button>
-      ) : null}
+      {/* «+» всегда по центру таб-бара — добавить тренировку можно отовсюду. */}
+      <button
+        type="button"
+        className="bottom-nav__add"
+        onClick={onAddWorkout}
+        aria-label="Добавить тренировку"
+        title="Добавить тренировку"
+      >
+        <span className="bottom-nav__add-plus" aria-hidden>
+          +
+        </span>
+      </button>
 
       <button
         type="button"

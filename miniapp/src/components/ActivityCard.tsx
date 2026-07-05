@@ -800,9 +800,12 @@ export function ActivityCard({
         )}
       </header>
       <div className="act-card__body">
-        <p className="act-card__type">
-          <span className="act-card__type-ico">{emoji}</span> {activity}
-        </p>
+        {/* У сообщений (не тренировок) нет типа/эмодзи — не рисуем пустую строку-заголовок. */}
+        {((emoji ?? "").trim() !== "" || (activity ?? "").trim() !== "") && (
+          <p className="act-card__type">
+            <span className="act-card__type-ico">{emoji}</span> {activity}
+          </p>
+        )}
         {details.trim() !== "" && <p className="act-card__details">{details}</p>}
         {postEdit ? (
           <div className="act-card__post-edit">
