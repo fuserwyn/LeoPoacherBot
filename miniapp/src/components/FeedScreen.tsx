@@ -270,6 +270,8 @@ export function FeedScreen({
   const loadingOlderRef = useRef(false);
   /** Маркер у низа списка: когда виден — подтягиваем более старые записи. */
   const olderSentinelRef = useRef<HTMLDivElement>(null);
+  /** Sentinel сейчас в зоне видимости (наблюдатель) — «насос» догрузки крутится, пока true. */
+  const [sentinelVisible, setSentinelVisible] = useState(false);
 
   const categoryFilterSet = useMemo(() => new Set(feedCategoryIds), [feedCategoryIds]);
 
@@ -518,13 +520,20 @@ export function FeedScreen({
         setHasMoreOlder(false);
         return;
       }
+      // Курсор реально ушёл «глубже» — иначе (все id уже были) насос застрянет: стоп.
+      // Считаем ДО setFeedItems: updater у React 18 выполняется асинхронно (в фазе
+      // рендера), поэтому чтение флага сразу после setState вернуло бы устаревший false
+      // и подгрузка стопорилась после первой же страницы. Все older имеют id < before_id,
+      // так что их минимум и есть новый курсор.
+      const olderMin = minRegularFeedId(older);
+      const advanced = olderMin > 0 && (minFeedIdRef.current === 0 || olderMin < minFeedIdRef.current);
       setFeedItems((prev) => {
         const next = mergePackFeedIncremental(prev, older);
         minFeedIdRef.current = minRegularFeedId(next);
         return next;
       });
-      // Меньше полной страницы — значит история исчерпана.
-      if (older.length < 50) setHasMoreOlder(false);
+      // Меньше полной страницы или курсор не сдвинулся — история исчерпана.
+      if (older.length < 50 || !advanced) setHasMoreOlder(false);
     } catch {
       // Тихо: повторим при следующем скролле/обновлении.
     } finally {
@@ -533,20 +542,38 @@ export function FeedScreen({
     }
   }, [inTelegram, initData]);
 
-  // Бесконечный скролл: наблюдаем маркер у низа списка и подгружаем старые записи заранее.
+  // Бесконечный скролл: наблюдаем маркер у низа списка и только фиксируем его видимость.
+  // Саму догрузку крутит эффект-«насос» ниже — это чинит застревание, когда после
+  // подгрузки sentinel остаётся в зоне видимости (IntersectionObserver не шлёт новое
+  // событие, пока элемент не выйдет из вида и не войдёт снова).
   useEffect(() => {
     const sentinel = olderSentinelRef.current;
-    if (!sentinel) return;
-    if (!hasMoreOlder || useMockFeed) return;
+    if (!sentinel) {
+      setSentinelVisible(false);
+      return;
+    }
     const io = new IntersectionObserver(
       (entries) => {
-        if (entries.some((e) => e.isIntersecting)) void loadOlder();
+        const visible = entries.some((e) => e.isIntersecting);
+        setSentinelVisible(visible);
       },
-      { rootMargin: "600px 0px" },
+      { rootMargin: "800px 0px" },
     );
     io.observe(sentinel);
-    return () => io.disconnect();
-  }, [hasMoreOlder, useMockFeed, loadOlder, feedItems.length]);
+    return () => {
+      io.disconnect();
+      setSentinelVisible(false);
+    };
+  }, [useMockFeed, feedItems.length]);
+
+  // «Насос» догрузки: пока маркер виден и есть более старые записи — тянем страницу
+  // за страницей. Каждая успешная подгрузка меняет feedItems.length → эффект
+  // перезапускается и, если маркер всё ещё виден, грузит следующую страницу.
+  useEffect(() => {
+    if (useMockFeed || !hasMoreOlder || loadingOlder) return;
+    if (!sentinelVisible) return;
+    void loadOlder();
+  }, [sentinelVisible, hasMoreOlder, loadingOlder, useMockFeed, loadOlder, feedItems.length]);
 
   const toggleFollowAuthor = useCallback(
     async (authorId: number, currentlyFriend: boolean) => {
@@ -1814,12 +1841,20 @@ export function FeedScreen({
                 );
               })}
             {!useMockFeed && !loading && feedItems.length > 0 && (
-              <div ref={olderSentinelRef} className="feed__older" aria-hidden={!loadingOlder}>
+              <div ref={olderSentinelRef} className="feed__older">
                 {loadingOlder ? (
                   <p className="feed__load muted">Загрузка истории…</p>
-                ) : !hasMoreOlder ? (
+                ) : hasMoreOlder ? (
+                  <button
+                    type="button"
+                    className="feed__load-more"
+                    onClick={() => void loadOlder()}
+                  >
+                    Показать ещё
+                  </button>
+                ) : (
                   <p className="feed__load muted">Это начало истории стаи</p>
-                ) : null}
+                )}
               </div>
             )}
           </div>
