@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { WORKOUT_TYPES as TYPES, type WorkoutCategoryId } from "../lib/workoutCategories";
 import { PhotoCropper } from "./PhotoCropper";
+import { hapticImpact, hapticNotification } from "../lib/haptics";
 import "./NewWorkoutScreen.css";
 
 type ViewportMetrics = {
@@ -208,6 +209,7 @@ export function NewWorkoutScreen({ onClose, onSave, showAlert, onNonSportInteres
       return;
     }
     setBusy(true);
+    hapticImpact("medium");
     try {
       const r = await onSave({
         types,
@@ -217,7 +219,12 @@ export function NewWorkoutScreen({ onClose, onSave, showAlert, onNonSportInteres
         note: note.trim(),
         photo,
       });
-      if (r !== false) onClose();
+      if (r !== false) {
+        hapticNotification("success");
+        onClose();
+      } else {
+        hapticNotification("error");
+      }
     } finally {
       setBusy(false);
     }

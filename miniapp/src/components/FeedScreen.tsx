@@ -615,6 +615,7 @@ export function FeedScreen({
   const postTrainingReact = useCallback(
     (userMessageId: number, emoji: string) => {
       if (!apiBase || !initData) return;
+      hapticLight();
 
       const applyToggle = () =>
         setFeedItems((prev) =>
@@ -650,7 +651,7 @@ export function FeedScreen({
         }
       })();
     },
-    [apiBase, initData, syncFeed, showAlert],
+    [apiBase, initData, syncFeed, showAlert, hapticLight],
   );
 
   const voteFeedPoll = useCallback(
@@ -1177,6 +1178,7 @@ export function FeedScreen({
   const toggleTrainingThreadLike = useCallback(
     (trainingUserMessageId: number, threadReplyId: number) => {
       if (!apiBase || !initData) return;
+      hapticLight();
 
       const applyToggle = () =>
         setFeedItems((prev) =>
@@ -1218,7 +1220,7 @@ export function FeedScreen({
         }
       })();
     },
-    [apiBase, initData, syncFeed, showAlert],
+    [apiBase, initData, syncFeed, showAlert, hapticLight],
   );
 
   useEffect(() => {
