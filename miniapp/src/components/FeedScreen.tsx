@@ -31,6 +31,7 @@ import {
   sortWorkoutCategoryIds,
   trainingDoneMatchesAnyCategory,
   WORKOUT_CATEGORY_OPTIONS_ALPHABETICAL,
+  WORKOUT_CATEGORY_OPTIONS_ALPHABETICAL_OTHER_LAST,
   type WorkoutCategoryId,
 } from "../lib/workoutCategories";
 import "./FeedScreen.css";
@@ -266,6 +267,8 @@ export function FeedScreen({
   const [feedTypeFilter, setFeedTypeFilter] = useState<"all" | "training" | "message">("all");
   /** Мультивыбор типов тренировок (пусто = «все типы»). */
   const [feedCategoryIds, setFeedCategoryIds] = useState<WorkoutCategoryId[]>([]);
+  /** Развёрнут ли вертикальный список всех типов (открывается повторным тапом по «Все типы»). */
+  const [catListOpen, setCatListOpen] = useState(false);
   const [viewportStyle, setViewportStyle] = useState<FeedViewportStyle>({});
   const feedHeaderRef = useRef<HTMLDivElement>(null);
   /** Самое свежее created_at в окне — курсор «новее» (since_ts) для инкрементального синка. */
@@ -344,6 +347,18 @@ export function FeedScreen({
     hapticLight();
     setFeedCategoryIds([]);
   }, [hapticLight]);
+
+  // «Все типы»: первый тап (когда выбраны типы) — сброс к «все типы»; повторный
+  // тап (когда уже «все типы») — разворачивает вертикальный список всех типов.
+  const toggleAllTypes = useCallback(() => {
+    hapticLight();
+    if (feedCategoryIds.length > 0) {
+      setFeedCategoryIds([]);
+      setCatListOpen(false);
+    } else {
+      setCatListOpen((o) => !o);
+    }
+  }, [feedCategoryIds.length, hapticLight]);
 
   const refreshUnreadFeedCards = useCallback(async () => {
     if (!inTelegram || !initData.trim()) {
@@ -1673,47 +1688,100 @@ export function FeedScreen({
               </button>
             </div>
             {feedTypeFilter !== "message" && (
-            <div className="feed__filter-cats" role="group" aria-label="Тип тренировки">
-              <div
-                role="button"
-                tabIndex={0}
-                className={`feed__filter-chip${feedCategoryIds.length === 0 ? " is-active" : ""}`}
-                aria-pressed={feedCategoryIds.length === 0}
-                onClick={() => void clearFeedCategories()}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter" || e.key === " ") {
-                    e.preventDefault();
-                    void clearFeedCategories();
-                  }
-                }}
-              >
-                Все типы
+            <div className="feed__filter-cats-wrap">
+              <div className="feed__filter-cats" role="group" aria-label="Тип тренировки">
+                <div
+                  role="button"
+                  tabIndex={0}
+                  className={`feed__filter-chip feed__filter-chip--all${
+                    feedCategoryIds.length === 0 ? " is-active" : ""
+                  }${catListOpen ? " is-open" : ""}`}
+                  aria-pressed={feedCategoryIds.length === 0}
+                  aria-expanded={catListOpen}
+                  onClick={toggleAllTypes}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" || e.key === " ") {
+                      e.preventDefault();
+                      toggleAllTypes();
+                    }
+                  }}
+                >
+                  <span className="feed__filter-chip-label">Все типы</span>
+                  <span className="feed__filter-chip-caret" aria-hidden>
+                    ▾
+                  </span>
+                </div>
+                {!catListOpen &&
+                  WORKOUT_CATEGORY_OPTIONS_ALPHABETICAL.map((c) => {
+                    const active = feedCategoryIds.includes(c.id);
+                    return (
+                      <div
+                        key={c.id}
+                        role="button"
+                        tabIndex={0}
+                        className={`feed__filter-chip${active ? " is-active" : ""}`}
+                        aria-pressed={active}
+                        onClick={() => toggleFeedCategory(c.id)}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter" || e.key === " ") {
+                            e.preventDefault();
+                            toggleFeedCategory(c.id);
+                          }
+                        }}
+                        title={c.label}
+                      >
+                        <span className="feed__filter-chip-emoji" aria-hidden>
+                          {c.emoji}
+                        </span>
+                        <span className="feed__filter-chip-label">{c.label}</span>
+                      </div>
+                    );
+                  })}
               </div>
-              {WORKOUT_CATEGORY_OPTIONS_ALPHABETICAL.map((c) => {
-                const active = feedCategoryIds.includes(c.id);
-                return (
-                  <div
-                    key={c.id}
-                    role="button"
-                    tabIndex={0}
-                    className={`feed__filter-chip${active ? " is-active" : ""}`}
-                    aria-pressed={active}
-                    onClick={() => toggleFeedCategory(c.id)}
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter" || e.key === " ") {
-                        e.preventDefault();
-                        toggleFeedCategory(c.id);
-                      }
-                    }}
-                    title={c.label}
+              {catListOpen && (
+                <div className="feed__cat-list" role="listbox" aria-label="Все типы тренировок">
+                  <button
+                    type="button"
+                    role="option"
+                    aria-selected={feedCategoryIds.length === 0}
+                    className={`feed__cat-list-item${feedCategoryIds.length === 0 ? " is-active" : ""}`}
+                    onClick={() => void clearFeedCategories()}
                   >
-                    <span className="feed__filter-chip-emoji" aria-hidden>
-                      {c.emoji}
+                    <span className="feed__cat-list-emoji" aria-hidden>
+                      🏷️
                     </span>
-                    <span className="feed__filter-chip-label">{c.label}</span>
-                  </div>
-                );
-              })}
+                    <span className="feed__cat-list-label">Все типы</span>
+                    {feedCategoryIds.length === 0 && (
+                      <span className="feed__cat-list-check" aria-hidden>
+                        ✓
+                      </span>
+                    )}
+                  </button>
+                  {WORKOUT_CATEGORY_OPTIONS_ALPHABETICAL_OTHER_LAST.map((c) => {
+                    const active = feedCategoryIds.includes(c.id);
+                    return (
+                      <button
+                        key={c.id}
+                        type="button"
+                        role="option"
+                        aria-selected={active}
+                        className={`feed__cat-list-item${active ? " is-active" : ""}`}
+                        onClick={() => toggleFeedCategory(c.id)}
+                      >
+                        <span className="feed__cat-list-emoji" aria-hidden>
+                          {c.emoji}
+                        </span>
+                        <span className="feed__cat-list-label">{c.label}</span>
+                        {active && (
+                          <span className="feed__cat-list-check" aria-hidden>
+                            ✓
+                          </span>
+                        )}
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
             </div>
             )}
           </div>

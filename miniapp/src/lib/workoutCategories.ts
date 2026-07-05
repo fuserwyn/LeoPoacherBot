@@ -50,6 +50,15 @@ export const WORKOUT_CATEGORY_OPTIONS_ALPHABETICAL: WorkoutCategoryOption[] = [.
   (a, b) => a.label.localeCompare(b.label, "ru", { sensitivity: "base" }),
 );
 
+/**
+ * Для вертикального списка «Все типы» в ленте: по алфавиту, но «Другое» всегда
+ * в самом низу (это «прочее», а не буква «Д» в общем ряду).
+ */
+export const WORKOUT_CATEGORY_OPTIONS_ALPHABETICAL_OTHER_LAST: WorkoutCategoryOption[] = [
+  ...WORKOUT_CATEGORY_OPTIONS_ALPHABETICAL.filter((o) => o.id !== "other"),
+  ...WORKOUT_CATEGORY_OPTIONS_ALPHABETICAL.filter((o) => o.id === "other"),
+];
+
 const FEED_CAT_ORDER = new Map(WORKOUT_CATEGORY_OPTIONS_ALPHABETICAL.map((o, i) => [o.id, i]));
 
 /** Порядок id как в алфавитном списке фильтра (для чипов «выбрано»). */
