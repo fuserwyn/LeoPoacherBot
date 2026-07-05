@@ -82,6 +82,55 @@ export function BottomNav({
 
   return (
     <nav ref={navRef} className="bottom-nav" role="navigation" aria-label="Основное меню">
+      {/* Компоуз-поле вынесено отдельной строкой НАД таббаром: текст → сообщение
+          в ленту, «+» → форма тренировки. Скрыто на экране тренировки/поддержки. */}
+      {showCompose ? (
+        <div className="bottom-nav__compose-row">
+          <form
+            className="bottom-nav__compose"
+            onSubmit={(e) => {
+              e.preventDefault();
+              void submitMessage();
+            }}
+          >
+            <input
+              ref={inputRef}
+              className="bottom-nav__compose-input"
+              value={msg}
+              onChange={(e) => setMsg(e.target.value)}
+              onFocus={onComposeFocus}
+              onBlur={onComposeBlur}
+              placeholder="Написать в ленту…"
+              aria-label="Сообщение в ленту стаи"
+              maxLength={4000}
+              autoComplete="off"
+              enterKeyHint="send"
+              disabled={sending}
+            />
+            <button
+              type="submit"
+              className="bottom-nav__compose-send"
+              disabled={sending || !msg.trim()}
+              aria-label="Отправить сообщение в ленту"
+              title="Отправить в ленту"
+            >
+              {sending ? "…" : "➤"}
+            </button>
+            <button
+              type="button"
+              className="bottom-nav__add"
+              onClick={onAddWorkout}
+              aria-label="Добавить тренировку"
+              title="Добавить тренировку"
+            >
+              <span className="bottom-nav__add-plus" aria-hidden>
+                +
+              </span>
+            </button>
+          </form>
+        </div>
+      ) : null}
+      <div className="bottom-nav__tabs">
       <button
         type="button"
         className={`bottom-nav__item ${active === "feed" ? "is-active" : ""}`}
@@ -117,53 +166,9 @@ export function BottomNav({
         <span className="bottom-nav__label">Лео</span>
       </button>
 
-      {/* Компоуз: поле ввода + «+» — единый блок публикации в ленту.
-          Текст → сообщение в ленту; «+» → форма тренировки.
-          На экране тренировки/поддержки поле скрыто (там своё поле ввода) — только «+». */}
-      {showCompose ? (
-        <form
-          className="bottom-nav__compose"
-          onSubmit={(e) => {
-            e.preventDefault();
-            void submitMessage();
-          }}
-        >
-          <input
-            ref={inputRef}
-            className="bottom-nav__compose-input"
-            value={msg}
-            onChange={(e) => setMsg(e.target.value)}
-            onFocus={onComposeFocus}
-            onBlur={onComposeBlur}
-            placeholder="Написать в ленту…"
-            aria-label="Сообщение в ленту стаи"
-            maxLength={4000}
-            autoComplete="off"
-            enterKeyHint="send"
-            disabled={sending}
-          />
-          <button
-            type="submit"
-            className="bottom-nav__compose-send"
-            disabled={sending || !msg.trim()}
-            aria-label="Отправить сообщение в ленту"
-            title="Отправить в ленту"
-          >
-            {sending ? "…" : "➤"}
-          </button>
-          <button
-            type="button"
-            className="bottom-nav__add"
-            onClick={onAddWorkout}
-            aria-label="Добавить тренировку"
-            title="Добавить тренировку"
-          >
-            <span className="bottom-nav__add-plus" aria-hidden>
-              +
-            </span>
-          </button>
-        </form>
-      ) : (
+      {/* Когда компоуз-поле скрыто (экран тренировки/поддержки) — «+» остаётся
+          в таббаре по центру, чтобы добавить тренировку можно было отовсюду. */}
+      {!showCompose ? (
         <button
           type="button"
           className="bottom-nav__add bottom-nav__add--solo"
@@ -175,7 +180,7 @@ export function BottomNav({
             +
           </span>
         </button>
-      )}
+      ) : null}
 
       <button
         type="button"
@@ -199,6 +204,7 @@ export function BottomNav({
         </span>
         <span className="bottom-nav__label">Профиль</span>
       </button>
+      </div>
     </nav>
   );
 }
