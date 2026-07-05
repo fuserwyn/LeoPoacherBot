@@ -459,8 +459,10 @@
   min-width: 0;
   padding: 6px 0 8px;
   margin: 0;
-  border-top: 1px solid var(--border-subtle);
-  background: var(--card);
+  /* Прозрачный фон и без верхней линии — полоса реакций сливается с телом поста
+     (раньше собственный непрозрачный var(--card) + border-top читались отдельной
+     белой панелью, отличной по цвету от самого поста). */
+  background: transparent;
 }
 
 .act-card__react-inner {
