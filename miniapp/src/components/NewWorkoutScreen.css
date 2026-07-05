@@ -1,4 +1,4 @@
-/* Полноэкранная форма. Чипы/кнопки как лента: .feed__filter-chip; заголовки секций — .section-title; кнопка — .feed__btn */
+/* Модальная шторка ввода тренировки (снизу, поверх затемнения). Чипы/кнопки как лента: .feed__filter-chip; заголовки секций — .section-title; кнопка — .feed__btn */
 .nwo {
   /* Размеры подобраны так, чтобы вся форма (заметка + типы + минуты +
      интенсивность + кнопка) помещалась без прокрутки даже на Android, где
@@ -23,11 +23,17 @@
   --nwo-pill-fs: 0.84rem;
   --nwo-action-fs: 1.02rem;
   --nwo-note-h: 54px;
+  /* Модальная шторка, а не полноэкранная страница: карточка снизу с зазором
+     сверху, где сквозь затемнение видно приложение. Так сразу понятно, что это
+     оверлей поверх мини-аппа, а закрытие (✕ / грабер / тап по затемнению) не
+     путается с кнопкой «закрыть мини-апп» в шапке Telegram. Снизу шторка теперь
+     перекрывает и таббар (bottom: 0) — освободившиеся ~72px компенсируют зазор
+     сверху, поэтому форма по-прежнему помещается без прокрутки. */
   position: fixed;
   left: 0;
   right: 0;
-  top: 0;
-  bottom: var(--bottom-nav-h, 72px);
+  top: calc(var(--safe-top, 0px) + 44px);
+  bottom: 0;
   height: auto;
   z-index: 200;
   display: flex;
@@ -35,13 +41,70 @@
   background: var(--bg);
   width: 100%;
   overflow: hidden;
-  padding-top: var(--safe-top);
+  border-radius: 20px 20px 0 0;
+  box-shadow: 0 -10px 34px rgba(0, 0, 0, 0.4);
   box-sizing: border-box;
   font-family: var(--font);
+  animation: nwoSheetUp 0.2s ease-out;
 }
 
+/* Пока открыта клавиатура — шторка растягивается на всю видимую область над ней
+   (высоту клампит inline-стиль visualH), убираем скругление и зазор сверху. */
 .nwo.nwo--keyboard {
+  top: 0;
   bottom: 0;
+  border-radius: 0;
+  animation: none;
+}
+
+/* Затемнение под шторкой: даёт «модальность» и область тапа для закрытия. */
+.nwo-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 199;
+  background: rgba(0, 0, 0, 0.5);
+  animation: nwoFade 0.2s ease-out;
+}
+
+/* Грабер сверху шторки — привычный жест-намёк «потяни/закрой». */
+.nwo__grabber {
+  flex: 0 0 auto;
+  width: 40px;
+  height: 4px;
+  margin: 7px auto 1px;
+  border-radius: 2px;
+  background: var(--border-subtle, #2a2a36);
+}
+
+.nwo--keyboard .nwo__grabber {
+  display: none;
+}
+
+@keyframes nwoSheetUp {
+  from {
+    transform: translateY(24px);
+    opacity: 0.4;
+  }
+  to {
+    transform: none;
+    opacity: 1;
+  }
+}
+
+@keyframes nwoFade {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .nwo,
+  .nwo-backdrop {
+    animation: none;
+  }
 }
 
 

@@ -282,9 +282,20 @@ export function NewWorkoutScreen({ onClose, onSave, showAlert, onNonSportInteres
   }, []);
 
   return (
-    <div
-      className={`nwo${showKeyboardBar ? " nwo--keyboard" : ""}`}
-      style={
+    <>
+      <div
+        className="nwo-backdrop"
+        aria-hidden="true"
+        onClick={() => {
+          if (!busy) onClose();
+        }}
+      />
+      <div
+        className={`nwo${showKeyboardBar ? " nwo--keyboard" : ""}`}
+        role="dialog"
+        aria-modal="true"
+        aria-label="Новая тренировка"
+        style={
         // Высоту клампим строго пока показана клавиатурная панель (showKeyboardBar),
         // тем же флагом, что футер/класс .nwo--keyboard. Иначе при тапе по чипу
         // inputFocused слетает раньше, чем дебаунс-метрики keyboardBottom, и кнопка
@@ -294,6 +305,7 @@ export function NewWorkoutScreen({ onClose, onSave, showAlert, onNonSportInteres
           : undefined
       }
     >
+      <div className="nwo__grabber" aria-hidden="true" />
       <header className="nwo__head">
         <div className="nwo__head-title-row">
           <button type="button" className="nwo__close" onClick={onClose} aria-label="Закрыть">
@@ -313,7 +325,7 @@ export function NewWorkoutScreen({ onClose, onSave, showAlert, onNonSportInteres
             rows={3}
             onChange={(e) => setNote(e.target.value.slice(0, NOTE_MAX))}
             maxLength={NOTE_MAX}
-            placeholder="Жим, тяга, пресс…"
+            placeholder="Как прошла тренировка, что интересного было…"
             enterKeyHint="done"
             autoCorrect="on"
             spellCheck
@@ -539,6 +551,7 @@ export function NewWorkoutScreen({ onClose, onSave, showAlert, onNonSportInteres
           }}
         />
       ) : null}
-    </div>
+      </div>
+    </>
   );
 }
