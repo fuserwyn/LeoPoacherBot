@@ -55,10 +55,86 @@
   align-items: center;
   gap: 6px;
   margin: 0;
-  padding: 3px 3px 3px 12px;
+  padding: 3px 3px 3px 5px;
   border-radius: 24px;
   background: color-mix(in srgb, var(--text-muted) 14%, transparent);
   border: 1px solid var(--border-subtle);
+}
+
+/* Скрытый нативный file-input (клик проксируем с кнопки-скрепки). */
+.bottom-nav__compose-file {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  border: 0;
+}
+
+/* Скрепка — прикрепить фото к сообщению в ленту. */
+.bottom-nav__compose-attach {
+  flex: 0 0 auto;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  border: none;
+  background: transparent;
+  color: var(--text-muted);
+  font-size: 18px;
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  transition: transform 0.15s ease, opacity 0.15s ease;
+}
+
+.bottom-nav__compose-attach:active {
+  transform: scale(0.92);
+}
+
+.bottom-nav__compose-attach--on {
+  color: var(--accent);
+}
+
+.bottom-nav__compose-attach:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+/* Мини-превью прикреплённого фото с крестиком-снять. */
+.bottom-nav__compose-thumb {
+  position: relative;
+  flex: 0 0 auto;
+  width: 34px;
+  height: 34px;
+}
+
+.bottom-nav__compose-thumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  border-radius: 8px;
+  display: block;
+}
+
+.bottom-nav__compose-thumb-x {
+  position: absolute;
+  top: -6px;
+  right: -6px;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  border: 1px solid var(--nav-bg, #0f0f0f);
+  background: #e23b12;
+  color: #fff;
+  font-size: 9px;
+  line-height: 1;
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+  padding: 0;
 }
 
 .bottom-nav__compose-input {

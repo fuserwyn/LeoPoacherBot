@@ -625,7 +625,9 @@
   font-size: 14px;
   padding: 4px 6px;
   border-radius: 999px;
-  background: var(--fill-soft);
+  /* Единый цвет для всех пилюль реакций (раньше var(--fill-soft) давал белесый
+     фон у чужих реакций, а «своя» была фиолетовой — выглядело разнородно). */
+  background: var(--accent-dim);
   border: 1px solid transparent;
   color: inherit;
   cursor: pointer;
@@ -642,8 +644,8 @@
 }
 
 .act-card__react-btn--mine {
+  /* Фон тот же, что у остальных — «свою» реакцию отличаем только рамкой. */
   border-color: color-mix(in srgb, var(--accent) 55%, transparent);
-  background: color-mix(in srgb, var(--accent) 12%, transparent);
 }
 
 .act-card__react-cnt {

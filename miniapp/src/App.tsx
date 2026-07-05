@@ -258,9 +258,9 @@ export function App() {
   // Отправка текстового сообщения в общую ленту из компоуз-поля таббара.
   // Пишется в чат стаи (miniapp_pack_group_chat) и появляется карточкой в ленте.
   const sendFeedMessage = useCallback(
-    async (text: string): Promise<boolean> => {
+    async (text: string, photo?: File | null): Promise<boolean> => {
       const t = text.trim();
-      if (!t) return false;
+      if (!t && !photo) return false;
       if (!inTelegram || !initData) {
         showAlert("Открой мини-апп из Telegram.");
         return false;
@@ -271,11 +271,21 @@ export function App() {
         return false;
       }
       try {
-        const res = await fetch(`${apiBase}/api/miniapp/pack-group/messages`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ init_data: initData, text: t }),
-        });
+        let res: Response;
+        if (photo) {
+          // С фото — multipart на тот же эндпоинт, что и комментарии-фото (reply_to_id опущен → верхнеуровневое сообщение).
+          const fd = new FormData();
+          fd.append("init_data", initData);
+          fd.append("text", t);
+          fd.append("photo", photo, photo.name || "photo.jpg");
+          res = await fetch(`${apiBase}/api/miniapp/pack-group/messages/photo`, { method: "POST", body: fd });
+        } else {
+          res = await fetch(`${apiBase}/api/miniapp/pack-group/messages`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ init_data: initData, text: t }),
+          });
+        }
         const j = (await res.json().catch(() => ({}))) as { error?: string; message?: string };
         if (!res.ok) {
           if (isModerationError(j.error)) {

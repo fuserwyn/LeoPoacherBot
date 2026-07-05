@@ -1660,17 +1660,10 @@ export function FeedScreen({
               </button>
               <button
                 type="button"
-                className={`feed__filter-pill${feedTypeFilter === "training" ? " is-active" : ""}`}
-                onClick={() => setFeedTypeFilter((p) => (p === "training" ? "all" : "training"))}
+                className={`feed__filter-pill${feedScope === "mine" ? " is-active" : ""}`}
+                onClick={() => setFeedScope((p) => (p === "mine" ? "all" : "mine"))}
               >
-                Тренировки
-              </button>
-              <button
-                type="button"
-                className={`feed__filter-pill${feedTypeFilter === "message" ? " is-active" : ""}`}
-                onClick={() => setFeedTypeFilter((p) => (p === "message" ? "all" : "message"))}
-              >
-                Сообщения
+                Мои
               </button>
               <button
                 type="button"
@@ -1681,10 +1674,17 @@ export function FeedScreen({
               </button>
               <button
                 type="button"
-                className={`feed__filter-pill${feedScope === "mine" ? " is-active" : ""}`}
-                onClick={() => setFeedScope((p) => (p === "mine" ? "all" : "mine"))}
+                className={`feed__filter-pill feed__filter-pill--type${feedTypeFilter === "training" ? " is-active" : ""}`}
+                onClick={() => setFeedTypeFilter((p) => (p === "training" ? "all" : "training"))}
               >
-                Мои
+                Тренировки
+              </button>
+              <button
+                type="button"
+                className={`feed__filter-pill feed__filter-pill--type${feedTypeFilter === "message" ? " is-active" : ""}`}
+                onClick={() => setFeedTypeFilter((p) => (p === "message" ? "all" : "message"))}
+              >
+                Сообщения
               </button>
             </div>
             {feedTypeFilter !== "message" && (

@@ -175,16 +175,25 @@
 }
 
 .feed__filter-scope {
+  /* Один ряд: Все · Мои · Друзья · Тренировки · Сообщения. Не переносим —
+     при нехватке ширины уезжает в горизонтальный скролл (без полосы). */
   display: flex;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   align-items: center;
   gap: 4px;
   margin-bottom: 4px;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+}
+
+.feed__filter-scope::-webkit-scrollbar {
+  display: none;
 }
 
 .feed__filter-pill {
   flex: 0 0 auto;
-  padding: 5px 14px;
+  padding: 5px 11px;
   border-radius: 999px;
   border: 1px solid var(--border-subtle);
   background: var(--card-inner);
@@ -194,6 +203,7 @@
   line-height: 1.25;
   cursor: pointer;
   min-height: 32px;
+  white-space: nowrap;
   display: inline-flex;
   align-items: center;
 }
@@ -202,6 +212,18 @@
   background: var(--tab-active-bg);
   color: var(--tab-active-fg);
   border-color: var(--tab-active-border);
+}
+
+/* Тренировки/Сообщения — другая ветка фильтрации (тип контента), поэтому
+   слегка другого цвета: розовый акцент вместо фиолетового. */
+.feed__filter-pill--type {
+  border-color: color-mix(in srgb, var(--accent-2) 30%, var(--border-subtle));
+}
+
+.feed__filter-pill--type.is-active {
+  background: color-mix(in srgb, var(--accent-2) 20%, transparent);
+  border-color: color-mix(in srgb, var(--accent-2) 55%, transparent);
+  color: var(--accent-2);
 }
 
 .feed__filter-cats {

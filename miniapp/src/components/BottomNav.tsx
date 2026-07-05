@@ -1,4 +1,4 @@
-import { useLayoutEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { measureBottomNavOffset } from "../lib/bottomNavOffset";
 import "./BottomNav.css";
 
@@ -15,8 +15,8 @@ type Props = {
   onAddWorkout: () => void;
   onRules: () => void;
   onProfile: () => void;
-  /** Отправка текстового сообщения в общую ленту (компоуз-поле). Возвращает true при успехе. */
-  onSendMessage?: (text: string) => Promise<boolean> | boolean;
+  /** Отправка сообщения в общую ленту (компоуз-поле): текст и/или фото. Возвращает true при успехе. */
+  onSendMessage?: (text: string, photo?: File | null) => Promise<boolean> | boolean;
   /** Показывать компоуз-поле. На экране тренировки/поддержки скрываем (там своё поле ввода). */
   showCompose?: boolean;
 };
@@ -37,8 +37,22 @@ export function BottomNav({
   const feedBadge = feedBadgeCount > 0 ? (feedBadgeCount > 9 ? "9+" : String(feedBadgeCount)) : null;
   const navRef = useRef<HTMLElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  const photoInputRef = useRef<HTMLInputElement>(null);
   const [msg, setMsg] = useState("");
+  const [photo, setPhoto] = useState<File | null>(null);
+  const [photoPreview, setPhotoPreview] = useState<string | null>(null);
   const [sending, setSending] = useState(false);
+
+  // Превью прикреплённого фото (object URL с чисткой при смене/снятии).
+  useEffect(() => {
+    if (!photo) {
+      setPhotoPreview(null);
+      return;
+    }
+    const url = URL.createObjectURL(photo);
+    setPhotoPreview(url);
+    return () => URL.revokeObjectURL(url);
+  }, [photo]);
 
   // Публикуем высоту таббара в --bottom-nav-h, чтобы оверлеи (например, #training_done) могли её зарезервировать.
   useLayoutEffect(() => {
@@ -70,11 +84,15 @@ export function BottomNav({
 
   const submitMessage = async () => {
     const t = msg.trim();
-    if (!t || sending || !onSendMessage) return;
+    if ((!t && !photo) || sending || !onSendMessage) return;
     setSending(true);
     try {
-      const ok = await onSendMessage(t);
-      if (ok) setMsg("");
+      const ok = await onSendMessage(t, photo);
+      if (ok) {
+        setMsg("");
+        setPhoto(null);
+        if (photoInputRef.current) photoInputRef.current.value = "";
+      }
     } finally {
       setSending(false);
     }
@@ -94,13 +112,48 @@ export function BottomNav({
             }}
           >
             <input
+              ref={photoInputRef}
+              type="file"
+              accept="image/*"
+              className="bottom-nav__compose-file"
+              disabled={sending}
+              onChange={(e) => {
+                const f = e.target.files?.[0] ?? null;
+                if (f) setPhoto(f);
+                e.target.value = "";
+              }}
+            />
+            <button
+              type="button"
+              className={`bottom-nav__compose-attach${photo ? " bottom-nav__compose-attach--on" : ""}`}
+              disabled={sending}
+              onClick={() => photoInputRef.current?.click()}
+              aria-label={photo ? "Заменить фото" : "Прикрепить фото"}
+              title={photo ? "Заменить фото" : "Прикрепить фото"}
+            >
+              📎
+            </button>
+            {photoPreview && (
+              <span className="bottom-nav__compose-thumb">
+                <img src={photoPreview} alt="" />
+                <button
+                  type="button"
+                  className="bottom-nav__compose-thumb-x"
+                  onClick={() => setPhoto(null)}
+                  aria-label="Убрать фото"
+                >
+                  ✕
+                </button>
+              </span>
+            )}
+            <input
               ref={inputRef}
               className="bottom-nav__compose-input"
               value={msg}
               onChange={(e) => setMsg(e.target.value)}
               onFocus={onComposeFocus}
               onBlur={onComposeBlur}
-              placeholder="Написать в ленту…"
+              placeholder={photo ? "Добавить подпись…" : "Написать в ленту…"}
               aria-label="Сообщение в ленту стаи"
               maxLength={4000}
               autoComplete="off"
@@ -110,7 +163,7 @@ export function BottomNav({
             <button
               type="submit"
               className="bottom-nav__compose-send"
-              disabled={sending || !msg.trim()}
+              disabled={sending || (!msg.trim() && !photo)}
               aria-label="Отправить сообщение в ленту"
               title="Отправить в ленту"
             >
