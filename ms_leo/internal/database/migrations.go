@@ -1365,6 +1365,34 @@ var Migrations = []Migration{
 			DROP TABLE IF EXISTS unified_feed_meta;
 		`,
 	},
+	{
+		Version:     72,
+		Description: "Уведомления о лайках в ленте: настройка вкл/выкл + лог отправленных (идемпотентность)",
+		UpSQL: `
+			CREATE TABLE IF NOT EXISTS miniapp_like_notifications (
+				user_id      BIGINT NOT NULL,
+				pack_chat_id BIGINT NOT NULL,
+				enabled      BOOLEAN NOT NULL DEFAULT FALSE,
+				updated_at   TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT (NOW() AT TIME ZONE 'Europe/Moscow'),
+				PRIMARY KEY (user_id, pack_chat_id)
+			);
+
+			-- Один DM на пару (получатель, лайкнувший, цель): переставленный лайк не спамит.
+			CREATE TABLE IF NOT EXISTS miniapp_feed_like_notify_log (
+				recipient_user_id BIGINT NOT NULL,
+				pack_chat_id      BIGINT NOT NULL,
+				liker_user_id     BIGINT NOT NULL,
+				target_kind       TEXT   NOT NULL,
+				target_id         BIGINT NOT NULL,
+				created_at        TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT (NOW() AT TIME ZONE 'Europe/Moscow'),
+				PRIMARY KEY (recipient_user_id, liker_user_id, target_kind, target_id)
+			);
+		`,
+		DownSQL: `
+			DROP TABLE IF EXISTS miniapp_feed_like_notify_log;
+			DROP TABLE IF EXISTS miniapp_like_notifications;
+		`,
+	},
 }
 
 // MigrationRecord представляет запись о выполненной миграции

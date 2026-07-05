@@ -129,6 +129,10 @@ func (s *Server) serve(w http.ResponseWriter, r *http.Request) {
 		s.handlePostWisdomSubLoad(w, r)
 	case path == "/api/miniapp/wisdom-sub/save" && r.Method == http.MethodPost:
 		s.handlePostWisdomSubSave(w, r)
+	case path == "/api/miniapp/like-notifications/load" && r.Method == http.MethodPost:
+		s.handlePostLikeNotificationsLoad(w, r)
+	case path == "/api/miniapp/like-notifications/save" && r.Method == http.MethodPost:
+		s.handlePostLikeNotificationsSave(w, r)
 	case path == "/api/miniapp/friends/list" && r.Method == http.MethodPost:
 		s.handlePostFriendsList(w, r)
 	case path == "/api/miniapp/friends/follow" && r.Method == http.MethodPost:

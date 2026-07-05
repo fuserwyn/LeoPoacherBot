@@ -177,6 +177,56 @@ func (s *Server) handlePostWisdomSubSave(w http.ResponseWriter, r *http.Request)
 	})
 }
 
+func (s *Server) handlePostLikeNotificationsLoad(w http.ResponseWriter, r *http.Request) {
+	corsWriteHeaders(w, r)
+	var body struct {
+		InitData string `json:"init_data"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		s.jsonErr(w, http.StatusBadRequest, "invalid_json")
+		return
+	}
+	parsed, ok := s.authMiniapp(w, body.InitData)
+	if !ok {
+		return
+	}
+	view, err := s.bot.GetLikeNotificationForViewer(parsed.User.ID, parsed)
+	if err != nil {
+		s.writeSocialErr(w, err)
+		return
+	}
+	w.Header().Set("Content-Type", "application/json; charset=utf-8")
+	_ = json.NewEncoder(w).Encode(map[string]any{
+		"ok":      true,
+		"enabled": view.Enabled,
+	})
+}
+
+func (s *Server) handlePostLikeNotificationsSave(w http.ResponseWriter, r *http.Request) {
+	corsWriteHeaders(w, r)
+	var body struct {
+		InitData string `json:"init_data"`
+		Enabled  bool   `json:"enabled"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		s.jsonErr(w, http.StatusBadRequest, "invalid_json")
+		return
+	}
+	parsed, ok := s.authMiniapp(w, body.InitData)
+	if !ok {
+		return
+	}
+	if err := s.bot.SaveLikeNotificationForViewer(parsed.User.ID, parsed, body.Enabled); err != nil {
+		s.writeSocialErr(w, err)
+		return
+	}
+	w.Header().Set("Content-Type", "application/json; charset=utf-8")
+	_ = json.NewEncoder(w).Encode(map[string]any{
+		"ok":      true,
+		"enabled": body.Enabled,
+	})
+}
+
 func (s *Server) handlePostFriendsList(w http.ResponseWriter, r *http.Request) {
 	corsWriteHeaders(w, r)
 	var body struct {

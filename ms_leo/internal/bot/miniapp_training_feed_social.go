@@ -135,10 +135,14 @@ func (b *Bot) PackTrainingFeedReact(viewerUserID int64, initD initdata.InitData,
 		return ErrTrainingFeedInvalidEmoji
 	}
 	uname := displayNameFromInitData(initD)
-	if err := b.db.SetTrainingFeedReaction(chatID, userMessageID, viewerUserID, uname, em); err != nil {
+	added, err := b.db.SetTrainingFeedReaction(chatID, userMessageID, viewerUserID, uname, em)
+	if err != nil {
 		return err
 	}
-	b.trackFeedReactionAdded(viewerUserID, "workout", em)
+	if added {
+		b.trackFeedReactionAdded(viewerUserID, "workout", em)
+		b.notifyFeedPostLiked(chatID, viewerUserID, uname, userMessageID, em)
+	}
 	return nil
 }
 
@@ -600,8 +604,12 @@ func (b *Bot) PackTrainingFeedThreadLikeToggle(viewerUserID int64, initD initdat
 	if !ok {
 		return 0, ErrTrainingFeedThreadDeleteNotFound
 	}
-	if err := b.db.ToggleTrainingFeedThreadLike(chatID, threadReplyID, viewerUserID); err != nil {
+	liked, err := b.db.ToggleTrainingFeedThreadLike(chatID, threadReplyID, viewerUserID)
+	if err != nil {
 		return 0, err
+	}
+	if liked {
+		b.notifyFeedCommentLiked(chatID, viewerUserID, displayNameFromInitData(initD), threadReplyID, row.FromUserID)
 	}
 	return row.UserMessageID, nil
 }

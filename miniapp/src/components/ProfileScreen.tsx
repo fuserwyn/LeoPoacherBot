@@ -119,6 +119,12 @@ export function ProfileScreen({
   const [wisdomLoading, setWisdomLoading] = useState(true);
   const [wisdomBusy, setWisdomBusy] = useState(false);
 
+  // Уведомления о лайках в ленте: только вкл/выкл. По умолчанию ВЫКЛ — DM о лайке на
+  // твоём отчёте или комментарии приходит, только если сам включил галочку.
+  const [likeNotifyEnabled, setLikeNotifyEnabled] = useState(false);
+  const [likeNotifyLoading, setLikeNotifyLoading] = useState(true);
+  const [likeNotifyBusy, setLikeNotifyBusy] = useState(false);
+
   // Друзья по стае: только те, за кем viewer уже подписался в ленте.
   const [friends, setFriends] = useState<FriendMember[]>([]);
   const [friendsLoading, setFriendsLoading] = useState(false);
@@ -372,6 +378,65 @@ export function ProfileScreen({
     if (!active) return;
     void loadWisdomSub();
   }, [loadWisdomSub, active]);
+
+  const loadLikeNotify = useCallback(async () => {
+    if (!api || !inTelegram || !initData?.trim()) {
+      setLikeNotifyLoading(false);
+      return;
+    }
+    setLikeNotifyLoading(true);
+    try {
+      const res = await fetch(`${api}/api/miniapp/like-notifications/load`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ init_data: initData }),
+      });
+      const j = (await res.json().catch(() => ({}))) as { ok?: boolean; enabled?: boolean };
+      if (res.ok && j.ok) {
+        setLikeNotifyEnabled(Boolean(j.enabled));
+      }
+    } catch {
+      // тихо: не критично
+    } finally {
+      setLikeNotifyLoading(false);
+    }
+  }, [inTelegram, initData]);
+
+  const saveLikeNotify = useCallback(
+    async (enabled: boolean) => {
+      if (!api || !inTelegram || !initData?.trim()) {
+        showAlert("Открой мини-апп из Telegram (нужен initData).");
+        return;
+      }
+      // Оптимистично применяем, чтобы UI не «прыгал».
+      const prevEnabled = likeNotifyEnabled;
+      setLikeNotifyEnabled(enabled);
+      setLikeNotifyBusy(true);
+      try {
+        const res = await fetch(`${api}/api/miniapp/like-notifications/save`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ init_data: initData, enabled }),
+        });
+        const j = (await res.json().catch(() => ({}))) as { ok?: boolean; error?: string };
+        if (!res.ok || !j.ok) {
+          setLikeNotifyEnabled(prevEnabled);
+          showAlert(j.error ?? `Уведомления о лайках: ошибка ${res.status}`);
+        }
+      } catch (e) {
+        setLikeNotifyEnabled(prevEnabled);
+        showAlert(e instanceof Error ? e.message : "Сеть");
+      } finally {
+        setLikeNotifyBusy(false);
+      }
+    },
+    [inTelegram, initData, likeNotifyEnabled, showAlert],
+  );
+
+  useEffect(() => {
+    if (!active) return;
+    void loadLikeNotify();
+  }, [loadLikeNotify, active]);
 
   const loadFriends = useCallback(async () => {
     if (!api || !inTelegram || !initData?.trim()) {
@@ -1087,7 +1152,7 @@ export function ProfileScreen({
         </div>
       )}
 
-      <h2 className="section-title">Напоминания</h2>
+      <h2 className="section-title">Уведомления</h2>
       <div className="profile__reminder">
         <label className="profile__reminder-row">
           <span className="profile__reminder-label">Напоминать внести тренировку</span>
@@ -1138,6 +1203,24 @@ export function ProfileScreen({
           {wisdomEnabled
             ? "Каждый день в 04:20 по твоему времени Лео пришлёт короткую мудрость дня в личку"
             : "Подписка выключена. Мудрость дня приходит только в чат стаи."}
+        </p>
+      </div>
+
+      <div className="profile__reminder">
+        <label className="profile__reminder-row">
+          <span className="profile__reminder-label">Лайки на постах и в ленте</span>
+          <input
+            type="checkbox"
+            className="profile__reminder-toggle"
+            checked={likeNotifyEnabled}
+            disabled={likeNotifyLoading || likeNotifyBusy}
+            onChange={(e) => void saveLikeNotify(e.target.checked)}
+          />
+        </label>
+        <p className="profile__hint muted">
+          {likeNotifyEnabled
+            ? "Лео напишет в личку, когда кто-то лайкнет твою тренировку или комментарий в ленте"
+            : "Уведомления выключены. О лайках на твоих постах и комментариях писать не будем."}
         </p>
       </div>
 

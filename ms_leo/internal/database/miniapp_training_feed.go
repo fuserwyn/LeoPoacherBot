@@ -152,22 +152,23 @@ func (d *Database) ListTrainingFeedReactionAggs(packChatID int64, userMessageIDs
 }
 
 // SetTrainingFeedReaction — поставить реакцию; та же эмодзи повторно снимает.
-func (d *Database) SetTrainingFeedReaction(packChatID, userMessageID, userID int64, username, emoji string) error {
+// added=true, если по итогу реакция стоит (новая или сменённая эмодзи); false — если сняли.
+func (d *Database) SetTrainingFeedReaction(packChatID, userMessageID, userID int64, username, emoji string) (added bool, err error) {
 	emoji = strings.TrimSpace(emoji)
 	var cur sql.NullString
-	err := d.db.QueryRow(
+	err = d.db.QueryRow(
 		`SELECT emoji FROM miniapp_training_feed_reactions WHERE user_message_id = $1 AND user_id = $2`,
 		userMessageID, userID,
 	).Scan(&cur)
 	if err != nil && err != sql.ErrNoRows {
-		return err
+		return false, err
 	}
 	if err == nil && cur.Valid && cur.String == emoji {
 		_, err := d.db.Exec(
 			`DELETE FROM miniapp_training_feed_reactions WHERE user_message_id = $1 AND user_id = $2`,
 			userMessageID, userID,
 		)
-		return err
+		return false, err
 	}
 	const upsert = `
 		INSERT INTO miniapp_training_feed_reactions (pack_chat_id, user_message_id, user_id, username, emoji)
@@ -177,8 +178,10 @@ func (d *Database) SetTrainingFeedReaction(packChatID, userMessageID, userID int
 			username = EXCLUDED.username,
 			updated_at = NOW()
 	`
-	_, err = d.db.Exec(upsert, packChatID, userMessageID, userID, strings.TrimSpace(username), emoji)
-	return err
+	if _, err = d.db.Exec(upsert, packChatID, userMessageID, userID, strings.TrimSpace(username), emoji); err != nil {
+		return false, err
+	}
+	return true, nil
 }
 
 // TrainingFeedThreadRow — одна реплика в треде.
@@ -436,12 +439,13 @@ func (d *Database) DeleteTrainingThreadUnreadByReplyID(threadReplyID int64) erro
 }
 
 // ToggleTrainingFeedThreadLike — лайк на комментарий треда (toggle).
-func (d *Database) ToggleTrainingFeedThreadLike(packChatID, threadReplyID, userID int64) error {
+// liked=true, если по итогу лайк поставлен; false — если сняли (или no-op).
+func (d *Database) ToggleTrainingFeedThreadLike(packChatID, threadReplyID, userID int64) (liked bool, err error) {
 	if packChatID == 0 || threadReplyID == 0 || userID == 0 {
-		return nil
+		return false, nil
 	}
 	var exists bool
-	err := d.db.QueryRow(
+	err = d.db.QueryRow(
 		`SELECT EXISTS(
 			SELECT 1 FROM miniapp_training_feed_thread_likes
 			WHERE pack_chat_id = $1 AND thread_reply_id = $2 AND user_id = $3
@@ -449,7 +453,7 @@ func (d *Database) ToggleTrainingFeedThreadLike(packChatID, threadReplyID, userI
 		packChatID, threadReplyID, userID,
 	).Scan(&exists)
 	if err != nil {
-		return err
+		return false, err
 	}
 	if exists {
 		_, err := d.db.Exec(
@@ -457,15 +461,17 @@ func (d *Database) ToggleTrainingFeedThreadLike(packChatID, threadReplyID, userI
 			 WHERE pack_chat_id = $1 AND thread_reply_id = $2 AND user_id = $3`,
 			packChatID, threadReplyID, userID,
 		)
-		return err
+		return false, err
 	}
-	_, err = d.db.Exec(
+	if _, err = d.db.Exec(
 		`INSERT INTO miniapp_training_feed_thread_likes (pack_chat_id, thread_reply_id, user_id)
 		 VALUES ($1, $2, $3)
 		 ON CONFLICT (thread_reply_id, user_id) DO NOTHING`,
 		packChatID, threadReplyID, userID,
-	)
-	return err
+	); err != nil {
+		return false, err
+	}
+	return true, nil
 }
 
 // ThreadLikeAgg — лайки по id комментария треда.
