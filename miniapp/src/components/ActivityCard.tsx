@@ -645,6 +645,10 @@ export function ActivityCard({
         <TrainingReactionsBar reactions={activeReactions} onReactionClick={onReactionClick} />
       </div>
     ) : null;
+  // У сообщений (нет типа) реакции ставим в одну строку с текстом — если это
+  // обычный короткий текст (не сворачиваемый, не режим правки).
+  const reactionInComment =
+    !hasTypeLine && reactionsNode != null && !postEdit && Boolean(comment) && !canCollapseComment;
   const showStreak = !hideStreak && name.trim() !== "Админ";
   const cardHeadMenuItems = useMemo(() => {
     const items: { label: string; onClick: () => void; danger?: boolean }[] = [];
@@ -896,6 +900,11 @@ export function ActivityCard({
                 {commentExpanded ? "Свернуть" : "Показать полностью"}
               </button>
             </div>
+          ) : reactionInComment ? (
+            <div className="act-card__msg-row">
+              <p className="act-card__comment">{comment}</p>
+              {reactionsNode}
+            </div>
           ) : (
             <p className="act-card__comment">{comment}</p>
           ))
@@ -947,7 +956,7 @@ export function ActivityCard({
           </div>
         )}
       </div>
-      {!hasTypeLine && reactionsNode}
+      {!hasTypeLine && !reactionInComment && reactionsNode}
       {hasThread && (
         <div className="act-card__thread">
             <button

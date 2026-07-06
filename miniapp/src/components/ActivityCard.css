@@ -301,6 +301,20 @@
   width: auto;
 }
 
+/* Сообщения: текст слева, реакция справа в той же строке (реакция у нижнего края). */
+.act-card__msg-row {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.act-card__msg-row .act-card__comment {
+  flex: 1 1 auto;
+  min-width: 0;
+  margin: 0;
+}
+
 .act-card__type-ico {
   margin-right: 2px;
 }
