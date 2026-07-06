@@ -287,11 +287,18 @@
   margin-bottom: 0;
 }
 
-/* Реакции внутри строки типа: компактно, по правому краю, без полосы на всю ширину. */
-.act-card__react--inline {
+/* Реакции внутри строки типа: компактно, по правому краю, без полосы на всю ширину.
+   Повышенная специфичность (.act-card__react.act-card__react--inline), иначе базовое
+   правило .act-card__react { width: 100% } идёт ниже по файлу и перебивает — реакции
+   растягивались на всю ширину и налезали на тип. */
+.act-card__react.act-card__react--inline {
   flex: 0 0 auto;
   width: auto;
   padding: 0;
+}
+
+.act-card__react.act-card__react--inline .act-card__react-inner {
+  width: auto;
 }
 
 .act-card__type-ico {
