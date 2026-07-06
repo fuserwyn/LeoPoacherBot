@@ -635,20 +635,22 @@ export function ActivityCard({
   // Реакции — в одной строке с типом тренировки (если тип есть). У сообщений типа
   // нет, поэтому там реакции остаются отдельной строкой под текстом.
   const hasTypeLine = (emoji ?? "").trim() !== "" || (activity ?? "").trim() !== "";
+  // У сообщений (нет типа) реакции ставим в одну строку с текстом — если это
+  // обычный короткий текст (не сворачиваемый, не режим правки).
+  const reactionInComment =
+    !hasTypeLine && activeReactions.length > 0 && !postEdit && Boolean(comment) && !canCollapseComment;
+  // Компактный вид (в строке с типом/текстом) vs полоса на всю ширину (отдельной строкой).
+  const reactionInline = hasTypeLine || reactionInComment;
   const reactionsNode =
     activeReactions.length > 0 ? (
       <div
-        className={`act-card__react${hasTypeLine ? " act-card__react--inline" : ""}`}
+        className={`act-card__react${reactionInline ? " act-card__react--inline" : ""}`}
         role="group"
         aria-label="Реакции"
       >
         <TrainingReactionsBar reactions={activeReactions} onReactionClick={onReactionClick} />
       </div>
     ) : null;
-  // У сообщений (нет типа) реакции ставим в одну строку с текстом — если это
-  // обычный короткий текст (не сворачиваемый, не режим правки).
-  const reactionInComment =
-    !hasTypeLine && reactionsNode != null && !postEdit && Boolean(comment) && !canCollapseComment;
   const showStreak = !hideStreak && name.trim() !== "Админ";
   const cardHeadMenuItems = useMemo(() => {
     const items: { label: string; onClick: () => void; danger?: boolean }[] = [];
