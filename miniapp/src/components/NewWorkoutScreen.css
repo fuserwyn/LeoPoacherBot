@@ -530,7 +530,9 @@
   flex: 0 0 auto;
   flex-shrink: 0;
   margin-top: auto;
-  padding: 8px 10px 4px;
+  /* Нижний отступ учитывает home indicator (safe-bottom), иначе кнопка
+     «Отправить отчёт» упирается в край экрана и её края обрезаются. */
+  padding: 8px 10px calc(8px + var(--safe-bottom, 0px));
   max-width: 100%;
   width: 100%;
   margin-left: auto;
@@ -615,13 +617,18 @@
 .nwo__non-sport {
   align-self: center;
   margin: 0 0 0 auto;
-  flex-shrink: 0;
-  padding: 6px 12px;
+  flex: 0 1 auto;
+  min-width: 0;
+  padding: 6px 10px;
   border-radius: 999px;
   border: 1px solid var(--border-subtle, #2a2a36);
   background: transparent;
   color: var(--text-label, #a0a0b0);
-  font: 600 var(--nwo-chip-fs) / var(--nwo-chip-lh) var(--font);
+  /* Компактнее, чтобы вместе с «Добавить фото» помещалось в одну строку. */
+  font: 600 0.72rem / var(--nwo-chip-lh) var(--font);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
   cursor: pointer;
 }
 
