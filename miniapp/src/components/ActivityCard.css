@@ -266,10 +266,32 @@
   padding-inline: 8px;
 }
 
+/* Строка с типом тренировки + реакции справа. */
+.act-card__type-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 2px;
+}
+
 .act-card__type {
   font-weight: 600;
   font-size: 13px;
   margin-bottom: 2px;
+  min-width: 0;
+}
+
+.act-card__type-row .act-card__type {
+  flex: 1 1 auto;
+  margin-bottom: 0;
+}
+
+/* Реакции внутри строки типа: компактно, по правому краю, без полосы на всю ширину. */
+.act-card__react--inline {
+  flex: 0 0 auto;
+  width: auto;
+  padding: 0;
 }
 
 .act-card__type-ico {

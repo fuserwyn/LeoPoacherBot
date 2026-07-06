@@ -632,6 +632,19 @@ export function ActivityCard({
   const canReact = onReactionClick != null;
   const hasThread = threadReplies.length > 0 || threadComposer != null;
   const threadCount = threadReplies.length;
+  // Реакции — в одной строке с типом тренировки (если тип есть). У сообщений типа
+  // нет, поэтому там реакции остаются отдельной строкой под текстом.
+  const hasTypeLine = (emoji ?? "").trim() !== "" || (activity ?? "").trim() !== "";
+  const reactionsNode =
+    activeReactions.length > 0 ? (
+      <div
+        className={`act-card__react${hasTypeLine ? " act-card__react--inline" : ""}`}
+        role="group"
+        aria-label="Реакции"
+      >
+        <TrainingReactionsBar reactions={activeReactions} onReactionClick={onReactionClick} />
+      </div>
+    ) : null;
   const showStreak = !hideStreak && name.trim() !== "Админ";
   const cardHeadMenuItems = useMemo(() => {
     const items: { label: string; onClick: () => void; danger?: boolean }[] = [];
@@ -800,11 +813,15 @@ export function ActivityCard({
         )}
       </header>
       <div className="act-card__body">
-        {/* У сообщений (не тренировок) нет типа/эмодзи — не рисуем пустую строку-заголовок. */}
-        {((emoji ?? "").trim() !== "" || (activity ?? "").trim() !== "") && (
-          <p className="act-card__type">
-            <span className="act-card__type-ico">{emoji}</span> {activity}
-          </p>
+        {/* У сообщений (не тренировок) нет типа/эмодзи — не рисуем пустую строку-заголовок.
+            Реакции показываем справа в этой же строке (перенос из отдельного блока). */}
+        {hasTypeLine && (
+          <div className="act-card__type-row">
+            <p className="act-card__type">
+              <span className="act-card__type-ico">{emoji}</span> {activity}
+            </p>
+            {reactionsNode}
+          </div>
         )}
         {details.trim() !== "" && <p className="act-card__details">{details}</p>}
         {postEdit ? (
@@ -930,11 +947,7 @@ export function ActivityCard({
           </div>
         )}
       </div>
-      {activeReactions.length > 0 && (
-        <div className="act-card__react" role="group" aria-label="Реакции">
-          <TrainingReactionsBar reactions={activeReactions} onReactionClick={onReactionClick} />
-        </div>
-      )}
+      {!hasTypeLine && reactionsNode}
       {hasThread && (
         <div className="act-card__thread">
             <button
