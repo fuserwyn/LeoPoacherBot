@@ -166,7 +166,6 @@ func (b *Bot) PackFeedForViewer(viewerUserID int64, initD initdata.InitData, ini
 	feedItems = b.enrichPackFeedTrainingSocial(feedItems, viewerUserID, chatID, initDataRaw)
 	feedItems = b.enrichPackFeedPolls(feedItems, viewerUserID, chatID)
 	feedItems = b.enrichPackFeedAuthorPhotos(feedItems, chatID, initDataRaw)
-	feedItems = b.enrichPackFeedFriends(feedItems, viewerUserID, chatID)
 
 	// --- Источник 2: сообщения общего чата (miniapp_pack_group_chat) ---
 	baseline, bErr := b.db.GetPackMessageBaselineID()
@@ -207,6 +206,10 @@ func (b *Bot) PackFeedForViewer(viewerUserID int64, initD initdata.InitData, ini
 
 	// --- Мёрж по времени (новые сверху) + ограничение страницы ---
 	merged := mergePackFeedByCreatedAtDesc(feedItems, msgItems)
+	// IsFriend проставляем на объединённом списке: раньше enrich шёл только по
+	// тренировкам, поэтому сообщения друзей никогда не попадали в фильтр «Друзья»
+	// (и «Друзья + Сообщения» всегда были пустыми).
+	merged = b.enrichPackFeedFriends(merged, viewerUserID, chatID)
 	if len(merged) > limit {
 		merged = merged[:limit]
 	}
