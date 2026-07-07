@@ -1313,33 +1313,36 @@ export function ActivityCard({
             )}
           </div>
         )}
-      {lightboxOpen && (lightboxSrc || trainingPhotoUrl) ? (
-        <div
-          className="act-card__lightbox"
-          role="dialog"
-          aria-modal="true"
-          onClick={() => setLightboxOpen(false)}
-        >
-          <button
-            type="button"
-            className="act-card__lightbox-close"
-            aria-label="Закрыть"
-            onClick={(e) => {
-              e.stopPropagation();
-              setLightboxOpen(false);
-            }}
-          >
-            ✕
-          </button>
-          <img
-            className="act-card__lightbox-img"
-            src={lightboxSrc || trainingPhotoUrl}
-            alt=""
-            referrerPolicy="no-referrer"
-            onClick={(e) => e.stopPropagation()}
-          />
-        </div>
-      ) : null}
+      {lightboxOpen && (lightboxSrc || trainingPhotoUrl)
+        ? createPortal(
+            <div
+              className="act-card__lightbox"
+              role="dialog"
+              aria-modal="true"
+              onClick={() => setLightboxOpen(false)}
+            >
+              <button
+                type="button"
+                className="act-card__lightbox-close"
+                aria-label="Закрыть"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setLightboxOpen(false);
+                }}
+              >
+                ✕
+              </button>
+              <img
+                className="act-card__lightbox-img"
+                src={lightboxSrc || trainingPhotoUrl}
+                alt=""
+                referrerPolicy="no-referrer"
+                onClick={(e) => e.stopPropagation()}
+              />
+            </div>,
+            document.body,
+          )
+        : null}
     </article>
   );
 }
