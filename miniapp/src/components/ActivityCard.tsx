@@ -7,6 +7,7 @@ import { LEO_AVATAR_URL } from "../lib/leoAvatar";
 import { resolveFeedAvatarUrl, type VoterDTO } from "../lib/packFeed";
 import { streakStreakAriaLabel } from "../lib/streakLabel";
 import { hapticImpact } from "../lib/haptics";
+import { openTelegramDM } from "../lib/telegramDM";
 import "./ActivityCard.css";
 
 /** Голоса с бэкенда → строки списка лайкнувших (имя + отрезолвленный URL аватара).
@@ -359,6 +360,20 @@ export function ReportActionMenu({
   );
 }
 
+/** Мини-карточка автора поста по тапу на аватар: ник TG, стрик, кнопка «Написать». */
+export type ActivityCardAuthorProfile = {
+  /** Отображаемое имя автора (реальное, не «Ты»). */
+  name: string;
+  /** TG @username без «@» — для t.me-ссылки; отсутствует, если ник скрыт. */
+  tgUsername?: string;
+  /** Telegram user id — fallback-диплинк tg://user?id=. */
+  userId: number;
+  /** Стрик автора; undefined — не показывать (сообщения чата стрика не несут). */
+  streak?: number;
+  /** Свой пост — без кнопки «Написать в Telegram». */
+  isYou?: boolean;
+};
+
 export type ActivityCardProps = {
   avatar: string;
   name: string;
@@ -435,6 +450,8 @@ export type ActivityCardProps = {
   onThreadOpened?: () => void;
   /** Лео-реплай показан пользователю (тред раскрыт) — для аналитики leo_comment_displayed. */
   onLeoReplyDisplayed?: (threadReplyId: number) => void;
+  /** Автор — реальный участник: тап по аватару открывает мини-карточку профиля. */
+  authorProfile?: ActivityCardAuthorProfile;
 };
 
 export function ActivityCard({
@@ -483,6 +500,7 @@ export function ActivityCard({
   onThreadReplyEdit,
   hasUnreadThread = false,
   onThreadOpened,
+  authorProfile,
 }: ActivityCardProps) {
   const threadBodyRef = useRef<HTMLDivElement>(null);
   const threadComposeRef = useRef<HTMLDivElement>(null);
@@ -667,6 +685,10 @@ export function ActivityCard({
   const cardRef = useRef<HTMLElement>(null);
   const picker = useLikersPopover(cardRef);
 
+  // Мини-карточка автора по тапу на аватар (портал + fixed-позиционирование как у likers).
+  const avatarBtnRef = useRef<HTMLButtonElement>(null);
+  const profilePop = useLikersPopover(avatarBtnRef);
+
   // Тап по посту не должен считаться, если пришёлся на интерактивный элемент.
   const isInteractiveTarget = (target: EventTarget | null): boolean => {
     const el = target as HTMLElement | null;
@@ -758,21 +780,103 @@ export function ActivityCard({
         />
       )}
       <header className="act-card__head">
-        <div className="act-card__avatar" aria-hidden>
-          {avatarLooksLikeImageSrc(avatar) && !avatarFailed ? (
-            <img
-              className="act-card__avatar-img"
-              src={avatar.trim()}
-              alt=""
-              loading="lazy"
-              onError={() => setAvatarFailed(true)}
-            />
-          ) : avatarLooksLikeImageSrc(avatar) ? (
-            avatarFallbackGlyph(name)
-          ) : (
-            avatar
+        {(() => {
+          const avatarNode =
+            avatarLooksLikeImageSrc(avatar) && !avatarFailed ? (
+              <img
+                className="act-card__avatar-img"
+                src={avatar.trim()}
+                alt=""
+                loading="lazy"
+                onError={() => setAvatarFailed(true)}
+              />
+            ) : avatarLooksLikeImageSrc(avatar) ? (
+              avatarFallbackGlyph(name)
+            ) : (
+              avatar
+            );
+          if (!authorProfile) {
+            return (
+              <div className="act-card__avatar" aria-hidden>
+                {avatarNode}
+              </div>
+            );
+          }
+          return (
+            <button
+              ref={avatarBtnRef}
+              type="button"
+              className="act-card__avatar act-card__avatar--btn"
+              aria-haspopup="dialog"
+              aria-expanded={profilePop.open}
+              aria-label={`Профиль: ${authorProfile.name}`}
+              onClick={() => {
+                if (!profilePop.open) hapticImpact("light");
+                profilePop.setOpen(!profilePop.open);
+              }}
+            >
+              {avatarNode}
+            </button>
+          );
+        })()}
+        {authorProfile && profilePop.open &&
+          createPortal(
+            <div
+              className="act-card__profile"
+              role="dialog"
+              aria-label={`Профиль: ${authorProfile.name}`}
+              ref={profilePop.popRef}
+              style={profilePop.style}
+            >
+              <div className="act-card__profile-head">
+                <span className="act-card__profile-ava" aria-hidden>
+                  {avatarLooksLikeImageSrc(avatar) && !avatarFailed ? (
+                    <img
+                      className="act-card__profile-ava-img"
+                      src={avatar.trim()}
+                      alt=""
+                      onError={() => setAvatarFailed(true)}
+                    />
+                  ) : avatarLooksLikeImageSrc(avatar) ? (
+                    avatarFallbackGlyph(authorProfile.name)
+                  ) : (
+                    avatar
+                  )}
+                </span>
+                <div className="act-card__profile-meta">
+                  <span className="act-card__profile-name">
+                    {authorProfile.name.startsWith("@") ? authorProfile.name.slice(1) : authorProfile.name}
+                  </span>
+                  {authorProfile.tgUsername && (
+                    <span className="act-card__profile-nick">@{authorProfile.tgUsername}</span>
+                  )}
+                </div>
+                {authorProfile.streak != null && (
+                  <span
+                    className="pill pill--streak act-card__profile-streak"
+                    aria-label={streakStreakAriaLabel(authorProfile.streak)}
+                    title={streakStreakAriaLabel(authorProfile.streak)}
+                  >
+                    <span className="pill__streak-word">Стрик</span>
+                    <span className="pill__streak-num">{authorProfile.streak}</span>
+                  </span>
+                )}
+              </div>
+              {!authorProfile.isYou && (
+                <button
+                  type="button"
+                  className="act-card__profile-dm"
+                  onClick={() => {
+                    profilePop.setOpen(false);
+                    openTelegramDM(authorProfile);
+                  }}
+                >
+                  ✉️ Написать в Telegram
+                </button>
+              )}
+            </div>,
+            document.body,
           )}
-        </div>
         <div className="act-card__meta">
           <div className="act-card__row act-card__row--name">
             <span className="act-card__name">{name}</span>

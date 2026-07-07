@@ -27,6 +27,7 @@ import { clearFeedThreadUnread, fetchFeedThreadUnreadSummary } from "../lib/feed
 import { reportLeoCommentDisplayed } from "../lib/leoCommentDiag";
 import { formatLocalDateTime } from "../lib/timeAgo";
 import { streakStreakAriaLabel } from "../lib/streakLabel";
+import { feedTgUsername } from "../lib/telegramDM";
 import {
   sortWorkoutCategoryIds,
   trainingDoneMatchesAnyCategory,
@@ -1979,6 +1980,20 @@ export function FeedScreen({
                         : {}),
                     }
                   : {};
+                // Мини-карточка автора по тапу на аватар — только реальные участники
+                // (не системные карточки Лео/админа). Стрик у сообщений чата не приходит — не показываем.
+                const authorProfileProps: Partial<ActivityCardProps> =
+                  !isLeoSystemFeed && it.user_id > 0
+                    ? {
+                        authorProfile: {
+                          name: (it.username || "").trim() || `Участник ${it.user_id}`,
+                          tgUsername: feedTgUsername(it.username),
+                          userId: it.user_id,
+                          streak: isMessage ? undefined : it.streak_days,
+                          isYou: it.is_you || (userId > 0 && it.user_id === userId),
+                        },
+                      }
+                    : {};
                 // Подписка возможна только на реального участника стаи (не свой пост, не системная карточка Лео).
                 const canFollowAuthor = !it.is_you && !isLeoSystemFeed && it.user_id > 0;
                 const followProps: Partial<ActivityCardProps> = canFollowAuthor
@@ -1995,6 +2010,7 @@ export function FeedScreen({
                       <ActivityCard
                         {...base}
                         {...followProps}
+                        {...authorProfileProps}
                         reactions={mergeFeedReactionsForType("pack_message", it.reactions)}
                         onReactionClick={(emoji) => void postMessageReact(it.id, emoji)}
                         onReport={!it.is_you ? () => void confirmReportMessage(it.id) : undefined}
@@ -2041,6 +2057,7 @@ export function FeedScreen({
                         {...pinnedLeoProps}
                         {...followProps}
                         {...postEditProps}
+                        {...authorProfileProps}
                         comment={adminPostText ?? base.comment}
                         pinned={isPinnedAnnouncement}
                         commentCollapsible={adminPostCollapsible}
@@ -2083,6 +2100,7 @@ export function FeedScreen({
                       {...pinnedLeoProps}
                       {...followProps}
                       {...postEditProps}
+                      {...authorProfileProps}
                       comment={adminPostText ?? base.comment}
                       pinned={isPinnedAnnouncement}
                       commentCollapsible={adminPostCollapsible}
