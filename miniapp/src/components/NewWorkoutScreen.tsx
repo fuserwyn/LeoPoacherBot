@@ -142,7 +142,7 @@ const OTHER_LABEL_MAX = 80;
 const PHOTO_ENABLED = true;
 
 export function NewWorkoutScreen({ onClose, onSave, showAlert, onNonSportInterest }: Props) {
-  const { visualH, keyboardBottom } = useViewportMetrics();
+  const { visualH } = useViewportMetrics();
 
   useEffect(() => {
     window.scrollTo(0, 0);
@@ -150,6 +150,17 @@ export function NewWorkoutScreen({ onClose, onSave, showAlert, onNonSportInteres
     document.body.scrollTop = 0;
   }, []);
   const sheetRef = useRef<HTMLDivElement>(null);
+  // Отступ шторки от верха (CSS top: safe-top + 44px) — нужен, чтобы при клавиатуре
+  // посчитать высоту так, чтобы низ шторки совпал с верхом клавиатуры (visualH − top),
+  // сохранив верхний зазор. Берём из computed style: transform входной анимации
+  // на него не влияет (в отличие от getBoundingClientRect).
+  const [sheetTop, setSheetTop] = useState(0);
+  useEffect(() => {
+    const el = sheetRef.current;
+    if (!el) return;
+    const topPx = parseFloat(window.getComputedStyle(el).top);
+    if (Number.isFinite(topPx)) setSheetTop(Math.max(0, Math.round(topPx)));
+  }, []);
   const bodyRef = useRef<HTMLDivElement>(null);
   const noteTaRef = useRef<HTMLTextAreaElement>(null);
   const otherInputRef = useRef<HTMLInputElement>(null);
@@ -372,12 +383,17 @@ export function NewWorkoutScreen({ onClose, onSave, showAlert, onNonSportInteres
         aria-modal="true"
         aria-label="Новая тренировка"
         style={
-        // Пока показана клавиатурная панель — поджимаем низ шторки к верху
-        // клавиатуры (bottom: keyboardBottom). Верхний зазор и скругления при
-        // этом сохраняются: шторка остаётся модалкой, а не разворачивается в
-        // полноэкранную страницу. Флаг тот же, что у футера (showKeyboardBar).
+        // Пока показана клавиатурная панель — высота от верхнего зазора до верха
+        // клавиатуры: visualH − top шторки (та же проверенная формула, что была с
+        // top:0 и height=visualH, минус зазор). bottom: auto, иначе CSS bottom:0
+        // растянул бы шторку под клавиатуру. Скругления и зазор сверху сохраняются:
+        // шторка остаётся модалкой. Флаг тот же, что у футера (showKeyboardBar).
         showKeyboardBar
-          ? { bottom: `${keyboardBottom}px` }
+          ? {
+              height: `${Math.max(180, visualH - sheetTop)}px`,
+              maxHeight: `${Math.max(180, visualH - sheetTop)}px`,
+              bottom: "auto",
+            }
           : undefined
       }
     >
