@@ -998,14 +998,7 @@ html.app-keyboard-open .profile__health-actions--keyboard {
   cursor: pointer;
 }
 
-/* Друзья по стае */
-.profile__friends {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-  margin-bottom: 24px;
-}
-
+/* «Слежу за» — выпадающий список внутри секции «Уведомления», под тумблером «Тренировки друзей». */
 .profile__friends-toggle {
   width: 100%;
   padding: 12px 18px;
