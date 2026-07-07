@@ -47,7 +47,10 @@ OPENROUTER_VISION_MODEL=qwen/qwen3-vl-8b-instruct
 SCAN_HISTORY_ON_START=false
 
 # Qdrant — долгосрочная память чата (семантический поиск по всей переписке)
+# По умолчанию заглушка: контекст для ИИ берётся из Postgres, без Qdrant и эмбеддингов.
+QDRANT_MOCK=true
 # Railway: https://qdarnt-production.up.railway.app (порт 6333 проксируется автоматически)
+# Чтобы включить Qdrant: QDRANT_MOCK=false и задай QDRANT_URL
 QDRANT_URL=
 QDRANT_API_KEY=
 # Новая коллекция под Nemotron 2048-dim (старая leopard_chat с 1536 не совместима)

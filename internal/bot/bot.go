@@ -26,7 +26,7 @@ type Bot struct {
 	config               *config.Config
 	timers               map[string]*domain.TimerInfo
 	aiClient             *ai.OpenRouterClient
-	vectorStore          *vector.Store
+	vectorStore          vector.MemoryStore
 	sickApprovalWatchers map[int64]chan struct{}
 	sickApprovalMutex    sync.Mutex
 	adminSessions        map[int64]*adminSession
@@ -67,10 +67,12 @@ func New(cfg *config.Config, db *database.Database, log logger.Logger) (*Bot, er
 		log.Warn("OpenRouter API key not provided, AI features will be disabled")
 	}
 
-	var vectorStore *vector.Store
-	if cfg.QdrantURL != "" && aiClient != nil {
+	vectorStore := vector.MemoryStore(vector.NewNoopStore())
+	if cfg.QdrantMock {
+		log.Info("Qdrant mocked — chat context from Postgres only (set QDRANT_MOCK=false to enable Qdrant)")
+	} else if cfg.QdrantURL != "" && aiClient != nil {
 		embedModel := cfg.OpenRouterEmbeddingModel
-		vectorStore = vector.NewStore(
+		realStore := vector.NewStore(
 			cfg.QdrantURL,
 			cfg.QdrantAPIKey,
 			cfg.QdrantCollection,
@@ -79,14 +81,14 @@ func New(cfg *config.Config, db *database.Database, log logger.Logger) (*Bot, er
 				return aiClient.CreateEmbedding(text, embedModel)
 			},
 		)
-		if err := vectorStore.EnsureCollection(); err != nil {
-			log.Warnf("Qdrant collection init failed (memory disabled until fixed): %v", err)
-			vectorStore = nil
+		if err := realStore.EnsureCollection(); err != nil {
+			log.Warnf("Qdrant collection init failed (using mock): %v", err)
 		} else {
+			vectorStore = realStore
 			log.Infof("Qdrant memory enabled: %s collection=%s", cfg.QdrantURL, cfg.QdrantCollection)
 		}
 	} else if cfg.QdrantURL != "" {
-		log.Warn("QDRANT_URL set but OpenRouter missing — vector memory disabled")
+		log.Warn("QDRANT_URL set but OpenRouter missing — using Qdrant mock")
 	}
 
 	return &Bot{

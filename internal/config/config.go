@@ -19,6 +19,7 @@ type Config struct {
 	OpenRouterEmbeddingModel string
 	OpenRouterVisionModel    string
 	ScanHistoryOnStart      bool // Сканировать историю при старте (по умолчанию false)
+	QdrantMock              bool
 	QdrantURL               string
 	QdrantAPIKey            string
 	QdrantCollection        string
@@ -34,6 +35,7 @@ func Load() (*Config, error) {
 
 	// Парсим булевое значение для ScanHistoryOnStart
 	scanHistoryOnStart := parseBoolEnv("SCAN_HISTORY_ON_START", false)
+	qdrantMock := parseBoolEnv("QDRANT_MOCK", true)
 	qdrantBackfillOnStart := parseBoolEnv("QDRANT_BACKFILL_ON_START", false)
 
 	vectorSize, _ := strconv.Atoi(getEnv("QDRANT_VECTOR_SIZE", "2048"))
@@ -51,6 +53,7 @@ func Load() (*Config, error) {
 		OpenRouterEmbeddingModel: getEnv("OPENROUTER_EMBEDDING_MODEL", "nvidia/llama-nemotron-embed-vl-1b-v2:free"),
 		OpenRouterVisionModel:    getEnv("OPENROUTER_VISION_MODEL", "qwen/qwen3-vl-8b-instruct"),
 		ScanHistoryOnStart:       scanHistoryOnStart,
+		QdrantMock:               qdrantMock,
 		QdrantURL:                getEnv("QDRANT_URL", ""),
 		QdrantAPIKey:             getEnv("QDRANT_API_KEY", ""),
 		QdrantCollection:         getEnv("QDRANT_COLLECTION", "leopard_chat_v2"),

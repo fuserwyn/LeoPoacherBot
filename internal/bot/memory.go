@@ -153,7 +153,7 @@ func (b *Bot) appendRecentChatContext(ctx *strings.Builder, chatID int64, limit 
 // BackfillVectorMemory загружает все сообщения из Postgres в Qdrant.
 func (b *Bot) BackfillVectorMemory(ctx context.Context) (indexed, failed int, err error) {
 	if !b.memoryEnabled() {
-		return 0, 0, fmt.Errorf("vector memory disabled: set QDRANT_URL and OPENROUTER_API_KEY")
+		return 0, 0, fmt.Errorf("vector memory disabled: set QDRANT_MOCK=false, QDRANT_URL and OPENROUTER_API_KEY")
 	}
 	if err := b.vectorStore.EnsureCollection(); err != nil {
 		return 0, 0, fmt.Errorf("ensure collection: %w", err)
@@ -211,7 +211,7 @@ func (b *Bot) handleBackfillQdrant(msg *tgbotapi.Message) {
 		return
 	}
 	if !b.memoryEnabled() {
-		reply := tgbotapi.NewMessage(msg.Chat.ID, "❌ Qdrant не настроен. Укажи QDRANT_URL и OPENROUTER_API_KEY в переменных окружения.")
+		reply := tgbotapi.NewMessage(msg.Chat.ID, "❌ Qdrant выключен (QDRANT_MOCK=true). Для бекфила: QDRANT_MOCK=false, QDRANT_URL и OPENROUTER_API_KEY.")
 		b.api.Send(reply)
 		return
 	}
