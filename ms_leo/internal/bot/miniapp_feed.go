@@ -94,6 +94,10 @@ type PackFeedItem struct {
 	ID               int64  `json:"id"`
 	UserID           int64  `json:"user_id"`
 	Username         string `json:"username"`
+	// AuthorTgUsername — настоящий TG-ник автора без «@» (для ссылки t.me в мини-карточке
+	// профиля). Username выше может быть кастомным display_name из анкеты — по нему личку
+	// не открыть. Пусто, если у юзера нет публичного ника.
+	AuthorTgUsername string `json:"author_tg_username,omitempty"`
 	Type             string `json:"type"`
 	// Source — источник записи: "feed" (user_messages: тренировки/системные) или
 	// "message" (miniapp_pack_group_chat). id уникален только внутри источника,
@@ -213,7 +217,43 @@ func (b *Bot) PackFeedForViewer(viewerUserID int64, initD initdata.InitData, ini
 	if len(merged) > limit {
 		merged = merged[:limit]
 	}
+	merged = b.enrichPackFeedAuthorTgUsernames(merged, chatID)
 	return merged, nil
+}
+
+// enrichPackFeedAuthorTgUsernames — проставляет настоящий TG-ник автора (без «@»)
+// на карточках участников: Username карточки может быть display_name из анкеты,
+// а для кнопки «Написать в Telegram» нужен именно @ник.
+func (b *Bot) enrichPackFeedAuthorTgUsernames(items []PackFeedItem, chatID int64) []PackFeedItem {
+	if b == nil || b.db == nil || chatID == 0 || len(items) == 0 {
+		return items
+	}
+	idSet := make(map[int64]struct{}, len(items))
+	ids := make([]int64, 0, len(items))
+	for _, it := range items {
+		if it.UserID <= 0 {
+			continue
+		}
+		if _, ok := idSet[it.UserID]; ok {
+			continue
+		}
+		idSet[it.UserID] = struct{}{}
+		ids = append(ids, it.UserID)
+	}
+	if len(ids) == 0 {
+		return items
+	}
+	byID, err := b.db.PackMemberTgUsernames(chatID, ids)
+	if err != nil {
+		b.logger.Warnf("pack feed tg usernames enrich: %v", err)
+		return items
+	}
+	for i := range items {
+		if un, ok := byID[items[i].UserID]; ok {
+			items[i].AuthorTgUsername = strings.TrimPrefix(un, "@")
+		}
+	}
+	return items
 }
 
 // packFeedItemFromMessage — сообщение общего чата как карточка единой ленты.

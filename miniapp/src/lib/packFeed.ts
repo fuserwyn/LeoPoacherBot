@@ -142,6 +142,8 @@ export type PackFeedItemDTO = {
   id: number;
   user_id: number;
   username: string;
+  /** Настоящий TG-ник автора без «@» (username может быть display_name из анкеты). */
+  author_tg_username?: string;
   type: string;
   /** Источник записи: "feed" (тренировки/системные, user_messages) или
    *  "message" (сообщение общего чата, miniapp_pack_group_chat). id уникален только

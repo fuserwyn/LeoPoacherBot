@@ -5,6 +5,8 @@ import (
 	"time"
 
 	"leo-bot/internal/domain"
+
+	"github.com/lib/pq"
 )
 
 // ListPackActivityFeed — последние «отчёты» в чате стаи: #training_done и системные события Лео.
@@ -296,4 +298,33 @@ func (d *Database) UserInPackOrPaid(userID, chatID int64, paywallEnabled bool) (
 		return d.UserHasActivePaywallAccess(userID, chatID)
 	}
 	return d.UserHasActiveMessageLogInChat(userID, chatID)
+}
+
+// PackMemberTgUsernames — настоящие TG-ники («@nick») участников по user_id.
+// В training_state.username лежит «@ник», если он у юзера есть, иначе имя —
+// отдаём только значения с «@», по ним фронт строит ссылку t.me для лички.
+func (d *Database) PackMemberTgUsernames(chatID int64, userIDs []int64) (map[int64]string, error) {
+	out := make(map[int64]string, len(userIDs))
+	if chatID == 0 || len(userIDs) == 0 {
+		return out, nil
+	}
+	const q = `
+		SELECT user_id, BTRIM(username)
+		FROM training_state
+		WHERE chat_id = $1 AND user_id = ANY($2) AND BTRIM(COALESCE(username, '')) LIKE '@%'
+	`
+	rows, err := d.db.Query(q, chatID, pq.Array(userIDs))
+	if err != nil {
+		return nil, fmt.Errorf("pack member tg usernames: %w", err)
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var userID int64
+		var username string
+		if err := rows.Scan(&userID, &username); err != nil {
+			return nil, err
+		}
+		out[userID] = username
+	}
+	return out, rows.Err()
 }

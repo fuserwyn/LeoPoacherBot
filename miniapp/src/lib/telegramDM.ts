@@ -9,11 +9,12 @@ export function feedTgUsername(raw: string | undefined): string | undefined {
   return /^[a-zA-Z0-9_]{4,32}$/.test(nick) ? nick : undefined;
 }
 
-type TgWebApp = { openTelegramLink?: (url: string) => void };
+type TgWebApp = { openTelegramLink?: (url: string) => void; platform?: string };
 
 /** Открыть личку с участником: t.me/<ник> внутри Telegram (openTelegramLink),
- *  вне Telegram — новой вкладкой; без ника — диплинк tg://user?id= (сработает,
- *  если приватность собеседника позволяет открыть профиль по id). */
+ *  вне Telegram — новой вкладкой; без ника — диплинк по user id (Android понимает
+ *  tg://openmessage, остальные клиенты — tg://user; сработает, если приватность
+ *  собеседника позволяет открыть профиль по id). */
 export function openTelegramDM(p: { tgUsername?: string; userId?: number }): void {
   const wa = (window as unknown as { Telegram?: { WebApp?: TgWebApp } }).Telegram?.WebApp;
   if (p.tgUsername) {
@@ -30,6 +31,10 @@ export function openTelegramDM(p: { tgUsername?: string; userId?: number }): voi
     return;
   }
   if (p.userId && p.userId > 0) {
-    window.location.href = `tg://user?id=${p.userId}`;
+    const deepLink =
+      wa?.platform === "android"
+        ? `tg://openmessage?user_id=${p.userId}`
+        : `tg://user?id=${p.userId}`;
+    window.location.href = deepLink;
   }
 }

@@ -1987,7 +1987,7 @@ export function FeedScreen({
                     ? {
                         authorProfile: {
                           name: (it.username || "").trim() || `Участник ${it.user_id}`,
-                          tgUsername: feedTgUsername(it.username),
+                          tgUsername: (it.author_tg_username || "").trim() || feedTgUsername(it.username),
                           userId: it.user_id,
                           streak: isMessage ? undefined : it.streak_days,
                           isYou: it.is_you || (userId > 0 && it.user_id === userId),

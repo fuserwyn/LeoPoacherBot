@@ -874,6 +874,11 @@ export function ActivityCard({
                   ✉️ Написать в Telegram
                 </button>
               )}
+              {!authorProfile.isYou && !authorProfile.tgUsername && (
+                <p className="act-card__profile-hint muted">
+                  У участника скрыт @ник — Telegram может не открыть чат
+                </p>
+              )}
             </div>,
             document.body,
           )}
