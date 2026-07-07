@@ -2,6 +2,7 @@ import { useRef, useState, useEffect, useLayoutEffect, useCallback, useMemo, typ
 import { createPortal } from "react-dom";
 import { LikersPopover, ReactionPickerPopover, useChipPress, useLikersPopover, type Liker, type LikerGroup } from "./Likers";
 import { PhotoCropper } from "./PhotoCropper";
+import { PhotoLightbox } from "./PhotoLightbox";
 import { LEO_AVATAR_URL } from "../lib/leoAvatar";
 import { resolveFeedAvatarUrl, type VoterDTO } from "../lib/packFeed";
 import { streakStreakAriaLabel } from "../lib/streakLabel";
@@ -612,19 +613,7 @@ export function ActivityCard({
     prevThreadLen.current = threadReplies.length;
   }, [threadOpen, threadReplies.length]);
 
-  useEffect(() => {
-    if (!lightboxOpen) return;
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") setLightboxOpen(false);
-    };
-    document.addEventListener("keydown", onKey);
-    const prev = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
-    return () => {
-      document.removeEventListener("keydown", onKey);
-      document.body.style.overflow = prev;
-    };
-  }, [lightboxOpen]);
+  // Escape/скролл-лок для лайтбокса живут внутри PhotoLightbox.
 
   // Реакции с реальными голосами показываем строкой под постом (как «уже поставленные»
   // реакции в Telegram). Пустой набор ничего не рисует.
@@ -1315,31 +1304,10 @@ export function ActivityCard({
         )}
       {lightboxOpen && (lightboxSrc || trainingPhotoUrl)
         ? createPortal(
-            <div
-              className="act-card__lightbox"
-              role="dialog"
-              aria-modal="true"
-              onClick={() => setLightboxOpen(false)}
-            >
-              <button
-                type="button"
-                className="act-card__lightbox-close"
-                aria-label="Закрыть"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  setLightboxOpen(false);
-                }}
-              >
-                ✕
-              </button>
-              <img
-                className="act-card__lightbox-img"
-                src={lightboxSrc || trainingPhotoUrl}
-                alt=""
-                referrerPolicy="no-referrer"
-                onClick={(e) => e.stopPropagation()}
-              />
-            </div>,
+            <PhotoLightbox
+              src={(lightboxSrc || trainingPhotoUrl) as string}
+              onClose={() => setLightboxOpen(false)}
+            />,
             document.body,
           )
         : null}

@@ -29,6 +29,7 @@ import {
   type VoterDTO,
 } from "../lib/packFeed";
 import { LikersPopover, pointerCanHover, useChipPress, useLikersPopover, type Liker, type LikerGroup } from "./Likers";
+import { PhotoLightbox } from "./PhotoLightbox";
 import "./ActivityCard.css";
 import "./PackGroupChatPanel.css";
 
@@ -1472,33 +1473,11 @@ export function PackGroupChatPanel({
         </button>
         </div>
       </form>
-      {lightboxUrl != null && (
-        <div
-          className="act-card__lightbox"
-          role="dialog"
-          aria-modal="true"
-          onClick={() => setLightboxUrl(null)}
-        >
-          <button
-            type="button"
-            className="act-card__lightbox-close"
-            aria-label="Закрыть"
-            onClick={(e) => {
-              e.stopPropagation();
-              setLightboxUrl(null);
-            }}
-          >
-            ✕
-          </button>
-          <img
-            className="act-card__lightbox-img"
-            src={lightboxUrl}
-            alt=""
-            referrerPolicy="no-referrer"
-            onClick={(e) => e.stopPropagation()}
-          />
-        </div>
-      )}
+      {lightboxUrl != null &&
+        createPortal(
+          <PhotoLightbox src={lightboxUrl} onClose={() => setLightboxUrl(null)} />,
+          document.body,
+        )}
     </div>
   );
 }
