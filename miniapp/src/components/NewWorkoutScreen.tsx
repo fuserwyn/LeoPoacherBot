@@ -214,6 +214,17 @@ export function NewWorkoutScreen({ onClose, onSave, showAlert, onNonSportInteres
     window.setTimeout(nudgeActiveIntoView, 180);
   }, [otherSelected, nudgeActiveIntoView]);
 
+  // Перед закрытием снимаем фокус с активного поля: если textarea уничтожить
+  // сфокусированной, focusout не стреляет и глобальный класс app-keyboard-open
+  // зависает (прятал таббар и поле ввода ленты после свайпа вниз).
+  const onCloseRef = useRef(onClose);
+  onCloseRef.current = onClose;
+  const closeSheet = useCallback(() => {
+    const el = document.activeElement;
+    if (el instanceof HTMLElement) el.blur();
+    onCloseRef.current();
+  }, []);
+
   const handleSubmit = useCallback(async () => {
     if (busy) return;
     if (types.length === 0) {
@@ -237,14 +248,14 @@ export function NewWorkoutScreen({ onClose, onSave, showAlert, onNonSportInteres
       });
       if (r !== false) {
         hapticNotification("success");
-        onClose();
+        closeSheet();
       } else {
         hapticNotification("error");
       }
     } finally {
       setBusy(false);
     }
-  }, [busy, types, otherSelected, otherLabel, min, intensity, note, photo, onSave, onClose, showAlert]);
+  }, [busy, types, otherSelected, otherLabel, min, intensity, note, photo, onSave, closeSheet, showAlert]);
 
   useEffect(() => {
     let raf = 0;
@@ -277,8 +288,6 @@ export function NewWorkoutScreen({ onClose, onSave, showAlert, onNonSportInteres
   // touchmove должен быть non-passive, чтобы preventDefault остановил скролл.
   const busyRef = useRef(busy);
   busyRef.current = busy;
-  const onCloseRef = useRef(onClose);
-  onCloseRef.current = onClose;
   useEffect(() => {
     const sheet = sheetRef.current;
     const body = bodyRef.current;
@@ -324,6 +333,10 @@ export function NewWorkoutScreen({ onClose, onSave, showAlert, onNonSportInteres
       if (!dragging) return;
       dragging = false;
       if (dy > 96) {
+        // Blur сразу: клавиатура прячется вместе с уезжающей шторкой, а
+        // focusout успевает снять глобальный app-keyboard-open до анмаунта.
+        const active = document.activeElement;
+        if (active instanceof HTMLElement) active.blur();
         sheet.style.transition = "transform 0.18s ease-in";
         sheet.style.transform = "translateY(105%)";
         window.setTimeout(() => onCloseRef.current(), 170);
@@ -373,7 +386,7 @@ export function NewWorkoutScreen({ onClose, onSave, showAlert, onNonSportInteres
         className="nwo-backdrop"
         aria-hidden="true"
         onClick={() => {
-          if (!busy) onClose();
+          if (!busy) closeSheet();
         }}
       />
       <div
@@ -400,7 +413,7 @@ export function NewWorkoutScreen({ onClose, onSave, showAlert, onNonSportInteres
       <div className="nwo__grabber" aria-hidden="true" />
       <header className="nwo__head">
         <h1 className="nwo__title">Тренировка</h1>
-        <button type="button" className="nwo__close" onClick={onClose} aria-label="Закрыть">
+        <button type="button" className="nwo__close" onClick={closeSheet} aria-label="Закрыть">
           ✕
         </button>
       </header>

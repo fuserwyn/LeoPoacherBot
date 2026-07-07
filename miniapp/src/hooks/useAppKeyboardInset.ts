@@ -28,6 +28,15 @@ export function useAppKeyboardInset() {
     let textFocused = false;
 
     const readKeyboard = () => {
+      // Страховка: если сфокусированное поле удалили из DOM (например, закрыли
+      // шторку тренировки свайпом вниз), focusout не стреляет — класс
+      // app-keyboard-open зависал и навсегда прятал таббар с полем ввода ленты.
+      // Сверяемся с реальным activeElement на каждом пересчёте вьюпорта.
+      if (textFocused && !isTextEntry(document.activeElement)) {
+        textFocused = false;
+        root.classList.remove("feed-thread-composer-open");
+        syncOpenClass();
+      }
       const vv = window.visualViewport;
       const tg = window.Telegram?.WebApp;
       const tgStable =
