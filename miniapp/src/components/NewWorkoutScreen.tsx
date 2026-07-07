@@ -142,13 +142,14 @@ const OTHER_LABEL_MAX = 80;
 const PHOTO_ENABLED = true;
 
 export function NewWorkoutScreen({ onClose, onSave, showAlert, onNonSportInterest }: Props) {
-  const { visualH } = useViewportMetrics();
+  const { visualH, keyboardBottom } = useViewportMetrics();
 
   useEffect(() => {
     window.scrollTo(0, 0);
     document.documentElement.scrollTop = 0;
     document.body.scrollTop = 0;
   }, []);
+  const sheetRef = useRef<HTMLDivElement>(null);
   const bodyRef = useRef<HTMLDivElement>(null);
   const noteTaRef = useRef<HTMLTextAreaElement>(null);
   const otherInputRef = useRef<HTMLInputElement>(null);
@@ -258,6 +259,80 @@ export function NewWorkoutScreen({ onClose, onSave, showAlert, onNonSportInteres
     };
   }, [nudgeActiveIntoView]);
 
+  // Свайп шторки вниз = закрыть (как системные bottom-sheet). Тянуть можно за
+  // грабер/шапку или за тело формы, когда оно прокручено к самому верху; сам
+  // жест начинается только после заметного смещения вниз, поэтому тапы по чипам
+  // и вертикальный скролл формы не страдают. Нативные слушатели (не React):
+  // touchmove должен быть non-passive, чтобы preventDefault остановил скролл.
+  const busyRef = useRef(busy);
+  busyRef.current = busy;
+  const onCloseRef = useRef(onClose);
+  onCloseRef.current = onClose;
+  useEffect(() => {
+    const sheet = sheetRef.current;
+    const body = bodyRef.current;
+    if (!sheet) return;
+    let startY = 0;
+    let dy = 0;
+    let tracking = false;
+    let dragging = false;
+    const onStart = (e: TouchEvent) => {
+      if (busyRef.current) return;
+      const t = e.touches[0];
+      if (!t) return;
+      const target = e.target as HTMLElement | null;
+      // Из полей ввода жест не начинаем (там выделение текста/каретка).
+      if (target?.closest("textarea, input, select")) return;
+      // Из тела формы — только когда оно у самого верха (иначе это обычный скролл).
+      if (body?.contains(target) && (body?.scrollTop ?? 0) > 1) return;
+      startY = t.clientY;
+      dy = 0;
+      dragging = false;
+      tracking = true;
+    };
+    const onMove = (e: TouchEvent) => {
+      if (!tracking) return;
+      const t = e.touches[0];
+      if (!t) return;
+      dy = t.clientY - startY;
+      if (!dragging) {
+        if (dy > 14) {
+          dragging = true;
+          sheet.style.transition = "none";
+        } else {
+          if (dy < -8) tracking = false; // жест вверх — это скролл, отпускаем
+          return;
+        }
+      }
+      e.preventDefault();
+      sheet.style.transform = `translateY(${Math.max(0, dy)}px)`;
+    };
+    const onEnd = () => {
+      if (!tracking) return;
+      tracking = false;
+      if (!dragging) return;
+      dragging = false;
+      if (dy > 96) {
+        sheet.style.transition = "transform 0.18s ease-in";
+        sheet.style.transform = "translateY(105%)";
+        window.setTimeout(() => onCloseRef.current(), 170);
+      } else {
+        sheet.style.transition = "transform 0.18s ease-out";
+        sheet.style.transform = "";
+      }
+    };
+    sheet.addEventListener("touchstart", onStart, { passive: true });
+    sheet.addEventListener("touchmove", onMove, { passive: false });
+    sheet.addEventListener("touchend", onEnd);
+    sheet.addEventListener("touchcancel", onEnd);
+    return () => {
+      sheet.removeEventListener("touchstart", onStart);
+      sheet.removeEventListener("touchmove", onMove);
+      sheet.removeEventListener("touchend", onEnd);
+      sheet.removeEventListener("touchcancel", onEnd);
+    };
+  }, []);
+
   const [nonSportSent, setNonSportSent] = useState(false);
   const handleNonSportInterest = useCallback(() => {
     if (nonSportSent) {
@@ -291,28 +366,27 @@ export function NewWorkoutScreen({ onClose, onSave, showAlert, onNonSportInteres
         }}
       />
       <div
+        ref={sheetRef}
         className={`nwo${showKeyboardBar ? " nwo--keyboard" : ""}`}
         role="dialog"
         aria-modal="true"
         aria-label="Новая тренировка"
         style={
-        // Высоту клампим строго пока показана клавиатурная панель (showKeyboardBar),
-        // тем же флагом, что футер/класс .nwo--keyboard. Иначе при тапе по чипу
-        // inputFocused слетает раньше, чем дебаунс-метрики keyboardBottom, и кнопка
-        // «Отправить» на миг зависает посередине, пока .nwo ещё зажат высотой клавиатуры.
+        // Пока показана клавиатурная панель — поджимаем низ шторки к верху
+        // клавиатуры (bottom: keyboardBottom). Верхний зазор и скругления при
+        // этом сохраняются: шторка остаётся модалкой, а не разворачивается в
+        // полноэкранную страницу. Флаг тот же, что у футера (showKeyboardBar).
         showKeyboardBar
-          ? { height: `${visualH}px`, maxHeight: `${visualH}px` }
+          ? { bottom: `${keyboardBottom}px` }
           : undefined
       }
     >
       <div className="nwo__grabber" aria-hidden="true" />
       <header className="nwo__head">
-        <div className="nwo__head-title-row">
-          <button type="button" className="nwo__close" onClick={onClose} aria-label="Закрыть">
-            ✕
-          </button>
-          <h1 className="nwo__title">Тренировка</h1>
-        </div>
+        <h1 className="nwo__title">Тренировка</h1>
+        <button type="button" className="nwo__close" onClick={onClose} aria-label="Закрыть">
+          ✕
+        </button>
       </header>
 
       <div className="nwo__body" ref={bodyRef}>
@@ -389,9 +463,6 @@ export function NewWorkoutScreen({ onClose, onSave, showAlert, onNonSportInteres
                   </button>
                 </>
               ) : null}
-              <button type="button" className="nwo__non-sport" onClick={handleNonSportInterest}>
-                Хочу вносить не только спорт
-              </button>
             </div>
           )}
         </div>
@@ -445,6 +516,9 @@ export function NewWorkoutScreen({ onClose, onSave, showAlert, onNonSportInteres
               />
             </div>
           )}
+          <button type="button" className="nwo__non-sport" onClick={handleNonSportInterest}>
+            Хочу вносить не только спорт
+          </button>
 
           <div className="nwo__mid">
             <div className="nwo__dur">

@@ -48,15 +48,11 @@
   animation: nwoSheetUp 0.2s ease-out;
 }
 
-/* Пока открыта клавиатура — шторка растягивается на всю видимую область над ней
-   (высоту клампит inline-стиль visualH), убираем скругление.
-   padding-top: safe-top резервирует место под шапку Telegram («Закрыть / ⌄ / …»),
-   иначе при top:0 содержимое (поле «Описание») уезжает под неё. */
+/* Пока открыта клавиатура — низ шторки поджимается к верху клавиатуры
+   (inline-стиль bottom: keyboardBottom из компонента). Верхний зазор и
+   скругления сохраняем: шторка остаётся модалкой, а не разворачивается в
+   полноэкранную страницу. */
 .nwo.nwo--keyboard {
-  top: 0;
-  bottom: 0;
-  border-radius: 0;
-  padding-top: var(--safe-top, 0px);
   animation: none;
 }
 
@@ -79,9 +75,6 @@
   background: var(--border-subtle, #2a2a36);
 }
 
-.nwo--keyboard .nwo__grabber {
-  display: none;
-}
 
 @keyframes nwoSheetUp {
   from {
@@ -120,6 +113,7 @@
 }
 
 .nwo__head {
+  position: relative;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -132,16 +126,14 @@
   box-sizing: border-box;
 }
 
-.nwo__head-title-row {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  max-width: 100%;
-}
-
+/* Крестик — в правом верхнем углу шторки (заголовок остаётся по центру). */
 .nwo__close {
-  width: 36px;
-  height: 36px;
+  position: absolute;
+  right: 10px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 32px;
+  height: 32px;
   border-radius: 50%;
   display: flex;
   align-items: center;
@@ -567,11 +559,12 @@
   opacity: 0.95;
 }
 
-/* Клавиатура: панель в потоке flex у низа visual viewport — без чёрного зазора над кнопкой. */
+/* Клавиатура: панель в потоке flex у низа visual viewport — без чёрного зазора над кнопкой.
+   100% минус грабер+шапка (~52px) и клавиатурная панель (~54px). */
 .nwo--keyboard .nwo__body {
   flex: 0 1 auto;
   min-height: 0;
-  max-height: calc(100% - 40px - 54px);
+  max-height: calc(100% - 52px - 54px);
   padding-bottom: 2px;
 }
 
@@ -616,18 +609,17 @@
   flex-shrink: 0;
 }
 
-/* Кнопка-запрос фичи «вносить не только спорт» — ненавязчивая, под баблом видов. */
+/* Кнопка-запрос фичи «вносить не только спорт» — ненавязчивая, сразу после всех видов тренировок. */
 .nwo__non-sport {
-  align-self: center;
-  margin: 0 0 0 auto;
+  align-self: flex-start;
+  margin: 0;
   flex: 0 1 auto;
   min-width: 0;
-  padding: 6px 10px;
+  padding: 4px 10px;
   border-radius: 999px;
   border: 1px solid var(--border-subtle, #2a2a36);
   background: transparent;
   color: var(--text-label, #a0a0b0);
-  /* Компактнее, чтобы вместе с «Добавить фото» помещалось в одну строку. */
   font: 600 0.72rem / var(--nwo-chip-lh) var(--font);
   white-space: nowrap;
   overflow: hidden;

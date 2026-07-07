@@ -1067,27 +1067,25 @@ html.app-keyboard-open .profile__health-actions--keyboard {
   flex-shrink: 0;
 }
 
-.profile__friend-notify {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
+/* «Отписаться» в строке друга: уведомления о тренировках переехали в секцию
+   «Уведомления» (глобальный тумблер «Тренировки друзей»). */
+.profile__friend-unfollow {
   flex-shrink: 0;
+  padding: 6px 12px;
+  border-radius: 999px;
+  border: 1px solid var(--border-subtle);
+  background: transparent;
+  color: var(--text-muted);
+  font: 600 12px / 1.2 var(--font);
   cursor: pointer;
 }
 
-.profile__friend-notify-label {
-  font-size: 14px;
-  line-height: 1;
+.profile__friend-unfollow:active {
+  border-color: var(--accent);
+  color: var(--accent);
 }
 
-.profile__friend-notify-toggle {
-  width: 18px;
-  height: 18px;
-  accent-color: var(--accent, #ff6a35);
-  cursor: pointer;
-}
-
-.profile__friend-notify-toggle:disabled {
+.profile__friend-unfollow:disabled {
   cursor: default;
   opacity: 0.55;
 }

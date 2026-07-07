@@ -172,12 +172,35 @@ func (d *Database) AddFriendSubscription(subscriberID, targetID, packChatID int6
 	if subscriberID == targetID {
 		return fmt.Errorf("cannot subscribe to self")
 	}
+	// notify_workouts наследует текущее «глобальное» состояние тумблера
+	// «Тренировки друзей»: если viewer выключил уведомления, новая подписка
+	// не должна снова включить DM (bool_or по существующим подпискам, TRUE для первой).
 	const q = `
-		INSERT INTO miniapp_friend_subscriptions (subscriber_id, target_id, pack_chat_id)
-		VALUES ($1, $2, $3)
+		INSERT INTO miniapp_friend_subscriptions (subscriber_id, target_id, pack_chat_id, notify_workouts)
+		VALUES ($1, $2, $3, COALESCE((
+			SELECT bool_or(notify_workouts)
+			FROM miniapp_friend_subscriptions
+			WHERE subscriber_id = $1 AND pack_chat_id = $3
+		), TRUE))
 		ON CONFLICT (subscriber_id, target_id, pack_chat_id) DO NOTHING`
 	if _, err := d.db.Exec(q, subscriberID, targetID, packChatID); err != nil {
 		return fmt.Errorf("add friend subscription: %w", err)
+	}
+	return nil
+}
+
+// SetAllFriendsWorkoutNotify — глобальный тумблер «Тренировки друзей» в уведомлениях:
+// вкл/выкл DM о тренировках сразу по всем подпискам viewer'а. Идемпотентно.
+func (d *Database) SetAllFriendsWorkoutNotify(subscriberID, packChatID int64, enabled bool) error {
+	if d == nil || subscriberID == 0 || packChatID == 0 {
+		return nil
+	}
+	const q = `
+		UPDATE miniapp_friend_subscriptions
+		SET notify_workouts = $3
+		WHERE subscriber_id = $1 AND pack_chat_id = $2`
+	if _, err := d.db.Exec(q, subscriberID, packChatID, enabled); err != nil {
+		return fmt.Errorf("set all friends workout notify: %w", err)
 	}
 	return nil
 }

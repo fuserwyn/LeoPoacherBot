@@ -130,6 +130,10 @@ export function ProfileScreen({
   const [friendsLoading, setFriendsLoading] = useState(false);
   const [followingOpen, setFollowingOpen] = useState(false);
   const [friendBusyId, setFriendBusyId] = useState<number | null>(null);
+  // Глобальный тумблер «Тренировки друзей» (центр уведомлений): DM о тренировке
+  // друга по всем подпискам сразу. Состояние — bool_or по notify_workouts подписок.
+  const [friendNotifyBusy, setFriendNotifyBusy] = useState(false);
+  const friendNotifyEnabled = friends.some((m) => m.notify_workouts);
 
   useEffect(() => {
     setCups(xp);
@@ -504,12 +508,42 @@ export function ProfileScreen({
     [inTelegram, initData, friendBusyId, showAlert],
   );
 
-  // Подписки подгружаем только при раскрытии «Слежу за».
+  // Подписки нужны и списку «Слежу за», и тумблеру «Тренировки друзей» в
+  // уведомлениях — подгружаем при открытии вкладки профиля.
   useEffect(() => {
-    if (active && followingOpen) void loadFriends();
-  }, [active, followingOpen, loadFriends]);
+    if (active) void loadFriends();
+  }, [active, loadFriends]);
 
   const followingList = friends;
+
+  // Глобальный тумблер «Тренировки друзей»: одним запросом включает/выключает
+  // DM по всем подпискам. Оптимистично, с откатом при ошибке.
+  const saveFriendNotifyAll = useCallback(
+    async (enabled: boolean) => {
+      if (!api || !inTelegram || !initData?.trim() || friendNotifyBusy) return;
+      const prev = friends;
+      setFriends((list) => list.map((m) => ({ ...m, notify_workouts: enabled })));
+      setFriendNotifyBusy(true);
+      try {
+        const res = await fetch(`${api}/api/miniapp/friends/notify-all`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ init_data: initData, enabled }),
+        });
+        const j = (await res.json().catch(() => ({}))) as { ok?: boolean; error?: string };
+        if (!res.ok || !j.ok) {
+          setFriends(prev);
+          showAlert(j.error ?? `Тренировки друзей: ошибка ${res.status}`);
+        }
+      } catch (e) {
+        setFriends(prev);
+        showAlert(e instanceof Error ? e.message : "Сеть");
+      } finally {
+        setFriendNotifyBusy(false);
+      }
+    },
+    [inTelegram, initData, friendNotifyBusy, friends, showAlert],
+  );
 
   const loadHealth = useCallback(async () => {
     if (!api || !inTelegram || !initData?.trim()) {
@@ -854,16 +888,14 @@ export function ProfileScreen({
                       <span className="profile__friend-streak muted">🔥 {m.streak_days}</span>
                     )}
                   </span>
-                  <label className="profile__friend-notify" title="Подписка на тренировки">
-                    <span className="profile__friend-notify-label muted">🔔</span>
-                    <input
-                      type="checkbox"
-                      className="profile__friend-notify-toggle"
-                      checked={m.following}
-                      disabled={friendBusyId === m.user_id}
-                      onChange={() => void toggleFollow(m)}
-                    />
-                  </label>
+                  <button
+                    type="button"
+                    className="profile__friend-unfollow"
+                    disabled={friendBusyId === m.user_id}
+                    onClick={() => void toggleFollow(m)}
+                  >
+                    {friendBusyId === m.user_id ? "…" : "Отписаться"}
+                  </button>
                 </li>
               ))}
             </ul>
@@ -1218,6 +1250,24 @@ export function ProfileScreen({
           {likeNotifyEnabled
             ? "Лео напишет в личку, когда кто-то лайкнет твою тренировку или комментарий в ленте"
             : "Уведомления выключены. О лайках на твоих постах и комментариях писать не будем."}
+        </p>
+
+        <label className="profile__reminder-row">
+          <span className="profile__reminder-label">Тренировки друзей</span>
+          <input
+            type="checkbox"
+            className="profile__reminder-toggle"
+            checked={friendNotifyEnabled}
+            disabled={friendsLoading || friendNotifyBusy || friends.length === 0}
+            onChange={(e) => void saveFriendNotifyAll(e.target.checked)}
+          />
+        </label>
+        <p className="profile__hint muted">
+          {friends.length === 0
+            ? "Подпишись на участников в ленте («Следить за тренировками») — и Лео сможет писать об их тренировках."
+            : friendNotifyEnabled
+              ? "Лео напишет в личку, когда кто-то из «Слежу за» внесёт тренировку"
+              : "Уведомления выключены. О тренировках друзей писать не будем."}
         </p>
         </div>
       </section>

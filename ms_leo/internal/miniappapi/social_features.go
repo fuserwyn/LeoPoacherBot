@@ -297,6 +297,30 @@ func (s *Server) handlePostFriendsNotify(w http.ResponseWriter, r *http.Request)
 	_ = json.NewEncoder(w).Encode(map[string]any{"ok": true, "notify_workouts": body.Enabled})
 }
 
+// handlePostFriendsNotifyAll — глобальный тумблер «Тренировки друзей» из секции
+// «Уведомления» профиля: вкл/выкл DM сразу по всем подпискам viewer'а.
+func (s *Server) handlePostFriendsNotifyAll(w http.ResponseWriter, r *http.Request) {
+	corsWriteHeaders(w, r)
+	var body struct {
+		InitData string `json:"init_data"`
+		Enabled  bool   `json:"enabled"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		s.jsonErr(w, http.StatusBadRequest, "invalid_json")
+		return
+	}
+	parsed, ok := s.authMiniapp(w, body.InitData)
+	if !ok {
+		return
+	}
+	if err := s.bot.SetAllFriendsWorkoutNotify(parsed.User.ID, parsed, body.Enabled); err != nil {
+		s.writeSocialErr(w, err)
+		return
+	}
+	w.Header().Set("Content-Type", "application/json; charset=utf-8")
+	_ = json.NewEncoder(w).Encode(map[string]any{"ok": true, "notify_workouts": body.Enabled})
+}
+
 func (s *Server) handlePostFriendsUnfollow(w http.ResponseWriter, r *http.Request) {
 	corsWriteHeaders(w, r)
 	var body struct {

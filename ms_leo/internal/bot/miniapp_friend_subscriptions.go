@@ -111,6 +111,18 @@ func (b *Bot) UnfollowFriend(viewerUserID int64, initD initdata.InitData, target
 	return b.db.RemoveFriendSubscription(viewerUserID, targetUserID, chatID)
 }
 
+// SetAllFriendsWorkoutNotify — глобальный тумблер «Тренировки друзей» (секция
+// «Уведомления» в профиле): вкл/выкл DM о тренировках по всем подпискам viewer'а.
+func (b *Bot) SetAllFriendsWorkoutNotify(viewerUserID int64, initD initdata.InitData, enabled bool) error {
+	if err := b.AssertMiniAppPackChatAligns(initD); err != nil {
+		return err
+	}
+	if err := b.assertPackFeedSocialViewer(viewerUserID); err != nil {
+		return err
+	}
+	return b.db.SetAllFriendsWorkoutNotify(viewerUserID, b.config.MonetizedChatID, enabled)
+}
+
 // enrichPackFeedFriends — проставляет IsFriend на карточках авторов, на которых подписан viewer.
 // Один запрос за все подписки viewer'а; стоит дёшево даже на большой ленте.
 func (b *Bot) enrichPackFeedFriends(items []PackFeedItem, viewerUserID, packChatID int64) []PackFeedItem {
