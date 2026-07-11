@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { achievementLabel, parseAchievementKey, type AchievementKey } from "../lib/achievements";
+import { LEO_AVATAR_URL } from "../lib/leoAvatar";
 import "./AchievementToast.css";
 
 type Props = {
@@ -9,12 +10,18 @@ type Props = {
   onDone: () => void;
 };
 
-const VISIBLE_MS = 4500;
-const EXIT_MS = 280;
+const VISIBLE_MS = 5000;
+const EXIT_MS = 320;
+
+/** Тёплая фраза от Лео — добавляет эмоций поздравлению. */
+function leoCheer(isStreak: boolean): string {
+  return isStreak ? "Так держать — Лео тобой гордится!" : "Ты просто зверь! Лео даёт лапу 🐾";
+}
 
 /**
- * Празднующий тост «Ачивка получена!». Показывается поверх всего, авто-скрывается,
- * тап закрывает раньше. Очередь и дедуп — на стороне App (по ключам ачивок).
+ * Празднующий поп-ап «Ачивка получена!» по центру экрана: аватарка Лео с лапкой,
+ * искорки и тёплая фраза. Показывается поверх всего, авто-скрывается, тап закрывает
+ * раньше. Очередь и дедуп — на стороне App (по ключам ачивок).
  */
 export function AchievementToast({ achievementKey, onDone }: Props) {
   const [leaving, setLeaving] = useState(false);
@@ -34,17 +41,30 @@ export function AchievementToast({ achievementKey, onDone }: Props) {
 
   return (
     <div
-      className={`achievement-toast${leaving ? " is-leaving" : ""}`}
+      className={`achievement-overlay${leaving ? " is-leaving" : ""}`}
       role="status"
       aria-live="polite"
       onClick={() => setLeaving(true)}
     >
-      <div className="achievement-toast__icon" aria-hidden>
-        {isStreak ? "🐾" : "⭐️"}
-      </div>
-      <div className="achievement-toast__text">
+      <div className={`achievement-toast${leaving ? " is-leaving" : ""}`}>
+        {/* Искорки-конфетти вокруг лапки */}
+        <div className="achievement-toast__sparks" aria-hidden>
+          <span className="achievement-toast__spark achievement-toast__spark--1">✨</span>
+          <span className="achievement-toast__spark achievement-toast__spark--2">🎉</span>
+          <span className="achievement-toast__spark achievement-toast__spark--3">⭐️</span>
+          <span className="achievement-toast__spark achievement-toast__spark--4">✨</span>
+        </div>
+
+        <div className="achievement-toast__badge">
+          <img className="achievement-toast__leo" src={LEO_AVATAR_URL} alt="" />
+          <span className="achievement-toast__paw" aria-hidden>
+            🐾
+          </span>
+        </div>
+
         <div className="achievement-toast__title">Ачивка получена!</div>
         <div className="achievement-toast__label">{achievementLabel(achievementKey)}</div>
+        <div className="achievement-toast__cheer">{leoCheer(isStreak)}</div>
       </div>
     </div>
   );
