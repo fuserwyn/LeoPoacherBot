@@ -527,6 +527,8 @@ export function ActivityCard({
   const [threadPhotoPreview, setThreadPhotoPreview] = useState<string | null>(null);
   // Фото для комментария кропаем перед прикреплением (как в отчёте о тренировке).
   const [pendingThreadCrop, setPendingThreadCrop] = useState<File | null>(null);
+  // Фото поста при добавлении/замене тоже кропаем — иначе можно залить любой размер.
+  const [pendingPostEditCrop, setPendingPostEditCrop] = useState<File | null>(null);
   // Голос комментария для админа: от себя / от имени Лео / от имени админов.
   const [threadPostAs, setThreadPostAs] = useState<ThreadPostAs>("self");
   const prevThreadLen = useRef(threadReplies.length);
@@ -955,7 +957,7 @@ export function ActivityCard({
                         onChange={(e) => {
                           const f = e.target.files?.[0];
                           e.target.value = "";
-                          if (f) postEdit.onAttachPhoto?.(f);
+                          if (f) setPendingPostEditCrop(f);
                         }}
                       />
                     </label>
@@ -981,6 +983,18 @@ export function ActivityCard({
                 {postEdit.posting ? "…" : "Сохранить"}
               </button>
             </div>
+            {pendingPostEditCrop &&
+              createPortal(
+                <PhotoCropper
+                  file={pendingPostEditCrop}
+                  onCancel={() => setPendingPostEditCrop(null)}
+                  onConfirm={(cropped) => {
+                    postEdit.onAttachPhoto?.(cropped);
+                    setPendingPostEditCrop(null);
+                  }}
+                />,
+                document.body,
+              )}
           </div>
         ) : (
           comment &&
