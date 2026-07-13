@@ -30,7 +30,8 @@ func (d *Database) UpdateUserMessageTextByAuthor(messageID, chatID, actorUserID 
 }
 
 // UpdateUserMessagePhotoURLByAuthor — прикрепить/заменить/удалить (пустая строка) фото своего поста
-// ленты (training_done / healthy). Пустой URL пишет NULL (фото убрано). edited_at не трогаем — это не правка текста.
+// ленты (training_done / healthy). Пустой URL пишет '' (фото убрано) — колонка NOT NULL,
+// поэтому именно пустая строка, а не NULL. edited_at не трогаем — это не правка текста.
 func (d *Database) UpdateUserMessagePhotoURLByAuthor(messageID, chatID, actorUserID int64, photoURL string) (bool, error) {
 	if messageID == 0 || chatID == 0 || actorUserID == 0 {
 		return false, nil
