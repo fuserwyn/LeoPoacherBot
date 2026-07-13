@@ -37,7 +37,7 @@ func (d *Database) UpdateUserMessagePhotoURLByAuthor(messageID, chatID, actorUse
 	}
 	res, err := d.db.Exec(
 		`UPDATE user_messages
-		 SET training_photo_url = NULLIF($4, '')
+		 SET training_photo_url = $4
 		 WHERE id = $1 AND chat_id = $2 AND user_id = $3
 		   AND COALESCE(is_hidden, FALSE) = FALSE
 		   AND message_type IN ('training_done', 'healthy')`,
