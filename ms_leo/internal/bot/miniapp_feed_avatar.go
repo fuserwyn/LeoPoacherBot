@@ -17,6 +17,27 @@ import (
 // ErrPackMemberAvatarNotFound — у пользователя нет фото профиля или Telegram не отдал файл.
 var ErrPackMemberAvatarNotFound = errors.New("pack member avatar not found")
 
+// avatarTargetPx — аватарка в ленте рисуется кружком ~40px, ретине хватает ~160px.
+// Telegram отдаёт profile photo в размерах вплоть до 640px (~100–200 КБ) — качать самый
+// большой ради 40px-кружка = лишний эгресс, поэтому берём ближайший от 160px и выше.
+const avatarTargetPx = 160
+
+// pickAvatarSize выбирает наименьший размер не мельче avatarTargetPx (по большей стороне),
+// а если все мельче — самый крупный из имеющихся. row — PhotoSize по возрастанию.
+func pickAvatarSize(row []tgbotapi.PhotoSize) tgbotapi.PhotoSize {
+	best := row[len(row)-1] // fallback: крупнейший, если ничего не дотягивает до цели
+	for _, p := range row {
+		side := p.Width
+		if p.Height > side {
+			side = p.Height
+		}
+		if side >= avatarTargetPx {
+			return p
+		}
+	}
+	return best
+}
+
 // PackFeedAssertViewerAccess — та же проверка доступа к ленте стаи, что и перед PackFeedForViewer.
 func (b *Bot) PackFeedAssertViewerAccess(viewerUserID int64, initD initdata.InitData) error {
 	if err := b.AssertMiniAppPackChatAligns(initD); err != nil {
@@ -158,7 +179,7 @@ func (b *Bot) WritePackMemberAvatarHTTP(w http.ResponseWriter, r *http.Request, 
 		return ErrPackMemberAvatarNotFound
 	}
 	row := photos.Photos[0]
-	sz := row[len(row)-1]
+	sz := pickAvatarSize(row)
 
 	file, err := b.api.GetFile(tgbotapi.FileConfig{FileID: sz.FileID})
 	if err != nil || strings.TrimSpace(file.FilePath) == "" {
