@@ -7,6 +7,9 @@ import {
   formatStreakBurnRemaining,
   streakBurnLabel,
   effectiveStreakDays,
+  canUseStreakSave,
+  streakSaveHint,
+  streakSaveWindowError,
 } from "./streakLabel";
 
 describe("daysWordRu", () => {
@@ -151,5 +154,20 @@ describe("streakBurnLabel", () => {
   it("null, когда стрик не горит", () => {
     expect(streakBurnLabel(0, 1, now)).toBeNull();
     expect(streakBurnLabel(5, 2, now)).toBeNull();
+  });
+});
+
+describe("streakSaveWindow", () => {
+  it("открыто только при daysSince === 2 и avail > 0", () => {
+    expect(canUseStreakSave(2, 1)).toBe(true);
+    expect(streakSaveWindowError(2, 1)).toBeNull();
+    expect(canUseStreakSave(1, 1)).toBe(false);
+    expect(streakSaveWindowError(1, 1)).toBe("not_needed");
+    expect(streakSaveWindowError(3, 1)).toBe("too_late");
+    expect(streakSaveWindowError(2, 0)).toBe("no_attempts");
+  });
+
+  it("подсказка для живого стрика", () => {
+    expect(streakSaveHint(1, 1)).toMatch(/ещё жив/i);
   });
 });

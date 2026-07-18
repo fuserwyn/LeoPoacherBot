@@ -114,6 +114,85 @@ func TestStreakSaveAttemptsMaxForLevel(t *testing.T) {
 	}
 }
 
+func TestStreakSaveWindowError(t *testing.T) {
+	cases := []struct {
+		days, avail int
+		want        string
+	}{
+		{2, 1, ""},            // окно открыто
+		{2, 0, "no_attempts"}, // попыток нет
+		{2, -1, "no_attempts"},
+		{0, 1, "not_needed"}, // тренировался сегодня
+		{1, 1, "not_needed"}, // догон — ещё можно потренироваться
+		{3, 1, "too_late"},   // пропущено больше одного дня
+		{10, 2, "too_late"},
+		{-1, 1, "no_training_history"},
+		{-1, 0, "no_attempts"}, // attempts проверяется первым
+	}
+	for _, c := range cases {
+		if got := StreakSaveWindowError(c.days, c.avail); got != c.want {
+			t.Errorf("StreakSaveWindowError(%d, %d) = %q, want %q", c.days, c.avail, got, c.want)
+		}
+	}
+}
+
+func TestRestoreStreakForSave(t *testing.T) {
+	cases := []struct {
+		stored, max, want int
+	}{
+		{107, 107, 107}, // обычный случай: в БД ещё лежит сгоревший стрик
+		{0, 107, 107},   // после reconcile — берём рекорд
+		{50, 100, 50},   // stored > 0 важнее max
+		{0, 0, 0},       // нечего спасать
+		{-1, 10, 10},
+	}
+	for _, c := range cases {
+		if got := restoreStreakForSave(c.stored, c.max); got != c.want {
+			t.Errorf("restoreStreakForSave(%d, %d) = %d, want %d", c.stored, c.max, got, c.want)
+		}
+	}
+}
+
+// Полный сценарий UI: effective streak + окно спасения (кейс Анечки / пропуск дня).
+func TestStreakSaveScenarioMatrix(t *testing.T) {
+	const avail = 1
+	cases := []struct {
+		name       string
+		stored     int
+		daysSince  int
+		wantShown  int // EffectiveStreakDays
+		wantWindow string
+	}{
+		{"trained today", 107, 0, 107, "not_needed"},
+		{"grace day (Анечка 18.07 после отчёта 17.07)", 107, 1, 107, "not_needed"},
+		{"burned — окно спасения", 107, 2, 0, ""},
+		{"too late after burn", 107, 3, 0, "too_late"},
+		{"no attempts on burn day", 107, 2, 0, "no_attempts"}, // overridden below
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			shown := EffectiveStreakDays(c.stored, c.daysSince)
+			if shown != c.wantShown {
+				t.Fatalf("EffectiveStreakDays = %d, want %d", shown, c.wantShown)
+			}
+			a := avail
+			wantWin := c.wantWindow
+			if c.name == "no attempts on burn day" {
+				a = 0
+				wantWin = "no_attempts"
+			}
+			if got := StreakSaveWindowError(c.daysSince, a); got != wantWin {
+				t.Fatalf("window = %q, want %q", got, wantWin)
+			}
+			if wantWin == "" {
+				if restoreStreakForSave(c.stored, c.stored) != c.stored {
+					t.Fatal("restore should keep stored streak")
+				}
+			}
+		})
+	}
+}
+
 func TestDaysWordForm(t *testing.T) {
 	cases := []struct {
 		n    int

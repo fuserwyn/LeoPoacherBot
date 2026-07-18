@@ -1,6 +1,7 @@
 package bot
 
 import (
+	"strings"
 	"testing"
 	"time"
 
@@ -213,5 +214,55 @@ func TestInactivityKickDeadline_SickLeaveFrozenThenRecover_JulyScenario(t *testi
 	wantDeadline := sickEnd.Add(frozenAtSickStart)
 	if deadline.Sub(wantDeadline) > time.Hour || wantDeadline.Sub(deadline) > time.Hour {
 		t.Errorf("deadline %v, want ~%v (выход + замороженный остаток)", deadline, wantDeadline)
+	}
+}
+
+func TestSickLeaveRemovalNotice(t *testing.T) {
+	onSick := sickLeaveRemovalNotice("6 дней 22 ч.", "08.07.2026, 00:00", false)
+	if !strings.Contains(onSick, "⏳ До удаления: 6 дней 22 ч.") {
+		t.Fatalf("on sick prefix: %q", onSick)
+	}
+	if !strings.Contains(onSick, "столько останется после выздоровления") {
+		t.Fatalf("on sick frozen note: %q", onSick)
+	}
+	if !strings.Contains(onSick, "📅 Крайний срок: 08.07.2026, 00:00 (твоё время)") {
+		t.Fatalf("deadline line: %q", onSick)
+	}
+
+	after := sickLeaveRemovalNotice("22 ч.", "", true)
+	if !strings.Contains(after, "⏳ До удаления осталось: 22 ч.") {
+		t.Fatalf("after recovery: %q", after)
+	}
+	if strings.Contains(after, "после выздоровления") {
+		t.Fatalf("after recovery must not repeat frozen note: %q", after)
+	}
+	if strings.Contains(after, "Крайний срок") {
+		t.Fatalf("empty deadlineLocal should omit calendar line: %q", after)
+	}
+}
+
+func TestInactivityKickDeadline_NoTimer(t *testing.T) {
+	now := time.Date(2026, 7, 1, 12, 0, 0, 0, time.FixedZone("MSK", 3*3600))
+	if _, ok := inactivityKickDeadline(nil, now); ok {
+		t.Fatal("nil ml")
+	}
+	if _, ok := inactivityKickDeadline(&domain.MessageLog{}, now); ok {
+		t.Fatal("nil timer")
+	}
+	if _, ok := inactivityKickDeadline(&domain.MessageLog{
+		TimerStartTime:      strPtr("2026-07-01T12:00:00+03:00"),
+		IsExemptFromDeletion: true,
+	}, now); ok {
+		t.Fatal("exempt")
+	}
+}
+
+func TestNextCalendarMidnightAfterMoscow(t *testing.T) {
+	moscow := time.FixedZone("MSK", 3*3600)
+	t0 := time.Date(2026, 7, 7, 23, 30, 0, 0, moscow)
+	got := nextCalendarMidnightAfterMoscow(t0)
+	y, m, d := got.In(moscow).Date()
+	if y != 2026 || m != time.July || d != 8 || got.In(moscow).Hour() != 0 {
+		t.Fatalf("got %v", got)
 	}
 }

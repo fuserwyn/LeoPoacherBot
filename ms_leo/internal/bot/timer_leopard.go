@@ -60,8 +60,9 @@ func (b *Bot) startTimerWithDuration(userID, chatID int64, username string, _ ti
 		b.logger.Errorf("Failed to get message log for timer start: %v", err)
 	} else {
 		tzOffset = messageLog.TimezoneOffsetFromMoscow
-		messageLog.TimerStartTime = &timerStartTime
-		if err := b.db.SaveMessageLog(messageLog); err != nil {
+		// Только timer_start_time: полный SaveMessageLog здесь гонялся с UpdateStreak
+		// и мог откатить только что пересчитанный streak_days.
+		if err := b.db.SetTimerStartTime(userID, chatID, timerStartTime); err != nil {
 			b.logger.Errorf("Failed to save timer start time: %v", err)
 		}
 	}

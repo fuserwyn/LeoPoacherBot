@@ -113,6 +113,46 @@ export function streakBurnLabel(
   return `сгорит через ${formatStreakBurnRemaining(ms)}`;
 }
 
+/** Подпись к «Спасти стрик»: когда кнопка бесполезна / опасна по ошибке. */
+export function streakSaveHint(
+  daysSinceLastTraining: number,
+  attemptsAvail: number,
+): string | null {
+  const reason = streakSaveWindowError(daysSinceLastTraining, attemptsAvail);
+  if (!reason) return "Можно закрыть один пропущенный день.";
+  switch (reason) {
+    case "no_attempts":
+      return "Попыток не осталось — расти по уровням, чтобы получить ещё.";
+    case "not_needed":
+      return "Стрик ещё жив — сначала потренируйся, спасение не нужно.";
+    case "too_late":
+      return "Пропущено больше одного дня — одной попыткой не восстановить.";
+    case "no_training_history":
+      return "Пока не было тренировок — спасать нечего.";
+    default:
+      return null;
+  }
+}
+
+/**
+ * Окно спасения: ровно 2 календарных дня с last_training_date (стрик уже 0 в UI),
+ * и есть попытки. Совпадает с UseStreakSaveAttemptForAPI на бэкенде.
+ */
+export function streakSaveWindowError(
+  daysSinceLastTraining: number,
+  attemptsAvail: number,
+): "no_attempts" | "no_training_history" | "not_needed" | "too_late" | null {
+  if (attemptsAvail <= 0) return "no_attempts";
+  if (daysSinceLastTraining < 0) return "no_training_history";
+  if (daysSinceLastTraining < 2) return "not_needed";
+  if (daysSinceLastTraining > 2) return "too_late";
+  return null;
+}
+
+export function canUseStreakSave(daysSinceLastTraining: number, attemptsAvail: number): boolean {
+  return streakSaveWindowError(daysSinceLastTraining, attemptsAvail) === null;
+}
+
 /** Склонение «кубок» для счётчика прогресса. */
 export function cupsWordRu(n: number): string {
   const abs = Math.abs(n) % 100;

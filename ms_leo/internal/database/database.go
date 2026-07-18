@@ -457,6 +457,20 @@ func (d *Database) IncrementStreakSaveAttemptsUsed(userID, chatID int64) (int, e
 	return used, nil
 }
 
+// SetTimerStartTime пишет только timer_start_time — без полного SaveMessageLog,
+// чтобы гонка со UpdateStreak не откатывала streak_days / last_training_date.
+func (d *Database) SetTimerStartTime(userID, chatID int64, timerStartTime string) error {
+	query := `
+		UPDATE training_state
+		SET timer_start_time = $3,
+		    updated_at = $4
+		WHERE user_id = $1 AND chat_id = $2
+	`
+	moscowTime := utils.FormatMoscowTime(utils.GetMoscowTime())
+	_, err := d.db.Exec(query, userID, chatID, timerStartTime, moscowTime)
+	return err
+}
+
 // ResetStreakDays сбрасывает только стрик, не трогая last_training_date
 func (d *Database) ResetStreakDays(userID, chatID int64) error {
 	query := `

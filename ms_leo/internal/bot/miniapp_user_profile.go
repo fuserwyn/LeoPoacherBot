@@ -356,6 +356,36 @@ func (b *Bot) reconcileAchievementsWithStreak(out *MiniappProfileStats, userID, 
 	}
 }
 
+// StreakSaveWindowError — почему нельзя спасти стрик при текущих daysSince / avail.
+// Пусто — окно открыто (ровно 1 пропущенный день: daysSince == 2).
+func StreakSaveWindowError(daysSinceLastTraining, attemptsAvail int) string {
+	if attemptsAvail <= 0 {
+		return "no_attempts"
+	}
+	if daysSinceLastTraining < 0 {
+		return "no_training_history"
+	}
+	if daysSinceLastTraining < 2 {
+		return "not_needed"
+	}
+	if daysSinceLastTraining > 2 {
+		return "too_late"
+	}
+	return ""
+}
+
+// restoreStreakForSave — какое значение streak_days удерживать/восстанавливать при спасении.
+// Если в БД стрик ещё не обнулён — оставляем его; иначе берём рекорд (max).
+func restoreStreakForSave(storedStreak, maxStreak int) int {
+	if storedStreak > 0 {
+		return storedStreak
+	}
+	if maxStreak > 0 {
+		return maxStreak
+	}
+	return 0
+}
+
 // UseStreakSaveAttemptForAPI использует одну попытку спасения стрика:
 // один пропущенный день (daysSinceLastTraining == 2) «закрывается» сдвигом last_training_date.
 // Возвращает обновлённый used и восстановленный streak_days или ошибку.
@@ -364,32 +394,23 @@ func (b *Bot) UseStreakSaveAttemptForAPI(userID, packChatID int64) (used, max, a
 		return 0, 0, 0, 0, errors.New("not_configured")
 	}
 	stats := b.GetMiniappProfileStatsForAPI(userID, packChatID)
-	if stats.StreakSaveAttemptsAvail <= 0 {
-		return stats.StreakSaveAttemptsUsed, stats.StreakSaveAttemptsMax, 0, stats.StreakDays, errors.New("no_attempts")
-	}
-	if stats.DaysSinceLastTraining < 0 {
-		return stats.StreakSaveAttemptsUsed, stats.StreakSaveAttemptsMax, stats.StreakSaveAttemptsAvail, stats.StreakDays, errors.New("no_training_history")
-	}
-	if stats.DaysSinceLastTraining < 2 {
-		return stats.StreakSaveAttemptsUsed, stats.StreakSaveAttemptsMax, stats.StreakSaveAttemptsAvail, stats.StreakDays, errors.New("not_needed")
-	}
-	if stats.DaysSinceLastTraining > 2 {
-		return stats.StreakSaveAttemptsUsed, stats.StreakSaveAttemptsMax, stats.StreakSaveAttemptsAvail, stats.StreakDays, errors.New("too_late")
+	if reason := StreakSaveWindowError(stats.DaysSinceLastTraining, stats.StreakSaveAttemptsAvail); reason != "" {
+		avail = stats.StreakSaveAttemptsAvail
+		if reason == "no_attempts" {
+			avail = 0
+		}
+		return stats.StreakSaveAttemptsUsed, stats.StreakSaveAttemptsMax, avail, stats.StreakDays, errors.New(reason)
 	}
 
 	ml, mlErr := b.db.GetMessageLog(userID, packChatID)
 	if mlErr != nil || ml == nil {
 		return stats.StreakSaveAttemptsUsed, stats.StreakSaveAttemptsMax, stats.StreakSaveAttemptsAvail, stats.StreakDays, errors.New("user_not_found")
 	}
-	storedStreak := ml.StreakDays
 	maxStreak := ml.MaxStreakDays
-	if maxStreak < storedStreak {
-		maxStreak = storedStreak
+	if maxStreak < ml.StreakDays {
+		maxStreak = ml.StreakDays
 	}
-	restoreStreak := storedStreak
-	if restoreStreak <= 0 {
-		restoreStreak = maxStreak
-	}
+	restoreStreak := restoreStreakForSave(ml.StreakDays, maxStreak)
 	if restoreStreak <= 0 {
 		return stats.StreakSaveAttemptsUsed, stats.StreakSaveAttemptsMax, stats.StreakSaveAttemptsAvail, stats.StreakDays, errors.New("nothing_to_save")
 	}

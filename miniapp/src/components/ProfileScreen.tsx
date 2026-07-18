@@ -3,7 +3,12 @@ import { STREAK_ACHIEVEMENTS, WORKOUT_ACHIEVEMENTS, workoutsWordRu } from "../li
 import { inactivityHighlight } from "../lib/inactivityHighlight";
 import { inactiveDaysFromRemovalRemaining, removalRemainingUntil } from "../lib/inactivityRemoval";
 import { cupsLevelProgressBarPct, formatCupsLevelProgressLabel, miniappCupsLevelProgress, miniappLevelFromCups, miniappLevelName } from "../lib/miniappLevel";
-import { effectiveStreakDays, streakBurnLabel } from "../lib/streakLabel";
+import {
+  canUseStreakSave,
+  effectiveStreakDays,
+  streakBurnLabel,
+  streakSaveHint,
+} from "../lib/streakLabel";
 import { getStoredTheme, setTheme, type ThemeMode } from "../lib/theme";
 import "./ProfileScreen.css";
 
@@ -639,7 +644,7 @@ export function ProfileScreen({
       showAlert("Открой мини-апп из Telegram (нужен initData).");
       return;
     }
-    if (saveStreakAvail <= 0 || saveStreakBusy) return;
+    if (!canUseStreakSave(daysSinceLastTraining, saveStreakAvail) || saveStreakBusy) return;
     setSaveStreakBusy(true);
     try {
       const res = await fetch(`${api}/api/miniapp/streak/save-use`, {
@@ -686,7 +691,7 @@ export function ProfileScreen({
     } finally {
       setSaveStreakBusy(false);
     }
-  }, [inTelegram, initData, saveStreakAvail, saveStreakBusy, showAlert, onStreakSaved]);
+  }, [inTelegram, initData, daysSinceLastTraining, saveStreakAvail, saveStreakBusy, showAlert, onStreakSaved]);
 
   const saveProfile = useCallback(async () => {
     if (!api || !inTelegram || !initData?.trim()) {
@@ -746,6 +751,8 @@ export function ProfileScreen({
   const showDaysWithoutTraining = !onSick && daysForKickUi >= 5;
   const displayedInactiveDays = hasTimerSync && timerInactiveDays != null ? timerInactiveDays : daysSinceLastTraining;
   const showKickBanner = !onSick && daysForKickUi >= 7;
+  const streakSaveBlocked = !canUseStreakSave(daysSinceLastTraining, saveStreakAvail);
+  const saveStreakHintText = streakSaveHint(daysSinceLastTraining, saveStreakAvail);
 
   const healthActionsKeyboard = sickFormOpen && healthInputFocused;
 
@@ -1047,7 +1054,7 @@ export function ProfileScreen({
           type="button"
           className="profile__save profile__streak-save-btn"
           onClick={() => void useSaveStreak()}
-          disabled={saveStreakBusy || saveStreakAvail <= 0}
+          disabled={saveStreakBusy || streakSaveBlocked}
         >
           {saveStreakBusy ? "Отправляю…" : "Спасти стрик 🛡️"}
         </button>
@@ -1058,6 +1065,9 @@ export function ProfileScreen({
           осталось {saveStreakAvail}/{saveStreakMax}
         </span>
       </div>
+      {saveStreakHintText ? (
+        <p className="profile__hint muted profile__streak-save-hint">{saveStreakHintText}</p>
+      ) : null}
 
       <h2 className="section-title">Здоровье</h2>
       {onSick === null ? (
