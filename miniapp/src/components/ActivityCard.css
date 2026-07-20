@@ -1555,3 +1555,36 @@
   display: block;
 }
 
+/* Заглушка при неудачной загрузке фото — тап повторяет запрос (см. ActivityCard.tsx). */
+.act-card__photo-fallback {
+  margin: 6px 0 2px;
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px;
+  border: 1px dashed var(--border-subtle);
+  border-radius: 10px;
+  background: var(--card-inner);
+  color: var(--text-muted, #999);
+  font: inherit;
+  font-size: 13px;
+  text-align: left;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.act-card__photo-fallback:active {
+  opacity: 0.9;
+}
+
+.act-card__photo-fallback-icon {
+  font-size: 18px;
+  line-height: 1;
+  flex: none;
+}
+
+.act-card__photo-fallback-text {
+  flex: 1 1 auto;
+}
+

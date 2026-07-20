@@ -520,6 +520,9 @@ export function ActivityCard({
   // Источник для лайтбокса: фото отчёта (по умолчанию) или фото из комментария.
   const [lightboxSrc, setLightboxSrc] = useState<string | null>(null);
   const [photoFailed, setPhotoFailed] = useState(false);
+  // Счётчик перезагрузки фото: тап по заглушке ремонтирует <img> с cache-bust,
+  // чтобы 404 из-за эфемерного/другого инстанса можно было пере-запросить, а не терять фото молча.
+  const [photoReloadKey, setPhotoReloadKey] = useState(0);
   const [avatarFailed, setAvatarFailed] = useState(false);
   // Прикреплённое к комментарию фото (локально в композере до отправки).
   const threadPhotoInputRef = useRef<HTMLInputElement>(null);
@@ -617,6 +620,7 @@ export function ActivityCard({
 
   useEffect(() => {
     setPhotoFailed(false);
+    setPhotoReloadKey(0);
   }, [trainingPhotoUrl]);
 
   useEffect(() => {
@@ -1054,14 +1058,29 @@ export function ActivityCard({
             }}
           >
             <img
+              key={photoReloadKey}
               className="act-card__photo"
-              src={trainingPhotoUrl}
+              src={photoReloadKey > 0 ? `${trainingPhotoUrl}${trainingPhotoUrl.includes("?") ? "&" : "?"}r=${photoReloadKey}` : trainingPhotoUrl}
               alt=""
               loading="lazy"
               referrerPolicy="no-referrer"
               onError={() => setPhotoFailed(true)}
             />
           </div>
+        ) : trainingPhotoUrl && photoFailed ? (
+          // Фото не загрузилось (частая причина — 404 с эфемерного диска/другого инстанса).
+          // Показываем заглушку с ретраем вместо молчаливого исчезновения, чтобы не путать с багом темы.
+          <button
+            type="button"
+            className="act-card__photo-fallback"
+            onClick={() => {
+              setPhotoFailed(false);
+              setPhotoReloadKey((k) => k + 1);
+            }}
+          >
+            <span className="act-card__photo-fallback-icon" aria-hidden>🖼️</span>
+            <span className="act-card__photo-fallback-text">Фото не загрузилось — нажми, чтобы повторить</span>
+          </button>
         ) : null}
         {aiText && (
           <div className="act-card__ai">
