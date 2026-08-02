@@ -71,3 +71,39 @@ describe("ActivityCard reactions popover", () => {
     expect(pop!.textContent).toContain("Участник");
   });
 });
+
+describe("ActivityCard training photo fallback", () => {
+  it("renders the photo when trainingPhotoUrl is present", () => {
+    const { container } = render(
+      <ActivityCard {...baseProps} trainingPhotoUrl="https://example.test/p.jpg" />,
+    );
+    const img = container.querySelector(".act-card__photo") as HTMLImageElement | null;
+    expect(img).toBeTruthy();
+    expect(img!.src).toContain("https://example.test/p.jpg");
+    expect(container.querySelector(".act-card__photo-fallback")).toBeNull();
+  });
+
+  it("shows a retry fallback instead of silently hiding a broken photo", () => {
+    const { container } = render(
+      <ActivityCard {...baseProps} trainingPhotoUrl="https://example.test/broken.jpg" />,
+    );
+    const img = container.querySelector(".act-card__photo") as HTMLImageElement;
+    fireEvent.error(img);
+    // Фото больше не рендерится, но и не исчезает молча — есть кликабельная заглушка.
+    expect(container.querySelector(".act-card__photo")).toBeNull();
+    const fallback = container.querySelector(".act-card__photo-fallback");
+    expect(fallback).toBeTruthy();
+    expect(fallback!.textContent).toContain("Фото не загрузилось");
+  });
+
+  it("re-requests the photo with a cache-bust param on retry", () => {
+    const { container } = render(
+      <ActivityCard {...baseProps} trainingPhotoUrl="https://example.test/broken.jpg" />,
+    );
+    fireEvent.error(container.querySelector(".act-card__photo")!);
+    fireEvent.click(container.querySelector(".act-card__photo-fallback")!);
+    const img = container.querySelector(".act-card__photo") as HTMLImageElement;
+    expect(img).toBeTruthy();
+    expect(img.src).toContain("r=1");
+  });
+});
