@@ -296,6 +296,10 @@ func (b *Bot) handleLeopardMoneyTrainingDone(msg *tgbotapi.Message, personalRepl
 	packChatID := b.kickChatIDForMessage(msg)
 	b.startTimer(msg.From.ID, packChatID, username)
 
+	// Окно больничного нужно захватить ДО сброса: ClearSickLeaveStateOnTraining зануляет
+	// sick_leave_*, а нам эти даты нужны, чтобы дни болезни не оборвали стрик при возвращении.
+	preSickLog, _ := b.db.GetMessageLog(msg.From.ID, packChatID)
+
 	// Любая тренировка снимает больничный «начисто» и даёт свежее окно неактивности
 	// (startTimer уже выставил timer_start = NOW). Без этого тренировка во время больничного
 	// не сбрасывала флаги — состояние рассинхронизировалось и юзера кикало по возвращении.
@@ -356,7 +360,16 @@ func (b *Bot) handleLeopardMoneyTrainingDone(msg *tgbotapi.Message, personalRepl
 		}
 	}
 
-	newStreak, _ := ComputeStreakDays(messageLog.LastTrainingDate, messageLog.StreakDays, localNow)
+	// Возвращение с больничного: сдвигаем «последнюю тренировку» вперёд на дни болезни,
+	// чтобы стрик продолжился, а не обнулился из-за пропуска на время лечения.
+	effectiveLastTrainingDate := messageLog.LastTrainingDate
+	if preSickLog != nil && messageLog.LastTrainingDate != nil {
+		if ss, se, ok := b.sickWindowLocalDates(preSickLog, today); ok {
+			adj := sickAdjustedLastTrainingDate(*messageLog.LastTrainingDate, today, ss, se)
+			effectiveLastTrainingDate = &adj
+		}
+	}
+	newStreak, _ := ComputeStreakDays(effectiveLastTrainingDate, messageLog.StreakDays, localNow)
 
 	cupsAdd := leopardmoney.TrainingCupsFromReportText(text)
 	if err := b.db.AddCups(msg.From.ID, packChatID, cupsAdd); err != nil {

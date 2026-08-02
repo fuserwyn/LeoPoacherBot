@@ -172,20 +172,20 @@ func (b *Bot) GetMiniappUserProfileJSONForAPI(userID, packChatID int64) (gender,
 }
 
 type MiniappProfileStats struct {
-	XP                       int
-	Level                    int
-	LevelName                string
-	StreakDays               int
-	MaxStreakDays            int
-	AchievementCount         int
-	AchievementsMax          int
-	WorkoutsTotal            int
-	WorkoutsWeek             int
-	DaysSinceLastTraining    int // -1, если тренировок ещё не было
-	LastTrainingDate         string // YYYY-MM-DD в локальном TZ; пусто, если не было отчётов
-	StreakSaveAttemptsUsed   int // сколько попыток спасения стрика использовано (lifetime)
-	StreakSaveAttemptsMax    int // кап = min(level, 6); +1 за каждый новый уровень
-	StreakSaveAttemptsAvail  int // = max - used (не меньше 0)
+	XP                      int
+	Level                   int
+	LevelName               string
+	StreakDays              int
+	MaxStreakDays           int
+	AchievementCount        int
+	AchievementsMax         int
+	WorkoutsTotal           int
+	WorkoutsWeek            int
+	DaysSinceLastTraining   int    // -1, если тренировок ещё не было
+	LastTrainingDate        string // YYYY-MM-DD в локальном TZ; пусто, если не было отчётов
+	StreakSaveAttemptsUsed  int    // сколько попыток спасения стрика использовано (lifetime)
+	StreakSaveAttemptsMax   int    // кап = min(level, 6); +1 за каждый новый уровень
+	StreakSaveAttemptsAvail int    // = max - used (не меньше 0)
 }
 
 // StreakSaveAttemptsMaxForLevel возвращает кап попыток спасения для данного уровня (1-based).
@@ -295,6 +295,11 @@ func (b *Bot) GetMiniappProfileStatsForAPI(userID, packChatID int64) MiniappProf
 	}
 	out.StreakSaveAttemptsAvail = avail
 	storedStreak := out.StreakDays
+	// Больничный замораживает стрик (kick-таймер на паузе — стрик по аналогии): дни болезни
+	// не считаем «пропущенными», иначе стрик сгорает прямо во время больничного.
+	if packLog, err := b.db.GetMessageLog(userID, packChatID); err == nil {
+		out.DaysSinceLastTraining = b.sickAdjustedDaysSince(packLog, out.LastTrainingDate, out.DaysSinceLastTraining)
+	}
 	out.StreakDays = EffectiveStreakDays(storedStreak, out.DaysSinceLastTraining)
 	if storedStreak > 0 && out.StreakDays == 0 && out.DaysSinceLastTraining >= 3 {
 		b.reconcileExpiredStreakInDB(userID, packChatID)
@@ -329,6 +334,8 @@ func (b *Bot) reconcileExpiredStreakInDB(userID, packChatID int64) {
 			return
 		}
 		days := int(math.Floor(today.Sub(last).Hours()/24 + 0.5))
+		// Больничный замораживает стрик — не жжём его дни болезни (см. sickAdjustedDaysSince).
+		days = b.sickAdjustedDaysSince(ml, ltd, days)
 		if days < 3 {
 			return
 		}

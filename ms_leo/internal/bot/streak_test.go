@@ -74,15 +74,15 @@ func TestComputeStreakDays_DateBoundaries(t *testing.T) {
 
 func TestEffectiveStreakDays(t *testing.T) {
 	cases := []struct {
-		stored     int
-		daysSince  int
-		want       int
+		stored    int
+		daysSince int
+		want      int
 	}{
 		{0, 0, 0},
-		{420, -1, 420},  // дата неизвестна — показываем сохранённый
-		{420, 0, 420},   // тренировался сегодня
-		{420, 1, 420},   // вчера — ещё жив до полночи
-		{420, 2, 0},     // пропущен день после последней — сгорел
+		{420, -1, 420}, // дата неизвестна — показываем сохранённый
+		{420, 0, 420},  // тренировался сегодня
+		{420, 1, 420},  // вчера — ещё жив до полночи
+		{420, 2, 0},    // пропущен день после последней — сгорел
 		{420, 10, 0},
 		{1, 2, 0},
 	}
@@ -190,6 +190,49 @@ func TestStreakSaveScenarioMatrix(t *testing.T) {
 				}
 			}
 		})
+	}
+}
+
+// Больничный не должен жечь стрик: дни болезни вычитаются из промежутка последняя-тренировка → сегодня.
+func TestSickAdjustedLastTrainingDate(t *testing.T) {
+	cases := []struct {
+		name                            string
+		last, today, sickStart, sickEnd string
+		want                            string
+	}{
+		// Активный больничный (sickEnd == today): тренировка 01-го, болезнь со 2-го, сегодня 6-е.
+		// 4 дня болезни (2..6) сдвигают «последнюю тренировку» на 01+4 = 05 → до сегодня всего 1 день (grace).
+		{"active sick leave freezes streak", "2026-05-01", "2026-05-06", "2026-05-02", "2026-05-06", "2026-05-05"},
+		// Завершённый больничный ровно закрыл промежуток: вернулся и тренируется в день выздоровления.
+		{"recovered same day bridges gap", "2026-05-01", "2026-05-05", "2026-05-02", "2026-05-05", "2026-05-04"},
+		// Больничный + реальное безделье после выздоровления: болезнь 02→04 (2 дня), потом ничего
+		// до 08 → защищаются только дни болезни (сдвиг на 2 дня, дальше стрик догорает).
+		{"sick then slacking keeps only sick days", "2026-05-01", "2026-05-08", "2026-05-02", "2026-05-04", "2026-05-03"},
+		// Больничного не было в промежутке (начался ещё до последней тренировки) — дата не меняется.
+		{"sick before last training has no effect", "2026-05-10", "2026-05-12", "2026-05-01", "2026-05-03", "2026-05-10"},
+		// Битые даты — возвращаем исходную.
+		{"unparseable dates fall back to original", "bad", "2026-05-06", "2026-05-02", "2026-05-06", "bad"},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			if got := sickAdjustedLastTrainingDate(c.last, c.today, c.sickStart, c.sickEnd); got != c.want {
+				t.Errorf("sickAdjustedLastTrainingDate(%q,%q,%q,%q) = %q, want %q",
+					c.last, c.today, c.sickStart, c.sickEnd, got, c.want)
+			}
+		})
+	}
+}
+
+// Сквозной сценарий: болел, вернулся — стрик продолжается (+1), а не обнуляется.
+func TestSickAdjustedLastTrainingDate_ContinuesStreakOnReturn(t *testing.T) {
+	// Стрик 20, тренировка 01-го, болезнь 02..05 (активна), возвращается и тренируется 06-го.
+	adj := sickAdjustedLastTrainingDate("2026-05-01", "2026-05-06", "2026-05-02", "2026-05-06")
+	newStreak, sameDay := ComputeStreakDays(strPtr(adj), 20, mustDate(t, "2026-05-06"))
+	if sameDay {
+		t.Fatalf("return day must count as a training day, got sameDay=true (adj=%q)", adj)
+	}
+	if newStreak != 21 {
+		t.Errorf("streak after sick leave = %d, want 21 (adj=%q)", newStreak, adj)
 	}
 }
 
