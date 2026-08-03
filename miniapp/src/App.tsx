@@ -11,7 +11,9 @@ import { TabKeepAlive } from "./components/TabKeepAlive";
 import { MiniappRemovedScreen } from "./components/MiniappRemovedScreen";
 import { SupportScreen } from "./components/SupportScreen";
 import { AchievementToast } from "./components/AchievementToast";
+import { LevelUpToast } from "./components/LevelUpToast";
 import { earnedAchievementKeys, type AchievementKey } from "./lib/achievements";
+import { miniappLevelFromCups } from "./lib/miniappLevel";
 import { buildOptimisticTrainingFeedItem, type PackFeedItemDTO } from "./lib/packFeed";
 import { sendMiniappPrivateText, sendMiniappTrainingWithPhoto } from "./lib/miniappPrivateSend";
 import { isModerationError, moderationUserMessage } from "./lib/moderationMessages";
@@ -78,6 +80,9 @@ export function App() {
   // Очередь тостов «Ачивка получена!» — показываем по одному, дедуп по ключам.
   const [achievementQueue, setAchievementQueue] = useState<AchievementKey[]>([]);
   const currentAchievement = achievementQueue[0] ?? null;
+  // Очередь поп-апов «Новый уровень!» — по номеру достигнутого уровня.
+  const [levelUpQueue, setLevelUpQueue] = useState<number[]>([]);
+  const currentLevelUp = levelUpQueue[0] ?? null;
 
   // §3: miniapp_opened — один раз, как только есть валидный initData в Telegram.
   useEffect(() => {
@@ -147,6 +152,33 @@ export function App() {
     try { localStorage.setItem(storageKey, JSON.stringify(earned)); } catch { /* ignore */ }
   }, [tg]);
 
+  // Пробитие уровня: сравниваем текущий уровень (по кубкам) с последним увиденным
+  // (localStorage по user_id). Первый запуск на устройстве — тихая базовая линия,
+  // чтобы не поздравлять задним числом за уже достигнутый уровень.
+  const notifyLevelUp = useCallback((uid: number, level: number) => {
+    if (!uid || level < 1) return;
+    const storageKey = `fl_seen_level_${uid}`;
+    let raw: string | null = null;
+    try {
+      raw = localStorage.getItem(storageKey);
+    } catch {
+      return; // приватный режим / нет доступа к storage — не спамим
+    }
+    if (raw === null) {
+      try { localStorage.setItem(storageKey, String(level)); } catch { /* ignore */ }
+      return;
+    }
+    const parsed = parseInt(raw, 10);
+    const seenLevel = Number.isFinite(parsed) ? parsed : 0;
+    if (level > seenLevel) {
+      setLevelUpQueue((q) => (q.includes(level) ? q : [...q, level]));
+      tg?.HapticFeedback?.notificationOccurred?.("success");
+    }
+    if (level !== seenLevel) {
+      try { localStorage.setItem(storageKey, String(level)); } catch { /* ignore */ }
+    }
+  }, [tg]);
+
   const refreshProfileStats = useCallback(async () => {
     const apiBase = (import.meta.env.VITE_MINIAPP_API_URL as string | undefined)?.replace(/\/$/, "") ?? "";
     if (accessGateStatus !== "ok" || !inTelegram || !initData?.trim() || !apiBase) return;
@@ -180,7 +212,9 @@ export function App() {
       setInactivityRemovalAt(typeof j.inactivity_removal_at === "string" ? j.inactivity_removal_at.trim() : "");
       setStreak(typeof j.streak_days === "number" ? j.streak_days : 0);
       setRecordStreak(typeof j.max_streak_days === "number" ? j.max_streak_days : 0);
-      setXP(typeof j.xp === "number" ? j.xp : 0);
+      const xpNow = typeof j.xp === "number" ? j.xp : 0;
+      setXP(xpNow);
+      notifyLevelUp(userId, miniappLevelFromCups(xpNow));
       const achCount = typeof j.achievement_count === "number" ? j.achievement_count : 0;
       const workoutsTotal = typeof j.workouts_total === "number" ? j.workouts_total : 0;
       setAchievementCount(achCount);
@@ -196,7 +230,7 @@ export function App() {
     } catch {
       return;
     }
-  }, [accessGateStatus, inTelegram, initData, userId, notifyNewAchievements]);
+  }, [accessGateStatus, inTelegram, initData, userId, notifyNewAchievements, notifyLevelUp]);
 
   useEffect(() => {
     void refreshAccessStatus();
@@ -402,7 +436,15 @@ export function App() {
         <SupportScreen initData={initData} inTelegram={inTelegram} showAlert={showAlert} />
       ) : null}
 
-      {currentAchievement ? (
+      {/* Празднования показываем по одному, чтобы оверлеи не накладывались:
+          сначала «Новый уровень!», затем очередь ачивок. */}
+      {currentLevelUp != null ? (
+        <LevelUpToast
+          key={`level-${currentLevelUp}`}
+          level={currentLevelUp}
+          onDone={() => setLevelUpQueue((q) => q.slice(1))}
+        />
+      ) : currentAchievement ? (
         <AchievementToast
           key={currentAchievement}
           achievementKey={currentAchievement}

@@ -78,6 +78,27 @@
   transform-origin: 60% 60%;
 }
 
+/* Шеврон с номером уровня в углу бейджа (вариант level-up вместо лапки-медали) */
+.achievement-toast__level-chip {
+  position: absolute;
+  right: -8px;
+  bottom: -6px;
+  min-width: 30px;
+  height: 30px;
+  padding: 0 7px;
+  display: grid;
+  place-items: center;
+  font-size: 15px;
+  font-weight: 800;
+  line-height: 1;
+  color: #fff;
+  border-radius: 15px;
+  background: var(--accent);
+  border: 2px solid var(--card);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+  animation: achievement-badge-pop 560ms cubic-bezier(0.34, 1.56, 0.64, 1) 320ms both;
+}
+
 .achievement-toast__title {
   margin-top: 4px;
   font-size: 12px;
