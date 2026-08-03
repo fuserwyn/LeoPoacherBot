@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { WORKOUT_TYPES as TYPES, type WorkoutCategoryId } from "../lib/workoutCategories";
 import { PhotoCropper } from "./PhotoCropper";
+import { CameraButton } from "./CameraButton";
 import { hapticImpact, hapticNotification } from "../lib/haptics";
 import "./NewWorkoutScreen.css";
 
@@ -466,10 +467,24 @@ export function NewWorkoutScreen({ onClose, onSave, showAlert, onNonSportInteres
                   }}
                 />
                 <span className="nwo__photo-add-ico" aria-hidden>
+                  🖼
+                </span>
+                {photo ? "Заменить" : "Из галереи"}
+              </label>
+              <CameraButton
+                className="nwo__photo-add"
+                ariaLabel="Сделать фото"
+                title="Снять фото камерой прямо сейчас"
+                onChange={(e) => {
+                  const f = e.target.files?.[0] ?? null;
+                  if (f) setPendingCrop(f);
+                }}
+              >
+                <span className="nwo__photo-add-ico" aria-hidden>
                   📷
                 </span>
-                {photo ? "Заменить фото" : "Добавить фото"}
-              </label>
+                Камера
+              </CameraButton>
               {photo ? (
                 <>
                   <span className="nwo__photo-name" aria-live="polite">

@@ -1,5 +1,6 @@
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { measureBottomNavOffset } from "../lib/bottomNavOffset";
+import { CameraButton } from "./CameraButton";
 import "./BottomNav.css";
 
 type Tab = "chat" | "feed" | "rules" | "profile";
@@ -128,11 +129,19 @@ export function BottomNav({
               className={`bottom-nav__compose-attach${photo ? " bottom-nav__compose-attach--on" : ""}`}
               disabled={sending}
               onClick={() => photoInputRef.current?.click()}
-              aria-label={photo ? "Заменить фото" : "Прикрепить фото"}
-              title={photo ? "Заменить фото" : "Прикрепить фото"}
+              aria-label={photo ? "Заменить фото из галереи" : "Прикрепить фото из галереи"}
+              title={photo ? "Заменить фото из галереи" : "Прикрепить фото из галереи"}
             >
               📎
             </button>
+            <CameraButton
+              className="bottom-nav__compose-attach"
+              disabled={sending}
+              onChange={(e) => {
+                const f = e.target.files?.[0] ?? null;
+                if (f) setPhoto(f);
+              }}
+            />
             {photoPreview && (
               <span className="bottom-nav__compose-thumb">
                 <img src={photoPreview} alt="" />

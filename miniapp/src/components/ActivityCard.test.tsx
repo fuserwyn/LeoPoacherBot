@@ -75,7 +75,7 @@ describe("ActivityCard reactions popover", () => {
 describe("ActivityCard training photo fallback", () => {
   it("renders the photo when trainingPhotoUrl is present", () => {
     const { container } = render(
-      <ActivityCard {...baseProps} trainingPhotoUrl="https://example.test/p.jpg" />,
+      <ActivityCard {...baseProps} streak={5} trainingPhotoUrl="https://example.test/p.jpg" />,
     );
     const img = container.querySelector(".act-card__photo") as HTMLImageElement | null;
     expect(img).toBeTruthy();
@@ -85,7 +85,7 @@ describe("ActivityCard training photo fallback", () => {
 
   it("shows a retry fallback instead of silently hiding a broken photo", () => {
     const { container } = render(
-      <ActivityCard {...baseProps} trainingPhotoUrl="https://example.test/broken.jpg" />,
+      <ActivityCard {...baseProps} streak={5} trainingPhotoUrl="https://example.test/broken.jpg" />,
     );
     const img = container.querySelector(".act-card__photo") as HTMLImageElement;
     fireEvent.error(img);
@@ -98,7 +98,7 @@ describe("ActivityCard training photo fallback", () => {
 
   it("re-requests the photo with a cache-bust param on retry", () => {
     const { container } = render(
-      <ActivityCard {...baseProps} trainingPhotoUrl="https://example.test/broken.jpg" />,
+      <ActivityCard {...baseProps} streak={5} trainingPhotoUrl="https://example.test/broken.jpg" />,
     );
     fireEvent.error(container.querySelector(".act-card__photo")!);
     fireEvent.click(container.querySelector(".act-card__photo-fallback")!);

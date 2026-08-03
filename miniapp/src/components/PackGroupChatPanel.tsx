@@ -30,6 +30,7 @@ import {
 } from "../lib/packFeed";
 import { LikersPopover, pointerCanHover, useChipPress, useLikersPopover, type Liker, type LikerGroup } from "./Likers";
 import { PhotoLightbox } from "./PhotoLightbox";
+import { CameraButton } from "./CameraButton";
 import "./ActivityCard.css";
 import "./PackGroupChatPanel.css";
 
@@ -1434,12 +1435,15 @@ export function PackGroupChatPanel({
           <button
             type="button"
             className="packroom__attach"
-            aria-label="Прикрепить фото"
+            aria-label="Прикрепить фото из галереи"
             disabled={sending}
             onClick={() => photoInputRef.current?.click()}
           >
             📎
           </button>
+        )}
+        {editIntent == null && (
+          <CameraButton className="packroom__attach" onChange={onPickPhoto} disabled={sending} />
         )}
         <input
           ref={inputRef}

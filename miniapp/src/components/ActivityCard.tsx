@@ -3,6 +3,7 @@ import { createPortal } from "react-dom";
 import { LikersPopover, ReactionPickerPopover, useChipPress, useLikersPopover, type Liker, type LikerGroup } from "./Likers";
 import { PhotoCropper } from "./PhotoCropper";
 import { PhotoLightbox } from "./PhotoLightbox";
+import { CameraButton } from "./CameraButton";
 import { LEO_AVATAR_URL } from "../lib/leoAvatar";
 import { resolveFeedAvatarUrl, type VoterDTO } from "../lib/packFeed";
 import { streakStreakAriaLabel } from "../lib/streakLabel";
@@ -952,7 +953,7 @@ export function ActivityCard({
                 <div className="act-card__post-edit-photo-actions">
                   {postEdit.onAttachPhoto && (
                     <label className={`act-card__post-edit-photo-btn${postEdit.photoBusy || postEdit.posting ? " act-card__post-edit-photo-btn--disabled" : ""}`}>
-                      {postEdit.photoBusy ? "…" : postEdit.photoUrl ? "Заменить фото" : "Добавить фото"}
+                      {postEdit.photoBusy ? "…" : postEdit.photoUrl ? "🖼 Из галереи" : "🖼 Галерея"}
                       <input
                         type="file"
                         accept="image/*"
@@ -965,6 +966,19 @@ export function ActivityCard({
                         }}
                       />
                     </label>
+                  )}
+                  {postEdit.onAttachPhoto && (
+                    <CameraButton
+                      className={`act-card__post-edit-photo-btn${postEdit.photoBusy || postEdit.posting ? " act-card__post-edit-photo-btn--disabled" : ""}`}
+                      disabled={postEdit.photoBusy || postEdit.posting}
+                      ariaLabel="Сделать фото"
+                      onChange={(e) => {
+                        const f = e.target.files?.[0];
+                        if (f) setPendingPostEditCrop(f);
+                      }}
+                    >
+                      📷 Камера
+                    </CameraButton>
                   )}
                   {postEdit.photoUrl && postEdit.onRemovePhoto && (
                     <button
@@ -1382,12 +1396,22 @@ export function ActivityCard({
                         <button
                           type="button"
                           className="act-card__thread-attach"
-                          aria-label="Прикрепить фото"
+                          aria-label="Прикрепить фото из галереи"
                           disabled={threadComposer.posting}
                           onClick={() => threadPhotoInputRef.current?.click()}
                         >
                           📎
                         </button>
+                      )}
+                      {threadComposer.editReplyId == null && (
+                        <CameraButton
+                          className="act-card__thread-attach"
+                          disabled={threadComposer.posting}
+                          onChange={(e) => {
+                            const f = e.target.files?.[0] ?? null;
+                            if (f) setPendingThreadCrop(f);
+                          }}
+                        />
                       )}
                       {adminVoiceAvailable && threadComposer.editReplyId == null && (
                         <div className="act-card__thread-voice" role="group" aria-label="От чьего имени комментировать">

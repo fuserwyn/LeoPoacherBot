@@ -8,6 +8,7 @@ import {
 import { formatChatTime } from "../lib/timeAgo";
 import { LEO_AVATAR_URL } from "../lib/leoAvatar";
 import { resolveTrainingPhotoUrl } from "../lib/packFeed";
+import { CameraButton } from "./CameraButton";
 import "./ChatScreen.css";
 
 const envApi = (import.meta.env.VITE_MINIAPP_API_URL as string | undefined)?.replace(/\/$/, "") ?? "";
@@ -655,12 +656,13 @@ export function ChatScreen({ name, initData, inTelegram, showAlert, onInboxOpene
         <button
           type="button"
           className="chat__attach"
-          aria-label="Прикрепить фото"
+          aria-label="Прикрепить фото из галереи"
           disabled={sending}
           onClick={() => photoInputRef.current?.click()}
         >
           📎
         </button>
+        <CameraButton className="chat__attach" onChange={onPickPhoto} disabled={sending} />
         <input
           className="chat__input"
           value={text}
