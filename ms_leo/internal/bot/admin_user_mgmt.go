@@ -130,7 +130,7 @@ func (b *Bot) showAdminUserCard(chatID, targetUserID int64) {
 		),
 		tgbotapi.NewInlineKeyboardRow(
 			tgbotapi.NewInlineKeyboardButtonData("🛟 +1 спасти стрик", "admin_user_save_"+strconv.FormatInt(targetUserID, 10)),
-			tgbotapi.NewInlineKeyboardButtonData("🏥 Отменить больничный", "admin_user_sick_"+strconv.FormatInt(targetUserID, 10)),
+			sickLeaveAdminButton(targetUserID, (ml.HasSickLeave && !ml.HasHealthy) || ml.SickApprovalPending),
 		),
 		tgbotapi.NewInlineKeyboardRow(
 			tgbotapi.NewInlineKeyboardButtonData("⏳ Дней без тренировки", "admin_user_inactive_"+strconv.FormatInt(targetUserID, 10)),
@@ -253,6 +253,13 @@ func (b *Bot) handleAdminUserMgmtCallback(callback *tgbotapi.CallbackQuery) bool
 		targetID, ok := parseTarget("admin_user_save_")
 		if ok {
 			b.adminGrantStreakSaveAttempt(chatID, targetID)
+		}
+		return true
+
+	case strings.HasPrefix(data, "admin_user_sick_set_"):
+		targetID, ok := parseTarget("admin_user_sick_set_")
+		if ok {
+			b.adminActivateSickLeave(chatID, targetID)
 		}
 		return true
 
@@ -775,6 +782,42 @@ func (b *Bot) adminGrantStreakSaveAttempt(chatID, targetUserID int64) {
 	}
 	b.api.Send(tgbotapi.NewMessage(chatID, fmt.Sprintf("✅ Пользователю %d выдана +1 попытка спасти стрик. Доступно: %d/%d.", targetUserID, avail, stats.StreakSaveAttemptsMax)))
 	b.showAdminUserCard(chatID, targetUserID)
+}
+
+// sickLeaveAdminButton — контекстная кнопка больничного: активен/ожидает → «Отменить»,
+// иначе → «Выставить» (даёт админу оформить больничный за юзера, как если бы тот сам).
+func sickLeaveAdminButton(targetUserID int64, sickActive bool) tgbotapi.InlineKeyboardButton {
+	if sickActive {
+		return tgbotapi.NewInlineKeyboardButtonData("🏥 Отменить больничный", "admin_user_sick_"+strconv.FormatInt(targetUserID, 10))
+	}
+	return tgbotapi.NewInlineKeyboardButtonData("🏥 Выставить больничный", "admin_user_sick_set_"+strconv.FormatInt(targetUserID, 10))
+}
+
+func (b *Bot) adminActivateSickLeave(chatID, targetUserID int64) {
+	packChatID := b.adminPackChatID()
+	if err := b.setSickLeaveForUser(targetUserID, packChatID); err != nil {
+		b.api.Send(tgbotapi.NewMessage(chatID, "❌ "+err.Error()))
+		return
+	}
+	b.api.Send(tgbotapi.NewMessage(chatID, fmt.Sprintf("✅ Пользователю %d выставлен больничный, таймер приостановлен.", targetUserID)))
+	b.notifyUserTextByID(targetUserID, packChatID, "🏥 Администратор оформил тебе больничный. Таймер неактивности приостановлен — выздоравливай! Когда поправишься — «Выйти с больничного» в профиле или #healthy в чате.", "", 0)
+	b.showAdminUserCard(chatID, targetUserID)
+}
+
+// setSickLeaveForUser — админ/системная активация больничного по той же логике, что и у юзера
+// (activateSickLeaveForUser): состояние выходит идентичным самостоятельному больничному.
+func (b *Bot) setSickLeaveForUser(userID, packChatID int64) error {
+	messageLog, err := b.db.GetMessageLogAnyState(userID, packChatID)
+	if err != nil || messageLog == nil {
+		return fmt.Errorf("пользователь не найден")
+	}
+	if messageLog.IsDeleted {
+		return fmt.Errorf("пользователь удалён из стаи")
+	}
+	if messageLog.HasSickLeave && !messageLog.HasHealthy {
+		return fmt.Errorf("больничный уже активен")
+	}
+	return b.activateSickLeaveForUser(userID, messageLog)
 }
 
 func (b *Bot) adminCancelSickLeave(chatID, targetUserID int64) {

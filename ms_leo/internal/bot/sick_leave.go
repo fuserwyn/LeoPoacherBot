@@ -57,32 +57,39 @@ func (b *Bot) handleSickLeave(msg *tgbotapi.Message) {
 	b.rejectSickLeave(msg, messageLog, msg.MessageID)
 }
 
-func (b *Bot) activateSickLeave(msg *tgbotapi.Message, messageLog *domain.MessageLog) {
-	b.cancelSickApprovalWatcher(msg.From.ID)
+// activateSickLeaveForUser выставляет активный больничный по единой логике самостоятельной
+// активации: сбрасывает approval/healthy-флаги, пишет sick_leave_start_time (МСК), поднимает
+// HasSickLeave и ставит kick-таймер на паузу. messageLog мутируется на месте. Используется и
+// юзерским путём (activateSickLeave), и админским (setSickLeaveForUser) — чтобы состояние
+// больничного было идентичным, кто бы его ни выставил. Трекинг — только при успешном сохранении;
+// таймер снимаем всегда (как в исходной логике).
+func (b *Bot) activateSickLeaveForUser(userID int64, messageLog *domain.MessageLog) error {
+	b.cancelSickApprovalWatcher(userID)
 	messageLog.SickApprovalPending = false
 	messageLog.SickApprovalDeadline = nil
 	messageLog.SickApprovalMessageID = nil
 	messageLog.SickLeaveEndTime = nil
 	messageLog.SickTime = nil
 
-	// Записываем время начала больничного
 	sickLeaveStartTime := utils.FormatMoscowTime(utils.GetMoscowTime())
 	messageLog.SickLeaveStartTime = &sickLeaveStartTime
-	b.logger.Infof("Set sick leave start time: %s", sickLeaveStartTime)
-
-	// Обновляем флаги больничного
 	messageLog.HasSickLeave = true
 	messageLog.HasHealthy = false
 
-	if err := b.db.SaveMessageLog(messageLog); err != nil {
+	saveErr := b.db.SaveMessageLog(messageLog)
+	if saveErr == nil {
+		b.trackSickLeaveStarted(userID) // §5: больничный активирован
+	}
+	b.cancelTimer(userID)
+	return saveErr
+}
+
+func (b *Bot) activateSickLeave(msg *tgbotapi.Message, messageLog *domain.MessageLog) {
+	if err := b.activateSickLeaveForUser(msg.From.ID, messageLog); err != nil {
 		b.logger.Errorf("Failed to update message log: %v", err)
 	} else {
 		b.logger.Infof("Successfully saved sick leave start time")
-		b.trackSickLeaveStarted(msg.From.ID) // §5: больничный активирован
 	}
-
-	// Отменяем существующие таймеры
-	b.cancelTimer(msg.From.ID)
 
 	remainingTime, remainingTimeFormatted, deadlineLocal := b.formatInactivityRemovalSummary(messageLog)
 	b.logger.Infof("Calculated remaining time at sick leave start (profile logic): %v", remainingTime)
