@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { afterEach, describe, expect, it } from "vitest";
 import { cleanup, render, screen, fireEvent } from "@testing-library/react";
-import { ActivityCard } from "./ActivityCard";
+import { ActivityCard, avatarFallbackGlyph } from "./ActivityCard";
 
 class ROStub {
   observe() {}
@@ -105,5 +105,32 @@ describe("ActivityCard training photo fallback", () => {
     const img = container.querySelector(".act-card__photo") as HTMLImageElement;
     expect(img).toBeTruthy();
     expect(img.src).toContain("r=1");
+  });
+});
+
+describe("avatarFallbackGlyph", () => {
+  it("uses the first meaningful letter for @usernames (not a generic paw)", () => {
+    expect(avatarFallbackGlyph("@arturio222")).toBe("A");
+    expect(avatarFallbackGlyph("@f_emmm")).toBe("F");
+    expect(avatarFallbackGlyph("#tag")).toBe("T");
+  });
+  it("keeps emoji names and only falls back to paw when truly empty", () => {
+    expect(avatarFallbackGlyph("🐆 Лео")).toBe("🐆");
+    expect(avatarFallbackGlyph("Аня")).toBe("А");
+    expect(avatarFallbackGlyph("")).toBe("🐾");
+    expect(avatarFallbackGlyph("@")).toBe("🐾");
+  });
+});
+
+describe("ActivityCard avatar fallback on load error", () => {
+  it("shows the author initial when the avatar image fails, not a paw", () => {
+    const { container } = render(
+      <ActivityCard {...baseProps} name="@arturio222" streak={1} avatar="https://example.test/a.jpg" />,
+    );
+    const img = container.querySelector(".act-card__avatar-img") as HTMLImageElement;
+    expect(img).toBeTruthy();
+    fireEvent.error(img);
+    const avatar = container.querySelector(".act-card__avatar");
+    expect(avatar?.textContent).toBe("A");
   });
 });

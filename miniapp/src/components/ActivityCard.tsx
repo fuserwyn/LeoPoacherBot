@@ -40,13 +40,15 @@ function truncateByCodePoints(text: string, maxChars: number): string {
   return `${chars.slice(0, maxChars).join("").trim()}…`;
 }
 
-/** Запасной глиф, когда фото профиля не загрузилось (нет аватара в Telegram / приватность). */
-function avatarFallbackGlyph(name: string): string {
-  const t = (name || "").trim();
-  const first = t[0] ?? "";
-  if (first && /[a-zA-Zа-яА-Я0-9]/.test(first)) return first.toUpperCase();
-  if (first && !/[@#]/.test(first)) return first; // уже эмодзи
-  return "🐾";
+/** Запасной глиф, когда фото профиля не загрузилось (нет аватара в Telegram / приватность).
+ *  У @username / #tag берём первую значащую букву — иначе ВСЕ такие ники показывали бы
+ *  одинаковую лапку (как было с @arturio222). Разбор по код-поинтам не режет эмодзи. */
+export function avatarFallbackGlyph(name: string): string {
+  const t = (name || "").trim().replace(/^[@#]+/, "").trim();
+  const first = Array.from(t)[0] ?? "";
+  if (!first) return "🐾";
+  if (/[a-zA-Zа-яА-Я0-9]/.test(first)) return first.toUpperCase();
+  return first; // уже эмодзи/иной символ — оставляем как есть
 }
 
 /** Аватар участника в треде: при ошибке загрузки фото показывает инициал, а не «битую картинку». */
