@@ -10,6 +10,14 @@ import {
   streakSaveHint,
 } from "../lib/streakLabel";
 import { getStoredTheme, setTheme, type ThemeMode } from "../lib/theme";
+import {
+  createCardDonatePayment,
+  createStarsDonateInvoice,
+  emptyDonateOptions,
+  fetchDonateOptions,
+  waitForDonationCompleted,
+  type DonateOptions,
+} from "../lib/donate";
 import "./ProfileScreen.css";
 
 const api = (import.meta.env.VITE_MINIAPP_API_URL as string | undefined)?.replace(/\/$/, "") ?? "";
@@ -129,6 +137,14 @@ export function ProfileScreen({
   const [likeNotifyEnabled, setLikeNotifyEnabled] = useState(false);
   const [likeNotifyLoading, setLikeNotifyLoading] = useState(true);
   const [likeNotifyBusy, setLikeNotifyBusy] = useState(false);
+
+  // Донат: добровольная поддержка проекта. Вход в стаю бесплатный, поэтому донат ничего
+  // не открывает — номиналы и способы приходят с бэкенда (что настроено, то и показываем).
+  const [donateOptions, setDonateOptions] = useState<DonateOptions>(emptyDonateOptions);
+  const [donateStars, setDonateStars] = useState<number | null>(null);
+  const [donateRub, setDonateRub] = useState<number | null>(null);
+  const [donateBusy, setDonateBusy] = useState(false);
+  const [donateThanks, setDonateThanks] = useState(false);
 
   // Друзья по стае: только те, за кем viewer уже подписался в ленте.
   const [friends, setFriends] = useState<FriendMember[]>([]);
@@ -446,6 +462,73 @@ export function ProfileScreen({
     if (!active) return;
     void loadLikeNotify();
   }, [loadLikeNotify, active]);
+
+  const loadDonateOptions = useCallback(async () => {
+    if (!inTelegram || !initData?.trim()) return;
+    const opts = await fetchDonateOptions(initData);
+    setDonateOptions(opts);
+    setDonateStars((cur) => cur ?? opts.starsTiers[0] ?? null);
+    setDonateRub((cur) => cur ?? opts.cardTiersRub[0] ?? null);
+  }, [inTelegram, initData]);
+
+  useEffect(() => {
+    if (!active) return;
+    void loadDonateOptions();
+  }, [loadDonateOptions, active]);
+
+  const finishDonate = useCallback(() => {
+    setDonateThanks(true);
+    void window.Telegram?.WebApp?.HapticFeedback?.notificationOccurred?.("success");
+    void loadDonateOptions();
+  }, [loadDonateOptions]);
+
+  // Звёзды: счёт открывается прямо в мини-аппе (WebApp.openInvoice), «спасибо» в личку шлёт бот.
+  const donateWithStars = useCallback(async () => {
+    if (!inTelegram || !initData?.trim() || donateStars === null || donateBusy) return;
+    const wa = window.Telegram?.WebApp;
+    if (!wa?.openInvoice) {
+      showAlert("Обнови Telegram — оплата звёздами доступна в свежих версиях приложения.");
+      return;
+    }
+    setDonateBusy(true);
+    try {
+      const invoice = await createStarsDonateInvoice(initData, donateStars);
+      if (!invoice) {
+        showAlert("Не удалось создать счёт. Попробуй позже.");
+        return;
+      }
+      wa.openInvoice(invoice.link, (status) => {
+        setDonateBusy(false);
+        if (status === "paid") finishDonate();
+        else if (status === "failed") showAlert("Оплата не прошла. Попробуй ещё раз.");
+      });
+      return; // setDonateBusy(false) вызовет колбэк Telegram
+    } catch (e) {
+      showAlert(e instanceof Error ? e.message : "Сеть");
+    }
+    setDonateBusy(false);
+  }, [inTelegram, initData, donateStars, donateBusy, showAlert, finishDonate]);
+
+  // Карта РФ: страница ЮKassa открывается в браузере, поэтому статус доопрашиваем сами.
+  const donateWithCard = useCallback(async () => {
+    if (!inTelegram || !initData?.trim() || donateRub === null || donateBusy) return;
+    setDonateBusy(true);
+    try {
+      const payment = await createCardDonatePayment(initData, donateRub);
+      if (!payment) {
+        showAlert("Не удалось создать платёж. Попробуй позже.");
+        return;
+      }
+      const wa = window.Telegram?.WebApp;
+      if (wa?.openLink) wa.openLink(payment.link);
+      else window.open(payment.link, "_blank", "noopener");
+      if (await waitForDonationCompleted(initData, payment.donationId)) finishDonate();
+    } catch (e) {
+      showAlert(e instanceof Error ? e.message : "Сеть");
+    } finally {
+      setDonateBusy(false);
+    }
+  }, [inTelegram, initData, donateRub, donateBusy, showAlert, finishDonate]);
 
   const loadFriends = useCallback(async () => {
     if (!api || !inTelegram || !initData?.trim()) {
@@ -1339,6 +1422,80 @@ export function ProfileScreen({
           </button>
         </div>
       </div>
+
+      {(donateOptions.starsAvailable || donateOptions.cardAvailable) && (
+        <section className="profile__donate">
+          <h2 className="section-title">Поддержать проект</h2>
+          <p className="profile__hint muted">
+            Вход в стаю бесплатный. Донат — по желанию: он не отменяет вылет за неактивность,
+            но помогает Лео и проекту жить.
+            {donateOptions.completedCount > 0 ? ` Ты уже поддержал ${donateOptions.completedCount} раз — спасибо!` : ""}
+          </p>
+
+          {donateOptions.starsAvailable && (
+            <div className="profile__donate-method">
+              <span className="profile__donate-label">⭐ Звёздами Telegram — из любой страны</span>
+              <div className="profile__donate-tiers" role="group" aria-label="Сумма в звёздах">
+                {donateOptions.starsTiers.map((tier) => (
+                  <button
+                    key={tier}
+                    type="button"
+                    className={`profile__donate-tier ${donateStars === tier ? "is-active" : ""}`}
+                    aria-pressed={donateStars === tier}
+                    disabled={donateBusy}
+                    onClick={() => setDonateStars(tier)}
+                  >
+                    {tier} ⭐
+                  </button>
+                ))}
+              </div>
+              <button
+                type="button"
+                className="profile__save profile__donate-btn"
+                onClick={() => void donateWithStars()}
+                disabled={donateBusy || donateStars === null}
+              >
+                {donateBusy ? "Открываю счёт…" : `Задонатить ${donateStars ?? ""} ⭐`}
+              </button>
+            </div>
+          )}
+
+          {donateOptions.cardAvailable && (
+            <div className="profile__donate-method">
+              <span className="profile__donate-label">💳 Банковской картой — для РФ</span>
+              <div className="profile__donate-tiers" role="group" aria-label="Сумма в рублях">
+                {donateOptions.cardTiersRub.map((tier) => (
+                  <button
+                    key={tier}
+                    type="button"
+                    className={`profile__donate-tier ${donateRub === tier ? "is-active" : ""}`}
+                    aria-pressed={donateRub === tier}
+                    disabled={donateBusy}
+                    onClick={() => setDonateRub(tier)}
+                  >
+                    {tier} ₽
+                  </button>
+                ))}
+              </div>
+              <button
+                type="button"
+                className="profile__save profile__donate-btn profile__donate-btn--card"
+                onClick={() => void donateWithCard()}
+                disabled={donateBusy || donateRub === null}
+              >
+                {donateBusy ? "Жду оплату…" : `Задонатить ${donateRub ?? ""} ₽`}
+              </button>
+              <p className="profile__hint muted profile__donate-note">
+                Оплата откроется в браузере. Вернись сюда — я дождусь подтверждения.
+              </p>
+            </div>
+          )}
+
+          {donateThanks && (
+            <p className="profile__donate-thanks">Рык! Спасибо за поддержку 🐆</p>
+          )}
+        </section>
+      )}
 
       <div className="profile__support">
         <h2 className="section-title">Поддержка</h2>

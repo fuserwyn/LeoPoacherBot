@@ -289,12 +289,13 @@ func (d *Database) SetUserMessagePinned(chatID, userMessageID int64, pinned bool
 }
 
 // UserInPackOrPaid — доступ к мини-аппу.
-// При включённом paywall — только активная (не истёкшая) оплата в paywall_access_requests;
-// training_state без оплаты не даёт вход (иначе после GDPR-удаления outbox мог оставить строку
-// в training_state, и мини-апп открывался бы без новой оплаты).
-// Без paywall — как раньше: живая запись training_state в чате стаи.
-func (d *Database) UserInPackOrPaid(userID, chatID int64, paywallEnabled bool) (bool, error) {
-	if paywallEnabled {
+// Если вход платный (PAYWALL_ENTRY_FREE=false) — только активная (не истёкшая) оплата в
+// paywall_access_requests; training_state без оплаты не даёт вход (иначе после GDPR-удаления
+// outbox мог оставить строку в training_state, и мини-апп открывался бы без новой оплаты).
+// Если вход бесплатный — живая запись training_state в чате стаи: выбывшим за неактивность
+// она выставлена в is_deleted = TRUE, поэтому платный возврат по-прежнему обязателен.
+func (d *Database) UserInPackOrPaid(userID, chatID int64, entryRequiresPayment bool) (bool, error) {
+	if entryRequiresPayment {
 		return d.UserHasActivePaywallAccess(userID, chatID)
 	}
 	return d.UserHasActiveMessageLogInChat(userID, chatID)

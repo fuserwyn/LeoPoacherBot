@@ -9,9 +9,9 @@ import (
 
 func TestParsePaywallPayload(t *testing.T) {
 	cases := []struct {
-		in      string
-		wantID  int64
-		wantOK  bool
+		in     string
+		wantID int64
+		wantOK bool
 	}{
 		{"pw_1", 1, true},
 		{"pw_999", 999, true},
@@ -54,22 +54,34 @@ func TestPaywallInvoiceErrLogAndShortHint(t *testing.T) {
 	}
 }
 
-func TestPaywallRequiresRepurchase(t *testing.T) {
+func TestPaywallDecideNeedsPayment(t *testing.T) {
 	cases := []struct {
 		name            string
-		isDeleted       bool
+		entryFree       bool
+		isAdmin         bool
+		kicked          bool
 		hasActiveAccess bool
 		want            bool
 	}{
-		{name: "deleted overrides active access", isDeleted: true, hasActiveAccess: true, want: true},
-		{name: "deleted without active access", isDeleted: true, hasActiveAccess: false, want: true},
-		{name: "active access keeps user in pack", isDeleted: false, hasActiveAccess: true, want: false},
-		{name: "no access requires payment", isDeleted: false, hasActiveAccess: false, want: true},
+		// Платный вход (прежнее поведение).
+		{name: "paid entry: deleted overrides active access", kicked: true, hasActiveAccess: true, want: true},
+		{name: "paid entry: deleted without active access", kicked: true, want: true},
+		{name: "paid entry: active access keeps user in pack", hasActiveAccess: true, want: false},
+		{name: "paid entry: no access requires payment", want: true},
+
+		// Бесплатный вход: платит только выбывший за неактивность.
+		{name: "free entry: newcomer pays nothing", entryFree: true, want: false},
+		{name: "free entry: kicked must pay to return", entryFree: true, kicked: true, want: true},
+		{name: "free entry: kicked with restored access still gated", entryFree: true, kicked: true, hasActiveAccess: true, want: true},
+
+		{name: "admin never pays", entryFree: false, isAdmin: true, kicked: true, want: false},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			if got := paywallRequiresRepurchase(tc.isDeleted, tc.hasActiveAccess); got != tc.want {
-				t.Fatalf("paywallRequiresRepurchase(%v, %v) = %v, want %v", tc.isDeleted, tc.hasActiveAccess, got, tc.want)
+			got := paywallDecideNeedsPayment(tc.entryFree, tc.isAdmin, tc.kicked, tc.hasActiveAccess)
+			if got != tc.want {
+				t.Fatalf("paywallDecideNeedsPayment(free=%v, admin=%v, kicked=%v, access=%v) = %v, want %v",
+					tc.entryFree, tc.isAdmin, tc.kicked, tc.hasActiveAccess, got, tc.want)
 			}
 		})
 	}

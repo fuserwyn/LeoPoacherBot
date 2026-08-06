@@ -78,7 +78,7 @@ func (b *Bot) PackGroupChatForViewer(viewerUserID int64, initD initdata.InitData
 	if b.config.IsAdminTelegramUser(viewerUserID) {
 		// ok
 	} else {
-		ok, err := b.db.UserInPackOrPaid(viewerUserID, chatID, b.config.PaywallEnabled)
+		ok, err := b.db.UserInPackOrPaid(viewerUserID, chatID, b.paywallEntryRequiresPayment())
 		if err != nil {
 			return nil, err
 		}
@@ -118,7 +118,7 @@ func (b *Bot) PackGroupChatSearch(viewerUserID int64, initD initdata.InitData, q
 	if b.config.IsAdminTelegramUser(viewerUserID) {
 		// ok
 	} else {
-		ok, err := b.db.UserInPackOrPaid(viewerUserID, chatID, b.config.PaywallEnabled)
+		ok, err := b.db.UserInPackOrPaid(viewerUserID, chatID, b.paywallEntryRequiresPayment())
 		if err != nil {
 			return nil, err
 		}
@@ -220,7 +220,7 @@ func (b *Bot) ProcessMiniAppPackGroupMessage(d initdata.InitData, text string, r
 	if b.config.IsAdminTelegramUser(d.User.ID) {
 		// владелец
 	} else {
-		ok, err := b.db.UserInPackOrPaid(d.User.ID, chatID, b.config.PaywallEnabled)
+		ok, err := b.db.UserInPackOrPaid(d.User.ID, chatID, b.paywallEntryRequiresPayment())
 		if err != nil {
 			return out, err
 		}
@@ -545,7 +545,7 @@ func (b *Bot) DeleteMiniAppPackGroupMessage(viewerUserID int64, initD initdata.I
 		}
 		return hidden, nil
 	}
-	ok, err := b.db.UserInPackOrPaid(viewerUserID, chatID, b.config.PaywallEnabled)
+	ok, err := b.db.UserInPackOrPaid(viewerUserID, chatID, b.paywallEntryRequiresPayment())
 	if err != nil {
 		return false, err
 	}
@@ -574,7 +574,7 @@ func (b *Bot) EditMiniAppPackGroupMessage(viewerUserID int64, initD initdata.Ini
 	if b.config.IsAdminTelegramUser(viewerUserID) {
 		// владелец тоже правит только своё — на уровне SQL WHERE from_user_id.
 	} else {
-		ok, err := b.db.UserInPackOrPaid(viewerUserID, chatID, b.config.PaywallEnabled)
+		ok, err := b.db.UserInPackOrPaid(viewerUserID, chatID, b.paywallEntryRequiresPayment())
 		if err != nil {
 			return false, err
 		}
@@ -645,7 +645,7 @@ func (b *Bot) PackGroupChatReact(viewerUserID int64, initD initdata.InitData, me
 	if b.config.IsAdminTelegramUser(viewerUserID) {
 		// ok
 	} else {
-		ok, err := b.db.UserInPackOrPaid(viewerUserID, chatID, b.config.PaywallEnabled)
+		ok, err := b.db.UserInPackOrPaid(viewerUserID, chatID, b.paywallEntryRequiresPayment())
 		if err != nil {
 			return err
 		}

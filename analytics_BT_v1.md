@@ -63,6 +63,12 @@ events (
 bot_started → paywall_viewed → payment_initiated → payment_completed → miniapp_opened
 ```
 
+> **С бесплатным входом (`PAYWALL_ENTRY_FREE=true`) воронка укорачивается: `bot_started → miniapp_opened`.**
+> События `paywall_*` / `payment_*` остаются, но описывают только платный возврат выбывших за
+> неактивность. Добровольная поддержка живёт отдельно: `donate_initiated` → `donate_completed`
+> (payload `provider: 'stars' | 'yukassa' | 'card'`, `amount_minor`, `currency`; эмиттер — ms_leo,
+> idempotency key по id доната). Готовность платить считаем по донатам и по возвратам, а не по входу.
+
 | Событие | Когда | Payload (ключевое) |
 |---|---|---|
 | `bot_started` | `/start` в боте | `source` (deep-link utm), `is_returning` (был ли раньше) |

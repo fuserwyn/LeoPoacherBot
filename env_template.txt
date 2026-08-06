@@ -50,8 +50,16 @@ OPENROUTER_VISION_MODEL=openai/gpt-4o-mini
 # Для ручного сканирования используйте команду /scan_history (только для владельца)
 SCAN_HISTORY_ON_START=false
 
-# Платный вход в группу (опционально)
+# Платежи (опционально). PAYWALL_ENABLED включает платёжную инфраструктуру целиком:
+# платный возврат после кика за неактивность и донаты из профиля мини-аппа.
 # PAYWALL_ENABLED=true
+#
+# PAYWALL_ENTRY_FREE — вход в мини-апп бесплатный (по умолчанию true).
+#   true  — новичок получает доступ сразу на /start, платит только выбывший за 8 дней
+#           неактивности (возврат), поддержать проект можно кнопкой «Задонатить» в профиле;
+#   false — прежнее поведение: без оплаты доступа к мини-аппу нет.
+# PAYWALL_ENTRY_FREE=true
+#
 # MONETIZED_CHAT_ID=-100xxxxxxxxxx
 # MONETIZED_CHAT_INVITE_URL=   # опционально: запасная ссылка, если createChatInviteLink недоступен (иначе ссылка создаётся ботом и не протухает)
 # MONETIZED_INVITE_CREATES_JOIN_REQUEST=true   # приоритет для кэш-ссылок; после оплаты /rejoin ms_leo сначала создаёт прямую ссылку (без экрана «запрос»), затем запасной вариант с заявкой
@@ -87,6 +95,13 @@ SCAN_HISTORY_ON_START=false
 # YOOKASSA_WEBHOOK_VERIFY_BASIC_AUTH=false
 # true — только если в ЛК ЮKassa для URL уведомлений включена HTTP Basic (логин shopId, пароль secret_key)
 # YOOKASSA_RETURN_URL=https://t.me/YourBot  # куда вернуть пользователя после оплаты (https). Тут должен быть бот (открой мини-апп через меню), а НЕ инвайт в группу — её больше нет.
+#
+# F) Донаты из профиля мини-аппа (добровольная поддержка; доступ не выдают и от кика не спасают).
+# Номиналы задаются списком через запятую; порядок не важен, дубли и нули игнорируются.
+# DONATE_STARS_TIERS=50,150,500        # звёзды: работают всегда, provider token не нужен
+# DONATE_CARD_TIERS_RUB=100,300,1000   # карта РФ: нужны YOOKASSA_SHOP_ID / YOOKASSA_SECRET_KEY
+# Пустой список выключает способ. Донаты по ссылке ЮKassa закрывает сам бот (опрос
+# GET /v3/payments/{id} из мини-аппа и при /start), вебхук ms_payments их только подтверждает.
 #
 # MINIAPP_WEB_APP_URL=https://your-miniapp.example.com  # https-URL самой мини-аппы (тот же web_app, что в @BotFather).
 # Если задан — оплатившему на /start и сразу после оплаты бот шлёт inline-кнопку «🐆 Открыть LeopardMiniApp»

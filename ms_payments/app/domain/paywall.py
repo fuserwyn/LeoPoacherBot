@@ -8,6 +8,7 @@ import re
 from typing import Any
 
 _paywall_payload_re = re.compile(r"^pw_(\d+)$")
+_donation_payload_re = re.compile(r"^dn_(\d+)$")
 
 
 def parse_paywall_payload(payload: str) -> int | None:
@@ -18,6 +19,19 @@ def parse_paywall_payload(payload: str) -> int | None:
         return None
     n = int(m.group(1))
     return n if n > 0 else None
+
+
+def is_donation_payload(payload: str) -> bool:
+    """``dn_<id>`` — добровольный донат из профиля мини-аппа.
+
+    Донаты не выдают доступ и живут в таблице ``donations``: их закрывает сам ms_leo,
+    опрашивая API ЮKassa (см. ms_leo/internal/bot/donate.go). Этому сервису такое
+    уведомление нужно только подтвердить, чтобы ЮKassa не ретраила и не поднимала алерты.
+
+    ``dn_0`` и прочий мусор донатом не считаем — как и parseDonatePayload в ms_leo.
+    """
+    m = _donation_payload_re.match((payload or "").strip())
+    return bool(m) and int(m.group(1)) > 0
 
 
 def minor_units_from_yookassa_amount(amount_block: Any) -> tuple[int, str]:

@@ -29,7 +29,7 @@ func (b *Bot) PackFeedAssertViewerAccess(viewerUserID int64, initD initdata.Init
 	if b.config.IsAdminTelegramUser(viewerUserID) {
 		return nil
 	}
-	ok, err := b.db.UserInPackOrPaid(viewerUserID, chatID, b.config.PaywallEnabled)
+	ok, err := b.db.UserInPackOrPaid(viewerUserID, chatID, b.paywallEntryRequiresPayment())
 	if err != nil {
 		return err
 	}

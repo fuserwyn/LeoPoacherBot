@@ -46,6 +46,13 @@ interface TelegramWebApp {
   onEvent: (event: string, handler: () => void) => void;
   offEvent: (event: string, handler: () => void) => void;
   showAlert: (message: string) => void;
+  /** Счёт Telegram (в т.ч. Stars) прямо в мини-аппе. Bot API ≥ 6.1. */
+  openInvoice?: (
+    url: string,
+    callback?: (status: "paid" | "cancelled" | "failed" | "pending") => void,
+  ) => void;
+  /** Внешняя ссылка в браузере — для страницы оплаты ЮKassa. */
+  openLink?: (url: string, options?: { try_instant_view?: boolean }) => void;
   close: () => void;
 }
 

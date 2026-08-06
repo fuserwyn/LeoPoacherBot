@@ -111,9 +111,22 @@ func paywallYookassaShortHintForUser(err error) string {
 	}
 }
 
-// paywallActive — платный вход включён и задана целевая группа.
+// paywallActive — платёжная инфраструктура включена и задана целевая стая.
+// Включает и бесплатный режим входа: оплата остаётся нужна для возврата после кика
+// (см. freeEntryActive) и для донатов из профиля мини-аппа.
 func (b *Bot) paywallActive() bool {
 	return b.config.PaywallEnabled && b.config.MonetizedChatID != 0
+}
+
+// freeEntryActive — вход для новичков бесплатный (PAYWALL_ENTRY_FREE, по умолчанию true).
+// Платной остаётся единственная точка: возврат после кика за 8 дней неактивности.
+func (b *Bot) freeEntryActive() bool {
+	return b.paywallActive() && b.config.PaywallEntryFree
+}
+
+// paywallEntryRequiresPayment — нужен ли платёж за сам вход в стаю (для UserInPackOrPaid).
+func (b *Bot) paywallEntryRequiresPayment() bool {
+	return b.paywallActive() && !b.config.PaywallEntryFree
 }
 
 // paywallPriceYookassaShort — короткая «210 ₽» / «210,50 ₽» / «100 USD» для кнопки/UI.
@@ -183,6 +196,17 @@ func (b *Bot) paywallPrivateUnpaidUserText() string {
 ⚠️ Оплата у бота ещё не настроена. Напиши администратору.
 
 Когда заработает — здесь появятся кнопки выбора способа оплаты.`
+	}
+
+	// Бесплатный вход: этот экран видят только выбывшие за 8 дней неактивности —
+	// новичкам платить не за что, и обещать им «что получаешь» уже не нужно.
+	if b.freeEntryActive() {
+		return `
+Рык! Ты выбыл из стаи — 8 дней без единого движения.
+
+Вход для новичков бесплатный, но возвращение — нет: цена невысокая, зато она позволит моим создателям развивать проект.
+
+После оплаты твой профиль снова откроется: чат со Стаей, комментарии Лео к тренировкам и отслеживание прогресса. Выбери способ — картой для РФ или звёздами телеграма для любой страны.`
 	}
 
 	return `
@@ -803,15 +827,31 @@ func (b *Bot) handlePaywallReturnToPackCallback(callback *tgbotapi.CallbackQuery
 	_, _ = b.api.Request(tgbotapi.NewCallback(callback.ID, "Открой сообщение ниже — там выбор оплаты."))
 }
 
-func paywallRequiresRepurchase(isDeleted bool, hasActiveAccess bool) bool {
-	if isDeleted {
+// paywallDecideNeedsPayment — вся таблица решений «кто платит» в одном месте, без обращений к БД.
+//
+//	админ                                  → никогда не платит;
+//	выбыл за неактивность (kicked)          → платит всегда, даже при бесплатном входе:
+//	                                          это единственная платная точка продукта;
+//	бесплатный вход (entryFree)             → новичок не платит;
+//	платный вход (PAYWALL_ENTRY_FREE=false) → нужна активная (не истёкшая) оплата.
+func paywallDecideNeedsPayment(entryFree, isAdmin, kicked, hasActiveAccess bool) bool {
+	if isAdmin {
+		return false
+	}
+	if kicked {
 		return true
+	}
+	if entryFree {
+		return false
 	}
 	return !hasActiveAccess
 }
 
-// paywallPrivateNeedsPayFirst — личка, paywall включён, не владелец, нет активной (не истёкшей) оплаты
-// или пользователь уже кикнут за неактивность и должен проходить повторный вход заново.
+// paywallPrivateNeedsPayFirst — нужно ли платить перед доступом к мини-аппу.
+//
+// При бесплатном входе (PAYWALL_ENTRY_FREE) платит только выбывший за неактивность:
+// новичок получает доступ сразу, а поддержать проект может донатом из профиля.
+// При PAYWALL_ENTRY_FREE=false работает прежняя логика: без активной оплаты входа нет.
 func (b *Bot) paywallPrivateNeedsPayFirst(userID int64) bool {
 	if !b.paywallActive() || userID == 0 {
 		return false
@@ -819,20 +859,25 @@ func (b *Bot) paywallPrivateNeedsPayFirst(userID int64) bool {
 	if b.config.IsAdminTelegramUser(userID) {
 		return false
 	}
+	kicked := false
 	if ml, err := b.db.GetMessageLogAnyState(userID, b.config.MonetizedChatID); err == nil && ml != nil {
-		if paywallRequiresRepurchase(ml.IsDeleted, true) {
-			return true
-		}
+		kicked = ml.IsDeleted
 	} else if err != nil && !errors.Is(err, sql.ErrNoRows) {
 		b.logger.Errorf("paywall deletion check: %v", err)
 		return true
 	}
-	ok, err := b.db.UserHasActivePaywallAccess(userID, b.config.MonetizedChatID)
-	if err != nil {
-		b.logger.Errorf("paywall access check: %v", err)
-		return true
+	// Активную оплату спрашиваем только когда она может что-то изменить: при бесплатном
+	// входе решение зависит лишь от kicked, и лишний запрос в БД не нужен.
+	hasActiveAccess := false
+	if !b.freeEntryActive() && !kicked {
+		ok, err := b.db.UserHasActivePaywallAccess(userID, b.config.MonetizedChatID)
+		if err != nil {
+			b.logger.Errorf("paywall access check: %v", err)
+			return true
+		}
+		hasActiveAccess = ok
 	}
-	return paywallRequiresRepurchase(false, ok)
+	return paywallDecideNeedsPayment(b.config.PaywallEntryFree, false, kicked, hasActiveAccess)
 }
 
 func parsePaywallPayload(payload string) (requestID int64, ok bool) {

@@ -25,6 +25,8 @@ type MiniAppOnboardingResult struct {
 }
 
 // EnsureMiniAppOnboarding — идемпотентный онбординг при открытии мини-аппа.
+//   - при бесплатном входе (PAYWALL_ENTRY_FREE) новичку заводим профиль стаи здесь же и онбордим;
+//     единственный, кому вход закрыт, — выбывший за неактивность: ему нужен платный возврат в боте;
 //   - если пользователь не в стае (нет paywall_access и нет живой записи training_state) — возвращаем InPack=false и ничего не пишем;
 //   - если в стае и таймер ещё не стартовал (timer_start_time IS NULL и не is_deleted) — стартуем таймер и пишем карточку приветствия в ленту;
 //   - дополнительно создаём минимальный message_log в private chat, чтобы #sick_leave / #healthy из мини-аппа имели куда писать стейт.
@@ -61,9 +63,19 @@ func (b *Bot) EnsureMiniAppOnboarding(d initdata.InitData) (MiniAppOnboardingRes
 			out.AccessState = "deleted"
 			return out, nil
 		}
-		ok, err := b.db.UserInPackOrPaid(userID, chatID, b.config.PaywallEnabled)
+		ok, err := b.db.UserInPackOrPaid(userID, chatID, b.paywallEntryRequiresPayment())
 		if err != nil {
 			return out, err
+		}
+		// Бесплатный вход: новичок приходит без платежа, поэтому строку стаи создаём здесь
+		// (раньше её создавала только оплата). Кикнутого это не затрагивает — он вышел выше
+		// по ветке Deleted, а INSERT всё равно не перезаписал бы существующую строку.
+		if !ok && b.freeEntryActive() {
+			created, cerr := b.db.EnsureFreeEntryProfile(userID, chatID, username)
+			if cerr != nil {
+				return out, cerr
+			}
+			ok = created
 		}
 		out.InPack = ok
 		if !ok {

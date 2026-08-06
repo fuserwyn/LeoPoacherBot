@@ -3,6 +3,7 @@ package config
 import (
 	"math"
 	"os"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -30,7 +31,12 @@ type Config struct {
 	// используется только как стабильный «pack id» в БД (paywall_access_requests / training_state).
 	// Способы оплаты: PAYMENT_PROVIDER_TOKEN (карта в Telegram), ЮKassa (YOOKASSA_*),
 	// PAYMENT_STARS_ENABLED + сумма звёзд (дополнительно к RUB), либо PAYMENT_CURRENCY=XTR (только звёзды, устаревший режим).
-	PaywallEnabled         bool
+	PaywallEnabled bool
+	// PaywallEntryFree — вход в мини-апп бесплатный (PAYWALL_ENTRY_FREE, по умолчанию true).
+	// Платёжная инфраструктура при этом остаётся включённой (PAYWALL_ENABLED), потому что
+	// оплата нужна для возврата после кика за 8 дней неактивности и для добровольных донатов
+	// из профиля. Чтобы вернуть платный вход для новичков — PAYWALL_ENTRY_FREE=false.
+	PaywallEntryFree       bool
 	MonetizedChatID        int64  // Логический ID стаи в БД (исторически — chat id Telegram-группы; группа больше не используется).
 	MonetizedChatInviteURL string // Deprecated: оставлено только для обратной совместимости со старыми env. Не используется в новом флоу.
 	// Deprecated: оставлено для совместимости со старыми env, в новом mini-app flow не используется.
@@ -52,6 +58,12 @@ type Config struct {
 	// Сумма/валюта для CreatePayment (при PAYMENT_CURRENCY=XTR — в рублях из PAYMENT_AMOUNT_RUB / PAYMENT_YOOKASSA_*).
 	YookassaAmountMinor int
 	YookassaCurrency    string
+
+	// Донаты из профиля мини-аппа: добровольная поддержка проекта, доступ не выдаётся.
+	// Звёзды (DONATE_STARS_TIERS) идут через createInvoiceLink + WebApp.openInvoice,
+	// карта РФ (DONATE_CARD_TIERS_RUB) — через ту же ЮKassa, что и платный возврат.
+	DonateStarsTiers   []int // номиналы в звёздах, по возрастанию
+	DonateCardTiersRub []int // номиналы в рублях, по возрастанию
 
 	// Prompts — встроенные тексты из ms_leo/internal/prompts/data/ (//go:embed), без переопределения через env.
 	Prompts prompts.Bundle
@@ -103,6 +115,11 @@ func Load() (*Config, error) {
 	}
 	amountMinor := paymentAmountMinorFromEnv(currency)
 	paywallEnabled := getEnv("PAYWALL_ENABLED", "false") == "true" || getEnv("PAYWALL_ENABLED", "false") == "1"
+	entryFree := true
+	switch strings.ToLower(strings.TrimSpace(getEnv("PAYWALL_ENTRY_FREE", "true"))) {
+	case "false", "0", "no":
+		entryFree = false
+	}
 
 	apiToken := getEnv("FAT_LEOPARD_API_TOKEN", "")
 	if apiToken == "" {
@@ -150,6 +167,7 @@ func Load() (*Config, error) {
 		Prompts:               prompts.DefaultBundle(),
 
 		PaywallEnabled:                  paywallEnabled,
+		PaywallEntryFree:                entryFree,
 		MonetizedChatID:                 monetizedChatID,
 		MonetizedChatInviteURL:          strings.TrimSpace(getEnv("MONETIZED_CHAT_INVITE_URL", "")),
 		PaywallInviteCreatesJoinRequest: inviteJoinReq,
@@ -167,6 +185,9 @@ func Load() (*Config, error) {
 		YookassaNotificationURL: strings.TrimSpace(getEnv("YOOKASSA_NOTIFICATION_URL", "")),
 		YookassaAmountMinor:     ykMinor,
 		YookassaCurrency:        ykCur,
+
+		DonateStarsTiers:   parseAmountTiers(getEnv("DONATE_STARS_TIERS", "50,150,500")),
+		DonateCardTiersRub: parseAmountTiers(getEnv("DONATE_CARD_TIERS_RUB", "100,300,1000")),
 
 		MiniappPublicBaseURL: strings.TrimSpace(getEnv("MINIAPP_PUBLIC_BASE_URL", "")),
 		MiniappWebAppURL:     strings.TrimSpace(getEnv("MINIAPP_WEB_APP_URL", "")),
@@ -274,6 +295,65 @@ func (c *Config) PaywallPaymentReady() bool {
 // PaywallUsesTelegramInvoice — любой sendInvoice (звёзды и/или провайдер).
 func (c *Config) PaywallUsesTelegramInvoice() bool {
 	return c.PaywallUsesStars() || c.PaywallUsesTelegramProviderInvoice()
+}
+
+// DonateStarsReady — донат звёздами доступен. В отличие от платного входа звёздам не нужен
+// ни provider token, ни PAYMENT_STARS_ENABLED: XTR-счёт бот выставляет сам, достаточно номиналов.
+func (c *Config) DonateStarsReady() bool {
+	return c != nil && len(c.DonateStarsTiers) > 0
+}
+
+// DonateCardReady — донат картой РФ: те же ключи ЮKassa, что у платного возврата, плюс номиналы.
+func (c *Config) DonateCardReady() bool {
+	if c == nil || len(c.DonateCardTiersRub) == 0 {
+		return false
+	}
+	return c.YookassaShopID != "" && c.YookassaSecretKey != ""
+}
+
+// DonateStarsTierAllowed — сумма звёзд из списка номиналов (защита от подмены суммы в запросе мини-аппа).
+func (c *Config) DonateStarsTierAllowed(stars int) bool {
+	if c == nil {
+		return false
+	}
+	for _, t := range c.DonateStarsTiers {
+		if t == stars {
+			return true
+		}
+	}
+	return false
+}
+
+// DonateCardTierAllowed — сумма в рублях из списка номиналов.
+func (c *Config) DonateCardTierAllowed(rub int) bool {
+	if c == nil {
+		return false
+	}
+	for _, t := range c.DonateCardTiersRub {
+		if t == rub {
+			return true
+		}
+	}
+	return false
+}
+
+// parseAmountTiers — «50,150,500» → [50 150 500]: только положительные, без дублей, по возрастанию.
+func parseAmountTiers(raw string) []int {
+	seen := make(map[int]struct{})
+	var out []int
+	for _, part := range strings.Split(raw, ",") {
+		n, err := strconv.Atoi(strings.TrimSpace(part))
+		if err != nil || n <= 0 {
+			continue
+		}
+		if _, dup := seen[n]; dup {
+			continue
+		}
+		seen[n] = struct{}{}
+		out = append(out, n)
+	}
+	sort.Ints(out)
+	return out
 }
 
 func getEnv(key, defaultValue string) string {

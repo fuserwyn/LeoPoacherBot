@@ -27,6 +27,10 @@ const (
 	EventWelcomeMessageSent    = "welcome_message_sent"
 	EventMiniappOpened         = "miniapp_opened"
 
+	// Донаты из профиля мини-аппа — добровольная поддержка, доступ не выдаётся.
+	EventDonateInitiated = "donate_initiated"
+	EventDonateCompleted = "donate_completed"
+
 	// Воронка 2 — АКТИВАЦИЯ (первая тренировка)
 	EventWorkoutLogStarted   = "workout_log_started"
 	EventWorkoutLogged       = "workout_logged"

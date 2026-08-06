@@ -66,7 +66,7 @@ func (b *Bot) FollowFriend(viewerUserID int64, initD initdata.InitData, targetUs
 	}
 	chatID := b.config.MonetizedChatID
 	// Подписываться можно только на реального участника стаи.
-	ok, err := b.db.UserInPackOrPaid(targetUserID, chatID, b.config.PaywallEnabled)
+	ok, err := b.db.UserInPackOrPaid(targetUserID, chatID, b.paywallEntryRequiresPayment())
 	if err != nil {
 		return err
 	}

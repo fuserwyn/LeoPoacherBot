@@ -43,3 +43,16 @@
   font-size: 15px;
   line-height: 1.5;
 }
+
+/* Оплата возврата живёт в личке с ботом — закрываем мини-апп, возвращая юзера в чат. */
+.miniapp-removed__cta {
+  margin-top: 20px;
+  padding: 13px 22px;
+  border-radius: 999px;
+  border: none;
+  background: linear-gradient(180deg, color-mix(in srgb, var(--accent) 88%, #ffffff 12%), var(--accent));
+  color: #fff;
+  font-size: 15px;
+  font-weight: 700;
+  cursor: pointer;
+}

@@ -117,6 +117,16 @@ func (s *Server) serve(w http.ResponseWriter, r *http.Request) {
 		s.handlePostPackGroupReact(w, r)
 	case path == "/api/miniapp/pack-group/search" && r.Method == http.MethodPost:
 		s.handlePostPackGroupSearch(w, r)
+	case path == "/api/miniapp/onboarding/ensure" && r.Method == http.MethodPost:
+		s.handlePostOnboardingEnsure(w, r)
+	case path == "/api/miniapp/donate/options" && r.Method == http.MethodPost:
+		s.handlePostDonateOptions(w, r)
+	case path == "/api/miniapp/donate/stars" && r.Method == http.MethodPost:
+		s.handlePostDonateStars(w, r)
+	case path == "/api/miniapp/donate/card" && r.Method == http.MethodPost:
+		s.handlePostDonateCard(w, r)
+	case path == "/api/miniapp/donate/status" && r.Method == http.MethodPost:
+		s.handlePostDonateStatus(w, r)
 	case path == "/api/miniapp/profile/load" && r.Method == http.MethodPost:
 		s.handlePostProfileLoad(w, r)
 	case path == "/api/miniapp/profile/save" && r.Method == http.MethodPost:

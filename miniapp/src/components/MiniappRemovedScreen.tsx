@@ -9,8 +9,16 @@ export function MiniappRemovedScreen() {
         <p className="miniapp-removed__eyebrow">Лео уже написал тебе в бот.</p>
         <h1 className="miniapp-removed__title">Как хорошо, что ты не занимался.</h1>
         <p className="miniapp-removed__text">
-          Тебя убрали из стаи за неактивность. Дальше работает логика повторного входа через личку с ботом.
+          Тебя убрали из стаи за неактивность. Вход для новичков бесплатный, а вот возвращение —
+          платное: кнопки оплаты ждут в личке с ботом.
         </p>
+        <button
+          type="button"
+          className="miniapp-removed__cta"
+          onClick={() => window.Telegram?.WebApp?.close()}
+        >
+          Вернуться к Лео в чат
+        </button>
       </div>
     </div>
   );

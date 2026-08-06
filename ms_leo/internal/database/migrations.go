@@ -1393,6 +1393,35 @@ var Migrations = []Migration{
 			DROP TABLE IF EXISTS miniapp_like_notifications;
 		`,
 	},
+	{
+		Version:     73,
+		Description: "Донаты из профиля мини-аппа: добровольная поддержка (Telegram Stars / ЮKassa)",
+		UpSQL: `
+			-- Донат не даёт доступ и не связан с paywall_access_requests: это отдельная сущность,
+			-- чтобы добровольная поддержка не влияла на вход в стаю и на кик за неактивность.
+			CREATE TABLE IF NOT EXISTS donations (
+				id                         BIGSERIAL PRIMARY KEY,
+				user_id                    BIGINT NOT NULL,
+				provider                   VARCHAR(16) NOT NULL,
+				status                     VARCHAR(16) NOT NULL DEFAULT 'pending',
+				amount_minor               INTEGER NOT NULL,
+				currency                   VARCHAR(10) NOT NULL,
+				telegram_payment_charge_id TEXT,
+				yookassa_payment_id        TEXT,
+				thanks_sent_at             TIMESTAMP WITH TIME ZONE,
+				created_at                 TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT (NOW() AT TIME ZONE 'Europe/Moscow'),
+				completed_at               TIMESTAMP WITH TIME ZONE
+			);
+
+			CREATE INDEX IF NOT EXISTS donations_user_status_idx ON donations (user_id, status);
+			-- Повторное уведомление ЮKassa по тому же платежу не должно создавать второй донат.
+			CREATE UNIQUE INDEX IF NOT EXISTS donations_yookassa_payment_id_key
+				ON donations (yookassa_payment_id) WHERE yookassa_payment_id IS NOT NULL;
+		`,
+		DownSQL: `
+			DROP TABLE IF EXISTS donations;
+		`,
+	},
 }
 
 // MigrationRecord представляет запись о выполненной миграции

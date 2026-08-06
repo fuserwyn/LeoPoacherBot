@@ -8,7 +8,11 @@ import logging
 from dataclasses import dataclass
 
 from app.core.config import Settings
-from app.domain.paywall import minor_units_from_yookassa_amount, parse_paywall_payload
+from app.domain.paywall import (
+    is_donation_payload,
+    minor_units_from_yookassa_amount,
+    parse_paywall_payload,
+)
 from app.domain.schemas.webhook import PaymentNotification
 from app.repositories.payment_ledger_repository import PaymentLedgerRepository
 from app.repositories.paywall_repository import PaywallRepository
@@ -125,6 +129,17 @@ class PaymentWebhookService:
             user_tid = int(user_raw)
         except ValueError:
             return WebhookOutcome(400, {"status": "invalid user_telegram_id"})
+
+        # Донат из профиля мини-аппа: доступ не выдаётся, заявки paywall нет.
+        # Подтверждаем уведомление, чтобы ЮKassa не ретраила; статус доната закрывает ms_leo.
+        if is_donation_payload(payload_str):
+            logger.info(
+                "yookassa webhook: донат payment=%s user=%s payload=%r — закрывает ms_leo",
+                payment_id,
+                user_tid,
+                payload_str,
+            )
+            return WebhookOutcome(200, {"status": "donation, handled by ms_leo"})
 
         req_id = parse_paywall_payload(payload_str)
         if req_id is None:

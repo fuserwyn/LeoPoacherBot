@@ -292,8 +292,14 @@ func (b *Bot) handleUpdate(update tgbotapi.Update) {
 		return
 	}
 
+	// Счёт в звёздах на донат из профиля и счёт за платный возврат различаем по payload
+	// (dn_<id> против pw_<id>): у них разные суммы, таблицы и последствия.
 	if update.PreCheckoutQuery != nil {
 		metrics.PaymentRequests.WithLabelValues("precheckout").Inc()
+		if IsDonatePayload(update.PreCheckoutQuery.InvoicePayload) {
+			b.handleDonatePreCheckout(update.PreCheckoutQuery)
+			return
+		}
 		b.handlePaywallPreCheckout(update.PreCheckoutQuery)
 		return
 	}
@@ -314,6 +320,10 @@ func (b *Bot) handleUpdate(update tgbotapi.Update) {
 	msg := update.Message
 	if msg.SuccessfulPayment != nil {
 		metrics.PaymentRequests.WithLabelValues("success").Inc()
+		if IsDonatePayload(msg.SuccessfulPayment.InvoicePayload) {
+			b.handleDonateSuccessfulPayment(msg)
+			return
+		}
 		b.handlePaywallSuccessfulPayment(msg)
 		return
 	}
@@ -869,12 +879,15 @@ func (b *Bot) handleHelp(msg *tgbotapi.Message) {
 
 	helpText := `🦁 Fat Leopard — Справка
 
-💳 Как оплатить доступ:
-• Нажми /start — появятся кнопки выбора способа оплаты
-• Картой (РФ) — через ЮKassa, оплата в рублях
-• Картой (любая страна) — через Telegram Pay
-• Звёздами Telegram — для пользователей из любой страны
-• Доступ выдаётся сразу после успешной оплаты — навсегда, без подписки
+🐆 Вход:
+• Нажми /start — доступ к мини-приложению открывается сразу и бесплатно
+• Отмечай любое движение каждый день: 8 дней без активности — и ты выбываешь из стаи
+• Вернуться после выбывания можно только за оплату (картой РФ или звёздами Telegram)
+
+❤️ Поддержать проект:
+• Кнопка «Задонатить» в профиле мини-приложения
+• Звёздами Telegram — из любой страны, картой — для РФ
+• Донат добровольный: он не влияет на доступ и не отменяет выбывание
 
 💬 Поддержка:
 • Нажми кнопку «💬 Поддержка» внизу экрана
@@ -919,6 +932,12 @@ func (b *Bot) handleStart(msg *tgbotapi.Message) {
 		}
 		b.paywallTryFinishPaidAccessDelivery(msg.From.ID)
 	}
+	// Донат картой мог быть оплачен в браузере без возврата в мини-апп — догоняем «спасибо».
+	// В горутине: это HTTP к ЮKassa, а /start ждать не должен.
+	if msg.From != nil && msg.Chat.IsPrivate() {
+		userID := msg.From.ID
+		go b.DonateSyncPendingForUser(userID)
+	}
 	// Меню-кнопка LeopardMiniApp в ЛС: только paid+не кикнутым (после sync выше).
 	if msg.From != nil && msg.Chat.IsPrivate() {
 		b.applyMiniappMenuButtonForUser(msg.From.ID)
@@ -936,10 +955,16 @@ func (b *Bot) handleStart(msg *tgbotapi.Message) {
 		// Оплата могла подтянуться (sync) — показываем полный /start оплатившему, без второго сообщения только со ссылкой.
 	}
 
+	// Бесплатный вход: доступ есть, значит с этого /start заводим профиль стаи и таймер.
+	if msg.From != nil && msg.Chat.IsPrivate() {
+		b.EnsureFreeEntryFromStart(msg.From.ID, displayNameFromTelegramUser(msg.From))
+	}
+
 	welcomeText := welcomeStartText()
+	// Короткий текст «ты в стае» — всем, у кого доступ есть: оплатившим и вошедшим бесплатно.
 	if msg.Chat.IsPrivate() && b.paywallActive() && msg.From != nil && !b.paywallPrivateNeedsPayFirst(msg.From.ID) {
-		b.logger.Infof("paywall /start paid welcome user=%d snapshot=%s",
-			msg.From.ID, b.db.PaywallAccessDebugSnapshot(msg.From.ID, b.config.MonetizedChatID))
+		b.logger.Infof("/start access granted user=%d free_entry=%t snapshot=%s",
+			msg.From.ID, b.freeEntryActive(), b.db.PaywallAccessDebugSnapshot(msg.From.ID, b.config.MonetizedChatID))
 		welcomeText = b.paywallPostPaymentUserText()
 	}
 
