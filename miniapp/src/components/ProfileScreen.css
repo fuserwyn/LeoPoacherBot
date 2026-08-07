@@ -1025,13 +1025,6 @@ html.app-keyboard-open .profile__health-actions--keyboard {
   margin: 0;
 }
 
-.profile__donate-thanks {
-  margin: 14px 0 0;
-  font-size: 14px;
-  font-weight: 700;
-  color: var(--accent);
-}
-
 /* Напоминания */
 /* Единый раздел «Уведомления» — обособленная карточка с заметным заголовком,
    чтобы читался как отдельный раздел, а не терялся среди настроек профиля. */

@@ -18,6 +18,7 @@ import {
   waitForDonationCompleted,
   type DonateOptions,
 } from "../lib/donate";
+import { DonateThanksToast } from "./DonateThanksToast";
 import "./ProfileScreen.css";
 
 const api = (import.meta.env.VITE_MINIAPP_API_URL as string | undefined)?.replace(/\/$/, "") ?? "";
@@ -1491,11 +1492,12 @@ export function ProfileScreen({
             </div>
           )}
 
-          {donateThanks && (
-            <p className="profile__donate-thanks">Рык! Спасибо за поддержку 🐆</p>
-          )}
         </section>
       )}
+
+      {donateThanks ? (
+        <DonateThanksToast onDone={() => setDonateThanks(false)} />
+      ) : null}
 
       <div className="profile__support">
         <h2 className="section-title">Поддержка</h2>
