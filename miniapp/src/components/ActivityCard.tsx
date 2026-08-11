@@ -8,7 +8,6 @@ import { LEO_AVATAR_URL } from "../lib/leoAvatar";
 import { resolveFeedAvatarUrl, type VoterDTO } from "../lib/packFeed";
 import { streakStreakAriaLabel } from "../lib/streakLabel";
 import { hapticImpact } from "../lib/haptics";
-import { openTelegramDM } from "../lib/telegramDM";
 import "./ActivityCard.css";
 
 /** Голоса с бэкенда → строки списка лайкнувших (имя + отрезолвленный URL аватара).
@@ -363,18 +362,14 @@ export function ReportActionMenu({
   );
 }
 
-/** Мини-карточка автора поста по тапу на аватар: ник TG, стрик, кнопка «Написать». */
+/** Мини-карточка автора поста по тапу на аватар: ник TG и стрик. */
 export type ActivityCardAuthorProfile = {
   /** Отображаемое имя автора (реальное, не «Ты»). */
   name: string;
-  /** TG @username без «@» — для t.me-ссылки; отсутствует, если ник скрыт. */
+  /** TG @username без «@»; отсутствует, если ник скрыт. */
   tgUsername?: string;
-  /** Telegram user id — fallback-диплинк tg://user?id=. */
-  userId: number;
   /** Стрик автора; undefined — не показывать (сообщения чата стрика не несут). */
   streak?: number;
-  /** Свой пост — без кнопки «Написать в Telegram». */
-  isYou?: boolean;
 };
 
 export type ActivityCardProps = {
@@ -871,23 +866,6 @@ export function ActivityCard({
                   </span>
                 )}
               </div>
-              {!authorProfile.isYou && (
-                <button
-                  type="button"
-                  className="act-card__profile-dm"
-                  onClick={() => {
-                    profilePop.setOpen(false);
-                    openTelegramDM(authorProfile);
-                  }}
-                >
-                  ✉️ Написать в Telegram
-                </button>
-              )}
-              {!authorProfile.isYou && !authorProfile.tgUsername && (
-                <p className="act-card__profile-hint muted">
-                  У участника скрыт @ник — Telegram может не открыть чат
-                </p>
-              )}
             </div>,
             document.body,
           )}

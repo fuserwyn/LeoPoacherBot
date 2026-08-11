@@ -696,25 +696,6 @@
   padding-inline: 8px;
 }
 
-.act-card__profile-dm {
-  border: none;
-  border-radius: 10px;
-  padding: 9px 12px;
-  background: var(--accent);
-  color: #fff;
-  font: inherit;
-  font-size: 13px;
-  font-weight: 600;
-  cursor: pointer;
-}
-
-.act-card__profile-hint {
-  margin: -4px 0 0;
-  font-size: 11px;
-  line-height: 1.35;
-  color: var(--text-muted);
-}
-
 .act-card__react-more {
   position: relative;
   flex-shrink: 0;
