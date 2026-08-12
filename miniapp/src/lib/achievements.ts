@@ -17,7 +17,9 @@ export const STREAK_ACHIEVEMENTS = [
 // Ачивки за общее число тренировок. «Заработано» считаем на фронте из total workouts —
 // бэкенд про эти пороги не знает (это чисто визуальная витрина в профиле).
 // variant: внутри звезды лапка ("paw") или сердце ("heart", для 42 — как у стрика).
+// Первый порог — 1: новичок получает ачивку сразу за первую тренировку, а не ждёт десятой.
 export const WORKOUT_ACHIEVEMENTS = [
+  { count: 1, variant: "paw" },
   { count: 10, variant: "paw" },
   { count: 20, variant: "paw" },
   { count: 42, variant: "heart" },
@@ -67,6 +69,29 @@ export function parseAchievementKey(key: AchievementKey): { kind: AchievementKin
   const threshold = Number(raw);
   if ((kind !== "streak" && kind !== "workout") || !Number.isFinite(threshold)) return null;
   return { kind, threshold };
+}
+
+/**
+ * Новые ачивки, достойные поздравления: которых ещё нет в `seen`, за вычетом порогов,
+ * которые пользователь заведомо перерос.
+ *
+ * Второе нужно при расширении каталога задним числом. Когда мы добавили ачивку за первую
+ * тренировку, у ветерана с 300 тренировками ключ "workout-1" тоже стал «новым» — но тост
+ * за него был бы нелепым: этот порог он прошёл давным-давно. Празднуем только то, что выше
+ * всего уже виденного в своём виде.
+ */
+export function freshAchievementKeys(earned: AchievementKey[], seen: AchievementKey[]): AchievementKey[] {
+  const seenSet = new Set(seen);
+  const maxSeen: Record<AchievementKind, number> = { streak: 0, workout: 0 };
+  for (const key of seen) {
+    const parsed = parseAchievementKey(key);
+    if (parsed && parsed.threshold > maxSeen[parsed.kind]) maxSeen[parsed.kind] = parsed.threshold;
+  }
+  return earned.filter((key) => {
+    if (seenSet.has(key)) return false;
+    const parsed = parseAchievementKey(key);
+    return parsed ? parsed.threshold > maxSeen[parsed.kind] : false;
+  });
 }
 
 /** Человекочитаемая подпись ачивки для уведомления: «Стрик 7 дней», «10 тренировок». */

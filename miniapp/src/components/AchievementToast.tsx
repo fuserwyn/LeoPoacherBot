@@ -14,8 +14,13 @@ const VISIBLE_MS = 5000;
 const EXIT_MS = 320;
 
 /** Тёплая фраза от Лео — добавляет эмоций поздравлению. */
-function leoCheer(isStreak: boolean): string {
-  return isStreak ? "Так держать — Лео тобой гордится!" : "Ты просто зверь! Лео даёт лапу 🐾";
+export function leoCheer(achievementKey: AchievementKey): string {
+  const parsed = parseAchievementKey(achievementKey);
+  // Первая в жизни тренировка — самый важный момент новичка, он заслуживает отдельных слов.
+  if (parsed?.kind === "workout" && parsed.threshold === 1) {
+    return "Первая тренировка — начало пути! Лео с тобой 🐾";
+  }
+  return parsed?.kind === "streak" ? "Так держать — Лео тобой гордится!" : "Ты просто зверь! Лео даёт лапу 🐾";
 }
 
 /**
@@ -25,8 +30,6 @@ function leoCheer(isStreak: boolean): string {
  */
 export function AchievementToast({ achievementKey, onDone }: Props) {
   const [leaving, setLeaving] = useState(false);
-  const parsed = parseAchievementKey(achievementKey);
-  const isStreak = parsed?.kind === "streak";
 
   useEffect(() => {
     const hide = window.setTimeout(() => setLeaving(true), VISIBLE_MS);
@@ -64,7 +67,7 @@ export function AchievementToast({ achievementKey, onDone }: Props) {
 
         <div className="achievement-toast__title">Ачивка получена!</div>
         <div className="achievement-toast__label">{achievementLabel(achievementKey)}</div>
-        <div className="achievement-toast__cheer">{leoCheer(isStreak)}</div>
+        <div className="achievement-toast__cheer">{leoCheer(achievementKey)}</div>
       </div>
     </div>
   );

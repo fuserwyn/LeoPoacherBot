@@ -687,6 +687,14 @@
 /* Все тиры цветные (без серого), кульминация — золото на 1000.
    Звезда = --achievement-bean (насыщенный), лапка/сердце сверху светлые. */
 .profile__wach--t1 {
+  /* 1 — бронза: первая тренировка, начало пути */
+  --achievement-outline: #8a5a2b;
+  --achievement-shell: #f7e6d2;
+  --achievement-bean: #c98643;
+  --achievement-day-color: #6b4420;
+}
+
+.profile__wach--t2 {
   /* 10 — изумруд */
   --achievement-outline: #1f7a4d;
   --achievement-shell: #d7f5e3;
@@ -694,7 +702,7 @@
   --achievement-day-color: #135c38;
 }
 
-.profile__wach--t2 {
+.profile__wach--t3 {
   /* 20 — бирюза */
   --achievement-outline: #167a86;
   --achievement-shell: #d3f3f7;
@@ -702,7 +710,7 @@
   --achievement-day-color: #0d5a63;
 }
 
-.profile__wach--t3 {
+.profile__wach--t4 {
   /* 42 — алое сердце */
   --achievement-outline: #b81e3e;
   --achievement-shell: #ffd9e0;
@@ -710,7 +718,7 @@
   --achievement-day-color: #8a1027;
 }
 
-.profile__wach--t4 {
+.profile__wach--t5 {
   /* 50 — небесно-синий */
   --achievement-outline: #1d5fb8;
   --achievement-shell: #d6e6ff;
@@ -718,7 +726,7 @@
   --achievement-day-color: #163f7a;
 }
 
-.profile__wach--t5 {
+.profile__wach--t6 {
   /* 100 — фиолет */
   --achievement-outline: #6b28b0;
   --achievement-shell: #ece0ff;
@@ -726,7 +734,7 @@
   --achievement-day-color: #491c7a;
 }
 
-.profile__wach--t6 {
+.profile__wach--t7 {
   /* 200 — маджента */
   --achievement-outline: #b01e7a;
   --achievement-shell: #ffdcf0;
@@ -734,7 +742,7 @@
   --achievement-day-color: #7a1052;
 }
 
-.profile__wach--t7 {
+.profile__wach--t8 {
   /* 420 — оранж */
   --achievement-outline: #c2611a;
   --achievement-shell: #ffe6cc;
@@ -742,7 +750,7 @@
   --achievement-day-color: #8a4410;
 }
 
-.profile__wach--t8 {
+.profile__wach--t9 {
   /* 500 — индиго */
   --achievement-outline: #3b2f9a;
   --achievement-shell: #e2ddff;
@@ -750,7 +758,7 @@
   --achievement-day-color: #2a2070;
 }
 
-.profile__wach--t9 {
+.profile__wach--t10 {
   /* 1000 — самое крутое золото */
   --achievement-outline: #9a7209;
   --achievement-shell: #fff3c2;
@@ -758,7 +766,7 @@
   --achievement-day-color: #6b4f05;
 }
 
-.profile__wach--t9.is-earned .profile__achievement-badge {
+.profile__wach--t10.is-earned .profile__achievement-badge {
   box-shadow:
     0 6px 16px rgba(255, 198, 43, 0.4),
     0 0 0 1px rgba(255, 224, 130, 0.55);

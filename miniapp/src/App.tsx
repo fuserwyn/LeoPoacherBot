@@ -12,7 +12,7 @@ import { MiniappRemovedScreen } from "./components/MiniappRemovedScreen";
 import { SupportScreen } from "./components/SupportScreen";
 import { AchievementToast } from "./components/AchievementToast";
 import { LevelUpToast } from "./components/LevelUpToast";
-import { earnedAchievementKeys, type AchievementKey } from "./lib/achievements";
+import { earnedAchievementKeys, freshAchievementKeys, type AchievementKey } from "./lib/achievements";
 import { miniappLevelFromCups } from "./lib/miniappLevel";
 import { buildOptimisticTrainingFeedItem, type PackFeedItemDTO } from "./lib/packFeed";
 import { sendMiniappPrivateText, sendMiniappTrainingWithPhoto } from "./lib/miniappPrivateSend";
@@ -145,11 +145,20 @@ export function App() {
     } catch {
       seen = [];
     }
-    const fresh = earned.filter((k) => !seen.includes(k));
-    if (fresh.length === 0) return;
+    const baseline = JSON.stringify(earned);
+    const fresh = freshAchievementKeys(earned, seen);
+    if (fresh.length === 0) {
+      // Базовая линия могла разъехаться с фактом без всякого повода для тоста: каталог
+      // пополнился задним числом (ачивка за первую тренировку) или, наоборот, прогресс
+      // обнулился после полного удаления профиля админом. Просто выравниваем.
+      if (baseline !== JSON.stringify(seen)) {
+        try { localStorage.setItem(storageKey, baseline); } catch { /* ignore */ }
+      }
+      return;
+    }
     setAchievementQueue((q) => [...q, ...fresh.filter((k) => !q.includes(k))]);
     tg?.HapticFeedback?.notificationOccurred?.("success");
-    try { localStorage.setItem(storageKey, JSON.stringify(earned)); } catch { /* ignore */ }
+    try { localStorage.setItem(storageKey, baseline); } catch { /* ignore */ }
   }, [tg]);
 
   // Пробитие уровня: сравниваем текущий уровень (по кубкам) с последним увиденным
