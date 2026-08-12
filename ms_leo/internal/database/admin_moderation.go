@@ -880,26 +880,26 @@ func (d *Database) AdminDeleteAllPackGroupMessagesByUser(packChatID, userID int6
 	if _, err := tx.Exec(`
 		DELETE FROM miniapp_pack_group_unread
 		WHERE pack_message_id IN (
-			SELECT id FROM miniapp_pack_group_chat WHERE user_id = $1 AND pack_chat_id = $2
+			SELECT id FROM miniapp_pack_group_chat WHERE from_user_id = $1 AND pack_chat_id = $2
 		)`, userID, packChatID); err != nil {
 		return 0, fmt.Errorf("del pack group unread: %w", err)
 	}
 	if _, err := tx.Exec(`
 		DELETE FROM miniapp_pack_group_reactions
 		WHERE pack_chat_id = $2 AND pack_message_id IN (
-			SELECT id FROM miniapp_pack_group_chat WHERE user_id = $1 AND pack_chat_id = $2
+			SELECT id FROM miniapp_pack_group_chat WHERE from_user_id = $1 AND pack_chat_id = $2
 		)`, userID, packChatID); err != nil {
 		return 0, fmt.Errorf("del pack group reactions: %w", err)
 	}
 	if _, err := tx.Exec(`
 		DELETE FROM miniapp_feed_reports
 		WHERE pack_chat_id = $2 AND target_type = 'pack_group_message' AND user_message_id IN (
-			SELECT id FROM miniapp_pack_group_chat WHERE user_id = $1 AND pack_chat_id = $2
+			SELECT id FROM miniapp_pack_group_chat WHERE from_user_id = $1 AND pack_chat_id = $2
 		)`, userID, packChatID); err != nil {
 		return 0, fmt.Errorf("del pack group reports: %w", err)
 	}
 	res, err := tx.Exec(`
-		DELETE FROM miniapp_pack_group_chat WHERE user_id = $1 AND pack_chat_id = $2
+		DELETE FROM miniapp_pack_group_chat WHERE from_user_id = $1 AND pack_chat_id = $2
 	`, userID, packChatID)
 	if err != nil {
 		return 0, fmt.Errorf("del pack group messages: %w", err)

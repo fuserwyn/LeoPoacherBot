@@ -162,6 +162,9 @@ func (b *Bot) showAdminUserCard(chatID, targetUserID int64) {
 		))
 	}
 	rows = append(rows, tgbotapi.NewInlineKeyboardRow(
+		tgbotapi.NewInlineKeyboardButtonData("☠️ Удалить из всех таблиц", "admin_user_purge_"+strconv.FormatInt(targetUserID, 10)),
+	))
+	rows = append(rows, tgbotapi.NewInlineKeyboardRow(
 		tgbotapi.NewInlineKeyboardButtonData("📋 К списку", "admin_users_list_0"),
 		tgbotapi.NewInlineKeyboardButtonData("⬅️ Админка", "admin_open"),
 	))
@@ -365,6 +368,29 @@ func (b *Bot) handleAdminUserMgmtCallback(callback *tgbotapi.CallbackQuery) bool
 		}
 		return true
 
+	// Полное каскадное удаление: превью → подтверждение → стирание.
+	// Порядок веток важен — yes/go специфичнее общего префикса.
+	case strings.HasPrefix(data, "admin_user_purge_yes_"):
+		targetID, ok := parseTarget("admin_user_purge_yes_")
+		if ok {
+			b.executeAdminUserPurge(chatID, adminID, targetID)
+		}
+		return true
+
+	case strings.HasPrefix(data, "admin_user_purge_go_"):
+		targetID, ok := parseTarget("admin_user_purge_go_")
+		if ok {
+			b.showAdminUserPurgeConfirm(chatID, adminID, targetID)
+		}
+		return true
+
+	case strings.HasPrefix(data, "admin_user_purge_"):
+		targetID, ok := parseTarget("admin_user_purge_")
+		if ok {
+			b.showAdminUserPurgePrompt(chatID, targetID)
+		}
+		return true
+
 	case strings.HasPrefix(data, "admin_user_del_"):
 		targetID, ok := parseTarget("admin_user_del_")
 		if ok {
@@ -517,6 +543,12 @@ func (b *Bot) handleAdminUserMgmtMessage(msg *tgbotapi.Message, session *adminSe
 		b.resolveAdminUserSearch(msg.Chat.ID, text)
 		return true
 
+	case "await_admin_id":
+		adminID := msg.From.ID
+		b.clearAdminFlow(adminID)
+		b.adminAddDynamicAdmin(msg.Chat.ID, adminID, text)
+		return true
+
 	case "await_days":
 		days, err := strconv.Atoi(text)
 		if err != nil || days < 0 || days > 14 {
@@ -645,6 +677,22 @@ func (b *Bot) resolveAdminUserSearch(chatID int64, query string) {
 		return
 	}
 	if len(hits) == 0 {
+		// По числовому id даём вход в полное удаление: у юзера могло не остаться строки
+		// в стае, но хвосты в других таблицах ещё лежат.
+		if id, err := strconv.ParseInt(query, 10, 64); err == nil && id > 0 {
+			msg := tgbotapi.NewMessage(chatID, fmt.Sprintf(
+				"❌ Пользователя %d нет в стае.\n\nМожно проверить, остались ли его данные в других таблицах.", id))
+			msg.ReplyMarkup = tgbotapi.NewInlineKeyboardMarkup(
+				tgbotapi.NewInlineKeyboardRow(
+					tgbotapi.NewInlineKeyboardButtonData("☠️ Проверить и стереть", "admin_user_purge_"+strconv.FormatInt(id, 10)),
+				),
+				tgbotapi.NewInlineKeyboardRow(
+					tgbotapi.NewInlineKeyboardButtonData("⬅️ Админка", "admin_open"),
+				),
+			)
+			b.api.Send(msg)
+			return
+		}
 		b.api.Send(tgbotapi.NewMessage(chatID, fmt.Sprintf("❌ Пользователь «%s» не найден.", query)))
 		return
 	}

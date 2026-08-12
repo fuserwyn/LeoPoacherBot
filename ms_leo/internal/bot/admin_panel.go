@@ -12,7 +12,7 @@ import (
 )
 
 type adminSession struct {
-	Mode         string // feed_text | poll | support | user_mgmt | user_add_cups | user_sub_cups | user_set_cups | user_add_streak | user_sub_streak | owner_add_admin
+	Mode         string // feed_text | poll | support | user_mgmt | user_add_cups | user_sub_cups | user_set_cups | user_add_streak | user_sub_streak | admin_add
 	Step         string // await_text | await_post_options | await_schedule_time | await_support_text | await_poll_question | await_poll_options | await_user_id | await_amount | await_cups_set | await_days | await_admin_id
 	TargetUserID int64
 	PollQuestion string
@@ -20,8 +20,11 @@ type adminSession struct {
 	PostAuthor   string // adminPostAuthorLeo | adminPostAuthorAdmin — от чьего имени публиковать
 }
 
+// isOwnerPrivateChat — админ (владелец, ADMIN_IDS или добавленный через 🛡 Админы) в личке с ботом.
+// Проверка идёт через isAdminTelegramUser, как и у callback-ов панели: иначе динамический админ
+// видел бы кнопки, но его текстовые ответы в мастерах не обрабатывались бы.
 func (b *Bot) isOwnerPrivateChat(msg *tgbotapi.Message) bool {
-	return msg != nil && msg.From != nil && msg.Chat != nil && b.config.IsAdminTelegramUser(msg.From.ID) && msg.Chat.IsPrivate()
+	return msg != nil && msg.From != nil && msg.Chat != nil && b.isAdminTelegramUser(msg.From.ID) && msg.Chat.IsPrivate()
 }
 
 func (b *Bot) handleAdmin(msg *tgbotapi.Message) {
@@ -58,6 +61,9 @@ func (b *Bot) showAdminMenuForUser(chatID int64) {
 		tgbotapi.NewInlineKeyboardRow(
 			tgbotapi.NewInlineKeyboardButtonData("📊 Посещения бота", "admin_visit_stats"),
 			tgbotapi.NewInlineKeyboardButtonData("📈 Аналитика", "admin_analytics"),
+		),
+		tgbotapi.NewInlineKeyboardRow(
+			tgbotapi.NewInlineKeyboardButtonData("🛡 Админы", "admin_admins"),
 		),
 		tgbotapi.NewInlineKeyboardRow(
 			tgbotapi.NewInlineKeyboardButtonData("🗑 Очистить ленту и чат", "admin_wipe_pack_prompt"),
@@ -131,6 +137,13 @@ func (b *Bot) handleAdminCallbackQuery(callback *tgbotapi.CallbackQuery) {
 	}
 	if callback.Data == "admin_analytics" || strings.HasPrefix(callback.Data, "admin_an_") {
 		if b.handleAdminAnalyticsCallback(callback) {
+			callbackConfig := tgbotapi.NewCallback(callback.ID, "")
+			b.api.Request(callbackConfig)
+			return
+		}
+	}
+	if callback.Data == "admin_admins" || strings.HasPrefix(callback.Data, "admin_admin_") {
+		if b.handleAdminAdminsCallback(callback) {
 			callbackConfig := tgbotapi.NewCallback(callback.ID, "")
 			b.api.Request(callbackConfig)
 			return
