@@ -131,7 +131,7 @@ func (b *Bot) paywallEntryRequiresPayment() bool {
 
 // paywallPriceYookassaShort — короткая «210 ₽» / «210,50 ₽» / «100 USD» для кнопки/UI.
 func (b *Bot) paywallPriceYookassaShort() string {
-	if !b.config.PaywallYookassaReady() {
+	if !b.paywallYookassaReady() {
 		return ""
 	}
 	yk := b.paywallYookassaAmountMinor()
@@ -171,7 +171,7 @@ func (b *Bot) paywallPriceStarsShort() string {
 // единственное, что его закрывает — кик за 8 дней неактивности (после кика нужна повторная покупка).
 // Поэтому никаких «на 30 дней» в текстах не пишем (см. отдельную просьбу пользователя).
 func (b *Bot) paywallPrivateUnpaidUserText() string {
-	if !b.config.PaywallPaymentReady() {
+	if !b.paywallPaymentReady() {
 		return `💳 Платный доступ к Fat Leopard MiniApp
 
 ⚠️ Оплата у бота ещё не настроена. Напиши администратору.
@@ -207,7 +207,7 @@ func (b *Bot) paywallPrivateUnpaidUserText() string {
 // в способах оплаты писать стоимость»).
 func (b *Bot) paywallUnpaidInlineKeyboard() *tgbotapi.InlineKeyboardMarkup {
 	var rows [][]tgbotapi.InlineKeyboardButton
-	if b.config.PaywallYookassaReady() {
+	if b.paywallYookassaReady() {
 		label := "💳 Банковской картой — для РФ"
 		if p := b.paywallPriceYookassaShort(); p != "" {
 			label = "💳 Банковской картой — для РФ — " + p
@@ -263,7 +263,7 @@ func (b *Bot) sendPaywallUnpaidPrivateScreen(chatID int64) error {
 
 func (b *Bot) paywallReturnInlineKeyboard() *tgbotapi.InlineKeyboardMarkup {
 	var rows [][]tgbotapi.InlineKeyboardButton
-	if b.config.PaywallYookassaReady() {
+	if b.paywallYookassaReady() {
 		label := "💳 Банковской картой — для РФ"
 		if p := b.paywallPriceYookassaShort(); p != "" {
 			label = "💳 Банковской картой — для РФ — " + p
@@ -393,7 +393,7 @@ func (b *Bot) ensurePaywallInvoiceSent(userID int64) {
 	if !b.paywallActive() || userID == 0 {
 		return
 	}
-	if !b.config.PaywallPaymentReady() {
+	if !b.paywallPaymentReady() {
 		return
 	}
 	if ok, err := b.db.UserHasActivePaywallAccess(userID, b.config.MonetizedChatID); err != nil {
@@ -403,7 +403,7 @@ func (b *Bot) ensurePaywallInvoiceSent(userID int64) {
 		return
 	}
 	// Оплата по ссылке ЮKassa: вебхук может не дойти — подтягиваем succeeded по payment id в pending-заявке.
-	if b.config.PaywallYookassaReady() && b.paywallTrySyncYookassaPayment(userID) {
+	if b.paywallYookassaReady() && b.paywallTrySyncYookassaPayment(userID) {
 		return
 	}
 	pending, err := b.db.GetLatestPendingPaywallAccessRequest(userID, b.config.MonetizedChatID)
@@ -435,7 +435,7 @@ func (b *Bot) paywallGetOrCreatePendingReqID(userID int64) (int64, error) {
 
 // paywallSendPaymentOffers — всё сразу (старые кнопки «выслать снова»); ошибки пользователю короткие, детали в логах.
 func (b *Bot) paywallSendPaymentOffers(userID, reqID int64) {
-	if b.config.PaywallYookassaReady() {
+	if b.paywallYookassaReady() {
 		if err := b.SendYookassaPaymentLink(userID, reqID); err != nil {
 			b.logger.Errorf("paywall yookassa link: %v", err)
 			b.paywallNotifyUser(userID, "⚠️ "+paywallYookassaShortHintForUser(err))
@@ -610,11 +610,11 @@ func (b *Bot) handlePaywallResendInvoiceCallback(callback *tgbotapi.CallbackQuer
 		_, _ = b.api.Request(tgbotapi.NewCallback(callback.ID, ""))
 		return
 	}
-	if !b.paywallActive() || !b.config.PaywallPaymentReady() {
+	if !b.paywallActive() || !b.paywallPaymentReady() {
 		_, _ = b.api.Request(tgbotapi.NewCallbackWithAlert(callback.ID, "Оплата сейчас недоступна."))
 		return
 	}
-	if b.config.PaywallYookassaReady() {
+	if b.paywallYookassaReady() {
 		if b.paywallTrySyncYookassaPayment(callback.From.ID) {
 			_, _ = b.api.Request(tgbotapi.NewCallback(callback.ID, "Оплата уже учтена. Нажми /start."))
 			return
@@ -636,7 +636,7 @@ func (b *Bot) handlePaywallPayStarsCallback(callback *tgbotapi.CallbackQuery) {
 		return
 	}
 	uid := callback.From.ID
-	if !b.paywallActive() || !b.config.PaywallPaymentReady() || !b.config.PaywallUsesStars() {
+	if !b.paywallActive() || !b.paywallPaymentReady() || !b.config.PaywallUsesStars() {
 		_, _ = b.api.Request(tgbotapi.NewCallbackWithAlert(callback.ID, "Счёт на звёзды сейчас недоступен."))
 		return
 	}
@@ -646,7 +646,7 @@ func (b *Bot) handlePaywallPayStarsCallback(callback *tgbotapi.CallbackQuery) {
 		TelegramID: uid,
 		Payload:    map[string]any{"provider": "stars"},
 	})
-	if b.config.PaywallYookassaReady() && b.paywallTrySyncYookassaPayment(uid) {
+	if b.paywallYookassaReady() && b.paywallTrySyncYookassaPayment(uid) {
 		_, _ = b.api.Request(tgbotapi.NewCallback(callback.ID, "Оплата уже учтена. Нажми /start."))
 		return
 	}
@@ -681,7 +681,7 @@ func (b *Bot) handlePaywallPayYookassaCallback(callback *tgbotapi.CallbackQuery)
 		return
 	}
 	uid := callback.From.ID
-	if !b.paywallActive() || !b.config.PaywallPaymentReady() || !b.config.PaywallYookassaReady() {
+	if !b.paywallActive() || !b.paywallPaymentReady() || !b.paywallYookassaReady() {
 		_, _ = b.api.Request(tgbotapi.NewCallbackWithAlert(callback.ID, "Оплата картой сейчас недоступна."))
 		return
 	}
@@ -737,7 +737,7 @@ func (b *Bot) handlePaywallBackToMethodsCallback(callback *tgbotapi.CallbackQuer
 	if callback == nil || callback.From == nil {
 		return
 	}
-	if !b.paywallActive() || !b.config.PaywallPaymentReady() {
+	if !b.paywallActive() || !b.paywallPaymentReady() {
 		_, _ = b.api.Request(tgbotapi.NewCallbackWithAlert(callback.ID, "Оплата сейчас недоступна."))
 		return
 	}
@@ -755,11 +755,11 @@ func (b *Bot) handlePaywallPayProviderCallback(callback *tgbotapi.CallbackQuery)
 		return
 	}
 	uid := callback.From.ID
-	if !b.paywallActive() || !b.config.PaywallPaymentReady() || !b.config.PaywallUsesTelegramProviderInvoice() {
+	if !b.paywallActive() || !b.paywallPaymentReady() || !b.config.PaywallUsesTelegramProviderInvoice() {
 		_, _ = b.api.Request(tgbotapi.NewCallbackWithAlert(callback.ID, "Счёт провайдера сейчас недоступен."))
 		return
 	}
-	if b.config.PaywallYookassaReady() && b.paywallTrySyncYookassaPayment(uid) {
+	if b.paywallYookassaReady() && b.paywallTrySyncYookassaPayment(uid) {
 		_, _ = b.api.Request(tgbotapi.NewCallback(callback.ID, "Оплата уже учтена. Нажми /start."))
 		return
 	}
@@ -878,7 +878,7 @@ func (b *Bot) paywallTrySyncYookassaPayment(userID int64) bool {
 	if !b.paywallActive() || userID == 0 {
 		return false
 	}
-	if !b.config.PaywallYookassaReady() {
+	if !b.paywallYookassaReady() {
 		return false
 	}
 	pending, err := b.db.GetLatestPendingPaywallAccessRequest(userID, b.config.MonetizedChatID)

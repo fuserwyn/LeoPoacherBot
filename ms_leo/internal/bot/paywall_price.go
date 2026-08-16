@@ -84,6 +84,29 @@ func (b *Bot) paywallProviderAmountMinor() int {
 	return 0
 }
 
+func (b *Bot) paywallYookassaReady() bool {
+	if b == nil || b.config == nil {
+		return false
+	}
+	if b.config.YookassaShopID == "" || b.config.YookassaSecretKey == "" {
+		return false
+	}
+	return b.paywallYookassaAmountMinor() > 0 && strings.TrimSpace(b.config.YookassaCurrency) != ""
+}
+
+func (b *Bot) paywallPaymentReady() bool {
+	if b == nil || b.config == nil {
+		return false
+	}
+	if b.config.PaywallUsesStars() {
+		return true
+	}
+	if b.config.PaywallUsesTelegramProviderInvoice() {
+		return true
+	}
+	return b.paywallYookassaReady()
+}
+
 // AccessPriceRub — текущая цена доступа в рублях (оверрайд админа или дефолт сервера).
 func (b *Bot) AccessPriceRub() int {
 	minor := 0
