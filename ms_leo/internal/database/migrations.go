@@ -1422,6 +1422,23 @@ var Migrations = []Migration{
 			DROP TABLE IF EXISTS donations;
 		`,
 	},
+	{
+		Version:     74,
+		Description: "Цена доступа в стаю, которую админ задаёт из мини-аппа",
+		UpSQL: `
+			-- Одна строка на стаю: если её нет — берём сумму из env (PAYMENT_AMOUNT_* / YOOKASSA).
+			-- amount_minor — копейки RUB. Звёзды Telegram по-прежнему из env.
+			CREATE TABLE IF NOT EXISTS pack_paywall_settings (
+				pack_chat_id BIGINT PRIMARY KEY,
+				amount_minor INTEGER NOT NULL CHECK (amount_minor > 0 AND amount_minor <= 10000000),
+				updated_by   BIGINT  NOT NULL DEFAULT 0,
+				updated_at   TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT (NOW() AT TIME ZONE 'Europe/Moscow')
+			);
+		`,
+		DownSQL: `
+			DROP TABLE IF EXISTS pack_paywall_settings;
+		`,
+	},
 }
 
 // MigrationRecord представляет запись о выполненной миграции

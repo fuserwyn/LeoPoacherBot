@@ -10,6 +10,7 @@ import { RulesScreen } from "./components/RulesScreen";
 import { TabKeepAlive } from "./components/TabKeepAlive";
 import { MiniappRemovedScreen } from "./components/MiniappRemovedScreen";
 import { SupportScreen } from "./components/SupportScreen";
+import { AdminScreen } from "./components/AdminScreen";
 import { AchievementToast } from "./components/AchievementToast";
 import { LevelUpToast } from "./components/LevelUpToast";
 import { earnedAchievementKeys, freshAchievementKeys, type AchievementKey } from "./lib/achievements";
@@ -57,6 +58,7 @@ export function App() {
   const [tab, setTab] = useState<Tab>("feed");
   const [workoutOpen, setWorkoutOpen] = useState(false);
   const [supportOpen, setSupportOpen] = useState(false);
+  const [adminOpen, setAdminOpen] = useState(false);
   const [streak, setStreak] = useState(hookStreak);
   const [recordStreak, setRecordStreak] = useState(hookStreak);
   const [profileDisplayName, setProfileDisplayName] = useState("");
@@ -76,6 +78,7 @@ export function App() {
   const [inactivityRemovalAt, setInactivityRemovalAt] = useState("");
   const [accessGateStatus, setAccessGateStatus] = useState<AccessGateStatus>("checking");
   const [isAdmin, setIsAdmin] = useState(false);
+  const [accessPriceRub, setAccessPriceRub] = useState(99);
   const tzSyncedRef = useRef(false);
   // Очередь тостов «Ачивка получена!» — показываем по одному, дедуп по ключам.
   const [achievementQueue, setAchievementQueue] = useState<AchievementKey[]>([]);
@@ -212,9 +215,13 @@ export function App() {
         days_since_last_training?: number;
         last_training_date?: string;
         is_admin?: boolean;
+        access_price_rub?: number;
       };
       if (!res.ok || !j.ok) return;
       setIsAdmin(Boolean(j.is_admin));
+      if (typeof j.access_price_rub === "number" && j.access_price_rub > 0) {
+        setAccessPriceRub(j.access_price_rub);
+      }
       setProfileDisplayName((j.display_name ?? "").trim());
       setDaysSinceLastTraining(typeof j.days_since_last_training === "number" ? j.days_since_last_training : -1);
       setLastTrainingDate(typeof j.last_training_date === "string" ? j.last_training_date.trim() : "");
@@ -358,7 +365,7 @@ export function App() {
   );
 
   const effectiveName = profileDisplayName.trim() || name.trim() || "друг";
-  const tabsVisible = !supportOpen && !workoutOpen;
+  const tabsVisible = !supportOpen && !workoutOpen && !adminOpen;
 
   if (accessGateStatus === "checking") {
     return <div className="app" />;
@@ -407,7 +414,7 @@ export function App() {
           />
         </TabKeepAlive>
         <TabKeepAlive active={tab === "rules"} hidden={!tabsVisible}>
-          <RulesScreen />
+          <RulesScreen accessPriceRub={accessPriceRub} />
         </TabKeepAlive>
         <TabKeepAlive active={tab === "profile"} hidden={!tabsVisible}>
           <ProfileScreen
@@ -433,9 +440,16 @@ export function App() {
               void refreshProfileStats();
             }}
             onRefreshStats={refreshProfileStats}
+            isAdmin={isAdmin}
             onSupport={() => {
               setWorkoutOpen(false);
+              setAdminOpen(false);
               setSupportOpen(true);
+            }}
+            onAdmin={() => {
+              setWorkoutOpen(false);
+              setSupportOpen(false);
+              setAdminOpen(true);
             }}
           />
         </TabKeepAlive>
@@ -443,6 +457,15 @@ export function App() {
 
       {supportOpen ? (
         <SupportScreen initData={initData} inTelegram={inTelegram} showAlert={showAlert} />
+      ) : null}
+
+      {adminOpen && isAdmin ? (
+        <AdminScreen
+          initData={initData}
+          inTelegram={inTelegram}
+          showAlert={showAlert}
+          onClose={() => setAdminOpen(false)}
+        />
       ) : null}
 
       {/* Празднования показываем по одному, чтобы оверлеи не накладывались:
@@ -469,29 +492,34 @@ export function App() {
         onChat={() => {
           setWorkoutOpen(false);
           setSupportOpen(false);
+          setAdminOpen(false);
           clearLeoBadge();
           setTab("chat");
         }}
         onFeed={() => {
           setWorkoutOpen(false);
           setSupportOpen(false);
+          setAdminOpen(false);
           clearPackGroupBadge();
           setTab("feed");
         }}
         onSendMessage={sendFeedMessage}
         onAddWorkout={() => {
           setSupportOpen(false);
+          setAdminOpen(false);
           setWorkoutOpen(true);
           reportWorkoutLogStarted(initData); // §4: открыл форму логирования
         }}
         onRules={() => {
           setWorkoutOpen(false);
           setSupportOpen(false);
+          setAdminOpen(false);
           setTab("rules");
         }}
         onProfile={() => {
           setWorkoutOpen(false);
           setSupportOpen(false);
+          setAdminOpen(false);
           setTab("profile");
         }}
       />

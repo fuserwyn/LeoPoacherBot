@@ -953,6 +953,13 @@ html.app-keyboard-open .profile__health-actions--keyboard {
   margin-bottom: 0;
 }
 
+.profile__admin {
+  padding: 14px;
+  border-radius: var(--radius-sm);
+  border: 1px solid color-mix(in srgb, var(--accent) 28%, var(--border-subtle));
+  background: color-mix(in srgb, var(--accent) 7%, var(--card-inner));
+}
+
 .profile__support-btn {
   width: 100%;
 }

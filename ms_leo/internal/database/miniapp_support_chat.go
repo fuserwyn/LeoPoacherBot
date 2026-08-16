@@ -142,3 +142,24 @@ func (d *Database) ListMiniappSupportConversations(packChatID int64, limit int) 
 	}
 	return out, nil
 }
+
+// CountMiniappSupportNeedingReply — диалоги, где последнее сообщение от пользователя.
+func (d *Database) CountMiniappSupportNeedingReply(packChatID int64) (int, error) {
+	if packChatID == 0 {
+		return 0, nil
+	}
+	const q = `
+		SELECT COUNT(*) FROM (
+			SELECT DISTINCT ON (c.user_id) c.role
+			FROM miniapp_support_chat c
+			WHERE c.pack_chat_id = $1
+			ORDER BY c.user_id, c.id DESC
+		) last_per_user
+		WHERE role = 'user'
+	`
+	var n int
+	if err := d.db.QueryRow(q, packChatID).Scan(&n); err != nil {
+		return 0, fmt.Errorf("count support needing reply: %w", err)
+	}
+	return n, nil
+}

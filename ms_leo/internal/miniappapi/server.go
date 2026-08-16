@@ -165,6 +165,34 @@ func (s *Server) serve(w http.ResponseWriter, r *http.Request) {
 		s.handlePostLeoCommentDisplayed(w, r)
 	case path == "/api/miniapp/analytics/event" && r.Method == http.MethodPost:
 		s.handlePostAnalyticsEvent(w, r)
+	case path == "/api/miniapp/admin/overview" && r.Method == http.MethodPost:
+		s.handlePostAdminOverview(w, r)
+	case path == "/api/miniapp/admin/support/inbox" && r.Method == http.MethodPost:
+		s.handlePostAdminSupportInbox(w, r)
+	case path == "/api/miniapp/admin/support/thread" && r.Method == http.MethodPost:
+		s.handlePostAdminSupportThread(w, r)
+	case path == "/api/miniapp/admin/support/reply" && r.Method == http.MethodPost:
+		s.handlePostAdminSupportReply(w, r)
+	case path == "/api/miniapp/admin/reports" && r.Method == http.MethodPost:
+		s.handlePostAdminReports(w, r)
+	case path == "/api/miniapp/admin/reports/action" && r.Method == http.MethodPost:
+		s.handlePostAdminReportAction(w, r)
+	case path == "/api/miniapp/admin/hidden" && r.Method == http.MethodPost:
+		s.handlePostAdminHidden(w, r)
+	case path == "/api/miniapp/admin/hidden/restore" && r.Method == http.MethodPost:
+		s.handlePostAdminUnhide(w, r)
+	case path == "/api/miniapp/admin/users" && r.Method == http.MethodPost:
+		s.handlePostAdminUsers(w, r)
+	case path == "/api/miniapp/admin/users/card" && r.Method == http.MethodPost:
+		s.handlePostAdminUserCard(w, r)
+	case path == "/api/miniapp/admin/users/action" && r.Method == http.MethodPost:
+		s.handlePostAdminUserAction(w, r)
+	case path == "/api/miniapp/admin/publish" && r.Method == http.MethodPost:
+		s.handlePostAdminPublish(w, r)
+	case path == "/api/miniapp/admin/paywall-price" && r.Method == http.MethodPost:
+		s.handlePostAdminPaywallPrice(w, r)
+	case path == "/api/miniapp/admin/paywall-price/set" && r.Method == http.MethodPost:
+		s.handlePostAdminPaywallPriceSet(w, r)
 	case strings.HasPrefix(path, "/api/miniapp/media/") && r.Method == http.MethodGet:
 		s.handleGetMiniappMedia(w, r)
 	case path == "/" && r.Method == http.MethodGet:
@@ -2290,6 +2318,7 @@ func (s *Server) handlePostProfileLoad(w http.ResponseWriter, r *http.Request) {
 		"streak_save_attempts_max":    stats.StreakSaveAttemptsMax,
 		"streak_save_attempts_avail":  stats.StreakSaveAttemptsAvail,
 		"is_admin":                    s.bot.IsMiniappViewerAdmin(parsed.User.ID),
+		"access_price_rub":            s.bot.AccessPriceRub(),
 	}
 	if kickAt != "" {
 		out["inactivity_removal_at"] = kickAt

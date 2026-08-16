@@ -134,23 +134,12 @@ func (b *Bot) paywallPriceYookassaShort() string {
 	if !b.config.PaywallYookassaReady() {
 		return ""
 	}
-	yk := b.config.YookassaAmountMinor
+	yk := b.paywallYookassaAmountMinor()
 	yc := strings.TrimSpace(b.config.YookassaCurrency)
 	if yk <= 0 {
 		return ""
 	}
-	if yc == "RUB" {
-		rub := yk / 100
-		kop := yk % 100
-		if kop == 0 {
-			return fmt.Sprintf("%d ₽", rub)
-		}
-		return fmt.Sprintf("%d,%02d ₽", rub, kop)
-	}
-	if yc != "" {
-		return fmt.Sprintf("%d %s", yk, yc)
-	}
-	return ""
+	return formatPaywallAmountShort(yk, yc)
 }
 
 // paywallPriceProviderShort — короткая цена для Telegram Provider Invoice (карта в TG).
@@ -158,20 +147,12 @@ func (b *Bot) paywallPriceProviderShort() string {
 	if !b.config.PaywallUsesTelegramProviderInvoice() {
 		return ""
 	}
-	am := b.config.PaymentAmountMinorUnits
+	am := b.paywallProviderAmountMinor()
 	cur := strings.TrimSpace(b.config.PaymentCurrency)
 	if am <= 0 || cur == "" || cur == "XTR" {
 		return ""
 	}
-	if cur == "RUB" {
-		rub := am / 100
-		kop := am % 100
-		if kop == 0 {
-			return fmt.Sprintf("%d ₽", rub)
-		}
-		return fmt.Sprintf("%d,%02d ₽", rub, kop)
-	}
-	return fmt.Sprintf("%d %s", am, cur)
+	return formatPaywallAmountShort(am, cur)
 }
 
 // paywallPriceStarsShort — «350 ⭐» для кнопки.
@@ -553,7 +534,7 @@ func (b *Bot) SendPaywallProviderInvoice(userID, reqID int64) error {
 	}
 	tok := strings.TrimSpace(b.config.PaymentProviderToken)
 	payload := fmt.Sprintf("%s%d", paywallPayloadPrefix, reqID)
-	prices := []tgbotapi.LabeledPrice{{Label: "Доступ", Amount: b.config.PaymentAmountMinorUnits}}
+	prices := []tgbotapi.LabeledPrice{{Label: "Доступ", Amount: b.paywallProviderAmountMinor()}}
 	inv := tgbotapi.NewInvoice(
 		userID,
 		paywallInvoiceClipTitle(b.config.PaymentInvoiceTitle),
@@ -588,7 +569,7 @@ func (b *Bot) paywallCreateYookassaPayment(userID, reqID int64) (string, error) 
 	paymentID, confirmURL, err := yookassa.CreatePayment(
 		b.config.YookassaShopID,
 		b.config.YookassaSecretKey,
-		b.config.YookassaAmountMinor,
+		b.paywallYookassaAmountMinor(),
 		b.config.YookassaCurrency,
 		b.config.PaymentInvoiceDesc,
 		returnURL,
@@ -957,7 +938,7 @@ func (b *Bot) paywallTrySyncYookassaPayment(userID int64) bool {
 	amountMinor := info.AmountMinor
 	cur := info.Currency
 	if amountMinor <= 0 || cur == "" {
-		amountMinor = b.config.YookassaAmountMinor
+		amountMinor = b.paywallYookassaAmountMinor()
 		cur = b.config.YookassaCurrency
 	}
 	if cur == "" {
@@ -1076,8 +1057,8 @@ func (b *Bot) handlePaywallPreCheckout(q *tgbotapi.PreCheckoutQuery) {
 			reject("unavailable", "Оплата недоступна.")
 			return
 		}
-		if q.Currency != b.config.PaymentCurrency || q.TotalAmount != b.config.PaymentAmountMinorUnits {
-			b.logger.Warnf("paywall pre_checkout amount mismatch: got %s %d want %s %d", q.Currency, q.TotalAmount, b.config.PaymentCurrency, b.config.PaymentAmountMinorUnits)
+		if q.Currency != b.config.PaymentCurrency || q.TotalAmount != b.paywallProviderAmountMinor() {
+			b.logger.Warnf("paywall pre_checkout amount mismatch: got %s %d want %s %d", q.Currency, q.TotalAmount, b.config.PaymentCurrency, b.paywallProviderAmountMinor())
 			reject("amount_mismatch", "Неверная сумма. Обнови заявку и попробуй снова.")
 			return
 		}
@@ -1340,10 +1321,10 @@ func (b *Bot) handlePaywallSuccessfulPayment(msg *tgbotapi.Message) {
 		}
 	default:
 		wantCur := strings.ToUpper(strings.TrimSpace(b.config.PaymentCurrency))
-		if !b.config.PaywallUsesTelegramProviderInvoice() || cur != wantCur || sp.TotalAmount != b.config.PaymentAmountMinorUnits {
+		if !b.config.PaywallUsesTelegramProviderInvoice() || cur != wantCur || sp.TotalAmount != b.paywallProviderAmountMinor() {
 			b.logger.Errorf(
 				"paywall successful_payment mismatch user=%d: got %s %d, config wants %s %d — провайдер / PAYMENT_AMOUNT_*",
-				msg.From.ID, cur, sp.TotalAmount, b.config.PaymentCurrency, b.config.PaymentAmountMinorUnits,
+				msg.From.ID, cur, sp.TotalAmount, b.config.PaymentCurrency, b.paywallProviderAmountMinor(),
 			)
 			return
 		}

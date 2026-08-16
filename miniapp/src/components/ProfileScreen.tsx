@@ -69,6 +69,9 @@ type Props = {
   onProfileSaved?: (displayName: string) => void;
   onStreakSaved?: () => void;
   onSupport?: () => void;
+  /** Открыть админку мини-аппа (только если isAdmin). */
+  onAdmin?: () => void;
+  isAdmin?: boolean;
   /** Перезагрузить кубки/уровень/стрик с сервера (из App). */
   onRefreshStats?: () => void;
   /** Вкладка «Профиль» видима (keep-alive). */
@@ -93,6 +96,8 @@ export function ProfileScreen({
   onProfileSaved,
   onStreakSaved,
   onSupport,
+  onAdmin,
+  isAdmin = false,
   onRefreshStats,
   active = true,
 }: Props) {
@@ -1497,6 +1502,16 @@ export function ProfileScreen({
 
       {donateThanks ? (
         <DonateThanksToast onDone={() => setDonateThanks(false)} />
+      ) : null}
+
+      {isAdmin && onAdmin ? (
+        <div className="profile__support profile__admin">
+          <h2 className="section-title">Админка</h2>
+          <p className="profile__hint muted">Поддержка, жалобы, скрытое, участники и объявления в ленту.</p>
+          <button type="button" className="profile__save profile__support-btn" onClick={onAdmin}>
+            Открыть админку
+          </button>
+        </div>
       ) : null}
 
       <div className="profile__support">

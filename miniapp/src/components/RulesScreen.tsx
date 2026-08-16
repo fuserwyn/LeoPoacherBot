@@ -17,7 +17,13 @@ type RuleSection = {
   body: ReactNode;
 };
 
-const SECTIONS: RuleSection[] = [
+function formatAccessPrice(rub: number) {
+  if (!Number.isFinite(rub) || rub <= 0) return "99₽";
+  return `${Math.round(rub)}₽`;
+}
+
+function rulesSections(priceLabel: string): RuleSection[] {
+  return [
   {
     id: "why",
     title: "1 — Зачем это приложение",
@@ -251,7 +257,7 @@ const SECTIONS: RuleSection[] = [
         </p>
         <p>
           <strong>Как вернуться.</strong> Напиши <code className="rules__code">/start</code> боту. Система опознает
-          тебя по Telegram ID. Новый вход — 99₽ (та же цена). Сразу вернутся рекорд стрика, число тренировок и
+          тебя по Telegram ID. Новый вход — {priceLabel} (та же цена). Сразу вернутся рекорд стрика, число тренировок и
           trophy case. С нуля начнутся кубки, стрик, уровень и попытки. Стая не спрашивает, почему ты пропал.
         </p>
         <p className="rules__note">
@@ -329,11 +335,12 @@ const SECTIONS: RuleSection[] = [
         <dt>Куда писать, если что-то сломалось?</dt>
         <dd>Кнопка «Поддержка» — она есть и в боте, и в профиле в мини-аппе.</dd>
         <dt>Сколько стоит вход?</dt>
-        <dd>99₽ — один платёж, без подписки. Действует, пока ты в Стае. Вернуться после удаления — снова 99₽.</dd>
+        <dd>{priceLabel} — один платёж, без подписки. Действует, пока ты в Стае. Вернуться после удаления — снова {priceLabel}.</dd>
       </dl>
     ),
   },
-];
+  ];
+}
 
 function RuleAccordionItem({
   section,
@@ -360,7 +367,8 @@ function RuleAccordionItem({
   );
 }
 
-export function RulesScreen() {
+export function RulesScreen({ accessPriceRub = 99 }: { accessPriceRub?: number }) {
+  const sections = rulesSections(formatAccessPrice(accessPriceRub));
   const [openId, setOpenId] = useState<string | null>(null);
 
   return (
@@ -371,7 +379,7 @@ export function RulesScreen() {
       </header>
 
       <div className="rules__accordion-list">
-        {SECTIONS.map((section) => (
+        {sections.map((section) => (
           <RuleAccordionItem
             key={section.id}
             section={section}

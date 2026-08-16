@@ -190,7 +190,7 @@ func (b *Bot) processRefundRequested(payload refundRequestedPayload) error {
 	if req.YookassaPaymentID.Valid && strings.TrimSpace(req.YookassaPaymentID.String) != "" {
 		amount := int(req.TotalAmountMinor.Int64)
 		if amount <= 0 {
-			amount = b.config.YookassaAmountMinor
+			amount = b.paywallYookassaAmountMinor()
 		}
 		currency := strings.TrimSpace(req.Currency.String)
 		if currency == "" {

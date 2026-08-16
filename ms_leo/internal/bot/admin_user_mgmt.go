@@ -960,20 +960,33 @@ func (b *Bot) adminDeleteUser(chatID, targetUserID int64) {
 // false — с нуля (как обычный возврат: ачивки и кубки обнулены). В обоих случаях возвращаем
 // доступ к мини-аппу, делаем чистый старт таймера неактивности и обновляем меню-кнопку.
 func (b *Bot) adminRestoreUser(chatID, targetUserID int64, withProgress bool) {
+	if err := b.restoreUserInPack(targetUserID, withProgress); err != nil {
+		b.api.Send(tgbotapi.NewMessage(chatID, "❌ "+err.Error()))
+		if strings.Contains(err.Error(), "уже активен") {
+			b.showAdminUserCard(chatID, targetUserID)
+		}
+		return
+	}
+	mode := "с нуля"
+	if withProgress {
+		mode = "с достижениями"
+	}
+	b.api.Send(tgbotapi.NewMessage(chatID, fmt.Sprintf("✅ Пользователь %d восстановлен в стае (%s). Доступ возвращён, таймер неактивности запущен заново.", targetUserID, mode)))
+	b.showAdminUserCard(chatID, targetUserID)
+}
+
+// restoreUserInPack — общая логика возврата кикнутого: прогресс/с нуля, paywall, таймер, меню.
+func (b *Bot) restoreUserInPack(targetUserID int64, withProgress bool) error {
 	packChatID := b.adminPackChatID()
 	if packChatID == 0 {
-		b.api.Send(tgbotapi.NewMessage(chatID, "❌ Не настроен MonetizedChatID."))
-		return
+		return fmt.Errorf("не настроен MonetizedChatID")
 	}
 	ml, err := b.db.GetMessageLogAnyState(targetUserID, packChatID)
 	if err != nil || ml == nil {
-		b.api.Send(tgbotapi.NewMessage(chatID, "❌ Пользователь не найден."))
-		return
+		return fmt.Errorf("пользователь не найден")
 	}
 	if !ml.IsDeleted {
-		b.api.Send(tgbotapi.NewMessage(chatID, "ℹ️ Пользователь уже активен в стае."))
-		b.showAdminUserCard(chatID, targetUserID)
-		return
+		return fmt.Errorf("пользователь уже активен в стае")
 	}
 	username := strings.TrimSpace(ml.Username)
 	if username == "" {
@@ -987,31 +1000,19 @@ func (b *Bot) adminRestoreUser(chatID, targetUserID int64, withProgress bool) {
 		restored, err = b.db.ReactivateReturnedUser(targetUserID, packChatID, ml.Username)
 	}
 	if err != nil {
-		b.api.Send(tgbotapi.NewMessage(chatID, "❌ Ошибка восстановления: "+err.Error()))
-		return
+		return fmt.Errorf("ошибка восстановления: %w", err)
 	}
 	if !restored {
-		b.api.Send(tgbotapi.NewMessage(chatID, "❌ Не удалось восстановить (нет записи пользователя)."))
-		return
+		return fmt.Errorf("не удалось восстановить (нет записи пользователя)")
 	}
 
-	// Возвращаем доступ к мини-аппу (обратно к ExpirePaywallAccessForUser при удалении).
 	if _, accErr := b.db.RestorePaywallAccessForUser(targetUserID, packChatID); accErr != nil {
 		b.logger.Warnf("admin restore: restore paywall access user=%d: %v", targetUserID, accErr)
 	}
-	// Чистый старт таймера неактивности (RestoreDeletedUserWithProgress/ReactivateReturnedUser
-	// выставили timer_start_time = NULL — startTimer пишет NOW и регистрирует дни 5/6/7/8).
 	b.startTimer(targetUserID, packChatID, username)
-	// Кикнутому скрывали web_app-кнопку — форсируем её обратно.
 	invalidateMiniappMenuButtonCache(targetUserID)
 	b.applyMiniappMenuButtonForUser(targetUserID)
-
-	mode := "с нуля"
-	if withProgress {
-		mode = "с достижениями"
-	}
-	b.api.Send(tgbotapi.NewMessage(chatID, fmt.Sprintf("✅ Пользователь %d восстановлен в стае (%s). Доступ возвращён, таймер неактивности запущен заново.", targetUserID, mode)))
-	b.showAdminUserCard(chatID, targetUserID)
+	return nil
 }
 
 func (b *Bot) adminDeleteMessageByRef(ref string) (bool, string) {
