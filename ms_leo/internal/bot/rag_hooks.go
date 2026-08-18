@@ -159,3 +159,39 @@ func (b *Bot) appendPackGroupSQLContext(packChatID int64, contextText *strings.B
 		contextText.WriteString("• [" + ts + "] " + who + replyMark + ": " + txt + "\n")
 	}
 }
+
+// forgetRAGSource — сообщение удалили или скрыли: убрать его из памяти Лео,
+// иначе он продолжит цитировать то, чего в ленте уже нет.
+//
+// Пока не вызывается: чистку памяти включаем отдельным решением, чтобы ничего
+// не стиралось молча. Точка входа готова — останется повесить на удаление и
+// скрытие сообщений.
+//nolint:unused
+func (b *Bot) forgetRAGSource(sourceID int64) {
+	if b == nil || b.ragStore == nil || !b.ragStore.Enabled() || sourceID == 0 {
+		return
+	}
+	go func(id int64) {
+		ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+		defer cancel()
+		if err := b.ragStore.DeleteBySource(ctx, id); err != nil && b.logger != nil {
+			b.logger.Warnf("rag forget source=%d: %v", id, err)
+		}
+	}(sourceID)
+}
+
+// forgetRAGUser — человек ушёл из стаи: его реплики Лео помнить не должен.
+// Тоже пока не вызывается — см. комментарий выше.
+//nolint:unused
+func (b *Bot) forgetRAGUser(userID int64) {
+	if b == nil || b.ragStore == nil || !b.ragStore.Enabled() || userID == 0 {
+		return
+	}
+	go func(id int64) {
+		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+		defer cancel()
+		if err := b.ragStore.DeleteByUser(ctx, id); err != nil && b.logger != nil {
+			b.logger.Warnf("rag forget user=%d: %v", id, err)
+		}
+	}(userID)
+}

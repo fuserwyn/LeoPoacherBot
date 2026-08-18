@@ -362,3 +362,28 @@ export function runAdminDbQuery(initData: string, sql: string) {
 export function fetchAdminResources(initData: string) {
   return post<{ resources: AdminResources }>("/api/miniapp/admin/resources", initData);
 }
+
+/* «Тест Лео»: поговорить с обученным Лео, попробовать другой системный промпт
+   и подкинуть ему знание в память. */
+
+export type LeoMemory = { total: number; old: number };
+
+export function fetchLeoPrompt(initData: string) {
+  return post<{ prompt: string }>("/api/miniapp/admin/leo-lab", initData, { action: "prompt" });
+}
+
+export function askLeoLab(initData: string, system: string, question: string) {
+  return post<{ answer: string; used_default: boolean }>("/api/miniapp/admin/leo-lab", initData, {
+    action: "ask",
+    system,
+    question,
+  });
+}
+
+export function teachLeo(initData: string, text: string) {
+  return post<Record<string, never>>("/api/miniapp/admin/leo-lab", initData, { action: "teach", text });
+}
+
+export function fetchLeoMemory(initData: string, days = 180) {
+  return post<{ memory: LeoMemory }>("/api/miniapp/admin/leo-lab", initData, { action: "memory", days });
+}

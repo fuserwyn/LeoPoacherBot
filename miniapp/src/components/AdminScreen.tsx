@@ -30,6 +30,7 @@ import {
 import { AdminDataScreen } from "./AdminDataScreen";
 import { AdminOpsScreen, type AdminOpsSection } from "./AdminOpsScreen";
 import { AdminResourcesScreen } from "./AdminResourcesScreen";
+import { LeoLabScreen } from "./LeoLabScreen";
 import { TrackerScreen } from "./TrackerScreen";
 import "./AdminScreen.css";
 
@@ -43,6 +44,7 @@ type Page =
   | "card"
   | "announce"
   | "price"
+  | "leolab"
   | AdminOpsSection;
 
 /** Вкладки админского таббара: у админа свои разделы, пользовательские тут ни к чему. */
@@ -410,7 +412,9 @@ export function AdminScreen({ initData, inTelegram, showAlert, onClose }: Props)
                                 ? "Отложенные посты"
                                 : page === "poll"
                                   ? "Опрос в ленту"
-                                  : page === "wipe"
+                                  : page === "leolab"
+                                    ? "Тест Лео"
+                                    : page === "wipe"
                                     ? "Очистить ленту и чат"
                                     : "Объявление";
 
@@ -549,6 +553,13 @@ export function AdminScreen({ initData, inTelegram, showAlert, onClose }: Props)
                     <small>выдать и снять права</small>
                   </span>
                 </button>
+                <button type="button" className="admin__tile" onClick={() => setPage("leolab")}>
+                  <span className="admin__tile-ico">🐆</span>
+                  <span className="admin__tile-text">
+                    <b>Тест Лео</b>
+                    <small>спросить, сменить промпт, научить</small>
+                  </span>
+                </button>
                 <button type="button" className="admin__tile" onClick={() => setPage("wipe")}>
                   <span className="admin__tile-ico">🗑</span>
                   <span className="admin__tile-text">
@@ -578,6 +589,12 @@ export function AdminScreen({ initData, inTelegram, showAlert, onClose }: Props)
       {page === "home" && tab === "tracker" && (
         <div className="admin__body">
           <TrackerScreen initData={initData} showAlert={showAlert} />
+        </div>
+      )}
+
+      {page === "leolab" && (
+        <div className="admin__body">
+          <LeoLabScreen initData={initData} showAlert={showAlert} />
         </div>
       )}
 

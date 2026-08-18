@@ -412,3 +412,103 @@ func FormatChunksForPrompt(title string, chunks []RetrievedChunk) string {
 	}
 	return b.String()
 }
+
+// --- Забывание ------------------------------------------------------------
+//
+// Qdrant умеет удалять по фильтру payload, поэтому чистка не требует знать id
+// точек: удаляем по source_id (одно сообщение), user_id (человек ушёл) или по
+// created_at (ретеншен).
+
+func (s *QdrantStore) deleteByFilter(ctx context.Context, filter map[string]interface{}) error {
+	if !s.Enabled() {
+		return nil
+	}
+	path := fmt.Sprintf("/collections/%s/points/delete?wait=true", s.cfg.Collection)
+	res, err := s.do(ctx, http.MethodPost, path, map[string]interface{}{"filter": filter})
+	if err != nil {
+		return err
+	}
+	defer res.Body.Close()
+	if res.StatusCode >= 300 {
+		return fmt.Errorf("qdrant delete: %s", res.Status)
+	}
+	return nil
+}
+
+// DeleteBySource — забыть сообщение, которого больше нет (удалено или скрыто).
+func (s *QdrantStore) DeleteBySource(ctx context.Context, sourceID int64) error {
+	if sourceID == 0 {
+		return nil
+	}
+	return s.deleteByFilter(ctx, map[string]interface{}{
+		"must": []map[string]interface{}{
+			{"key": "source_id", "match": map[string]interface{}{"value": sourceID}},
+		},
+	})
+}
+
+// DeleteByUser — забыть всё, что писал человек (ушёл из стаи).
+func (s *QdrantStore) DeleteByUser(ctx context.Context, userID int64) error {
+	if userID == 0 {
+		return nil
+	}
+	return s.deleteByFilter(ctx, map[string]interface{}{
+		"must": []map[string]interface{}{
+			{"key": "user_id", "match": map[string]interface{}{"value": userID}},
+		},
+	})
+}
+
+// DeleteOlderThan — ретеншен по возрасту сообщения.
+func (s *QdrantStore) DeleteOlderThan(ctx context.Context, cutoff time.Time) error {
+	return s.deleteByFilter(ctx, map[string]interface{}{
+		"must": []map[string]interface{}{
+			{"key": "created_at", "range": map[string]interface{}{"lt": cutoff.UTC().Unix()}},
+		},
+	})
+}
+
+// Stats — сколько всего точек и сколько старше cutoff.
+func (s *QdrantStore) Stats(ctx context.Context, cutoff time.Time) (MemoryStats, error) {
+	var out MemoryStats
+	if !s.Enabled() {
+		return out, nil
+	}
+	count := func(filter map[string]interface{}) (int, error) {
+		body := map[string]interface{}{"exact": true}
+		if filter != nil {
+			body["filter"] = filter
+		}
+		res, err := s.do(ctx, http.MethodPost, fmt.Sprintf("/collections/%s/points/count", s.cfg.Collection), body)
+		if err != nil {
+			return 0, err
+		}
+		defer res.Body.Close()
+		if res.StatusCode >= 300 {
+			return 0, fmt.Errorf("qdrant count: %s", res.Status)
+		}
+		var parsed struct {
+			Result struct {
+				Count int `json:"count"`
+			} `json:"result"`
+		}
+		if err := json.NewDecoder(res.Body).Decode(&parsed); err != nil {
+			return 0, err
+		}
+		return parsed.Result.Count, nil
+	}
+	total, err := count(nil)
+	if err != nil {
+		return out, err
+	}
+	old, err := count(map[string]interface{}{
+		"must": []map[string]interface{}{
+			{"key": "created_at", "range": map[string]interface{}{"lt": cutoff.UTC().Unix()}},
+		},
+	})
+	if err != nil {
+		return out, err
+	}
+	out.Total, out.Old = total, old
+	return out, nil
+}

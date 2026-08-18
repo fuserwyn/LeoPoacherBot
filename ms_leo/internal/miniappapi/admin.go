@@ -668,6 +668,57 @@ func (s *Server) handlePostAdminWipe(w http.ResponseWriter, r *http.Request) {
 	s.writeAdminOK(w, map[string]any{"counts": counts, "done": true})
 }
 
+func (s *Server) handlePostAdminLeoLab(w http.ResponseWriter, r *http.Request) {
+	var body struct {
+		InitData string `json:"init_data"`
+		Action   string `json:"action"` // prompt | ask | teach | memory
+		System   string `json:"system"`
+		Question string `json:"question"`
+		Text     string `json:"text"`
+		Days     int    `json:"days"`
+	}
+	corsWriteHeaders(w, r)
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		s.jsonErr(w, http.StatusBadRequest, "invalid_json")
+		return
+	}
+	parsed, ok := s.authMiniapp(w, body.InitData)
+	if !ok {
+		return
+	}
+	switch body.Action {
+	case "prompt":
+		prompt, err := s.bot.MiniappLeoLabPrompt(parsed.User.ID, parsed)
+		if err != nil {
+			s.writeAdminErr(w, err)
+			return
+		}
+		s.writeAdminOK(w, map[string]any{"prompt": prompt})
+	case "ask":
+		answer, usedDefault, err := s.bot.MiniappLeoLabAsk(parsed.User.ID, parsed, body.System, body.Question)
+		if err != nil {
+			s.writeAdminErr(w, err)
+			return
+		}
+		s.writeAdminOK(w, map[string]any{"answer": answer, "used_default": usedDefault})
+	case "teach":
+		if err := s.bot.MiniappLeoLabTeach(parsed.User.ID, parsed, body.Text); err != nil {
+			s.writeAdminErr(w, err)
+			return
+		}
+		s.writeAdminOK(w, map[string]any{})
+	case "memory":
+		stats, err := s.bot.MiniappLeoLabMemory(parsed.User.ID, parsed, body.Days)
+		if err != nil {
+			s.writeAdminErr(w, err)
+			return
+		}
+		s.writeAdminOK(w, map[string]any{"memory": stats})
+	default:
+		s.jsonErr(w, http.StatusBadRequest, "invalid_action")
+	}
+}
+
 func (s *Server) handlePostAdminLeoSprint(w http.ResponseWriter, r *http.Request) {
 	var body struct {
 		InitData string `json:"init_data"`
