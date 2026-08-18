@@ -267,6 +267,18 @@ export function AdminScreen({ initData, inTelegram, showAlert, onClose }: Props)
     await loadUsers("");
   };
 
+  // Поля показателей всегда показывают текущее состояние: правишь цифру и
+  // жмёшь «Сохранить», а не гадаешь, что сейчас в базе.
+  useEffect(() => {
+    if (!card) return;
+    setStatValue({
+      cups: String(card.cups),
+      streak: String(card.streak_days),
+      record: String(card.max_streak_days),
+      workouts: "1",
+    });
+  }, [card?.user_id, card?.cups, card?.streak_days, card?.max_streak_days]);
+
   const openCard = async (userId: number) => {
     setPage("card");
     try {
@@ -292,6 +304,46 @@ export function AdminScreen({ initData, inTelegram, showAlert, onClose }: Props)
       void loadOverview();
     } catch (e) {
       showAlert(e instanceof Error ? e.message : "Не удалось изменить");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  /** Что реально изменилось в полях по сравнению с карточкой. */
+  const dirtyStats = (): { field: AdminStatField; value: number }[] => {
+    if (!card) return [];
+    const pairs: { field: AdminStatField; current: number }[] = [
+      { field: "cups", current: card.cups },
+      { field: "streak", current: card.streak_days },
+      { field: "record", current: card.max_streak_days },
+    ];
+    const changed: { field: AdminStatField; value: number }[] = [];
+    for (const { field, current } of pairs) {
+      const value = Math.round(Number(statValue[field]));
+      if (Number.isFinite(value) && value >= 0 && value !== current) {
+        changed.push({ field, value });
+      }
+    }
+    return changed;
+  };
+
+  const statsDirty = dirtyStats().length > 0;
+
+  const saveStats = async () => {
+    const changes = dirtyStats();
+    if (!card || busy || changes.length === 0) return;
+    setBusy(true);
+    try {
+      let fresh = card;
+      for (const { field, value } of changes) {
+        const j = await setAdminUserStat(initData, card.user_id, field, "set", value);
+        fresh = j.user;
+      }
+      setCard(fresh);
+      void loadOverview();
+      showAlert("Сохранил.");
+    } catch (e) {
+      showAlert(e instanceof Error ? e.message : "Не удалось сохранить");
     } finally {
       setBusy(false);
     }
@@ -854,17 +906,7 @@ export function AdminScreen({ initData, inTelegram, showAlert, onClose }: Props)
                 inputMode="numeric"
                 value={statValue.cups}
                 onChange={(e) => setStatValue((p) => ({ ...p, cups: e.target.value }))}
-                placeholder={String(card.cups)}
               />
-              <button type="button" disabled={busy} onClick={() => void changeStat("cups", "set")}>
-                Задать
-              </button>
-              <button type="button" disabled={busy} onClick={() => void changeStat("cups", "add")}>
-                +
-              </button>
-              <button type="button" disabled={busy} onClick={() => void changeStat("cups", "add", -1)}>
-                −
-              </button>
             </div>
 
             <div className="admin__stat-row">
@@ -873,17 +915,7 @@ export function AdminScreen({ initData, inTelegram, showAlert, onClose }: Props)
                 inputMode="numeric"
                 value={statValue.streak}
                 onChange={(e) => setStatValue((p) => ({ ...p, streak: e.target.value }))}
-                placeholder={String(card.streak_days)}
               />
-              <button type="button" disabled={busy} onClick={() => void changeStat("streak", "set")}>
-                Задать
-              </button>
-              <button type="button" disabled={busy} onClick={() => void changeStat("streak", "add")}>
-                +
-              </button>
-              <button type="button" disabled={busy} onClick={() => void changeStat("streak", "add", -1)}>
-                −
-              </button>
             </div>
 
             <div className="admin__stat-row">
@@ -892,18 +924,17 @@ export function AdminScreen({ initData, inTelegram, showAlert, onClose }: Props)
                 inputMode="numeric"
                 value={statValue.record}
                 onChange={(e) => setStatValue((p) => ({ ...p, record: e.target.value }))}
-                placeholder={String(card.max_streak_days)}
               />
-              <button type="button" disabled={busy} onClick={() => void changeStat("record", "set")}>
-                Задать
-              </button>
-              <button type="button" disabled={busy} onClick={() => void changeStat("record", "add")}>
-                +
-              </button>
-              <button type="button" disabled={busy} onClick={() => void changeStat("record", "add", -1)}>
-                −
-              </button>
             </div>
+
+            <button
+              type="button"
+              className="admin__btn admin__btn--wide"
+              disabled={busy || !statsDirty}
+              onClick={() => void saveStats()}
+            >
+              {statsDirty ? "Сохранить показатели" : "Изменений нет"}
+            </button>
 
             <div className="admin__stat-row">
               <span>Тренировки</span>
@@ -911,7 +942,6 @@ export function AdminScreen({ initData, inTelegram, showAlert, onClose }: Props)
                 inputMode="numeric"
                 value={statValue.workouts}
                 onChange={(e) => setStatValue((p) => ({ ...p, workouts: e.target.value }))}
-                placeholder="1"
               />
               <button type="button" disabled={busy} onClick={() => void changeStat("workouts", "add")}>
                 Зачесть

@@ -14,11 +14,18 @@ const DEFAULT_BOT: &str = "FatLeopard_Bot";
 // Прод-адрес мини-аппа. Вшит, чтобы приложение работало сразу после установки:
 // поле «Адрес сервера» остаётся только для дева и self-hosted сборок.
 const DEFAULT_BASE_URL: &str = "https://fat-leopard-main.up.railway.app";
+// У Леопарда интерфейс и API — разные сервисы: мини-апп это статика, а вход и
+// данные живут в ms_leo. Один адрес на двоих не годится: по адресу мини-аппа
+// на путь входа приходит index.html, и клиент падает на разборе ответа.
+const DEFAULT_API_URL: &str = "https://msleo-main.up.railway.app";
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct Settings {
     #[serde(default)]
     pub base_url: String,
+    /// Адрес API (ms_leo): вход и данные. Пусто — берём значение по умолчанию.
+    #[serde(default)]
+    pub api_url: String,
     #[serde(default)]
     pub bot_username: String,
 }
@@ -91,15 +98,28 @@ pub fn load(app: &AppHandle) -> Settings {
             }
         });
 
+    let api_url = std::env::var("LEO_API_URL")
+        .ok()
+        .filter(|v| !v.trim().is_empty())
+        .unwrap_or_else(|| {
+            if stored.api_url.is_empty() {
+                option_env!("LEO_API_URL").unwrap_or(DEFAULT_API_URL).to_string()
+            } else {
+                stored.api_url.clone()
+            }
+        });
+
     Settings {
         base_url: normalize_url(&base_url),
+        api_url: normalize_url(&api_url),
         bot_username: normalize_bot(&bot_username),
     }
 }
 
-pub fn save(app: &AppHandle, url: &str, bot: &str) -> Result<Settings, String> {
+pub fn save(app: &AppHandle, url: &str, api: &str, bot: &str) -> Result<Settings, String> {
     let settings = Settings {
         base_url: normalize_url(url),
+        api_url: normalize_url(api),
         bot_username: normalize_bot(bot),
     };
     let path = config_path(app).ok_or("не нашёл каталог конфигурации")?;

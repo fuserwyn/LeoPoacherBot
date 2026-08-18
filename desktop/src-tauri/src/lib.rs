@@ -31,6 +31,7 @@ struct BeginResponse {
 #[derive(serde::Serialize)]
 struct SettingsView {
     base_url: String,
+    api_url: String,
     bot_username: String,
     ready: bool,
 }
@@ -41,16 +42,18 @@ fn settings_get(app: AppHandle) -> SettingsView {
     SettingsView {
         ready: s.is_ready(),
         base_url: s.base_url,
+        api_url: s.api_url,
         bot_username: s.bot_username,
     }
 }
 
 #[tauri::command]
-fn settings_set(app: AppHandle, url: String, bot: String) -> Result<SettingsView, String> {
-    let s = settings::save(&app, &url, &bot)?;
+fn settings_set(app: AppHandle, url: String, api: String, bot: String) -> Result<SettingsView, String> {
+    let s = settings::save(&app, &url, &api, &bot)?;
     Ok(SettingsView {
         ready: s.is_ready(),
         base_url: s.base_url,
+        api_url: s.api_url,
         bot_username: s.bot_username,
     })
 }
@@ -82,16 +85,17 @@ fn auth_open_link(app: AppHandle, link: String) -> Result<(), String> {
 
 #[tauri::command]
 async fn auth_poll(app: AppHandle, nonce: String) -> Result<auth::PollOutcome, String> {
-    let base = settings::load(&app).base_url;
+    // Вход — это API (ms_leo), а не статика мини-аппа.
+    let base = settings::load(&app).api_url;
     if base.is_empty() {
-        return Err("не задан адрес сервера".into());
+        return Err("не задан адрес API".into());
     }
     auth::poll(&app, &base, &nonce).await
 }
 
 #[tauri::command]
 async fn auth_logout(app: AppHandle) -> Result<(), String> {
-    let base = settings::load(&app).base_url;
+    let base = settings::load(&app).api_url;
     if let Some(session) = auth::load_session(&app) {
         auth::revoke(&base, &session.token).await;
     }

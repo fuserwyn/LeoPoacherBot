@@ -23,6 +23,7 @@ const el = {
   doneName: document.getElementById("doneName"),
   settings: document.getElementById("settings"),
   baseUrl: document.getElementById("baseUrl"),
+  apiUrl: document.getElementById("apiUrl"),
   botName: document.getElementById("botName"),
   loginBtn: document.getElementById("loginBtn"),
   reopenBtn: document.getElementById("reopenBtn"),
@@ -125,9 +126,11 @@ async function saveSettings() {
   try {
     const s = await invoke("settings_set", {
       url: el.baseUrl.value,
+      api: el.apiUrl.value,
       bot: el.botName.value,
     });
     el.baseUrl.value = s.base_url;
+    el.apiUrl.value = s.api_url;
     el.botName.value = s.bot_username;
     applyReady(s.ready);
   } catch (e) {
@@ -157,6 +160,7 @@ async function boot() {
   try {
     const s = await invoke("settings_get");
     el.baseUrl.value = s.base_url;
+    el.apiUrl.value = s.api_url;
     el.botName.value = s.bot_username;
 
     const user = await invoke("session_status");
