@@ -1513,16 +1513,15 @@ export function ProfileScreen({
       </div>
 
       {isAdmin && onAdmin ? (
-        <button type="button" className="profile__admin-cta" onClick={onAdmin}>
-          <span className="profile__admin-cta-ico" aria-hidden>
-            🛠
-          </span>
-          <span className="profile__admin-cta-text">
-            <b>Админка стаи</b>
-            <small>поддержка, жалобы, участники, трекер задач</small>
-          </span>
-          <span className="profile__admin-cta-badge">только админам</span>
-        </button>
+        <div className="profile__support profile__admin">
+          <h2 className="section-title">Админка</h2>
+          <p className="profile__hint muted">
+            Сообщество, система, данные, ресурсы и трекер задач. Видно только админам.
+          </p>
+          <button type="button" className="profile__save profile__support-btn" onClick={onAdmin}>
+            Открыть админку
+          </button>
+        </div>
       ) : null}
 
     </div>

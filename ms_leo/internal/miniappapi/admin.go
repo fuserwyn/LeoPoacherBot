@@ -695,6 +695,8 @@ func (s *Server) handlePostAdminDBTable(w http.ResponseWriter, r *http.Request) 
 		Table    string `json:"table"`
 		Limit    int    `json:"limit"`
 		Offset   int    `json:"offset"`
+		OrderBy  string `json:"order_by"`
+		Desc     bool   `json:"desc"`
 	}
 	corsWriteHeaders(w, r)
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
@@ -705,12 +707,34 @@ func (s *Server) handlePostAdminDBTable(w http.ResponseWriter, r *http.Request) 
 	if !ok {
 		return
 	}
-	res, err := s.bot.MiniappAdminDBTable(parsed.User.ID, parsed, body.Table, body.Limit, body.Offset)
+	res, err := s.bot.MiniappAdminDBTable(parsed.User.ID, parsed, body.Table, body.Limit, body.Offset, body.OrderBy, body.Desc)
 	if err != nil {
 		s.writeAdminErr(w, err)
 		return
 	}
 	s.writeAdminOK(w, map[string]any{"result": res})
+}
+
+func (s *Server) handlePostAdminDBColumns(w http.ResponseWriter, r *http.Request) {
+	var body struct {
+		InitData string `json:"init_data"`
+		Table    string `json:"table"`
+	}
+	corsWriteHeaders(w, r)
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		s.jsonErr(w, http.StatusBadRequest, "invalid_json")
+		return
+	}
+	parsed, ok := s.authMiniapp(w, body.InitData)
+	if !ok {
+		return
+	}
+	cols, err := s.bot.MiniappAdminDBColumns(parsed.User.ID, parsed, body.Table)
+	if err != nil {
+		s.writeAdminErr(w, err)
+		return
+	}
+	s.writeAdminOK(w, map[string]any{"columns": cols})
 }
 
 func (s *Server) handlePostAdminDBQuery(w http.ResponseWriter, r *http.Request) {

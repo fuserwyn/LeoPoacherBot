@@ -279,3 +279,15 @@
 .ops-money__cell--net.is-minus b {
   color: #ff6b64;
 }
+
+/* Заголовок-кнопка: тап по колонке сортирует таблицу. */
+.ops-th {
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+}

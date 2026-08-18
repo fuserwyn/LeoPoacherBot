@@ -195,6 +195,8 @@ func (s *Server) serve(w http.ResponseWriter, r *http.Request) {
 		s.handlePostAdminDBTables(w, r)
 	case path == "/api/miniapp/admin/db/table" && r.Method == http.MethodPost:
 		s.handlePostAdminDBTable(w, r)
+	case path == "/api/miniapp/admin/db/columns" && r.Method == http.MethodPost:
+		s.handlePostAdminDBColumns(w, r)
 	case path == "/api/miniapp/admin/db/query" && r.Method == http.MethodPost:
 		s.handlePostAdminDBQuery(w, r)
 	case path == "/api/miniapp/admin/resources" && r.Method == http.MethodPost:

@@ -954,63 +954,11 @@ html.app-keyboard-open .profile__health-actions--keyboard {
 }
 
 /* Вход в админку — последним блоком профиля и только для админов. */
-.profile__admin-cta {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  width: 100%;
-  margin-top: 18px;
-  padding: 12px 14px;
-  text-align: left;
+.profile__admin {
+  padding: 14px;
   border-radius: var(--radius-sm);
-  border: 1px solid color-mix(in srgb, var(--accent) 34%, var(--border-subtle));
-  background: color-mix(in srgb, var(--accent) 9%, var(--card-inner));
-  color: inherit;
-  font: inherit;
-  cursor: pointer;
-}
-
-.profile__admin-cta:active {
-  transform: scale(0.995);
-}
-
-.profile__admin-cta-ico {
-  font-size: 22px;
-  line-height: 1;
-}
-
-.profile__admin-cta-text {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  min-width: 0;
-  flex: 1;
-}
-
-.profile__admin-cta-text b {
-  font-size: 15px;
-  font-weight: 600;
-}
-
-.profile__admin-cta-text small {
-  font-size: 12px;
-  color: var(--muted);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.profile__admin-cta-badge {
-  flex: none;
-  padding: 3px 8px;
-  border-radius: 999px;
-  font-size: 11px;
-  color: var(--accent);
-  background: color-mix(in srgb, var(--accent) 16%, transparent);
-}
-
-.profile__support-btn {
-  width: 100%;
+  border: 1px solid color-mix(in srgb, var(--accent) 28%, var(--border-subtle));
+  background: color-mix(in srgb, var(--accent) 7%, var(--card-inner));
 }
 
 /* Поддержать проект: добровольный донат звёздами или картой.

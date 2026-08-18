@@ -1,7 +1,9 @@
 .admin {
   position: fixed;
   top: var(--safe-top, 0px);
-  bottom: var(--bottom-nav-stack, var(--bottom-nav-h, 72px));
+  /* Пользовательского таббара в админке нет — занимаем экран до низа, иначе
+     под экраном остаётся полоса фона, а содержимое обрезается. */
+  bottom: 0;
   left: 0;
   right: 0;
   display: flex;
@@ -386,11 +388,7 @@
    админке не нужны — здесь свои разделы, и уходить из админки надо через
    стрелку в шапке. */
 .admin__tabs {
-  position: fixed;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  z-index: 30;
+  flex: none;
   display: grid;
   grid-template-columns: repeat(5, 1fr);
   gap: 2px;
@@ -428,9 +426,4 @@
   font-size: 10.5px;
   font-weight: 600;
   letter-spacing: 0.01em;
-}
-
-/* Место под таббар, иначе последняя карточка уезжает под него. */
-.admin {
-  padding-bottom: calc(78px + env(safe-area-inset-bottom, 0px));
 }

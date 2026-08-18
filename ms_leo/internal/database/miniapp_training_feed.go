@@ -583,6 +583,20 @@ func (d *Database) CountTrainingThreadUnread(recipientUserID, packChatID int64) 
 	if recipientUserID == 0 {
 		return 0, nil
 	}
+	// Ответ могли удалить или скрыть модерацией — такие строки в таблице
+	// остаются, а на экране их нет. Счётчик по ним держал бы бейдж вечно,
+	// поэтому сначала чистим мусор, потом считаем только видимое.
+	if _, err := d.db.Exec(
+		`DELETE FROM miniapp_training_thread_unread u
+		 WHERE u.recipient_user_id = $1 AND u.pack_chat_id = $2
+		   AND NOT EXISTS (
+		     SELECT 1 FROM miniapp_training_feed_thread t
+		     WHERE t.id = u.thread_reply_id AND COALESCE(t.is_hidden, FALSE) = FALSE
+		   )`,
+		recipientUserID, packChatID,
+	); err != nil {
+		return 0, fmt.Errorf("purge stale training thread unread: %w", err)
+	}
 	var n int64
 	err := d.db.QueryRow(
 		`SELECT COUNT(*) FROM miniapp_training_thread_unread WHERE recipient_user_id = $1 AND pack_chat_id = $2`,

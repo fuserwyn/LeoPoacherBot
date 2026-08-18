@@ -28,14 +28,24 @@ func (b *Bot) MiniappAdminDBTables(viewerUserID int64, initD initdata.InitData) 
 	return b.db.AdminListTables()
 }
 
-// MiniappAdminDBTable — страница таблицы.
+// MiniappAdminDBTable — страница таблицы с сортировкой по колонке.
 func (b *Bot) MiniappAdminDBTable(
-	viewerUserID int64, initD initdata.InitData, table string, limit, offset int,
+	viewerUserID int64, initD initdata.InitData, table string, limit, offset int, orderBy string, desc bool,
 ) (database.AdminQueryResult, error) {
 	if _, err := b.requireMiniappAdmin(viewerUserID, initD); err != nil {
 		return database.AdminQueryResult{}, err
 	}
-	return b.db.AdminTablePage(table, limit, offset)
+	return b.db.AdminTablePage(table, limit, offset, orderBy, desc)
+}
+
+// MiniappAdminDBColumns — структура таблицы для вкладки «Структура».
+func (b *Bot) MiniappAdminDBColumns(
+	viewerUserID int64, initD initdata.InitData, table string,
+) ([]database.AdminColumnInfo, error) {
+	if _, err := b.requireMiniappAdmin(viewerUserID, initD); err != nil {
+		return nil, err
+	}
+	return b.db.AdminTableColumns(table)
 }
 
 // MiniappAdminDBQuery — произвольный читающий запрос из редактора.

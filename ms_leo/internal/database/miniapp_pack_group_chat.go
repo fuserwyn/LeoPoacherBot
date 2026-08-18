@@ -249,6 +249,19 @@ func (d *Database) CountPackGroupUnread(recipientUserID, packChatID int64) (int6
 	if recipientUserID == 0 || packChatID == 0 {
 		return 0, nil
 	}
+	// Сообщение могли удалить или скрыть — строка «непрочитано» остаётся, а
+	// показать её уже нечем: бейдж в таком случае не гасится ничем.
+	if _, err := d.db.Exec(
+		`DELETE FROM miniapp_pack_group_unread g
+		 WHERE g.recipient_user_id = $1 AND g.pack_chat_id = $2
+		   AND NOT EXISTS (
+		     SELECT 1 FROM miniapp_pack_group_chat m
+		     WHERE m.id = g.pack_message_id AND COALESCE(m.is_hidden, FALSE) = FALSE
+		   )`,
+		recipientUserID, packChatID,
+	); err != nil {
+		return 0, fmt.Errorf("purge stale pack group unread: %w", err)
+	}
 	var n int64
 	err := d.db.QueryRow(
 		`SELECT COUNT(*) FROM miniapp_pack_group_unread WHERE recipient_user_id = $1 AND pack_chat_id = $2`,

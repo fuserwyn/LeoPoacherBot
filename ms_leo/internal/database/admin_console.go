@@ -27,13 +27,13 @@ type AdminQueryResult struct {
 	Took     string     `json:"took"`
 }
 
-// AdminListTables — таблицы public-схемы с оценкой строк (reltuples, без COUNT(*)).
-func (d *Database) AdminListTables() ([]AdminTableInfo, error) {
+// AdminTableNames — имена таблиц public-схемы.
+func (d *Database) AdminTableNames() ([]string, error) {
 	if d == nil || d.db == nil {
 		return nil, fmt.Errorf("nil database")
 	}
 	rows, err := d.db.Query(`
-		SELECT c.relname, GREATEST(c.reltuples, 0)::bigint
+		SELECT c.relname
 		FROM pg_class c
 		JOIN pg_namespace n ON n.oid = c.relnamespace
 		WHERE n.nspname = 'public' AND c.relkind = 'r'
@@ -43,7 +43,45 @@ func (d *Database) AdminListTables() ([]AdminTableInfo, error) {
 		return nil, err
 	}
 	defer rows.Close()
-	out := make([]AdminTableInfo, 0, 64)
+	out := make([]string, 0, 64)
+	for rows.Next() {
+		var name string
+		if err := rows.Scan(&name); err != nil {
+			return nil, err
+		}
+		out = append(out, name)
+	}
+	return out, rows.Err()
+}
+
+// AdminListTables — таблицы с ТОЧНЫМ числом строк.
+//
+// reltuples из pg_class врёт: у таблицы, которую ещё не трогал autovacuum, там
+// ноль, и в списке «migrations» выглядела бы пустой. База стаи небольшая,
+// поэтому считаем честно — одним запросом COUNT(*) по всем таблицам сразу.
+func (d *Database) AdminListTables() ([]AdminTableInfo, error) {
+	names, err := d.AdminTableNames()
+	if err != nil {
+		return nil, err
+	}
+	if len(names) == 0 {
+		return nil, nil
+	}
+	parts := make([]string, 0, len(names))
+	for _, n := range names {
+		if !identRe.MatchString(n) {
+			continue
+		}
+		parts = append(parts, fmt.Sprintf("SELECT %s AS t, COUNT(*) AS c FROM %q", quoteLiteral(n), n))
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+	rows, err := d.db.QueryContext(ctx, strings.Join(parts, " UNION ALL ")+" ORDER BY t")
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out := make([]AdminTableInfo, 0, len(names))
 	for rows.Next() {
 		var t AdminTableInfo
 		if err := rows.Scan(&t.Name, &t.Rows); err != nil {
@@ -54,22 +92,72 @@ func (d *Database) AdminListTables() ([]AdminTableInfo, error) {
 	return out, rows.Err()
 }
 
+func quoteLiteral(v string) string {
+	return "'" + strings.ReplaceAll(v, "'", "''") + "'"
+}
+
+// AdminColumnInfo — колонка таблицы для вкладки «Структура».
+type AdminColumnInfo struct {
+	Name     string `json:"name"`
+	Type     string `json:"type"`
+	Nullable bool   `json:"nullable"`
+	Default  string `json:"default"`
+	PK       bool   `json:"pk"`
+}
+
+// AdminTableColumns — структура таблицы: тип, NULL, значение по умолчанию, ключ.
+func (d *Database) AdminTableColumns(table string) ([]AdminColumnInfo, error) {
+	if d == nil || d.db == nil {
+		return nil, fmt.Errorf("nil database")
+	}
+	if !identRe.MatchString(table) {
+		return nil, fmt.Errorf("недопустимое имя таблицы")
+	}
+	rows, err := d.db.Query(`
+		SELECT a.attname,
+		       format_type(a.atttypid, a.atttypmod),
+		       NOT a.attnotnull,
+		       COALESCE(pg_get_expr(ad.adbin, ad.adrelid), ''),
+		       COALESCE(i.indisprimary, false)
+		FROM pg_attribute a
+		JOIN pg_class c ON c.oid = a.attrelid
+		JOIN pg_namespace n ON n.oid = c.relnamespace
+		LEFT JOIN pg_attrdef ad ON ad.adrelid = c.oid AND ad.adnum = a.attnum
+		LEFT JOIN pg_index i ON i.indrelid = c.oid AND a.attnum = ANY(i.indkey) AND i.indisprimary
+		WHERE n.nspname = 'public' AND c.relname = $1 AND a.attnum > 0 AND NOT a.attisdropped
+		ORDER BY a.attnum
+	`, table)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out := make([]AdminColumnInfo, 0, 16)
+	for rows.Next() {
+		var c AdminColumnInfo
+		if err := rows.Scan(&c.Name, &c.Type, &c.Nullable, &c.Default, &c.PK); err != nil {
+			return nil, err
+		}
+		out = append(out, c)
+	}
+	return out, rows.Err()
+}
+
 var identRe = regexp.MustCompile(`^[a-zA-Z_][a-zA-Z0-9_]*$`)
 
 // AdminTablePage — страница таблицы. Имя проверяем по белому списку из
 // pg_class: подставлять его в SQL иначе нельзя, параметром имя не передать.
-func (d *Database) AdminTablePage(table string, limit, offset int) (AdminQueryResult, error) {
+func (d *Database) AdminTablePage(table string, limit, offset int, orderBy string, desc bool) (AdminQueryResult, error) {
 	var out AdminQueryResult
 	if !identRe.MatchString(table) {
 		return out, fmt.Errorf("недопустимое имя таблицы")
 	}
-	known, err := d.AdminListTables()
+	names, err := d.AdminTableNames()
 	if err != nil {
 		return out, err
 	}
 	found := false
-	for _, t := range known {
-		if t.Name == table {
+	for _, n := range names {
+		if n == table {
 			found = true
 			break
 		}
@@ -83,7 +171,31 @@ func (d *Database) AdminTablePage(table string, limit, offset int) (AdminQueryRe
 	if offset < 0 {
 		offset = 0
 	}
-	return d.AdminRunQuery(fmt.Sprintf("SELECT * FROM %q LIMIT %d OFFSET %d", table, limit, offset))
+	order := ""
+	if strings.TrimSpace(orderBy) != "" {
+		// Имя колонки в ORDER BY параметром не передать, поэтому сверяем его со
+		// структурой таблицы: подставлять пришедшее с клиента нельзя.
+		cols, err := d.AdminTableColumns(table)
+		if err != nil {
+			return out, err
+		}
+		ok := false
+		for _, c := range cols {
+			if c.Name == orderBy {
+				ok = true
+				break
+			}
+		}
+		if !ok {
+			return out, fmt.Errorf("нет такой колонки")
+		}
+		dir := "ASC"
+		if desc {
+			dir = "DESC"
+		}
+		order = fmt.Sprintf(" ORDER BY %q %s", orderBy, dir)
+	}
+	return d.AdminRunQuery(fmt.Sprintf("SELECT * FROM %q%s LIMIT %d OFFSET %d", table, order, limit, offset))
 }
 
 var readOnlyPrefixes = []string{"select", "with", "explain", "show", "table", "values"}

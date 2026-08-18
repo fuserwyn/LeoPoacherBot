@@ -177,6 +177,15 @@ func Load() (*Config, error) {
 		BoardSecret:           getEnv("BOARD_SSO_SECRET", ""),
 		BoardURL:              getEnv("MYVIBELAB_URL", "https://myvibelab-production.up.railway.app"),
 		BoardRepo:             getEnv("BOARD_REPO", "fuserwyn/Fat-Leopard"),
+		RailwayToken:          getEnv("RAILWAY_API_TOKEN", ""),
+		RailwayProjectID:      getEnv("RAILWAY_PROJECT_ID", ""),
+		UsagePriceRAMGBMonth:  parseFloatEnv("USAGE_PRICE_RAM_GB_MONTH", 10),
+		UsagePriceCPUMonth:    parseFloatEnv("USAGE_PRICE_CPU_MONTH", 20),
+		UsagePriceDiskGBMonth: parseFloatEnv("USAGE_PRICE_DISK_GB_MONTH", 0.15),
+		UsagePriceEgressGB:    parseFloatEnv("USAGE_PRICE_EGRESS_GB", 0.05),
+		UsageMinutesPerMonth:  parseFloatEnv("USAGE_MINUTES_PER_MONTH", 43800),
+		UsdRubRate:            parseFloatEnv("USD_RUB_RATE", 90),
+		UsdPerStar:            parseFloatEnv("USD_PER_STAR", 0.013),
 		AdminIDs:              adminIDs,
 		AlphaTesterIDs:        alphaTesterIDs,
 		DatabaseURL:           getEnv("DATABASE_URL", "postgresql://postgres:password@localhost:5432/leo_bot_db?sslmode=disable"),
@@ -392,6 +401,19 @@ func parseEnvBool(s string) bool {
 	default:
 		return false
 	}
+}
+
+// parseFloatEnv — число из окружения; мусор и пустое значение → по умолчанию.
+func parseFloatEnv(key string, defaultValue float64) float64 {
+	raw := strings.TrimSpace(getEnv(key, ""))
+	if raw == "" {
+		return defaultValue
+	}
+	v, err := strconv.ParseFloat(raw, 64)
+	if err != nil || v < 0 {
+		return defaultValue
+	}
+	return v
 }
 
 func parseAdminIDs(raw string) []int64 {

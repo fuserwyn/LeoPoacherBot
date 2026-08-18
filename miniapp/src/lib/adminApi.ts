@@ -325,8 +325,33 @@ export function fetchAdminDbTables(initData: string) {
   return post<{ tables: AdminDbTable[] }>("/api/miniapp/admin/db/tables", initData);
 }
 
-export function fetchAdminDbTable(initData: string, table: string, limit = 50, offset = 0) {
-  return post<{ result: AdminQueryResult }>("/api/miniapp/admin/db/table", initData, { table, limit, offset });
+export type AdminDbColumn = {
+  name: string;
+  type: string;
+  nullable: boolean;
+  default: string;
+  pk: boolean;
+};
+
+export function fetchAdminDbTable(
+  initData: string,
+  table: string,
+  limit = 50,
+  offset = 0,
+  orderBy = "",
+  desc = false,
+) {
+  return post<{ result: AdminQueryResult }>("/api/miniapp/admin/db/table", initData, {
+    table,
+    limit,
+    offset,
+    order_by: orderBy,
+    desc,
+  });
+}
+
+export function fetchAdminDbColumns(initData: string, table: string) {
+  return post<{ columns: AdminDbColumn[] }>("/api/miniapp/admin/db/columns", initData, { table });
 }
 
 /** Только чтение: сервер отклонит всё, кроме SELECT / WITH / EXPLAIN / SHOW / TABLE / VALUES. */

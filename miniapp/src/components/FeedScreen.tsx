@@ -25,6 +25,7 @@ import {
 } from "../lib/packFeed";
 import { moderationUserMessage, isModerationError } from "../lib/moderationMessages";
 import { clearFeedThreadUnread, fetchFeedThreadUnreadSummary } from "../lib/feedThreadUnread";
+import { clearPackGroupUnread } from "../lib/packGroupUnread";
 import { reportLeoCommentDisplayed } from "../lib/leoCommentDiag";
 import { formatLocalDateTime } from "../lib/timeAgo";
 import { streakStreakAriaLabel } from "../lib/streakLabel";
@@ -399,17 +400,18 @@ export function FeedScreen({
     [initData, onRefreshTabBadges, refreshUnreadFeedCards],
   );
 
-  // Бейдж «Лента» = непрочитанные комментарии к твоим отчётам. На подвкладке «Лента»
-  // считаем их просмотренными сразу — без скролла до карточки (она может быть вне
-  // окна последних 50 постов).
+  // Бейдж «Стая» = непрочитанные комментарии к твоим отчётам плюс новые сообщения
+  // общего чата. И то и другое читается здесь, в ленте: сообщения давно приходят
+  // сюда же отдельными карточками (source=message), а прежний отдельный экран чата
+  // в приложении не открывается. Поэтому гасим оба счётчика при открытии ленты —
+  // иначе бейдж висел бы вечно, и погасить его было бы нечем.
   useEffect(() => {
     if (!active || sub !== "activity" || !inTelegram || !initData.trim()) return;
-    if (feedThreadUnreadCount <= 0 && unreadFeedCardIds.size === 0) return;
 
     onFeedThreadRead?.();
     setUnreadFeedCardIds(new Set());
     void (async () => {
-      await clearFeedThreadUnread(initData);
+      await Promise.all([clearFeedThreadUnread(initData), clearPackGroupUnread(initData)]);
       onRefreshTabBadges?.();
     })();
   }, [
@@ -417,8 +419,6 @@ export function FeedScreen({
     sub,
     inTelegram,
     initData,
-    feedThreadUnreadCount,
-    unreadFeedCardIds.size,
     onFeedThreadRead,
     onRefreshTabBadges,
   ]);
