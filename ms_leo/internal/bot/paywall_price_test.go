@@ -59,3 +59,23 @@ func TestPaywallProviderAmountUsesOverrideOnlyForRUB(t *testing.T) {
 		t.Fatalf("XTR must stay stars, got %d", got)
 	}
 }
+
+func TestPaywallYookassaReadyUsesEffectiveAmount(t *testing.T) {
+	ready := &Bot{config: &config.Config{
+		YookassaShopID:      "shop",
+		YookassaSecretKey:   "key",
+		YookassaAmountMinor: 9900,
+		YookassaCurrency:    "RUB",
+	}}
+	if !ready.paywallYookassaReady() || !ready.paywallPaymentReady() {
+		t.Fatal("expected yookassa ready from env amount")
+	}
+	noAmount := &Bot{config: &config.Config{
+		YookassaShopID:    "shop",
+		YookassaSecretKey: "key",
+		YookassaCurrency:  "RUB",
+	}}
+	if noAmount.paywallYookassaReady() {
+		t.Fatal("zero amount must not be ready without admin override")
+	}
+}

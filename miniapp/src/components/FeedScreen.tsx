@@ -27,7 +27,6 @@ import { clearFeedThreadUnread, fetchFeedThreadUnreadSummary } from "../lib/feed
 import { reportLeoCommentDisplayed } from "../lib/leoCommentDiag";
 import { formatLocalDateTime } from "../lib/timeAgo";
 import { streakStreakAriaLabel } from "../lib/streakLabel";
-import { feedTgUsername } from "../lib/telegramDM";
 import {
   sortWorkoutCategoryIds,
   trainingDoneMatchesAnyCategory,
@@ -1987,7 +1986,6 @@ export function FeedScreen({
                     ? {
                         authorProfile: {
                           name: (it.username || "").trim() || `Участник ${it.user_id}`,
-                          tgUsername: (it.author_tg_username || "").trim() || feedTgUsername(it.username),
                           streak: isMessage ? undefined : it.streak_days,
                         },
                       }

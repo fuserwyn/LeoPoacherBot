@@ -362,12 +362,10 @@ export function ReportActionMenu({
   );
 }
 
-/** Мини-карточка автора поста по тапу на аватар: ник TG и стрик. */
+/** Мини-карточка автора поста по тапу на аватар: имя и стрик. */
 export type ActivityCardAuthorProfile = {
   /** Отображаемое имя автора (реальное, не «Ты»). */
   name: string;
-  /** TG @username без «@»; отсутствует, если ник скрыт. */
-  tgUsername?: string;
   /** Стрик автора; undefined — не показывать (сообщения чата стрика не несут). */
   streak?: number;
 };
@@ -851,9 +849,6 @@ export function ActivityCard({
                   <span className="act-card__profile-name">
                     {authorProfile.name.startsWith("@") ? authorProfile.name.slice(1) : authorProfile.name}
                   </span>
-                  {authorProfile.tgUsername && (
-                    <span className="act-card__profile-nick">@{authorProfile.tgUsername}</span>
-                  )}
                 </div>
                 {authorProfile.streak != null && (
                   <span

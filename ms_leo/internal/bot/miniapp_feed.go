@@ -94,9 +94,8 @@ type PackFeedItem struct {
 	ID               int64  `json:"id"`
 	UserID           int64  `json:"user_id"`
 	Username         string `json:"username"`
-	// AuthorTgUsername — настоящий TG-ник автора без «@» (для ссылки t.me в мини-карточке
-	// профиля). Username выше может быть кастомным display_name из анкеты — по нему личку
-	// не открыть. Пусто, если у юзера нет публичного ника.
+	// AuthorTgUsername — настоящий TG-ник автора без «@». Фича «Написать в Telegram»
+	// выключена: поле в ленту больше не заполняем.
 	AuthorTgUsername string `json:"author_tg_username,omitempty"`
 	Type             string `json:"type"`
 	// Source — источник записи: "feed" (user_messages: тренировки/системные) или
@@ -217,7 +216,7 @@ func (b *Bot) PackFeedForViewer(viewerUserID int64, initD initdata.InitData, ini
 	if len(merged) > limit {
 		merged = merged[:limit]
 	}
-	merged = b.enrichPackFeedAuthorTgUsernames(merged, chatID)
+	// «Написать в Telegram» выключено: TG-ник в ленту не отдаём.
 	return merged, nil
 }
 
