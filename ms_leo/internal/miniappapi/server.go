@@ -167,6 +167,8 @@ func (s *Server) serve(w http.ResponseWriter, r *http.Request) {
 		s.handlePostAnalyticsEvent(w, r)
 	case path == "/api/miniapp/admin/overview" && r.Method == http.MethodPost:
 		s.handlePostAdminOverview(w, r)
+	case path == "/api/miniapp/admin/tracker-link" && r.Method == http.MethodPost:
+		s.handlePostAdminTrackerLink(w, r)
 	case path == "/api/miniapp/admin/support/inbox" && r.Method == http.MethodPost:
 		s.handlePostAdminSupportInbox(w, r)
 	case path == "/api/miniapp/admin/support/thread" && r.Method == http.MethodPost:

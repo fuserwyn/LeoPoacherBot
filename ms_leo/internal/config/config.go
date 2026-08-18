@@ -92,6 +92,12 @@ type Config struct {
 	QdrantAPIKey      string
 	QdrantCollection  string
 	RAGEmbeddingModel string
+
+	// Трекер задач в MyVibeLab: секрет подписи ссылки на доску, адрес сервиса и
+	// репозиторий, чья доска открыта (см. internal/bot/miniapp_tracker.go).
+	BoardSecret string
+	BoardURL    string
+	BoardRepo   string
 }
 
 func Load() (*Config, error) {
@@ -155,6 +161,9 @@ func Load() (*Config, error) {
 	return &Config{
 		APIToken:              apiToken,
 		OwnerID:               ownerID,
+		BoardSecret:           getEnv("BOARD_SSO_SECRET", ""),
+		BoardURL:              getEnv("MYVIBELAB_URL", "https://myvibelab-production.up.railway.app"),
+		BoardRepo:             getEnv("BOARD_REPO", "fuserwyn/Fat-Leopard"),
 		AdminIDs:              adminIDs,
 		AlphaTesterIDs:        alphaTesterIDs,
 		DatabaseURL:           getEnv("DATABASE_URL", "postgresql://postgres:password@localhost:5432/leo_bot_db?sslmode=disable"),

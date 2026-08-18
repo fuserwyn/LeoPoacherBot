@@ -135,6 +135,8 @@ export function adminErrorLabel(code?: string): string {
       return "Текст не прошёл модерацию";
     case "invalid_price":
       return "Цена должна быть от 1 до 100000 ₽";
+    case "tracker_not_configured":
+      return "Трекер не настроен: нет BOARD_SSO_SECRET";
     default:
       return code ?? "";
   }
@@ -142,6 +144,12 @@ export function adminErrorLabel(code?: string): string {
 
 export function fetchAdminOverview(initData: string) {
   return post<{ overview: AdminOverview }>("/api/miniapp/admin/overview", initData);
+}
+
+// Ссылка на доску трекера в MyVibeLab. Подписывает бэкенд, здесь только
+// открываем — секрет подписи в браузер не попадает.
+export function fetchAdminTrackerLink(initData: string) {
+  return post<{ link: string }>("/api/miniapp/admin/tracker-link", initData);
 }
 
 export function fetchAdminSupportInbox(initData: string) {
