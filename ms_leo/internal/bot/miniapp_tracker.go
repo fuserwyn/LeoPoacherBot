@@ -8,7 +8,9 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"mime/multipart"
 	"net/http"
+	"net/textproto"
 	"strings"
 	"time"
 
@@ -58,6 +60,92 @@ var trackerOps = map[string]trackerOp{
 	"sprint_ideas":    {http.MethodPost, "/api/scheduled/sprints/ideas", true},
 	"sprint_generate": {http.MethodPost, "/api/scheduled/sprints/generate", true},
 	"sprint_apply":    {http.MethodPost, "/api/scheduled/sprints/apply", true},
+}
+
+// MiniappTrackerAttach — приложить картинку к задаче.
+//
+// Трекер принимает файл только multipart-ом, а мини-апп отдаёт готовое
+// изображение из canvas (кроп + рисование) base64-строкой — собираем
+// multipart здесь, чтобы браузеру не нужно было знать про чужой протокол.
+func (b *Bot) MiniappTrackerAttach(
+	viewerUserID int64,
+	initD initdata.InitData,
+	taskID int64,
+	filename string,
+	mime string,
+	dataBase64 string,
+) (json.RawMessage, error) {
+	if _, err := b.requireMiniappAdmin(viewerUserID, initD); err != nil {
+		return nil, err
+	}
+	if taskID <= 0 {
+		return nil, ErrAdminActionInvalid
+	}
+	raw, err := base64.StdEncoding.DecodeString(strings.TrimSpace(dataBase64))
+	if err != nil {
+		return nil, fmt.Errorf("картинка не разобралась")
+	}
+	const maxBytes = 8 << 20
+	if len(raw) == 0 || len(raw) > maxBytes {
+		return nil, fmt.Errorf("картинка должна быть до 8 МБ")
+	}
+	if filename = strings.TrimSpace(filename); filename == "" {
+		filename = "photo.jpg"
+	}
+	if mime = strings.TrimSpace(mime); mime == "" {
+		mime = "image/jpeg"
+	}
+	session, err := b.trackerSession(viewerUserID, trackerViewerName(initD))
+	if err != nil {
+		return nil, err
+	}
+
+	body := &bytes.Buffer{}
+	writer := multipart.NewWriter(body)
+	header := make(textproto.MIMEHeader)
+	header.Set("Content-Disposition", fmt.Sprintf(`form-data; name="file"; filename=%q`, filename))
+	header.Set("Content-Type", mime)
+	part, err := writer.CreatePart(header)
+	if err != nil {
+		return nil, err
+	}
+	if _, err := part.Write(raw); err != nil {
+		return nil, err
+	}
+	if err := writer.Close(); err != nil {
+		return nil, err
+	}
+
+	url := fmt.Sprintf("%s/api/scheduled/%d/attachments", strings.TrimRight(b.config.BoardURL, "/"), taskID)
+	req, err := http.NewRequest(http.MethodPost, url, body)
+	if err != nil {
+		return nil, err
+	}
+	req.Header.Set("Cookie", "mvl_board="+session)
+	req.Header.Set("Content-Type", writer.FormDataContentType())
+	res, err := (&http.Client{Timeout: trackerTimeout}).Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("трекер недоступен: %w", err)
+	}
+	defer res.Body.Close()
+	out, err := io.ReadAll(io.LimitReader(res.Body, 1<<20))
+	if err != nil {
+		return nil, err
+	}
+	if res.StatusCode >= 400 {
+		var errBody struct {
+			Error string `json:"error"`
+		}
+		_ = json.Unmarshal(out, &errBody)
+		if strings.TrimSpace(errBody.Error) != "" {
+			return nil, fmt.Errorf("%s", errBody.Error)
+		}
+		return nil, fmt.Errorf("трекер ответил %d", res.StatusCode)
+	}
+	if len(bytes.TrimSpace(out)) == 0 {
+		out = []byte("{}")
+	}
+	return json.RawMessage(out), nil
 }
 
 // trackerSession — подписанная гостевая сессия MyVibeLab: тот же формат, что

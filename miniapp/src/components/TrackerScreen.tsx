@@ -3,6 +3,7 @@ import {
   sprintApply,
   sprintGenerate,
   sprintIdeas,
+  trackerAttachImage,
   trackerAutoQa,
   trackerCancel,
   trackerCreate,
@@ -16,6 +17,7 @@ import {
   type SprintIdea,
   type TrackerTask,
 } from "../lib/trackerApi";
+import { TaskImageEditor, type TaskImage } from "./TaskImageEditor";
 import "./TrackerScreen.css";
 
 type Props = {
@@ -41,9 +43,7 @@ const QA_COLS = [
 
 const WHEN_PRESETS = [
   { value: "через 1 мин", label: "Сейчас" },
-  { value: "через 1 час", label: "Через час" },
-  { value: "завтра 9:00", label: "Завтра в 9:00" },
-  { value: "каждый день 9:00", label: "Каждый день в 9:00" },
+  { value: "завтра 4:20", label: "Завтра в 4:20" },
   { value: "custom", label: "Дата и время…" },
 ];
 
@@ -102,6 +102,8 @@ export function TrackerScreen({ initData, showAlert }: Props) {
   const [prompt, setPrompt] = useState("");
   const [when, setWhen] = useState(WHEN_PRESETS[0].value);
   const [whenAt, setWhenAt] = useState("");
+  const [image, setImage] = useState<TaskImage | null>(null);
+  const [editorFor, setEditorFor] = useState<"new" | number | null>(null);
   const [detail, setDetail] = useState<TrackerTask | null>(null);
   const [moveAt, setMoveAt] = useState("");
 
@@ -172,6 +174,16 @@ export function TrackerScreen({ initData, showAlert }: Props) {
         when: when === "custom" ? whenFromPicker(whenAt) : when,
         prompt: text,
       });
+      if (image && res.id) {
+        // Картинку трекер принимает только к существующей задаче, поэтому
+        // прикладываем сразу после создания.
+        await trackerAttachImage(initData, res.id, {
+          data: image.data,
+          filename: image.filename,
+          mime: image.mime,
+        });
+      }
+      setImage(null);
       setPrompt("");
       showAlert(`Задача поставлена на ${res.when || "ближайший запуск"}.`);
       await load();
@@ -350,6 +362,14 @@ export function TrackerScreen({ initData, showAlert }: Props) {
                 onChange={(e) => setPrompt(e.target.value)}
                 placeholder="Что сделать? Например: в админке выгрузка отчёта по тренировкам за неделю"
               />
+              {image ? (
+                <div className="tracker__preview">
+                  <img src={image.preview} alt="" />
+                  <button type="button" onClick={() => setImage(null)} aria-label="Убрать картинку">
+                    ✕
+                  </button>
+                </div>
+              ) : null}
               <div className="tracker__new-row">
                 <select value={when} onChange={(e) => setWhen(e.target.value)}>
                   {WHEN_PRESETS.map((p) => (
@@ -366,6 +386,9 @@ export function TrackerScreen({ initData, showAlert }: Props) {
                     onChange={(e) => setWhenAt(e.target.value)}
                   />
                 ) : null}
+                <button type="button" className="tracker__attach" onClick={() => setEditorFor("new")}>
+                  {image ? "🖼 Заменить" : "🖼 Картинка"}
+                </button>
                 <button type="button" className="tracker__primary" disabled={busy} onClick={() => void createTask()}>
                   Поставить задачу
                 </button>
@@ -559,6 +582,9 @@ export function TrackerScreen({ initData, showAlert }: Props) {
             ) : null}
 
             <div className="tracker-modal__actions">
+              <button type="button" disabled={busy} onClick={() => setEditorFor(detail.id)}>
+                🖼 Картинка
+              </button>
               {detail.status === "canceled" ? (
                 <button
                   type="button"
@@ -623,6 +649,26 @@ export function TrackerScreen({ initData, showAlert }: Props) {
             </div>
           </div>
         </div>
+      ) : null}
+
+      {editorFor !== null ? (
+        <TaskImageEditor
+          onCancel={() => setEditorFor(null)}
+          onDone={(img) => {
+            const target = editorFor;
+            setEditorFor(null);
+            if (target === "new") {
+              setImage(img);
+              return;
+            }
+            if (typeof target === "number") {
+              void act(
+                () => trackerAttachImage(initData, target, { data: img.data, filename: img.filename, mime: img.mime }),
+                "Картинка приложена.",
+              );
+            }
+          }}
+        />
       ) : null}
     </div>
   );

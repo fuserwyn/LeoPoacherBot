@@ -1,0 +1,180 @@
+/* Редактор картинки для задачи: кадр, зум и рисование поверх. */
+
+.imged {
+  position: fixed;
+  inset: 0;
+  z-index: 70;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 10px;
+  background: rgba(0, 0, 0, 0.72);
+}
+
+.imged__box {
+  width: 100%;
+  max-width: 460px;
+  max-height: 92vh;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 14px;
+  border-radius: 16px;
+  border: 1px solid var(--border-subtle);
+  background: var(--bg-elevated);
+}
+
+.imged__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 15px;
+}
+
+.imged__close {
+  width: 30px;
+  height: 30px;
+  border-radius: 999px;
+  border: 1px solid var(--border-subtle);
+  background: transparent;
+  color: var(--muted);
+  font: inherit;
+  cursor: pointer;
+}
+
+.imged__pick {
+  display: block;
+  padding: 18px 12px;
+  border-radius: 12px;
+  border: 1px dashed var(--border-subtle);
+  background: var(--card-inner);
+  text-align: center;
+  font-size: 14px;
+  cursor: pointer;
+}
+
+.imged__pick input {
+  display: none;
+}
+
+.imged__canvas {
+  width: 100%;
+  aspect-ratio: 1 / 1;
+  border-radius: 12px;
+  border: 1px solid var(--border-subtle);
+  background: #000;
+  touch-action: none; /* иначе жест уводит страницу, а не кадр */
+}
+
+.imged__canvas.is-empty {
+  display: none;
+}
+
+.imged__canvas--draw {
+  cursor: crosshair;
+}
+
+.imged__canvas--move {
+  cursor: grab;
+}
+
+.imged__row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+}
+
+.imged__row button {
+  flex: 1 1 auto;
+  min-height: 34px;
+  padding: 6px 10px;
+  border-radius: 10px;
+  border: 1px solid var(--border-subtle);
+  background: var(--card-inner);
+  color: var(--text);
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.imged__row button.on {
+  color: var(--accent);
+  border-color: color-mix(in srgb, var(--accent) 45%, transparent);
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
+}
+
+.imged__row button:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+.imged__row--pens {
+  gap: 8px;
+}
+
+.imged__color {
+  flex: 0 0 auto !important;
+  width: 26px;
+  height: 26px;
+  min-height: 26px !important;
+  padding: 0 !important;
+  border-radius: 999px !important;
+  border: 2px solid transparent !important;
+}
+
+.imged__color.on {
+  border-color: var(--text) !important;
+}
+
+.imged__row--pens input[type="range"] {
+  flex: 1 1 90px;
+}
+
+.imged__zoom {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.imged__zoom input {
+  flex: 1;
+}
+
+.imged__hint {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.4;
+  color: var(--muted);
+}
+
+.imged__actions {
+  display: flex;
+  gap: 8px;
+}
+
+.imged__actions button {
+  flex: 1;
+  min-height: 40px;
+  border-radius: 10px;
+  border: 1px solid var(--border-subtle);
+  background: var(--card-inner);
+  color: var(--text);
+  font: inherit;
+  cursor: pointer;
+}
+
+.imged__primary {
+  border: 0 !important;
+  background: var(--accent) !important;
+  color: #fff !important;
+  font-weight: 600;
+}
+
+.imged__primary:disabled {
+  opacity: 0.5;
+  cursor: default;
+}

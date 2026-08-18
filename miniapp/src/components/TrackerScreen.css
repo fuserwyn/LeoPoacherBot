@@ -690,3 +690,48 @@
   color: var(--accent) !important;
   font-weight: 600;
 }
+
+/* Картинка к задаче: кнопка в форме и превью выбранного кадра. */
+.tracker__attach {
+  min-height: 36px;
+  padding: 8px 12px;
+  border-radius: 10px;
+  border: 1px solid var(--border-subtle);
+  background: var(--card-inner);
+  color: var(--text);
+  font: inherit;
+  cursor: pointer;
+}
+
+.tracker__preview {
+  position: relative;
+  width: 84px;
+  height: 84px;
+  margin-top: 8px;
+  border-radius: 10px;
+  overflow: hidden;
+  border: 1px solid var(--border-subtle);
+}
+
+.tracker__preview img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.tracker__preview button {
+  position: absolute;
+  top: 2px;
+  right: 2px;
+  width: 22px;
+  height: 22px;
+  border-radius: 999px;
+  border: 0;
+  background: rgba(0, 0, 0, 0.6);
+  color: #fff;
+  font: inherit;
+  font-size: 12px;
+  line-height: 1;
+  cursor: pointer;
+}

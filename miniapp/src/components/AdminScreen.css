@@ -427,3 +427,52 @@
   font-weight: 600;
   letter-spacing: 0.01em;
 }
+
+/* Подтверждение необратимого действия в карточке участника. */
+.admin__modal {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  background: rgba(0, 0, 0, 0.6);
+}
+
+.admin__modal-box {
+  width: 100%;
+  max-width: 380px;
+  padding: 18px;
+  border-radius: 16px;
+  border: 1px solid var(--border-subtle);
+  background: var(--bg-elevated);
+}
+
+.admin__modal-box h3 {
+  margin: 0 0 8px;
+  font-size: 16px;
+}
+
+.admin__modal-box p {
+  margin: 0 0 14px;
+  font-size: 13.5px;
+  line-height: 1.45;
+  color: var(--muted);
+}
+
+.admin__modal-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.admin__modal-actions button {
+  flex: 1;
+  min-height: 40px;
+  border-radius: 10px;
+  border: 1px solid var(--border-subtle);
+  background: var(--card-inner);
+  color: var(--text);
+  font: inherit;
+  cursor: pointer;
+}

@@ -157,6 +157,24 @@ export function trackerAutoQa(initData: string, taskId: number) {
   return call<{ ok: boolean }>(initData, "auto_qa", { payload: { id: taskId } });
 }
 
+/** Приложить картинку к задаче: base64 без префикса data:. */
+export async function trackerAttachImage(
+  initData: string,
+  taskId: number,
+  image: { data: string; filename: string; mime: string },
+): Promise<void> {
+  if (!api) throw new Error("API не настроен");
+  const res = await fetch(`${api}/api/miniapp/admin/tracker/attach`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ init_data: initData, task_id: taskId, ...image }),
+  });
+  const j = (await res.json().catch(() => ({}))) as { ok?: boolean; error?: string; message?: string };
+  if (!res.ok || j.ok === false) {
+    throw new Error(j.message || trackerErrorLabel(j.error) || `Ошибка ${res.status}`);
+  }
+}
+
 export function sprintIdeas(initData: string, hint: string) {
   return call<{ ideas: SprintIdea[]; recommended_id?: string; analysis?: string; topic_question?: string }>(
     initData,

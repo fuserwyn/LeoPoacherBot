@@ -668,6 +668,31 @@ func (s *Server) handlePostAdminWipe(w http.ResponseWriter, r *http.Request) {
 	s.writeAdminOK(w, map[string]any{"counts": counts, "done": true})
 }
 
+func (s *Server) handlePostAdminTrackerAttach(w http.ResponseWriter, r *http.Request) {
+	var body struct {
+		InitData string `json:"init_data"`
+		TaskID   int64  `json:"task_id"`
+		Filename string `json:"filename"`
+		Mime     string `json:"mime"`
+		Data     string `json:"data"`
+	}
+	corsWriteHeaders(w, r)
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		s.jsonErr(w, http.StatusBadRequest, "invalid_json")
+		return
+	}
+	parsed, ok := s.authMiniapp(w, body.InitData)
+	if !ok {
+		return
+	}
+	data, err := s.bot.MiniappTrackerAttach(parsed.User.ID, parsed, body.TaskID, body.Filename, body.Mime, body.Data)
+	if err != nil {
+		s.writeAdminErr(w, err)
+		return
+	}
+	s.writeAdminOK(w, map[string]any{"data": data})
+}
+
 func (s *Server) handlePostAdminDBTables(w http.ResponseWriter, r *http.Request) {
 	var body struct {
 		InitData string `json:"init_data"`

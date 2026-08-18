@@ -110,6 +110,10 @@ function hiddenKind(kind: string) {
 
 export function AdminScreen({ initData, inTelegram, showAlert, onClose }: Props) {
   const [page, setPage] = useState<Page>("home");
+  // Кик — единственное необратимое действие в карточке, поэтому подтверждаем
+  // его своей модалкой: нативный confirm Telegram на части клиентов молча
+  // не показывается, и участник улетал из стаи с одного тапа.
+  const [kickAsk, setKickAsk] = useState(false);
   const [tab, setTab] = useState<AdminTab>("community");
   const [overview, setOverview] = useState<AdminOverview>(EMPTY_OVERVIEW);
   const [loading, setLoading] = useState(true);
@@ -260,6 +264,21 @@ export function AdminScreen({ initData, inTelegram, showAlert, onClose }: Props)
     } catch (e) {
       showAlert(e instanceof Error ? e.message : "Пользователь не найден");
       setPage("users");
+    }
+  };
+
+  const runUserAction = async (action: AdminUserAction) => {
+    if (!card || busy) return;
+    setBusy(true);
+    try {
+      await sendAdminUserAction(initData, card.user_id, action);
+      const j = await fetchAdminUserCard(initData, card.user_id);
+      setCard(j.user);
+      void loadOverview();
+    } catch (e) {
+      showAlert(e instanceof Error ? e.message : "Не удалось выполнить действие");
+    } finally {
+      setBusy(false);
     }
   };
 
@@ -727,11 +746,18 @@ export function AdminScreen({ initData, inTelegram, showAlert, onClose }: Props)
       {page === "card" && card && (
         <div className="admin__body">
           <div className="admin__card">
-            <p className="admin__id">id {card.user_id}</p>
+            <p className="admin__id">
+              id {card.user_id}
+              {card.username ? ` · @${card.username.replace(/^@/, "")}` : " · ника нет"}
+            </p>
             <dl className="admin__dl">
               <div>
                 <dt>Кубки</dt>
                 <dd>{card.cups}</dd>
+              </div>
+              <div>
+                <dt>Тренировок</dt>
+                <dd>{card.workouts_total}</dd>
               </div>
               <div>
                 <dt>Уровень</dt>
@@ -803,11 +829,39 @@ export function AdminScreen({ initData, inTelegram, showAlert, onClose }: Props)
                 </button>
               </>
             ) : (
-              <button type="button" className="admin__btn admin__btn--danger" disabled={busy} onClick={() => void actUser("kick", "Удалить участника из стаи?")}>
+              <button type="button" className="admin__btn admin__btn--danger" disabled={busy} onClick={() => setKickAsk(true)}>
                 Удалить из стаи
               </button>
             )}
           </div>
+
+          {kickAsk ? (
+            <div className="admin__modal" role="dialog" aria-modal="true">
+              <div className="admin__modal-box">
+                <h3>Удалить из стаи?</h3>
+                <p>
+                  {userLabel(card.display_name, card.username, card.user_id)} потеряет доступ к ленте и чату. Кубки и
+                  стрик сохранятся — вернуть можно кнопкой «Вернуть с прогрессом».
+                </p>
+                <div className="admin__modal-actions">
+                  <button type="button" onClick={() => setKickAsk(false)}>
+                    Отмена
+                  </button>
+                  <button
+                    type="button"
+                    className="admin__btn--danger"
+                    disabled={busy}
+                    onClick={() => {
+                      setKickAsk(false);
+                      void runUserAction("kick");
+                    }}
+                  >
+                    Удалить
+                  </button>
+                </div>
+              </div>
+            </div>
+          ) : null}
         </div>
       )}
 
