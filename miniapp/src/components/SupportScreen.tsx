@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { formatChatTime } from "../lib/timeAgo";
 import "./ChatScreen.css";
 import "./SupportScreen.css";
@@ -81,7 +81,7 @@ export function SupportScreen({ initData, inTelegram, showAlert }: Props) {
   const didInitialScrollRef = useRef(false);
   const forceScrollRef = useRef(false);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     document.body.classList.add("body--lock");
     return () => {
       document.body.classList.remove("body--lock");

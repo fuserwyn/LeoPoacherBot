@@ -1511,13 +1511,21 @@ export function FeedScreen({
     [apiBase, initData, syncFeed, showAlert, hapticLight],
   );
 
+  const activeRef = useRef(active);
+  const syncFeedRef = useRef(syncFeed);
+  activeRef.current = active;
+  syncFeedRef.current = syncFeed;
+
+  // Полный сброс окна — только refreshToken (отчёт / явный рефреш). Смена вкладки
+  // и новая идентичность syncFeed не считаются ремаунтом: иначе «Загрузка…»
+  // сдвигает карточки, а reset схлопывает догруженные страницы.
   useEffect(() => {
     newestTsRef.current = "";
     oldestTsRef.current = "";
     loadedOnceRef.current = false;
     setHasMoreOlder(true);
-    if (active) void syncFeed({ full: true, reset: true });
-  }, [refreshToken, syncFeed, active]);
+    if (activeRef.current) void syncFeedRef.current({ full: true, reset: true });
+  }, [refreshToken]);
 
   useEffect(() => {
     if (!active || loadedOnceRef.current) return;

@@ -644,7 +644,13 @@ export function PackGroupChatPanel({
   }, [active]);
 
   // body--lock только пока открыта подвкладка «Чат» стаи.
-  useEffect(() => {
+  // Unlock в render / useLayoutEffect, чтобы restore скролла ленты не гонялся с #root padding.
+  const prevLockActiveRef = useRef(active);
+  if (prevLockActiveRef.current && !active) {
+    document.body.classList.remove("body--lock");
+  }
+  prevLockActiveRef.current = active;
+  useLayoutEffect(() => {
     if (!active) {
       document.body.classList.remove("body--lock");
       return;

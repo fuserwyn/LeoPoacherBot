@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState, type ChangeEvent } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState, type ChangeEvent } from "react";
 import { clearLeoPersonalInbox } from "../lib/leoPersonalInbox";
 import {
   createChatScrollScheduler,
@@ -148,7 +148,14 @@ export function ChatScreen({ name, initData, inTelegram, showAlert, onInboxOpene
 
   // iOS WebKit: при rubber-band-скролле документа каретка фокусированного position:fixed
   // инпута визуально уезжает вверх. Лочим body только пока вкладка «Лео» активна.
-  useEffect(() => {
+  // Снимаем lock в render / useLayoutEffect (не в useEffect), чтобы TabKeepAlive
+  // вернул scrollY ленты уже после unlock — иначе #root padding прыгает после restore.
+  const prevLockActiveRef = useRef(active);
+  if (prevLockActiveRef.current && !active) {
+    document.body.classList.remove("body--lock");
+  }
+  prevLockActiveRef.current = active;
+  useLayoutEffect(() => {
     if (!active) {
       document.body.classList.remove("body--lock");
       return;

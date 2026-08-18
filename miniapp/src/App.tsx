@@ -123,6 +123,7 @@ export function App() {
   const clearLeoBadge = useCallback(() => setLeoPending(0), []);
   const clearPackGroupBadge = useCallback(() => setPackGroupUnread(0), []);
   const clearFeedThreadBadge = useCallback(() => setFeedThreadUnread(0), []);
+  const onOptimisticConsumed = useCallback(() => setOptimisticFeedItem(null), []);
 
   // Сверяем открытые ачивки с тем, что пользователь уже видел (localStorage по user_id),
   // и ставим новые в очередь тостов. Первый запуск на устройстве — тихая базовая линия,
@@ -393,7 +394,7 @@ export function App() {
             showAlert={showAlert}
             refreshToken={feedRefreshToken}
             optimisticFeedItem={optimisticFeedItem}
-            onOptimisticConsumed={() => setOptimisticFeedItem(null)}
+            onOptimisticConsumed={onOptimisticConsumed}
             feedThreadUnreadCount={feedThreadUnread}
             onFeedThreadRead={clearFeedThreadBadge}
             onRefreshAll={async () => {

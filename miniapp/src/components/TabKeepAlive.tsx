@@ -26,7 +26,11 @@ export function TabKeepAlive({ active, hidden = false, className, children }: Pr
     const was = prevShowRef.current;
     prevShowRef.current = show;
     if (!was && show) {
-      applyScrollY(scrollYRef.current);
+      const y = scrollYRef.current;
+      applyScrollY(y);
+      // Chat/Support снимают body--lock позже в этом же commit (#root снова
+      // с padding-bottom). Повторяем restore в том же кадре, иначе список прыгает.
+      queueMicrotask(() => applyScrollY(y));
     }
   }, [show]);
 

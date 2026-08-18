@@ -1,5 +1,6 @@
 // @vitest-environment jsdom
 import { afterEach, describe, expect, it } from "vitest";
+import { useLayoutEffect } from "react";
 import { cleanup, render } from "@testing-library/react";
 import { TabKeepAlive } from "./TabKeepAlive";
 
@@ -101,5 +102,57 @@ describe("TabKeepAlive scroll restore", () => {
       </TabKeepAlive>,
     );
     expect(getByText("карточка")).toBeTruthy();
+  });
+
+  it("re-applies feed scroll after a sibling drops body--lock in useLayoutEffect", async () => {
+    const scroll = stubScroll(0);
+
+    function LockOnActive({ active }: { active: boolean }) {
+      useLayoutEffect(() => {
+        if (!active) {
+          document.body.classList.remove("body--lock");
+          // Как в WebView: unlock возвращает padding #root и сбрасывает scrollY.
+          window.scrollTo(0, 0);
+          return;
+        }
+        document.body.classList.add("body--lock");
+        return () => document.body.classList.remove("body--lock");
+      }, [active]);
+      return <div>чат</div>;
+    }
+
+    const { rerender } = render(
+      <>
+        <TabKeepAlive active>
+          <div>лента</div>
+        </TabKeepAlive>
+        <LockOnActive active={false} />
+      </>,
+    );
+
+    scroll.set(640);
+    rerender(
+      <>
+        <TabKeepAlive active={false}>
+          <div>лента</div>
+        </TabKeepAlive>
+        <LockOnActive active />
+      </>,
+    );
+    expect(document.body.classList.contains("body--lock")).toBe(true);
+
+    scroll.set(0);
+    rerender(
+      <>
+        <TabKeepAlive active>
+          <div>лента</div>
+        </TabKeepAlive>
+        <LockOnActive active={false} />
+      </>,
+    );
+
+    await Promise.resolve();
+    expect(document.body.classList.contains("body--lock")).toBe(false);
+    expect(scroll.get()).toBe(640);
   });
 });
