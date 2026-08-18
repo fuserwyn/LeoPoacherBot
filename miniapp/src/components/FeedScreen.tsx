@@ -29,6 +29,7 @@ import { clearPackGroupUnread } from "../lib/packGroupUnread";
 import { reportLeoCommentDisplayed } from "../lib/leoCommentDiag";
 import { formatLocalDateTime } from "../lib/timeAgo";
 import { streakStreakAriaLabel } from "../lib/streakLabel";
+import { applyScrollY, feedFilterEpoch } from "../lib/tabScrollRestore";
 import {
   sortWorkoutCategoryIds,
   trainingDoneMatchesAnyCategory,
@@ -294,6 +295,9 @@ export function FeedScreen({
   const [sentinelVisible, setSentinelVisible] = useState(false);
 
   const categoryFilterSet = useMemo(() => new Set(feedCategoryIds), [feedCategoryIds]);
+  const filterEpoch = feedFilterEpoch(feedScope, feedTypeFilter, feedCategoryIds);
+  const filterEpochRef = useRef(filterEpoch);
+  const [listSwapClass, setListSwapClass] = useState("");
 
   const feedWithOptimistic = useMemo(
     () => applyOptimisticFeedItem(feedItems, optimisticFeedItem),
@@ -360,6 +364,24 @@ export function FeedScreen({
     window.addEventListener("scroll", onScroll, { passive: true });
     return () => window.removeEventListener("scroll", onScroll);
   }, [catListOpen]);
+
+  // Смена фильтра: список не прыгает с середины страницы — до paint уходим наверх
+  // и кратко помечаем ленту, чтобы карточки не мерялись через content-visibility.
+  useLayoutEffect(() => {
+    if (filterEpochRef.current === filterEpoch) return;
+    filterEpochRef.current = filterEpoch;
+    applyScrollY(0);
+    setListSwapClass("feed__list--swap");
+  }, [filterEpoch]);
+
+  useEffect(() => {
+    if (!listSwapClass) return;
+    const reduced =
+      typeof window.matchMedia === "function" &&
+      window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    const id = window.setTimeout(() => setListSwapClass(""), reduced ? 0 : 220);
+    return () => window.clearTimeout(id);
+  }, [listSwapClass]);
 
   // «Все типы»: первый тап (когда выбраны типы) — сброс к «все типы»; повторный
   // тап (когда уже «все типы») — разворачивает вертикальный список всех типов.
@@ -1558,7 +1580,7 @@ export function FeedScreen({
       feedRoot.style.removeProperty("--feed-header-h");
       feedRoot.style.removeProperty("--feed-sticky-bottom");
     };
-  }, [sub, feedCategoryIds.length, feedScope]);
+  }, [sub, feedCategoryIds.length, feedScope, feedTypeFilter]);
 
   useEffect(() => {
     let raf = 0;
@@ -1670,6 +1692,7 @@ export function FeedScreen({
                   hapticLight();
                   setFeedTypeFilter("all");
                   setFeedScope("all");
+                  setCatListOpen(false);
                 }}
               >
                 Все
@@ -1709,14 +1732,24 @@ export function FeedScreen({
                 className={`feed__filter-pill feed__filter-pill--type${feedTypeFilter === "message" ? " is-active" : ""}`}
                 onClick={() => {
                   hapticLight();
-                  setFeedTypeFilter((p) => (p === "message" ? "all" : "message"));
+                  setFeedTypeFilter((p) => {
+                    const next = p === "message" ? "all" : "message";
+                    if (next === "message") setCatListOpen(false);
+                    return next;
+                  });
                 }}
               >
                 Сообщения
               </button>
             </div>
-            {feedTypeFilter !== "message" && (
-            <div className="feed__filter-cats-wrap">
+            <div
+              className={`feed__filter-cats-wrap${
+                feedTypeFilter === "message" ? " feed__filter-cats-wrap--collapsed" : ""
+              }`}
+              aria-hidden={feedTypeFilter === "message"}
+              {...(feedTypeFilter === "message" ? { inert: true as const } : {})}
+            >
+              <div className="feed__filter-cats-clip">
               <div className="feed__filter-cats" role="group" aria-label="Тип тренировки">
                 <div
                   role="button"
@@ -1766,6 +1799,7 @@ export function FeedScreen({
                     );
                   })}
               </div>
+              </div>
               {catListOpen && (
                 <div className="feed__cat-list" role="listbox" aria-label="Все типы тренировок">
                   <button
@@ -1811,7 +1845,6 @@ export function FeedScreen({
                 </div>
               )}
             </div>
-            )}
           </div>
         )}
         </div>
@@ -1863,7 +1896,7 @@ export function FeedScreen({
           </div>
           {err && <p className="feed__err">{err}</p>}
           {loading && <p className="feed__load muted">Загрузка…</p>}
-          <div className="feed__list">
+          <div className={`feed__list${listSwapClass ? ` ${listSwapClass}` : ""}`}>
             {!loading && !useMockFeed && feedItems.length === 0 && !err && (
               <p className="feed__empty muted">Пока нет отчётов в базе (или нет MONETIZED_CHAT_ID).</p>
             )}

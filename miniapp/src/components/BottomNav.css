@@ -8,7 +8,7 @@
   /* Две строки: сверху компоуз-поле, снизу — вкладки. */
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 0;
   padding: 8px 10px calc(6px + var(--safe-bottom, env(safe-area-inset-bottom, 0px)));
   background: var(--nav-bg);
   backdrop-filter: blur(16px);
@@ -24,10 +24,35 @@
   justify-content: space-around;
 }
 
-/* Отдельная строка компоуз-поля над таббаром. */
+/* Отдельная строка компоуз-поля над таббаром. Схлопываем без размонтирования,
+   чтобы высота таббара (и --bottom-nav-h) не прыгала при смене вкладки. */
 .bottom-nav__compose-row {
-  display: flex;
+  display: block;
   width: 100%;
+}
+
+.bottom-nav__compose-clip {
+  overflow: hidden;
+  max-height: 56px;
+  margin-bottom: 6px;
+  opacity: 1;
+  transition:
+    max-height var(--motion-med, 200ms) var(--motion-ease, ease),
+    margin-bottom var(--motion-med, 200ms) var(--motion-ease, ease),
+    opacity var(--motion-fast, 160ms) var(--motion-ease, ease);
+}
+
+.bottom-nav__compose-row--collapsed .bottom-nav__compose-clip {
+  max-height: 0;
+  margin-bottom: 0;
+  opacity: 0;
+  pointer-events: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .bottom-nav__compose-clip {
+    transition: none;
+  }
 }
 
 

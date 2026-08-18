@@ -1,4 +1,5 @@
-import type { ReactNode } from "react";
+import { useLayoutEffect, useRef, type ReactNode } from "react";
+import { applyScrollY, captureScrollY } from "../lib/tabScrollRestore";
 import "./TabKeepAlive.css";
 
 type Props = {
@@ -12,14 +13,26 @@ type Props = {
 /** Держит дочерний экран смонтированным; показывает только при active. */
 export function TabKeepAlive({ active, hidden = false, className, children }: Props) {
   const show = active && !hidden;
+  const scrollYRef = useRef(0);
+  const prevShowRef = useRef(show);
+
+  // Читаем scrollY в render, пока DOM ещё старый: после display:none документ
+  // схлопывается и браузер уже обрезал window.scrollY.
+  if (prevShowRef.current && !show) {
+    scrollYRef.current = captureScrollY();
+  }
+
+  useLayoutEffect(() => {
+    const was = prevShowRef.current;
+    prevShowRef.current = show;
+    if (!was && show) {
+      applyScrollY(scrollYRef.current);
+    }
+  }, [show]);
+
   return (
     <div
-      className={[
-        "tab-pane",
-        show ? "tab-pane--active" : "",
-        hidden ? "tab-pane--overlay-hidden" : "",
-        className,
-      ]
+      className={["tab-pane", show ? "tab-pane--active" : "", hidden ? "tab-pane--overlay-hidden" : "", className]
         .filter(Boolean)
         .join(" ")}
       aria-hidden={!show}

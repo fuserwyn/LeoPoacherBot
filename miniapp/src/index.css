@@ -53,6 +53,9 @@
   --radius-md: 16px;
   --radius-lg: 20px;
   --font: ui-sans-serif, -apple-system, "SF Pro Text", system-ui, "Segoe UI", Roboto, sans-serif;
+  --motion-fast: 160ms;
+  --motion-med: 200ms;
+  --motion-ease: cubic-bezier(0.22, 1, 0.36, 1);
   /* Telegram Bot API ≥ 8.0 в полноэкранном режиме отдаёт свои переменные с safe-area;
      env(safe-area-inset-*) — фоллбэк для iOS WebView и обычного режима. */
   --safe-bottom: max(env(safe-area-inset-bottom, 0px), var(--tg-safe-area-inset-bottom, 0px), var(--tg-content-safe-area-inset-bottom, 0px));

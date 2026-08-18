@@ -103,8 +103,12 @@ export function BottomNav({
     <nav ref={navRef} className="bottom-nav" role="navigation" aria-label="Основное меню">
       {/* Компоуз-поле вынесено отдельной строкой НАД таббаром: текст → сообщение
           в ленту, «+» → форма тренировки. Скрыто на экране тренировки/поддержки. */}
-      {showCompose ? (
-        <div className="bottom-nav__compose-row">
+      <div
+        className={`bottom-nav__compose-row${showCompose ? "" : " bottom-nav__compose-row--collapsed"}`}
+        aria-hidden={!showCompose}
+        {...(!showCompose ? { inert: true as const } : {})}
+      >
+        <div className="bottom-nav__compose-clip">
           <form
             className="bottom-nav__compose"
             onSubmit={(e) => {
@@ -117,7 +121,7 @@ export function BottomNav({
               type="file"
               accept="image/*"
               className="bottom-nav__compose-file"
-              disabled={sending}
+              disabled={sending || !showCompose}
               onChange={(e) => {
                 const f = e.target.files?.[0] ?? null;
                 if (f) setPhoto(f);
@@ -127,7 +131,7 @@ export function BottomNav({
             <button
               type="button"
               className={`bottom-nav__compose-attach${photo ? " bottom-nav__compose-attach--on" : ""}`}
-              disabled={sending}
+              disabled={sending || !showCompose}
               onClick={() => photoInputRef.current?.click()}
               aria-label={photo ? "Заменить фото из галереи" : "Прикрепить фото из галереи"}
               title={photo ? "Заменить фото из галереи" : "Прикрепить фото из галереи"}
@@ -136,7 +140,7 @@ export function BottomNav({
             </button>
             <CameraButton
               className="bottom-nav__compose-attach"
-              disabled={sending}
+              disabled={sending || !showCompose}
               onChange={(e) => {
                 const f = e.target.files?.[0] ?? null;
                 if (f) setPhoto(f);
@@ -167,12 +171,12 @@ export function BottomNav({
               maxLength={4000}
               autoComplete="off"
               enterKeyHint="send"
-              disabled={sending}
+              disabled={sending || !showCompose}
             />
             <button
               type="submit"
               className="bottom-nav__compose-send"
-              disabled={sending || (!msg.trim() && !photo)}
+              disabled={sending || !showCompose || (!msg.trim() && !photo)}
               aria-label="Отправить сообщение в ленту"
               title="Отправить в ленту"
             >
@@ -180,7 +184,7 @@ export function BottomNav({
             </button>
           </form>
         </div>
-      ) : null}
+      </div>
       <div className="bottom-nav__tabs">
       <button
         type="button"

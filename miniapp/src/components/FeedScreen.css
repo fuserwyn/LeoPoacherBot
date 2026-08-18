@@ -24,6 +24,7 @@
   box-sizing: border-box;
   pointer-events: none;
   border-bottom: 1px solid var(--border-subtle);
+  overflow: visible;
 }
 
 .feed__sticky::before {
@@ -202,6 +203,10 @@
   align-items: center;
   -webkit-tap-highlight-color: transparent;
   touch-action: manipulation;
+  transition:
+    background-color var(--motion-fast, 160ms) var(--motion-ease, ease),
+    color var(--motion-fast, 160ms) var(--motion-ease, ease),
+    border-color var(--motion-fast, 160ms) var(--motion-ease, ease);
 }
 
 .feed__filter-pill.is-active {
@@ -224,6 +229,22 @@
 
 .feed__filter-cats-wrap {
   position: relative;
+}
+
+/* Ряд типов не размонтируем: схлопываем высоту, чтобы padding ленты не прыгал. */
+.feed__filter-cats-clip {
+  overflow: hidden;
+  max-height: 56px;
+  opacity: 1;
+  transition:
+    max-height var(--motion-med, 200ms) var(--motion-ease, ease),
+    opacity var(--motion-fast, 160ms) var(--motion-ease, ease);
+}
+
+.feed__filter-cats-wrap--collapsed .feed__filter-cats-clip {
+  max-height: 0;
+  opacity: 0;
+  pointer-events: none;
 }
 
 .feed__filter-cats-wrap::after {
@@ -274,6 +295,10 @@
   min-height: 40px;
   touch-action: manipulation;
   -webkit-tap-highlight-color: transparent;
+  transition:
+    background-color var(--motion-fast, 160ms) var(--motion-ease, ease),
+    color var(--motion-fast, 160ms) var(--motion-ease, ease),
+    border-color var(--motion-fast, 160ms) var(--motion-ease, ease);
 }
 
 .feed__filter-chip.is-active {
@@ -301,19 +326,24 @@
 .feed__filter-chip-caret {
   font-size: 0.6rem;
   line-height: 1;
-  transition: transform 0.15s ease;
+  transition: transform var(--motion-fast, 160ms) var(--motion-ease, ease);
 }
 
 .feed__filter-chip--all.is-open .feed__filter-chip-caret {
   transform: rotate(180deg);
 }
 
-/* Вертикальный список всех типов (открывается повторным тапом по «Все типы»). */
+/* Вертикальный список всех типов — оверлей, не двигает --feed-header-h и ленту. */
 .feed__cat-list {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: calc(100% + 4px);
+  z-index: 20;
   display: flex;
   flex-direction: column;
   gap: 2px;
-  margin-top: 6px;
+  margin-top: 0;
   padding: 4px;
   max-height: 46vh;
   overflow-y: auto;
@@ -322,6 +352,17 @@
   border: 1px solid var(--border-subtle);
   border-radius: 12px;
   background: var(--card-inner);
+  box-shadow: var(--shadow-pop, 0 10px 28px rgba(0, 0, 0, 0.45));
+  animation: feed-cat-list-in var(--motion-fast, 160ms) var(--motion-ease, ease);
+}
+
+@keyframes feed-cat-list-in {
+  from {
+    opacity: 0.55;
+  }
+  to {
+    opacity: 1;
+  }
 }
 
 .feed__cat-list-item {
@@ -341,6 +382,10 @@
   text-align: left;
   cursor: pointer;
   -webkit-tap-highlight-color: transparent;
+  transition:
+    background-color var(--motion-fast, 160ms) var(--motion-ease, ease),
+    border-color var(--motion-fast, 160ms) var(--motion-ease, ease),
+    color var(--motion-fast, 160ms) var(--motion-ease, ease);
 }
 
 .feed__cat-list-item:active {
@@ -420,6 +465,22 @@
   overflow-x: clip;
   overflow-anchor: none;
   padding-bottom: calc(var(--feed-bottom-nav-h, 88px) + var(--safe-bottom, 0px) + 14px);
+}
+
+/* Смена фильтра: без translate (он сдвигает карточки), только opacity.
+   content-visibility выключаем, чтобы слоты не прыгали с estimated height. */
+.feed__list--swap .feed__card-slot {
+  content-visibility: visible;
+  animation: feed-card-swap-in var(--motion-med, 200ms) var(--motion-ease, ease) both;
+}
+
+@keyframes feed-card-swap-in {
+  from {
+    opacity: 0.45;
+  }
+  to {
+    opacity: 1;
+  }
 }
 
 /* Pull-to-refresh: только при оттяге, сразу под fixed-шапкой, перед «Тренировки стаи». */
@@ -669,7 +730,16 @@
 
 @media (prefers-reduced-motion: reduce) {
   .feed__refresh-btn.is-refreshing .feed__refresh-ico,
-  .feed__ptr--refreshing .feed__ptr-icon {
+  .feed__ptr--refreshing .feed__ptr-icon,
+  .feed__list--swap .feed__card-slot,
+  .feed__cat-list {
     animation: none;
+  }
+  .feed__filter-pill,
+  .feed__filter-chip,
+  .feed__filter-chip-caret,
+  .feed__filter-cats-clip,
+  .feed__cat-list-item {
+    transition: none;
   }
 }
