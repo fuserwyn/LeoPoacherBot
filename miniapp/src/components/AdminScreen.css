@@ -1,8 +1,17 @@
-.admin {
+/* Затемнение под шторкой — тап закрывает админку. */
+.admin-backdrop {
   position: fixed;
-  top: var(--safe-top, 0px);
-  /* Пользовательского таббара в админке нет — занимаем экран до низа, иначе
-     под экраном остаётся полоса фона, а содержимое обрезается. */
+  inset: 0;
+  z-index: 19;
+  background: rgba(0, 0, 0, 0.5);
+  animation: adminFade 0.2s ease-out;
+}
+
+.admin {
+  /* Шторка, не полноэкранная страница: зазор сверху, скругление, грабер и ✕.
+     Выход — свайп вниз или крестик справа в шапке. */
+  position: fixed;
+  top: calc(var(--safe-top, 0px) + 44px);
   bottom: 0;
   left: 0;
   right: 0;
@@ -12,30 +21,82 @@
   margin: 0 auto;
   background: var(--bg);
   z-index: 20;
+  overflow: hidden;
+  border-radius: 20px 20px 0 0;
+  box-shadow: 0 -10px 34px rgba(0, 0, 0, 0.4);
+  animation: adminSheetUp 0.2s ease-out;
+}
+
+.admin__grabber {
+  flex: 0 0 auto;
+  width: 40px;
+  height: 4px;
+  margin: 8px auto 2px;
+  border-radius: 2px;
+  background: var(--border-subtle, #2a2a36);
+}
+
+@keyframes adminSheetUp {
+  from {
+    transform: translateY(24px);
+    opacity: 0.4;
+  }
+  to {
+    transform: none;
+    opacity: 1;
+  }
+}
+
+@keyframes adminFade {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .admin,
+  .admin-backdrop {
+    animation: none;
+  }
 }
 
 .admin__head {
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 10px 12px 8px;
+  padding: 6px 12px 8px;
   border-bottom: 1px solid var(--border-subtle);
 }
 
 .admin__back,
-.admin__head-spacer {
+.admin__head-spacer,
+.admin__close {
   width: 36px;
   height: 36px;
   flex-shrink: 0;
 }
 
-.admin__back {
+.admin__back,
+.admin__close {
   border: 0;
   border-radius: 50%;
   background: var(--card-inner);
   color: var(--text);
   font-size: 18px;
   cursor: pointer;
+}
+
+.admin__close {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--muted, #8b8b9a);
+  font-size: 16px;
+  font-weight: 600;
+  border: 1px solid var(--border-subtle);
 }
 
 .admin__title {
@@ -385,8 +446,7 @@
 }
 
 /* Админский таббар. Пользовательские вкладки (Стая/Лео/Правила/Профиль) в
-   админке не нужны — здесь свои разделы, и уходить из админки надо через
-   стрелку в шапке. */
+   админке не нужны — здесь свои разделы. Выход — свайп шторки вниз или ✕. */
 .admin__tabs {
   flex: none;
   display: grid;

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { formatChatTime, timeAgoFromISO } from "../lib/timeAgo";
 import { tgConfirm } from "../lib/tgConfirm";
 import {
@@ -113,6 +113,15 @@ function hiddenKind(kind: string) {
 }
 
 export function AdminScreen({ initData, inTelegram, showAlert, onClose }: Props) {
+  const sheetRef = useRef<HTMLDivElement>(null);
+  const onCloseRef = useRef(onClose);
+  onCloseRef.current = onClose;
+  const closeSheet = useCallback(() => {
+    const el = document.activeElement;
+    if (el instanceof HTMLElement) el.blur();
+    onCloseRef.current();
+  }, []);
+
   const [page, setPage] = useState<Page>("home");
   // Кик — единственное необратимое действие в карточке, поэтому подтверждаем
   // его своей модалкой: нативный confirm Telegram на части клиентов молча
@@ -456,12 +465,80 @@ export function AdminScreen({ initData, inTelegram, showAlert, onClose }: Props)
       setPage("users");
       return;
     }
-    if (page === "home") {
-      onClose();
-      return;
-    }
     setPage("home");
   };
+
+  // Свайп шторки вниз = выйти из админки (как у тренировки). Тянуть можно за
+  // грабер/шапку или за тело, когда скролл у самого верха. Из полей ввода и
+  // внутренних модалок жест не начинаем.
+  useEffect(() => {
+    const sheet = sheetRef.current;
+    if (!sheet) return;
+    let startY = 0;
+    let dy = 0;
+    let tracking = false;
+    let dragging = false;
+    const onStart = (e: TouchEvent) => {
+      const t = e.touches[0];
+      if (!t) return;
+      const target = e.target as HTMLElement | null;
+      if (target?.closest("textarea, input, select, [contenteditable='true']")) return;
+      if (target?.closest(".admin__modal, .tracker-modal")) return;
+      let el: HTMLElement | null = target;
+      while (el && el !== sheet) {
+        const oy = window.getComputedStyle(el).overflowY;
+        if ((oy === "auto" || oy === "scroll") && el.scrollTop > 1) return;
+        el = el.parentElement;
+      }
+      startY = t.clientY;
+      dy = 0;
+      dragging = false;
+      tracking = true;
+    };
+    const onMove = (e: TouchEvent) => {
+      if (!tracking) return;
+      const t = e.touches[0];
+      if (!t) return;
+      dy = t.clientY - startY;
+      if (!dragging) {
+        if (dy > 14) {
+          dragging = true;
+          sheet.style.transition = "none";
+        } else {
+          if (dy < -8) tracking = false;
+          return;
+        }
+      }
+      e.preventDefault();
+      sheet.style.transform = `translateY(${Math.max(0, dy)}px)`;
+    };
+    const onEnd = () => {
+      if (!tracking) return;
+      tracking = false;
+      if (!dragging) return;
+      dragging = false;
+      if (dy > 96) {
+        const active = document.activeElement;
+        if (active instanceof HTMLElement) active.blur();
+        sheet.style.transition = "transform 0.18s ease-in";
+        sheet.style.transform = "translateY(105%)";
+        window.setTimeout(() => onCloseRef.current(), 170);
+      } else {
+        sheet.style.transition = "transform 0.18s ease-out";
+        sheet.style.transform = "";
+      }
+    };
+    sheet.addEventListener("touchstart", onStart, { passive: true });
+    sheet.addEventListener("touchmove", onMove, { passive: false });
+    sheet.addEventListener("touchend", onEnd);
+    sheet.addEventListener("touchcancel", onEnd);
+    return () => {
+      sheet.removeEventListener("touchstart", onStart);
+      sheet.removeEventListener("touchmove", onMove);
+      sheet.removeEventListener("touchend", onEnd);
+      sheet.removeEventListener("touchcancel", onEnd);
+    };
+  }, []);
 
   const title =
     page === "home"
@@ -499,13 +576,22 @@ export function AdminScreen({ initData, inTelegram, showAlert, onClose }: Props)
                                     : "Объявление";
 
   return (
-    <div className="admin">
+    <>
+      <div className="admin-backdrop" aria-hidden="true" onClick={closeSheet} />
+      <div ref={sheetRef} className="admin" role="dialog" aria-modal="true" aria-label="Админка">
+      <div className="admin__grabber" aria-hidden="true" />
       <header className="admin__head">
-        <button type="button" className="admin__back" onClick={back}>
-          ←
-        </button>
+        {page === "home" ? (
+          <span className="admin__head-spacer" />
+        ) : (
+          <button type="button" className="admin__back" onClick={back} aria-label="Назад">
+            ←
+          </button>
+        )}
         <h1 className="admin__title">{title}</h1>
-        <span className="admin__head-spacer" />
+        <button type="button" className="admin__close" onClick={closeSheet} aria-label="Закрыть">
+          ✕
+        </button>
       </header>
 
       {page === "home" && tab === "community" && (
@@ -1104,7 +1190,8 @@ export function AdminScreen({ initData, inTelegram, showAlert, onClose }: Props)
           </button>
         ))}
       </nav>
-    </div>
+      </div>
+    </>
   );
 }
 

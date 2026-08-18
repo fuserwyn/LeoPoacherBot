@@ -365,7 +365,8 @@ export function App() {
   );
 
   const effectiveName = profileDisplayName.trim() || name.trim() || "друг";
-  const tabsVisible = !supportOpen && !workoutOpen && !adminOpen;
+  // Админка — шторка поверх приложения, профиль остаётся виден в зазоре сверху.
+  const tabsVisible = !supportOpen && !workoutOpen;
 
   if (accessGateStatus === "checking") {
     return <div className="app" />;
@@ -484,7 +485,7 @@ export function App() {
         />
       ) : null}
 
-      {/* В админке свой таббар (AdminScreen): пользовательские вкладки там лишние. */}
+      {/* В админке свой таббар внутри шторки: пользовательские вкладки там лишние. */}
       {adminOpen ? null : (
       <BottomNav
         active={tab}
