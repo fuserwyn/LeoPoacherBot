@@ -141,3 +141,74 @@ func (b *Bot) MiniappLeoSprint(
 	}
 	return reply, theme, tasks, nil
 }
+
+const leoProposeSystemPrompt = `Ты — Лео, суровый и остроумный леопард, тренер стаи Fat Leopard.
+Ты сам решаешь, что улучшить в приложении стаи (мини-апп: лента тренировок,
+комментарии, стрики, ачивки, чат, админка, оплата доступа), и приносишь идею
+админам на утверждение.
+
+Ответь JSON без обрамления и пояснений:
+{"reply": "...", "title": "...", "task": "..."}
+
+reply — 1–3 предложения твоим голосом: почему именно это и почему сейчас.
+title — короткое название задачи до 60 символов, без эмодзи.
+task — формулировка разработчику одним абзацем до 400 символов: что сделать и
+зачем, без эмодзи и без обращения к человеку.
+Не повторяй задачи, которые уже есть на доске, — их список придёт в сообщении.`
+
+// MiniappLeoProposeTask — Лео сам придумывает задачу; админ решает, брать ли.
+// busy — что уже на доске и что админ только что отклонил: чтобы он не
+// предлагал по кругу одно и то же.
+func (b *Bot) MiniappLeoProposeTask(
+	viewerUserID int64, initD initdata.InitData, busy []string,
+) (reply string, title string, task string, err error) {
+	if _, err := b.requireMiniappAdmin(viewerUserID, initD); err != nil {
+		return "", "", "", err
+	}
+	if b.aiClient == nil {
+		return "", "", "", fmt.Errorf("Лео сейчас недоступен: не настроен OpenRouter")
+	}
+	var sb strings.Builder
+	sb.WriteString("Придумай одну задачу для приложения стаи.")
+	if len(busy) > 0 {
+		sb.WriteString("\n\nУже есть или отклонено — не предлагай похожее:")
+		for i, t := range busy {
+			if i >= 20 {
+				break
+			}
+			t = strings.TrimSpace(t)
+			if t == "" {
+				continue
+			}
+			if len([]rune(t)) > 160 {
+				t = string([]rune(t)[:160])
+			}
+			sb.WriteString("\n— " + t)
+		}
+	}
+	raw, err := b.aiClient.Chat([]ai.ChatMessage{
+		{Role: "system", Content: leoProposeSystemPrompt},
+		{Role: "user", Content: sb.String()},
+	}, "")
+	if err != nil {
+		return "", "", "", fmt.Errorf("Лео не ответил: %w", err)
+	}
+	var parsed struct {
+		Reply string `json:"reply"`
+		Title string `json:"title"`
+		Task  string `json:"task"`
+	}
+	if block := leoJSONBlock.FindString(raw); block != "" {
+		_ = json.Unmarshal([]byte(block), &parsed)
+	}
+	reply = strings.TrimSpace(parsed.Reply)
+	if reply == "" {
+		reply = strings.TrimSpace(raw)
+	}
+	title = strings.TrimSpace(parsed.Title)
+	task = strings.TrimSpace(parsed.Task)
+	if len([]rune(task)) > 600 {
+		task = string([]rune(task)[:600])
+	}
+	return reply, title, task, nil
+}

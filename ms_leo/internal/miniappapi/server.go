@@ -177,6 +177,8 @@ func (s *Server) serve(w http.ResponseWriter, r *http.Request) {
 		s.handlePostAdminAskLeo(w, r)
 	case path == "/api/miniapp/admin/tracker/leo-sprint" && r.Method == http.MethodPost:
 		s.handlePostAdminLeoSprint(w, r)
+	case path == "/api/miniapp/admin/tracker/leo-propose" && r.Method == http.MethodPost:
+		s.handlePostAdminLeoPropose(w, r)
 	case path == "/api/miniapp/admin/leo-lab" && r.Method == http.MethodPost:
 		s.handlePostAdminLeoLab(w, r)
 	case path == "/api/miniapp/admin/analytics" && r.Method == http.MethodPost:

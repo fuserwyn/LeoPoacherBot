@@ -719,6 +719,28 @@ func (s *Server) handlePostAdminLeoLab(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+func (s *Server) handlePostAdminLeoPropose(w http.ResponseWriter, r *http.Request) {
+	var body struct {
+		InitData string   `json:"init_data"`
+		Busy     []string `json:"busy"`
+	}
+	corsWriteHeaders(w, r)
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		s.jsonErr(w, http.StatusBadRequest, "invalid_json")
+		return
+	}
+	parsed, ok := s.authMiniapp(w, body.InitData)
+	if !ok {
+		return
+	}
+	reply, title, task, err := s.bot.MiniappLeoProposeTask(parsed.User.ID, parsed, body.Busy)
+	if err != nil {
+		s.writeAdminErr(w, err)
+		return
+	}
+	s.writeAdminOK(w, map[string]any{"reply": reply, "title": title, "task": task})
+}
+
 func (s *Server) handlePostAdminLeoSprint(w http.ResponseWriter, r *http.Request) {
 	var body struct {
 		InitData string `json:"init_data"`

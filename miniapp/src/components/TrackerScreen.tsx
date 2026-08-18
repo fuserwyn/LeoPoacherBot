@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   askLeoTask,
+  leoProposeTask,
   leoSprint,
   sprintApply,
   sprintGenerate,
@@ -120,6 +121,10 @@ export function TrackerScreen({ initData, showAlert }: Props) {
   const [leoReply, setLeoReply] = useState("");
   const [leoTask, setLeoTask] = useState("");
   const [leoBusy, setLeoBusy] = useState(false);
+  /** Задача от Лео на утверждении: он предлагает — админ решает. */
+  const [proposal, setProposal] = useState<{ reply: string; title: string; task: string } | null>(null);
+  const [rejected, setRejected] = useState<string[]>([]);
+  const [proposeBusy, setProposeBusy] = useState(false);
   const [editorFor, setEditorFor] = useState<"new" | number | null>(null);
   const [detail, setDetail] = useState<TrackerTask | null>(null);
   const [moveAt, setMoveAt] = useState("");
@@ -193,7 +198,11 @@ export function TrackerScreen({ initData, showAlert }: Props) {
   ).length;
 
   const createTask = async () => {
-    const text = prompt.trim();
+    await createTaskWith(prompt.trim());
+  };
+
+  const createTaskWith = async (raw: string) => {
+    const text = raw.trim();
     if (!text) {
       showAlert("Опиши задачу.");
       return;
@@ -245,6 +254,32 @@ export function TrackerScreen({ initData, showAlert }: Props) {
     } finally {
       setLeoBusy(false);
     }
+  };
+
+  // Лео сам придумывает задачу. Чтобы не ходил по кругу, отдаём ему то, что
+  // уже на доске, и то, что админ только что отклонил.
+  const proposeFromLeo = async (extraReject?: string) => {
+    setProposeBusy(true);
+    try {
+      const busy = [
+        ...tasks.slice(0, 12).map((t) => parsePrompt(t.prompt).text.slice(0, 160)),
+        ...rejected,
+        ...(extraReject ? [extraReject] : []),
+      ];
+      const j = await leoProposeTask(initData, busy);
+      setProposal(j);
+    } catch (e) {
+      showAlert(e instanceof Error ? e.message : "Лео промолчал");
+    } finally {
+      setProposeBusy(false);
+    }
+  };
+
+  const approveProposal = async () => {
+    if (!proposal?.task) return;
+    setPrompt(proposal.task);
+    setProposal(null);
+    await createTaskWith(proposal.task);
   };
 
   const openTask = async (task: TrackerTask) => {
@@ -491,6 +526,55 @@ export function TrackerScreen({ initData, showAlert }: Props) {
             Задачу выполняет агент MyVibeLab в проекте Fat-Leopard: опиши, что сделать, когда запускать и приложи
             картинку, если так понятнее.
           </p>
+
+          <div className="tracker__leo">
+            <div className="tracker__leo-head">
+              <span aria-hidden>🐆</span>
+              <b>Задача от Лео</b>
+            </div>
+            <p className="tracker__hint">
+              Лео сам смотрит на приложение и приносит идею. Ты решаешь: берём в работу или пусть думает дальше.
+            </p>
+            {proposal ? (
+              <>
+                <p className="tracker__leo-reply">{proposal.reply}</p>
+                {proposal.title ? <p className="tracker__leo-title">{proposal.title}</p> : null}
+                <p className="tracker__leo-task">{proposal.task}</p>
+                <div className="tracker__new-row">
+                  <button
+                    type="button"
+                    className="tracker__primary"
+                    disabled={busy || proposeBusy || !proposal.task}
+                    onClick={() => void approveProposal()}
+                  >
+                    Одобрить и поставить
+                  </button>
+                  <button
+                    type="button"
+                    className="tracker__attach"
+                    disabled={proposeBusy}
+                    onClick={() => {
+                      const reject = proposal.title || proposal.task;
+                      setRejected((prev) => [...prev, reject].slice(-10));
+                      setProposal(null);
+                      void proposeFromLeo(reject);
+                    }}
+                  >
+                    Не то, давай другую
+                  </button>
+                </div>
+              </>
+            ) : (
+              <button
+                type="button"
+                className="tracker__attach"
+                disabled={proposeBusy}
+                onClick={() => void proposeFromLeo()}
+              >
+                {proposeBusy ? "Лео придумывает…" : "Пусть Лео придумает"}
+              </button>
+            )}
+          </div>
 
           <div className="tracker__leo">
             <div className="tracker__leo-head">

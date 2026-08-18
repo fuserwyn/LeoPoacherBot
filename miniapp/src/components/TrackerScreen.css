@@ -831,3 +831,9 @@
   color: var(--muted);
   white-space: pre-wrap;
 }
+
+.tracker__leo-title {
+  margin: 8px 0 0;
+  font-size: 14px;
+  font-weight: 600;
+}

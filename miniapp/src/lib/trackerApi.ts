@@ -199,6 +199,31 @@ export async function askLeoTask(
   return { reply: j.reply ?? "", task: j.task ?? "" };
 }
 
+/** Лео сам придумывает задачу; busy — что уже на доске и что отклонили. */
+export async function leoProposeTask(
+  initData: string,
+  busy: string[],
+): Promise<{ reply: string; title: string; task: string }> {
+  if (!api) throw new Error("API не настроен");
+  const res = await fetch(`${api}/api/miniapp/admin/tracker/leo-propose`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ init_data: initData, busy }),
+  });
+  const j = (await res.json().catch(() => ({}))) as {
+    ok?: boolean;
+    reply?: string;
+    title?: string;
+    task?: string;
+    error?: string;
+    message?: string;
+  };
+  if (!res.ok || j.ok === false) {
+    throw new Error(j.message || trackerErrorLabel(j.error) || `Ошибка ${res.status}`);
+  }
+  return { reply: j.reply ?? "", title: j.title ?? "", task: j.task ?? "" };
+}
+
 /** Спринт глазами Лео: реплика, тема и набор задач. */
 export async function leoSprint(
   initData: string,
