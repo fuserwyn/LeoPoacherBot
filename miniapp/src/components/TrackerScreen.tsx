@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
-  askLeoTask,
   leoProposeTask,
   leoSprint,
   sprintApply,
@@ -117,10 +116,8 @@ export function TrackerScreen({ initData, showAlert }: Props) {
   const [when, setWhen] = useState(WHEN_PRESETS[0].value);
   const [whenAt, setWhenAt] = useState("");
   const [image, setImage] = useState<TaskImage | null>(null);
-  const [leoQuestion, setLeoQuestion] = useState("");
-  const [leoReply, setLeoReply] = useState("");
-  const [leoTask, setLeoTask] = useState("");
-  const [leoBusy, setLeoBusy] = useState(false);
+  /** Тема для Лео; пусто — придумывает сам. */
+  const [leoTopic, setLeoTopic] = useState("");
   /** Задача от Лео на утверждении: он предлагает — админ решает. */
   const [proposal, setProposal] = useState<{ reply: string; title: string; task: string } | null>(null);
   const [rejected, setRejected] = useState<string[]>([]);
@@ -237,25 +234,6 @@ export function TrackerScreen({ initData, showAlert }: Props) {
     }
   };
 
-  // «Спросить Леопарда»: тот же Лео, что и в чате, только формулирует задачу.
-  const askLeo = async () => {
-    const q = leoQuestion.trim();
-    if (!q) {
-      showAlert("Спроси что-нибудь у Лео.");
-      return;
-    }
-    setLeoBusy(true);
-    try {
-      const j = await askLeoTask(initData, q);
-      setLeoReply(j.reply);
-      setLeoTask(j.task);
-    } catch (e) {
-      showAlert(e instanceof Error ? e.message : "Лео промолчал");
-    } finally {
-      setLeoBusy(false);
-    }
-  };
-
   // Лео сам придумывает задачу. Чтобы не ходил по кругу, отдаём ему то, что
   // уже на доске, и то, что админ только что отклонил.
   const proposeFromLeo = async (extraReject?: string) => {
@@ -266,7 +244,7 @@ export function TrackerScreen({ initData, showAlert }: Props) {
         ...rejected,
         ...(extraReject ? [extraReject] : []),
       ];
-      const j = await leoProposeTask(initData, busy);
+      const j = await leoProposeTask(initData, leoTopic.trim(), busy);
       setProposal(j);
     } catch (e) {
       showAlert(e instanceof Error ? e.message : "Лео промолчал");
@@ -533,14 +511,37 @@ export function TrackerScreen({ initData, showAlert }: Props) {
               <b>Задача от Лео</b>
             </div>
             <p className="tracker__hint">
-              Лео сам смотрит на приложение и приносит идею. Ты решаешь: берём в работу или пусть думает дальше.
+              Напиши тему — или оставь пусто, тогда Лео решит сам. Дальше ты выбираешь: берём в работу или пусть
+              думает ещё.
             </p>
+            <div className="tracker__new-row">
+              <input
+                value={leoTopic}
+                onChange={(e) => setLeoTopic(e.target.value)}
+                placeholder="Тема (необязательно): например, удержание новичков"
+              />
+            </div>
             {proposal ? (
               <>
                 <p className="tracker__leo-reply">{proposal.reply}</p>
                 {proposal.title ? <p className="tracker__leo-title">{proposal.title}</p> : null}
                 <p className="tracker__leo-task">{proposal.task}</p>
                 <div className="tracker__new-row">
+                  <select value={when} onChange={(e) => setWhen(e.target.value)}>
+                    {WHEN_PRESETS.map((p) => (
+                      <option key={p.value} value={p.value}>
+                        {p.label}
+                      </option>
+                    ))}
+                  </select>
+                  {when === "custom" ? (
+                    <input
+                      type="datetime-local"
+                      className="tracker__at"
+                      value={whenAt}
+                      onChange={(e) => setWhenAt(e.target.value)}
+                    />
+                  ) : null}
                   <button
                     type="button"
                     className="tracker__primary"
@@ -576,44 +577,7 @@ export function TrackerScreen({ initData, showAlert }: Props) {
             )}
           </div>
 
-          <div className="tracker__leo">
-            <div className="tracker__leo-head">
-              <span aria-hidden>🐆</span>
-              <b>Спросить Леопарда</b>
-            </div>
-            <p className="tracker__hint">
-              Лео посмотрит на затею своим взглядом и сформулирует задачу — можно взять его текст как есть.
-            </p>
-            <div className="tracker__new-row">
-              <input
-                value={leoQuestion}
-                onChange={(e) => setLeoQuestion(e.target.value)}
-                placeholder="Что улучшить в приложении стаи?"
-              />
-              <button type="button" className="tracker__attach" disabled={leoBusy} onClick={() => void askLeo()}>
-                {leoBusy ? "Думает…" : "Спросить"}
-              </button>
-            </div>
-            {leoReply ? <p className="tracker__leo-reply">{leoReply}</p> : null}
-            {leoTask ? (
-              <>
-                <p className="tracker__leo-task">{leoTask}</p>
-                <button
-                  type="button"
-                  className="tracker__primary tracker__primary--block"
-                  onClick={() => {
-                    setPrompt(leoTask);
-                    setLeoReply("");
-                    setLeoTask("");
-                    setLeoQuestion("");
-                  }}
-                >
-                  Взять в задачу
-                </button>
-              </>
-            ) : null}
-          </div>
-            <div className="tracker__new">
+          <div className="tracker__new">
               <textarea
                 value={prompt}
                 onChange={(e) => setPrompt(e.target.value)}

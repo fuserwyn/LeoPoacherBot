@@ -175,40 +175,17 @@ export async function trackerAttachImage(
   }
 }
 
-/** «Спросить Леопарда»: реплика в его стиле плюс сухая формулировка задачи. */
-export async function askLeoTask(
-  initData: string,
-  question: string,
-): Promise<{ reply: string; task: string }> {
-  if (!api) throw new Error("API не настроен");
-  const res = await fetch(`${api}/api/miniapp/admin/tracker/leo`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ init_data: initData, question }),
-  });
-  const j = (await res.json().catch(() => ({}))) as {
-    ok?: boolean;
-    reply?: string;
-    task?: string;
-    error?: string;
-    message?: string;
-  };
-  if (!res.ok || j.ok === false) {
-    throw new Error(j.message || trackerErrorLabel(j.error) || `Ошибка ${res.status}`);
-  }
-  return { reply: j.reply ?? "", task: j.task ?? "" };
-}
-
-/** Лео сам придумывает задачу; busy — что уже на доске и что отклонили. */
+/** Лео сам придумывает задачу. hint пуст — тему выбирает сам; busy — что уже на доске и что отклонили. */
 export async function leoProposeTask(
   initData: string,
+  hint: string,
   busy: string[],
 ): Promise<{ reply: string; title: string; task: string }> {
   if (!api) throw new Error("API не настроен");
   const res = await fetch(`${api}/api/miniapp/admin/tracker/leo-propose`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ init_data: initData, busy }),
+    body: JSON.stringify({ init_data: initData, hint, busy }),
   });
   const j = (await res.json().catch(() => ({}))) as {
     ok?: boolean;

@@ -765,6 +765,7 @@ func (s *Server) handlePostAdminLeoLab(w http.ResponseWriter, r *http.Request) {
 func (s *Server) handlePostAdminLeoPropose(w http.ResponseWriter, r *http.Request) {
 	var body struct {
 		InitData string   `json:"init_data"`
+		Hint     string   `json:"hint"`
 		Busy     []string `json:"busy"`
 	}
 	corsWriteHeaders(w, r)
@@ -776,7 +777,7 @@ func (s *Server) handlePostAdminLeoPropose(w http.ResponseWriter, r *http.Reques
 	if !ok {
 		return
 	}
-	reply, title, task, err := s.bot.MiniappLeoProposeTask(parsed.User.ID, parsed, body.Busy)
+	reply, title, task, err := s.bot.MiniappLeoProposeTask(parsed.User.ID, parsed, body.Hint, body.Busy)
 	if err != nil {
 		s.writeAdminErr(w, err)
 		return

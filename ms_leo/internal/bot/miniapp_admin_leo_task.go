@@ -160,7 +160,7 @@ task — формулировка разработчику одним абзац
 // busy — что уже на доске и что админ только что отклонил: чтобы он не
 // предлагал по кругу одно и то же.
 func (b *Bot) MiniappLeoProposeTask(
-	viewerUserID int64, initD initdata.InitData, busy []string,
+	viewerUserID int64, initD initdata.InitData, hint string, busy []string,
 ) (reply string, title string, task string, err error) {
 	if _, err := b.requireMiniappAdmin(viewerUserID, initD); err != nil {
 		return "", "", "", err
@@ -169,7 +169,15 @@ func (b *Bot) MiniappLeoProposeTask(
 		return "", "", "", fmt.Errorf("Лео сейчас недоступен: не настроен OpenRouter")
 	}
 	var sb strings.Builder
-	sb.WriteString("Придумай одну задачу для приложения стаи.")
+	// Тема — необязательна: без неё Лео сам решает, что важнее.
+	if topic := strings.TrimSpace(hint); topic != "" {
+		if len([]rune(topic)) > 300 {
+			topic = string([]rune(topic)[:300])
+		}
+		sb.WriteString("Придумай одну задачу для приложения стаи по теме: " + topic)
+	} else {
+		sb.WriteString("Придумай одну задачу для приложения стаи. Тему выбери сам — смотри, что важнее всего.")
+	}
 	if len(busy) > 0 {
 		sb.WriteString("\n\nУже есть или отклонено — не предлагай похожее:")
 		for i, t := range busy {
