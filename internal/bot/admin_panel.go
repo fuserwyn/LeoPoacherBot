@@ -39,6 +39,9 @@ func (b *Bot) showAdminMenu(chatID int64) {
 			tgbotapi.NewInlineKeyboardButtonData("🗳 Опрос", "admin_mode_poll"),
 		),
 		tgbotapi.NewInlineKeyboardRow(
+			tgbotapi.NewInlineKeyboardButtonData("🗂 Трекер задач", "admin_tracker"),
+		),
+		tgbotapi.NewInlineKeyboardRow(
 			tgbotapi.NewInlineKeyboardButtonData("❎ Отмена", "admin_cancel"),
 		),
 	)
@@ -72,6 +75,9 @@ func (b *Bot) handleAdminCallbackQuery(callback *tgbotapi.CallbackQuery) {
 	case "admin_mode_poll":
 		b.startAdminFlow(callback.From.ID, "poll")
 		b.api.Send(tgbotapi.NewMessage(callback.Message.Chat.ID, "🗳 Введи chat_id для опроса."))
+	case "admin_tracker":
+		// Ссылку подписываем на того, кто нажал: на доске он и будет автором задач.
+		b.sendBoardButton(callback.Message.Chat.ID, callback.From.ID, displayName(callback.From))
 	case "admin_cancel":
 		b.clearAdminFlow(callback.From.ID)
 		b.api.Send(tgbotapi.NewMessage(callback.Message.Chat.ID, "❎ Действие отменено."))

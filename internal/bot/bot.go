@@ -320,6 +320,8 @@ func (b *Bot) handleCommand(msg *tgbotapi.Message) {
 		b.generateAndSendDailyWisdom()
 	case "admin":
 		b.handleAdmin(msg)
+	case "tracker", "board":
+		b.handleTracker(msg)
 	case "audit_last24":
 		b.auditLast24h()
 	case "backfill_qdrant":

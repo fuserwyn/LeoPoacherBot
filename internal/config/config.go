@@ -25,6 +25,13 @@ type Config struct {
 	QdrantCollection        string
 	QdrantVectorSize        int
 	QdrantBackfillOnStart   bool
+	// Трекер задач в MyVibeLab: общий секрет подписи ссылки, адрес сервиса и
+	// репозиторий, чья доска открыта. BoardAdminIDs — кому кроме владельца
+	// можно ставить задачи (см. internal/bot/tracker_board.go).
+	BoardSecret   string
+	BoardURL      string
+	BoardRepo     string
+	BoardAdminIDs []int64
 }
 
 func Load() (*Config, error) {
@@ -59,7 +66,27 @@ func Load() (*Config, error) {
 		QdrantCollection:         getEnv("QDRANT_COLLECTION", "leopard_chat_v2"),
 		QdrantVectorSize:         vectorSize,
 		QdrantBackfillOnStart:    qdrantBackfillOnStart,
+		BoardSecret:              getEnv("BOARD_SSO_SECRET", ""),
+		BoardURL:                 strings.TrimRight(getEnv("MYVIBELAB_URL", "https://myvibelab-production.up.railway.app"), "/"),
+		BoardRepo:                getEnv("BOARD_REPO", "fuserwyn/Fat-Leopard"),
+		BoardAdminIDs:            parseIDsEnv("BOARD_ADMIN_IDS"),
 	}, nil
+}
+
+// parseIDsEnv — «123,456» → []int64. Пустые и битые значения пропускаем: одна
+// опечатка в списке не должна ронять запуск бота.
+func parseIDsEnv(key string) []int64 {
+	var ids []int64
+	for _, part := range strings.Split(getEnv(key, ""), ",") {
+		part = strings.TrimSpace(part)
+		if part == "" {
+			continue
+		}
+		if id, err := strconv.ParseInt(part, 10, 64); err == nil {
+			ids = append(ids, id)
+		}
+	}
+	return ids
 }
 
 func parseBoolEnv(key string, defaultValue bool) bool {
