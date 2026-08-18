@@ -142,3 +142,15 @@ func (b *Bot) DesktopSessionRevoke(token string) error {
 	}
 	return b.db.DesktopSessionRevoke(token)
 }
+
+// DesktopUserLabel — имя и ник для приветствия в приложении.
+func (b *Bot) DesktopUserLabel(userID int64) (string, string) {
+	if b == nil || b.db == nil || userID == 0 {
+		return "", ""
+	}
+	people, err := b.db.AdminPeopleByIDs(b.adminPackChatID(), []int64{userID})
+	if err != nil || len(people) == 0 {
+		return "", ""
+	}
+	return people[0].DisplayName, people[0].Username
+}

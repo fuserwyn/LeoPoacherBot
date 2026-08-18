@@ -702,19 +702,29 @@ func (s *Server) handlePostAdminWipe(w http.ResponseWriter, r *http.Request) {
 	s.writeAdminOK(w, map[string]any{"counts": counts, "done": true})
 }
 
-// handlePostDesktopPoll — приложение ждёт подтверждения входа в чате.
+// handleDesktopPoll — приложение ждёт подтверждения входа в чате (GET или POST).
 // Единственная ручка без авторизации: защита — неугадываемый nonce с коротким
 // сроком жизни (bot/desktop_auth.go).
-func (s *Server) handlePostDesktopPoll(w http.ResponseWriter, r *http.Request) {
-	var body struct {
-		Nonce string `json:"nonce"`
-	}
+func (s *Server) handleDesktopPoll(w http.ResponseWriter, r *http.Request) {
 	corsWriteHeaders(w, r)
-	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
-		s.jsonErr(w, http.StatusBadRequest, "invalid_json")
+	// Приложение опрашивает GET-ом с ?nonce=, POST с телом оставлен для ручных
+	// проверок: две формы одной и той же ручки дешевле, чем правка клиента.
+	nonce := strings.TrimSpace(r.URL.Query().Get("nonce"))
+	if nonce == "" && r.Method == http.MethodPost {
+		var body struct {
+			Nonce string `json:"nonce"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+			s.jsonErr(w, http.StatusBadRequest, "invalid_json")
+			return
+		}
+		nonce = strings.TrimSpace(body.Nonce)
+	}
+	if nonce == "" {
+		s.jsonErr(w, http.StatusBadRequest, "missing_nonce")
 		return
 	}
-	status, userID, token, err := s.bot.DesktopLoginPoll(body.Nonce)
+	status, userID, token, err := s.bot.DesktopLoginPoll(nonce)
 	if err != nil {
 		s.jsonErr(w, http.StatusInternalServerError, "desktop_poll_error")
 		return
@@ -722,23 +732,30 @@ func (s *Server) handlePostDesktopPoll(w http.ResponseWriter, r *http.Request) {
 	out := map[string]any{"ok": true, "status": status}
 	if status == "ok" {
 		out["token"] = token
-		out["user"] = map[string]any{"id": userID}
+		name, username := s.bot.DesktopUserLabel(userID)
+		out["user"] = map[string]any{"id": userID, "first_name": name, "username": username}
 	}
 	w.Header().Set("Content-Type", "application/json; charset=utf-8")
 	_ = json.NewEncoder(w).Encode(out)
 }
 
-// handlePostDesktopLogout — отозвать токен, с которым пришёл запрос.
-func (s *Server) handlePostDesktopLogout(w http.ResponseWriter, r *http.Request) {
-	var body struct {
-		InitData string `json:"init_data"`
-	}
+// handleDesktopLogout — отозвать токен, с которым пришёл запрос.
+func (s *Server) handleDesktopLogout(w http.ResponseWriter, r *http.Request) {
 	corsWriteHeaders(w, r)
-	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
-		s.jsonErr(w, http.StatusBadRequest, "invalid_json")
+	// Приложение шлёт токен тем же заголовком, что мини-апп свой initData.
+	token := strings.TrimSpace(r.Header.Get("X-Init-Data"))
+	if token == "" {
+		var body struct {
+			InitData string `json:"init_data"`
+		}
+		_ = json.NewDecoder(r.Body).Decode(&body)
+		token = strings.TrimSpace(body.InitData)
+	}
+	if token == "" {
+		s.jsonErr(w, http.StatusBadRequest, "missing_token")
 		return
 	}
-	if err := s.bot.DesktopSessionRevoke(body.InitData); err != nil {
+	if err := s.bot.DesktopSessionRevoke(token); err != nil {
 		s.jsonErr(w, http.StatusInternalServerError, "desktop_logout_error")
 		return
 	}
