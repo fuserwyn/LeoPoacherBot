@@ -6,24 +6,13 @@ import { LEO_AVATAR_URL } from "../lib/leoAvatar";
 import {
   dtoToCard,
   feedHasMatchingTrainingReport,
-  feedTsMs,
-  mergePackFeedFullWindow,
   mergePackFeedIncremental,
   mergeFeedReactionsForType,
-  minRegularFeedTs,
-  newestFeedTs,
-  FEED_LIST_MOTION_MS,
   optimisticTogglePackFeedReaction,
   optimisticToggleThreadReplyLike,
-  planFeedFilterMotion,
-  planFeedNarrowPath,
-  feedWindowKey,
-  prefersFeedReducedMotion,
   reconcilePinnedFeed,
   resolveFeedAvatarUrl,
   resolveTrainingPhotoUrl,
-  sameFeedItems,
-  scrollFeedToTop,
   sortPackFeedItemsDesc,
   extractEditableFeedPostText,
   buildFeedPostTextForSave,
@@ -59,6 +48,31 @@ function applyOptimisticFeedItem(items: PackFeedItemDTO[], optimistic: PackFeedI
   return sortPackFeedItemsDesc([optimistic, ...items]);
 }
 
+const tsMs = (s: string): number => Date.parse(s) || 0;
+
+/** Самое свежее created_at среди реальных записей (id>0) — курсор «новее» (since_ts). */
+function newestFeedTs(items: PackFeedItemDTO[]): string {
+  let best = "";
+  for (const it of items) {
+    if (it.id <= 0) continue;
+    if (best === "" || tsMs(it.created_at) > tsMs(best)) best = it.created_at;
+  }
+  return best;
+}
+
+/**
+ * Самое старое created_at обычной (не закреплённой) записи — курсор «загрузить ещё старее»
+ * (before_ts). Закрепы и оптимистичные (id<0) исключаем: они не задают границу окна.
+ */
+function minRegularFeedTs(items: PackFeedItemDTO[]): string {
+  let oldest = "";
+  for (const it of items) {
+    if (it.id <= 0 || it.is_pinned) continue;
+    if (oldest === "" || tsMs(it.created_at) < tsMs(oldest)) oldest = it.created_at;
+  }
+  return oldest;
+}
+
 type Props = {
   streak: number;
   userId: number;
@@ -89,9 +103,6 @@ type Sub = "activity";
 type FeedViewportStyle = CSSProperties & {
   "--feed-vvh"?: string;
   "--feed-bottom-nav-h"?: string;
-  "--feed-gutter"?: string;
-  "--feed-tap"?: string;
-  "--feed-card-max"?: string;
 };
 
 /** Почему лента не грузится — у каждой причины свой текст, чтобы не путать API URL с клиентом. */
@@ -265,11 +276,6 @@ export function FeedScreen({
   /** Развёрнут ли вертикальный список всех типов (открывается повторным тапом по «Все типы»). */
   const [catListOpen, setCatListOpen] = useState(false);
   const [viewportStyle, setViewportStyle] = useState<FeedViewportStyle>({});
-  const [feedViewportWidth, setFeedViewportWidth] = useState(() =>
-    typeof window === "undefined"
-      ? 390
-      : Math.floor(window.visualViewport?.width || window.innerWidth || 390),
-  );
   const feedHeaderRef = useRef<HTMLDivElement>(null);
   /** Самое свежее created_at в окне — курсор «новее» (since_ts) для инкрементального синка. */
   const newestTsRef = useRef("");
@@ -326,75 +332,39 @@ export function FeedScreen({
     return [...pinned, ...rest];
   }, [visibleFeedItems]);
 
-  const feedNarrowPath = useMemo(
-    () =>
-      planFeedNarrowPath(feedViewportWidth, {
-        cardCount: orderedFeedItems.length,
-        windowKey: feedWindowKey(orderedFeedItems),
-      }),
-    [feedViewportWidth, orderedFeedItems],
-  );
-
   const hapticLight = useCallback(() => {
     window.Telegram?.WebApp?.HapticFeedback?.impactOccurred?.("light");
   }, []);
 
-  const [feedListDim, setFeedListDim] = useState(false);
-  const feedDimTimerRef = useRef(0);
-
-  const playFilterMotion = useCallback(
-    (next: { scope: typeof feedScope; type: typeof feedTypeFilter; cats: readonly string[] }) => {
-      const motion = planFeedFilterMotion(
-        { scope: feedScope, type: feedTypeFilter, cats: feedCategoryIds },
-        next,
-        prefersFeedReducedMotion(),
-      );
-      if (!motion.apply) return false;
-      hapticLight();
-      if (motion.animate) {
-        setFeedListDim(true);
-        window.clearTimeout(feedDimTimerRef.current);
-        feedDimTimerRef.current = window.setTimeout(() => setFeedListDim(false), FEED_LIST_MOTION_MS);
-      }
-      if (motion.scrollToTop) scrollFeedToTop(motion.reducedMotion);
-      return true;
-    },
-    [feedScope, feedTypeFilter, feedCategoryIds, hapticLight],
-  );
-
-  useEffect(() => {
-    return () => window.clearTimeout(feedDimTimerRef.current);
-  }, []);
-
   const toggleFeedCategory = useCallback(
     (id: WorkoutCategoryId) => {
-      const next = new Set(feedCategoryIds);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
-      const cats = sortWorkoutCategoryIds([...next]);
-      if (!playFilterMotion({ scope: feedScope, type: feedTypeFilter, cats })) return;
-      setFeedCategoryIds(cats);
+      hapticLight();
+      setFeedCategoryIds((prev) => {
+        const next = new Set(prev);
+        if (next.has(id)) next.delete(id);
+        else next.add(id);
+        return sortWorkoutCategoryIds([...next]);
+      });
     },
-    [feedCategoryIds, feedScope, feedTypeFilter, playFilterMotion],
+    [hapticLight],
   );
 
   const clearFeedCategories = useCallback(() => {
-    if (!playFilterMotion({ scope: feedScope, type: feedTypeFilter, cats: [] })) return;
+    hapticLight();
     setFeedCategoryIds([]);
-  }, [feedScope, feedTypeFilter, playFilterMotion]);
+  }, [hapticLight]);
 
   // «Все типы»: первый тап (когда выбраны типы) — сброс к «все типы»; повторный
   // тап (когда уже «все типы») — разворачивает вертикальный список всех типов.
   const toggleAllTypes = useCallback(() => {
+    hapticLight();
     if (feedCategoryIds.length > 0) {
-      if (!playFilterMotion({ scope: feedScope, type: feedTypeFilter, cats: [] })) return;
       setFeedCategoryIds([]);
       setCatListOpen(false);
     } else {
-      hapticLight();
       setCatListOpen((o) => !o);
     }
-  }, [feedCategoryIds.length, feedScope, feedTypeFilter, playFilterMotion, hapticLight]);
+  }, [feedCategoryIds.length, hapticLight]);
 
   const refreshUnreadFeedCards = useCallback(async () => {
     if (!inTelegram || !initData.trim()) {
@@ -435,10 +405,6 @@ export function FeedScreen({
   // сюда же отдельными карточками (source=message), а прежний отдельный экран чата
   // в приложении не открывается. Поэтому гасим оба счётчика при открытии ленты —
   // иначе бейдж висел бы вечно, и погасить его было бы нечем.
-  //
-  // Гасим без предварительной проверки счётчиков: счётчик общего чата живёт на
-  // сервере, здесь он не виден, и ранний выход по нулю тредов оставил бы бейдж
-  // висеть — ровно тот баг, из-за которого «Стая» показывала вечную единицу.
   useEffect(() => {
     if (!active || sub !== "activity" || !inTelegram || !initData.trim()) return;
 
@@ -453,8 +419,6 @@ export function FeedScreen({
     sub,
     inTelegram,
     initData,
-    feedThreadUnreadCount,
-    unreadFeedCardIds.size,
     onFeedThreadRead,
     onRefreshTabBadges,
   ]);
@@ -507,16 +471,24 @@ export function FeedScreen({
           const reconciled = reconcilePinnedFeed(incoming, pinned);
           if (opts?.reset) {
             // Явная перезагрузка (маунт / refreshToken / pull-to-refresh): окно с нуля.
-            // Тот же набор — тот же массив, без лишнего ререндера карточек.
-            setFeedItems((prev) => (sameFeedItems(prev, reconciled) ? prev : reconciled));
+            setFeedItems(reconciled);
             oldestTsRef.current = minRegularFeedTs(reconciled);
             setHasMoreOlder(incoming.length >= 50);
           } else {
             // Обычный полный синк (поллинг тредов/реакций, пост-экшн): НЕ схлопываем ленту —
             // сохраняем уже догруженные старые страницы, иначе бесконечная переподгрузка.
-            // Пустой/повторный ответ не дёргает DOM.
             setFeedItems((prev) => {
-              const next = mergePackFeedFullWindow(prev, reconciled);
+              if (prev.length === 0) {
+                oldestTsRef.current = minRegularFeedTs(reconciled);
+                return reconciled;
+              }
+              const windowOldestTs = minRegularFeedTs(reconciled);
+              const olderKept =
+                windowOldestTs !== ""
+                  ? prev.filter((p) => p.id > 0 && !p.is_pinned && tsMs(p.created_at) < tsMs(windowOldestTs))
+                  : [];
+              const next =
+                olderKept.length > 0 ? sortPackFeedItemsDesc([...reconciled, ...olderKept]) : reconciled;
               oldestTsRef.current = minRegularFeedTs(next);
               return next;
             });
@@ -539,14 +511,14 @@ export function FeedScreen({
             const merged = mergePackFeedIncremental(prev, incoming);
             const next = reconcilePinnedFeed(merged, pinned);
             const n = newestFeedTs(incoming);
-            if (n !== "" && feedTsMs(n) > feedTsMs(newestTsRef.current)) newestTsRef.current = n;
+            if (n !== "" && tsMs(n) > tsMs(newestTsRef.current)) newestTsRef.current = n;
             if (
               optimisticFeedItem &&
               feedHasMatchingTrainingReport(next, optimisticFeedItem.text, optimisticFeedItem.user_id)
             ) {
               onOptimisticConsumed?.();
             }
-            return sameFeedItems(prev, next) ? prev : next;
+            return next;
           });
         }
         loadedOnceRef.current = true;
@@ -590,7 +562,7 @@ export function FeedScreen({
       // так что их самое старое created_at и есть новый курсор.
       const olderOldest = minRegularFeedTs(older);
       const advanced =
-        olderOldest !== "" && (oldestTsRef.current === "" || feedTsMs(olderOldest) < feedTsMs(oldestTsRef.current));
+        olderOldest !== "" && (oldestTsRef.current === "" || tsMs(olderOldest) < tsMs(oldestTsRef.current));
       setFeedItems((prev) => {
         const next = mergePackFeedIncremental(prev, older);
         oldestTsRef.current = minRegularFeedTs(next);
@@ -1593,27 +1565,18 @@ export function FeedScreen({
       // карточка резко сжимается в момент тапа по textarea и iOS не успевает корректно
       // докрутить поле над клавиатурой.
       const layoutH = Math.max(320, Math.floor(window.innerHeight || vv?.height || 320));
-      const layoutW = Math.max(1, Math.floor(vv?.width || window.innerWidth || 390));
       const bottomNavH = Math.ceil(
         document.querySelector<HTMLElement>(".bottom-nav")?.getBoundingClientRect().height ?? 0,
       );
-      const path = planFeedNarrowPath(layoutW, { cardCount: 0, windowKey: "" });
-      setFeedViewportWidth((prev) => (prev === layoutW ? prev : layoutW));
 
       setViewportStyle((prev) => {
         const next: FeedViewportStyle = {
           "--feed-vvh": `${layoutH}px`,
           "--feed-bottom-nav-h": `${bottomNavH}px`,
-          "--feed-gutter": `${path.gutterPx}px`,
-          "--feed-tap": `${path.tapPx}px`,
-          "--feed-card-max": `${path.maxWidthPx}px`,
         };
         if (
           prev["--feed-vvh"] === next["--feed-vvh"] &&
-          prev["--feed-bottom-nav-h"] === next["--feed-bottom-nav-h"] &&
-          prev["--feed-gutter"] === next["--feed-gutter"] &&
-          prev["--feed-tap"] === next["--feed-tap"] &&
-          prev["--feed-card-max"] === next["--feed-card-max"]
+          prev["--feed-bottom-nav-h"] === next["--feed-bottom-nav-h"]
         ) {
           return prev;
         }
@@ -1630,7 +1593,6 @@ export function FeedScreen({
     const vv = window.visualViewport;
     vv?.addEventListener("resize", scheduleRead);
     vv?.addEventListener("scroll", scheduleRead);
-    window.addEventListener("resize", scheduleRead);
     window.addEventListener("orientationchange", scheduleRead);
     const tg = window.Telegram?.WebApp as { onEvent?: (e: string, fn: () => void) => void } | undefined;
     tg?.onEvent?.("viewportChanged", scheduleRead);
@@ -1638,7 +1600,6 @@ export function FeedScreen({
       if (raf) cancelAnimationFrame(raf);
       vv?.removeEventListener("resize", scheduleRead);
       vv?.removeEventListener("scroll", scheduleRead);
-      window.removeEventListener("resize", scheduleRead);
       window.removeEventListener("orientationchange", scheduleRead);
       const tgOff = window.Telegram?.WebApp as { offEvent?: (e: string, fn: () => void) => void } | undefined;
       tgOff?.offEvent?.("viewportChanged", scheduleRead);
@@ -1672,15 +1633,7 @@ export function FeedScreen({
           : "";
 
   return (
-    <div
-      className={`feed${feedNarrowPath.compactHeader ? " feed--compact" : ""}`}
-      style={viewportStyle}
-      data-narrow={feedNarrowPath.narrow ? "true" : "false"}
-      data-stacked={feedNarrowPath.stacked ? "true" : "false"}
-      data-reason={feedNarrowPath.reason}
-      data-overflows={feedNarrowPath.overflowsHorizontally ? "true" : "false"}
-      data-swipe={feedNarrowPath.swipeAxis}
-    >
+    <div className="feed" style={viewportStyle}>
       <div className="feed__sticky" ref={feedHeaderRef}>
         <div className="feed__sticky-inner">
         <header className="feed__header">
@@ -1707,15 +1660,6 @@ export function FeedScreen({
                   feedTypeFilter === "all" && feedScope === "all" ? " is-active" : ""
                 }`}
                 onClick={() => {
-                  if (
-                    !playFilterMotion({
-                      scope: "all",
-                      type: "all",
-                      cats: feedCategoryIds,
-                    })
-                  ) {
-                    return;
-                  }
                   setFeedTypeFilter("all");
                   setFeedScope("all");
                 }}
@@ -1725,44 +1669,28 @@ export function FeedScreen({
               <button
                 type="button"
                 className={`feed__filter-pill${feedScope === "mine" ? " is-active" : ""}`}
-                onClick={() => {
-                  const next = feedScope === "mine" ? "all" : "mine";
-                  if (!playFilterMotion({ scope: next, type: feedTypeFilter, cats: feedCategoryIds })) return;
-                  setFeedScope(next);
-                }}
+                onClick={() => setFeedScope((p) => (p === "mine" ? "all" : "mine"))}
               >
                 Мои
               </button>
               <button
                 type="button"
                 className={`feed__filter-pill${feedScope === "friends" ? " is-active" : ""}`}
-                onClick={() => {
-                  const next = feedScope === "friends" ? "all" : "friends";
-                  if (!playFilterMotion({ scope: next, type: feedTypeFilter, cats: feedCategoryIds })) return;
-                  setFeedScope(next);
-                }}
+                onClick={() => setFeedScope((p) => (p === "friends" ? "all" : "friends"))}
               >
                 Друзья
               </button>
               <button
                 type="button"
                 className={`feed__filter-pill feed__filter-pill--type${feedTypeFilter === "training" ? " is-active" : ""}`}
-                onClick={() => {
-                  const next = feedTypeFilter === "training" ? "all" : "training";
-                  if (!playFilterMotion({ scope: feedScope, type: next, cats: feedCategoryIds })) return;
-                  setFeedTypeFilter(next);
-                }}
+                onClick={() => setFeedTypeFilter((p) => (p === "training" ? "all" : "training"))}
               >
                 Тренировки
               </button>
               <button
                 type="button"
                 className={`feed__filter-pill feed__filter-pill--type${feedTypeFilter === "message" ? " is-active" : ""}`}
-                onClick={() => {
-                  const next = feedTypeFilter === "message" ? "all" : "message";
-                  if (!playFilterMotion({ scope: feedScope, type: next, cats: feedCategoryIds })) return;
-                  setFeedTypeFilter(next);
-                }}
+                onClick={() => setFeedTypeFilter((p) => (p === "message" ? "all" : "message"))}
               >
                 Сообщения
               </button>
@@ -1770,37 +1698,51 @@ export function FeedScreen({
             {feedTypeFilter !== "message" && (
             <div className="feed__filter-cats-wrap">
               <div className="feed__filter-cats" role="group" aria-label="Тип тренировки">
-                <button
-                  type="button"
+                <div
+                  role="button"
+                  tabIndex={0}
                   className={`feed__filter-chip feed__filter-chip--all${
                     feedCategoryIds.length === 0 ? " is-active" : ""
                   }${catListOpen ? " is-open" : ""}`}
                   aria-pressed={feedCategoryIds.length === 0}
                   aria-expanded={catListOpen}
                   onClick={toggleAllTypes}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" || e.key === " ") {
+                      e.preventDefault();
+                      toggleAllTypes();
+                    }
+                  }}
                 >
                   <span className="feed__filter-chip-label">Все типы</span>
                   <span className="feed__filter-chip-caret" aria-hidden>
                     ▾
                   </span>
-                </button>
+                </div>
                 {!catListOpen &&
                   WORKOUT_CATEGORY_OPTIONS_ALPHABETICAL.map((c) => {
                     const active = feedCategoryIds.includes(c.id);
                     return (
-                      <button
+                      <div
                         key={c.id}
-                        type="button"
+                        role="button"
+                        tabIndex={0}
                         className={`feed__filter-chip${active ? " is-active" : ""}`}
                         aria-pressed={active}
                         onClick={() => toggleFeedCategory(c.id)}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter" || e.key === " ") {
+                            e.preventDefault();
+                            toggleFeedCategory(c.id);
+                          }
+                        }}
                         title={c.label}
                       >
                         <span className="feed__filter-chip-emoji" aria-hidden>
                           {c.emoji}
                         </span>
                         <span className="feed__filter-chip-label">{c.label}</span>
-                      </button>
+                      </div>
                     );
                   })}
               </div>
@@ -1878,7 +1820,7 @@ export function FeedScreen({
                 onClick={async () => {
                   if (manualRefreshing) return;
                   setManualRefreshing(true);
-                  scrollFeedToTop(prefersFeedReducedMotion());
+                  window.scrollTo({ top: 0, behavior: "smooth" });
                   newestTsRef.current = "";
                   oldestTsRef.current = "";
                   setHasMoreOlder(true);
@@ -1901,14 +1843,7 @@ export function FeedScreen({
           </div>
           {err && <p className="feed__err">{err}</p>}
           {loading && <p className="feed__load muted">Загрузка…</p>}
-          <div
-            className="feed__list"
-            data-feed-smooth={feedListDim ? "motion" : "idle"}
-            style={{
-              opacity: feedListDim ? 0.62 : 1,
-              transition: `opacity ${FEED_LIST_MOTION_MS}ms ease`,
-            }}
-          >
+          <div className="feed__list">
             {!loading && !useMockFeed && feedItems.length === 0 && !err && (
               <p className="feed__empty muted">Пока нет отчётов в базе (или нет MONETIZED_CHAT_ID).</p>
             )}
@@ -1926,7 +1861,7 @@ export function FeedScreen({
             {useMockFeed &&
               mockFallback(streak, !apiBase ? "no-api" : !inTelegram ? "no-telegram" : "no-initdata").map((c, i) => (
                 <div key={`mock-${i}`} className="feed__card-slot feed__card-slot--them">
-                  <ActivityCard {...c} viewportWidth={feedViewportWidth} />
+                  <ActivityCard {...c} />
                 </div>
               ))}
             {!useMockFeed &&
@@ -2068,7 +2003,6 @@ export function FeedScreen({
                       <ActivityCard
                         {...base}
                         {...followProps}
-                        viewportWidth={feedViewportWidth}
                         reactions={mergeFeedReactionsForType("pack_message", it.reactions)}
                         onReactionClick={(emoji) => void postMessageReact(it.id, emoji)}
                         onReport={!it.is_you ? () => void confirmReportMessage(it.id) : undefined}
@@ -2136,7 +2070,6 @@ export function FeedScreen({
                         {...pinnedLeoProps}
                         {...followProps}
                         {...postEditProps}
-                        viewportWidth={feedViewportWidth}
                         comment={adminPostText ?? base.comment}
                         pinned={isPinnedAnnouncement}
                         commentCollapsible={adminPostCollapsible}
@@ -2179,7 +2112,6 @@ export function FeedScreen({
                       {...pinnedLeoProps}
                       {...followProps}
                       {...postEditProps}
-                      viewportWidth={feedViewportWidth}
                       comment={adminPostText ?? base.comment}
                       pinned={isPinnedAnnouncement}
                       commentCollapsible={adminPostCollapsible}
