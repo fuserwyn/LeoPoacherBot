@@ -16,12 +16,12 @@
   overflow-anchor: none;
 }
 
-/* Открытый тред: карточка растёт под содержимое, скроллится вся лента.
-   Раньше карточка оставалась ограниченной по высоте, а тело превращалось в
-   окно на 24dvh — пост обрезался посреди строки, и панель «Свернуть
-   комментарии» выглядела наехавшей на текст. */
+/* Открытый тред: почти на экран, чтобы можно было читать переписку без крошечного окна */
 .act-card--thread-open {
-  max-height: none;
+  max-height: min(
+    620px,
+    calc(var(--feed-vvh, 100dvh) - var(--feed-bottom-nav-h, 88px) - var(--safe-top, 0px) - 18px)
+  );
   touch-action: pan-y;
 }
 
@@ -332,11 +332,17 @@
   touch-action: pan-y;
 }
 
-/* Тело поста при открытом треде остаётся в потоке: внутренний скролл резал
-   текст по середине строки, а в iOS WebView (Telegram) ещё и оставлял
-   «призрак» заголовка поверх фото. */
 .act-card--thread-open .act-card__body {
-  flex: 0 0 auto;
+  flex: 0 1 auto;
+  max-height: min(24dvh, 24vh);
+  overflow-y: auto;
+}
+
+/* Фото-карточка: при раскрытии треда тело НЕ превращаем в обрезанный 24dvh
+   скролл-вьюпорт. Большое фото в нём схлопывается, а iOS WebView (Telegram)
+   не перерисовывает освободившуюся область — заголовок/детали остаются
+   «призраком» поверх фото. Оставляем тело в потоке, страница скроллится. */
+.act-card--has-photo.act-card--thread-open .act-card__body {
   max-height: none;
   overflow: visible;
 }
@@ -758,9 +764,9 @@
 }
 
 .act-card--thread-open .act-card__thread {
-  flex: 0 0 auto;
+  flex: 1 1 auto;
   min-height: 0;
-  overflow: visible;
+  overflow: hidden;
 }
 
 .act-card__thread-toggle {
@@ -1479,5 +1485,97 @@
 
 .act-card__photo-fallback-text {
   flex: 1 1 auto;
+}
+
+/* Узкий экран: читаемый текст, тап ≥44px, реакции свайпятся, карточка не режется 33vh. */
+.act-card {
+  --act-tap: var(--feed-tap, 44px);
+}
+
+.act-card[data-narrow="true"],
+.act-card--stacked {
+  max-height: none;
+}
+
+.act-card[data-narrow="true"] .act-card__body,
+.act-card--stacked .act-card__body,
+.act-card[data-narrow="true"].act-card--thread-open .act-card__body {
+  max-height: none;
+  overflow: visible;
+}
+
+.act-card[data-narrow="true"] .act-card__name {
+  font-size: 16px;
+  line-height: 1.25;
+}
+
+.act-card[data-narrow="true"] .act-card__type {
+  font-size: 15px;
+  line-height: 1.35;
+}
+
+.act-card[data-narrow="true"] .act-card__comment,
+.act-card[data-narrow="true"] .act-card__details,
+.act-card[data-narrow="true"] .act-card__ai {
+  font-size: 15px;
+  line-height: 1.45;
+}
+
+.act-card[data-narrow="true"] .act-card__time {
+  font-size: 13px;
+}
+
+.act-card[data-narrow="true"] .act-card__type-row {
+  flex-direction: column;
+  align-items: stretch;
+}
+
+.act-card[data-narrow="true"] .act-card__react.act-card__react--inline {
+  width: 100%;
+}
+
+.act-card[data-narrow="true"] .act-card__react-inline {
+  display: flex;
+  flex-wrap: nowrap;
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+  -webkit-overflow-scrolling: touch;
+  scroll-snap-type: x proximity;
+  touch-action: pan-x pinch-zoom;
+  scrollbar-width: none;
+}
+
+.act-card[data-narrow="true"] .act-card__react-inline::-webkit-scrollbar {
+  display: none;
+}
+
+.act-card[data-narrow="true"] .act-card__react-btn,
+.act-card[data-narrow="true"] .act-card__menu-toggle,
+.act-card[data-narrow="true"] .act-card__thread-toggle,
+.act-card[data-narrow="true"] .act-card__menu-item,
+.act-card[data-narrow="true"] .act-card__poll-option,
+.act-card[data-narrow="true"] .act-card__thread-like,
+.act-card[data-narrow="true"] .act-card__comment-more,
+.act-card[data-narrow="true"] .act-card__post-edit-photo-btn {
+  min-height: var(--act-tap);
+  min-width: var(--act-tap);
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.act-card[data-narrow="true"] .act-card__react-btn {
+  padding: 8px 10px;
+  scroll-snap-align: start;
+}
+
+.act-card[data-narrow="true"] .act-card__thread-toggle {
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.act-card[data-narrow="false"] .act-card__menu-item,
+.act-card[data-narrow="false"] .act-card__thread-toggle,
+.act-card[data-narrow="false"] .act-card__poll-option {
+  min-height: var(--act-tap);
 }
 

@@ -5,10 +5,23 @@ import { PhotoCropper } from "./PhotoCropper";
 import { PhotoLightbox } from "./PhotoLightbox";
 import { CameraButton } from "./CameraButton";
 import { LEO_AVATAR_URL } from "../lib/leoAvatar";
-import { resolveFeedAvatarUrl, type VoterDTO } from "../lib/packFeed";
+import {
+  NARROW_FEED_MAX_WIDTH_PX,
+  planActivityCardNarrowPath,
+  resolveFeedAvatarUrl,
+  type VoterDTO,
+} from "../lib/packFeed";
 import { streakStreakAriaLabel } from "../lib/streakLabel";
 import { hapticImpact } from "../lib/haptics";
 import "./ActivityCard.css";
+
+export {
+  activityCardKey,
+  canShowActivityCard,
+  planActivityCardNarrowPath,
+  type ActivityCardNarrowPath,
+  type ActivityCardSnapshot,
+} from "../lib/packFeed";
 
 /** Голоса с бэкенда → строки списка лайкнувших (имя + отрезолвленный URL аватара).
     Работает с обоими форматами: новый {name, photo_url} и старый строка. */
@@ -439,6 +452,10 @@ export type ActivityCardProps = {
   onThreadOpened?: () => void;
   /** Лео-реплай показан пользователю (тред раскрыт) — для аналитики leo_comment_displayed. */
   onLeoReplyDisplayed?: (threadReplyId: number) => void;
+  /** Injected for tests; live UI reads visualViewport / innerWidth. */
+  viewportWidth?: number;
+  /** Same card after dismiss — stay hidden (повтор). */
+  dismissedKey?: string | null;
 };
 
 export function ActivityCard({
@@ -487,7 +504,36 @@ export function ActivityCard({
   onThreadReplyEdit,
   hasUnreadThread = false,
   onThreadOpened,
+  viewportWidth,
+  dismissedKey = null,
 }: ActivityCardProps) {
+  const [liveWidth, setLiveWidth] = useState(() =>
+    typeof window === "undefined"
+      ? NARROW_FEED_MAX_WIDTH_PX
+      : Math.floor(window.visualViewport?.width || window.innerWidth || NARROW_FEED_MAX_WIDTH_PX),
+  );
+  useEffect(() => {
+    if (typeof viewportWidth === "number") return;
+    const read = () => {
+      setLiveWidth(Math.floor(window.visualViewport?.width || window.innerWidth || NARROW_FEED_MAX_WIDTH_PX));
+    };
+    read();
+    const vv = window.visualViewport;
+    vv?.addEventListener("resize", read);
+    window.addEventListener("resize", read);
+    window.addEventListener("orientationchange", read);
+    return () => {
+      vv?.removeEventListener("resize", read);
+      window.removeEventListener("resize", read);
+      window.removeEventListener("orientationchange", read);
+    };
+  }, [viewportWidth]);
+  const cardSnap = useMemo(() => ({ name, activity, comment }), [name, activity, comment]);
+  const cardWidth = typeof viewportWidth === "number" ? viewportWidth : liveWidth;
+  const narrowPath = useMemo(
+    () => planActivityCardNarrowPath(cardWidth, cardSnap, dismissedKey),
+    [cardWidth, cardSnap, dismissedKey],
+  );
   const threadBodyRef = useRef<HTMLDivElement>(null);
   const threadComposeRef = useRef<HTMLDivElement>(null);
   const threadInputRef = useRef<HTMLTextAreaElement>(null);
@@ -746,6 +792,8 @@ export function ActivityCard({
     openPicker(e.target);
   };
 
+  if (!narrowPath.visible) return null;
+
   return (
     <article
       ref={cardRef}
@@ -754,7 +802,18 @@ export function ActivityCard({
       onTouchMove={onCardTouchMove}
       onTouchEnd={onCardTouchEnd}
       onTouchCancel={clearLpTimer}
-      className={`act-card${hideStreak ? " act-card--leo" : ""}${lightTone ? " act-card--light" : ""}${threadOpen && hasThread ? " act-card--thread-open" : ""}${trainingPhotoUrl ? " act-card--has-photo" : ""}${canCollapseComment && commentExpanded ? " act-card--comment-expanded" : ""}${canReact ? " act-card--reactable" : ""}`}
+      data-narrow={narrowPath.narrow ? "true" : "false"}
+      data-stacked={narrowPath.stacked ? "true" : "false"}
+      data-reason={narrowPath.reason}
+      data-overflows={narrowPath.overflowsHorizontally ? "true" : "false"}
+      data-swipe={narrowPath.swipeAxis}
+      className={`act-card${hideStreak ? " act-card--leo" : ""}${lightTone ? " act-card--light" : ""}${threadOpen && hasThread ? " act-card--thread-open" : ""}${trainingPhotoUrl ? " act-card--has-photo" : ""}${canCollapseComment && commentExpanded ? " act-card--comment-expanded" : ""}${canReact ? " act-card--reactable" : ""}${narrowPath.stacked ? " act-card--stacked" : ""}`}
+      style={{
+        padding: narrowPath.cardPadPx,
+        maxWidth: "100%",
+        boxSizing: "border-box",
+        minWidth: 0,
+      }}
     >
       {picker.open && canReact && (
         <ReactionPickerPopover

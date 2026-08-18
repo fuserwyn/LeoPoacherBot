@@ -522,6 +522,341 @@ export function sortPackFeedItemsDesc(items: PackFeedItemDTO[]): PackFeedItemDTO
   });
 }
 
+/** created_at → ms; битая дата даёт 0, чтобы курсоры не уезжали в NaN. */
+export function feedTsMs(s: string): number {
+  return Date.parse(s) || 0;
+}
+
+/** Самое свежее created_at среди реальных записей (id>0) — курсор «новее» (since_ts). */
+export function newestFeedTs(items: PackFeedItemDTO[]): string {
+  let best = "";
+  for (const it of items) {
+    if (it.id <= 0) continue;
+    if (best === "" || feedTsMs(it.created_at) > feedTsMs(best)) best = it.created_at;
+  }
+  return best;
+}
+
+/**
+ * Самое старое created_at обычной (не закреплённой) записи — курсор «загрузить ещё старее»
+ * (before_ts). Закрепы и оптимистичные (id<0) исключаем: они не задают границу окна.
+ */
+export function minRegularFeedTs(items: PackFeedItemDTO[]): string {
+  let oldest = "";
+  for (const it of items) {
+    if (it.id <= 0 || it.is_pinned) continue;
+    if (oldest === "" || feedTsMs(it.created_at) < feedTsMs(oldest)) oldest = it.created_at;
+  }
+  return oldest;
+}
+
+/** Сигнатура карточки: то, что видно в UI. Одинаковая — ререндер не нужен. */
+export function feedItemMotionKey(it: PackFeedItemDTO): string {
+  const rx = (it.reactions ?? [])
+    .map((r) => `${r.emoji}:${r.count}:${r.me ? 1 : 0}`)
+    .join(",");
+  const th = (it.thread ?? [])
+    .map(
+      (t) =>
+        `${t.id}:${t.like_count ?? 0}:${t.like_me ? 1 : 0}:${t.edited_at ?? ""}:${(t.text ?? "").length}`,
+    )
+    .join(",");
+  const poll = it.poll
+    ? `${it.poll.total_votes}:${it.poll.my_vote_index ?? -1}:${(it.poll.options ?? [])
+        .map((o) => o.votes)
+        .join("/")}`
+    : "";
+  return [
+    feedItemKey(it),
+    it.type,
+    it.text,
+    it.created_at,
+    it.edited_at ?? "",
+    it.is_pinned ? 1 : 0,
+    it.pinned_at ?? "",
+    it.is_friend ? 1 : 0,
+    it.is_you ? 1 : 0,
+    it.streak_days,
+    it.username,
+    it.author_photo_url ?? "",
+    it.training_photo_url ?? "",
+    rx,
+    th,
+    poll,
+  ].join("|");
+}
+
+/** true — тот же набор карточек в том же порядке (тихий поллинг не должен дёргать DOM). */
+export function sameFeedItems(a: PackFeedItemDTO[], b: PackFeedItemDTO[]): boolean {
+  if (a === b) return true;
+  if (a.length !== b.length) return false;
+  for (let i = 0; i < a.length; i++) {
+    if (feedItemMotionKey(a[i]!) !== feedItemMotionKey(b[i]!)) return false;
+  }
+  return true;
+}
+
+export const FEED_LIST_MOTION_MS = 160;
+
+export type FeedMotionReason = "ok" | "empty" | "repeat";
+
+export type FeedMotionPath = {
+  apply: boolean;
+  reason: FeedMotionReason;
+  scrollToTop: boolean;
+  animate: boolean;
+  reducedMotion: boolean;
+};
+
+export type FeedFilterSnapshot = {
+  scope: string;
+  type: string;
+  cats: readonly string[];
+};
+
+/**
+ * План плавного обновления ленты:
+ * пустой incoming на уже загруженной ленте (не reset) → empty, не трогаем;
+ * тот же набор карточек → repeat, не ререндерим;
+ * иначе — применяем (reset всегда может показать пустую ленту).
+ */
+export function planFeedMotion(opts: {
+  prev: PackFeedItemDTO[];
+  next: PackFeedItemDTO[];
+  reset?: boolean;
+  reducedMotion?: boolean;
+}): FeedMotionPath {
+  const reduced = Boolean(opts.reducedMotion);
+  if (!opts.reset && opts.next.length === 0 && opts.prev.length > 0) {
+    return { apply: false, reason: "empty", scrollToTop: false, animate: false, reducedMotion: reduced };
+  }
+  if (sameFeedItems(opts.prev, opts.next)) {
+    return { apply: false, reason: "repeat", scrollToTop: false, animate: false, reducedMotion: reduced };
+  }
+  return {
+    apply: true,
+    reason: "ok",
+    scrollToTop: false,
+    animate: !reduced,
+    reducedMotion: reduced,
+  };
+}
+
+/** Смена фильтра: повтор того же набора — стоим на месте; иначе — плавно наверх. */
+export function planFeedFilterMotion(
+  prev: FeedFilterSnapshot,
+  next: FeedFilterSnapshot,
+  reducedMotion = false,
+): FeedMotionPath {
+  const same =
+    prev.scope === next.scope &&
+    prev.type === next.type &&
+    prev.cats.length === next.cats.length &&
+    prev.cats.every((c, i) => c === next.cats[i]);
+  if (same) {
+    return { apply: false, reason: "repeat", scrollToTop: false, animate: false, reducedMotion };
+  }
+  return {
+    apply: true,
+    reason: "ok",
+    scrollToTop: true,
+    animate: !reducedMotion,
+    reducedMotion,
+  };
+}
+
+export function feedScrollBehavior(reducedMotion: boolean): ScrollBehavior {
+  return reducedMotion ? "auto" : "smooth";
+}
+
+export function prefersFeedReducedMotion(): boolean {
+  if (typeof window === "undefined" || typeof window.matchMedia !== "function") return false;
+  return window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+}
+
+export function scrollFeedToTop(reducedMotion = prefersFeedReducedMotion()): void {
+  if (typeof window === "undefined") return;
+  window.scrollTo({ top: 0, behavior: feedScrollBehavior(reducedMotion) });
+}
+
+/** Telegram mini-app phone width — above this the feed stays a compact desktop column. */
+export const NARROW_FEED_MAX_WIDTH_PX = 390;
+export const NARROW_FEED_GUTTER_PX = 12;
+export const NARROW_FEED_MIN_TAP_PX = 44;
+export const NARROW_FEED_TITLE_LINES = 2;
+export const NARROW_FEED_COMMENT_LINES = 5;
+export const NARROW_FEED_PHOTO_MAX_H_PX = 220;
+export const WIDE_FEED_PHOTO_MAX_H_PX = 360;
+
+export type FeedNarrowSnapshot = {
+  /** Visible cards in the current window (0 is a valid empty state). */
+  cardCount: number;
+  /** Signature of the visible window — same after a no-op refresh is «повтор». */
+  windowKey?: string;
+};
+
+export type FeedNarrowPath = {
+  visible: boolean;
+  reason: FeedMotionReason;
+  narrow: boolean;
+  stacked: boolean;
+  gutterPx: number;
+  maxWidthPx: number;
+  tapPx: number;
+  actionFullWidth: boolean;
+  compactHeader: boolean;
+  filtersScrollX: boolean;
+  reactionsScrollX: boolean;
+  cardPadPx: number;
+  titleMaxLines: number;
+  commentMaxLines: number;
+  photoMaxHeightPx: number;
+  overflowsHorizontally: boolean;
+  swipeAxis: "y" | "both";
+  pullToRefresh: boolean;
+};
+
+export function isNarrowFeedViewport(widthPx: number): boolean {
+  return Number.isFinite(widthPx) && widthPx > 0 && widthPx <= NARROW_FEED_MAX_WIDTH_PX;
+}
+
+export function feedWindowKey(items: ReadonlyArray<Pick<PackFeedItemDTO, "id" | "source">>): string {
+  return items.map((it) => feedItemKey(it)).join(",");
+}
+
+/**
+ * Пустой/битый снимок → empty; тот же windowKey после dismiss → repeat.
+ * 0 карточек при валидном ключе — нормальная пустая лента (ok).
+ */
+export function canShowFeedNarrow(
+  snap: FeedNarrowSnapshot | null | undefined,
+  dismissedKey?: string | null,
+): { show: boolean; reason: FeedMotionReason } {
+  if (!snap || !Number.isFinite(snap.cardCount) || snap.cardCount < 0) {
+    return { show: false, reason: "empty" };
+  }
+  const key = (snap.windowKey ?? "").trim();
+  if (dismissedKey && key && dismissedKey === key) {
+    return { show: false, reason: "repeat" };
+  }
+  return { show: true, reason: "ok" };
+}
+
+/**
+ * Пользовательский путь на узком экране: лента влезает в ширину,
+ * карточки читаются, тапы не меньше 44px, свайп вниз — PTR, свайп вбок — фильтры/реакции.
+ * На широком превью — колонка без горизонтального скролла чипов.
+ */
+export function planFeedNarrowPath(
+  viewportWidthPx: number,
+  snap?: FeedNarrowSnapshot | null,
+  dismissedKey?: string | null,
+): FeedNarrowPath {
+  const gate = canShowFeedNarrow(snap, dismissedKey);
+  const width =
+    Number.isFinite(viewportWidthPx) && viewportWidthPx > 0 ? viewportWidthPx : NARROW_FEED_MAX_WIDTH_PX;
+  const narrow = isNarrowFeedViewport(width);
+  const gutterPx = NARROW_FEED_GUTTER_PX;
+  const maxWidthPx = Math.max(0, Math.floor(width - gutterPx * 2));
+
+  return {
+    visible: gate.show,
+    reason: gate.reason,
+    narrow,
+    stacked: narrow,
+    gutterPx,
+    maxWidthPx,
+    tapPx: NARROW_FEED_MIN_TAP_PX,
+    actionFullWidth: narrow,
+    compactHeader: narrow,
+    filtersScrollX: narrow,
+    reactionsScrollX: true,
+    cardPadPx: narrow ? 12 : 16,
+    titleMaxLines: NARROW_FEED_TITLE_LINES,
+    commentMaxLines: narrow ? NARROW_FEED_COMMENT_LINES : 8,
+    photoMaxHeightPx: narrow ? NARROW_FEED_PHOTO_MAX_H_PX : WIDE_FEED_PHOTO_MAX_H_PX,
+    overflowsHorizontally: false,
+    swipeAxis: narrow ? "y" : "both",
+    pullToRefresh: true,
+  };
+}
+
+export type ActivityCardSnapshot = {
+  name: string;
+  activity?: string;
+  comment?: string;
+};
+
+export type ActivityCardNarrowPath = FeedNarrowPath & {
+  nameMaxLines: number;
+  commentExpandable: boolean;
+};
+
+export function activityCardKey(snap: ActivityCardSnapshot): string {
+  return `${(snap.name ?? "").trim()}\0${(snap.activity ?? "").trim()}\0${(snap.comment ?? "").trim()}`;
+}
+
+export function canShowActivityCard(
+  snap: ActivityCardSnapshot | null | undefined,
+  dismissedKey?: string | null,
+): { show: boolean; reason: FeedMotionReason } {
+  if (!snap) return { show: false, reason: "empty" };
+  const name = (snap.name ?? "").trim();
+  const activity = (snap.activity ?? "").trim();
+  const comment = (snap.comment ?? "").trim();
+  if (!name && !activity && !comment) return { show: false, reason: "empty" };
+  const key = activityCardKey(snap);
+  if (dismissedKey && dismissedKey === key) return { show: false, reason: "repeat" };
+  return { show: true, reason: "ok" };
+}
+
+/**
+ * Пользовательский путь на узком экране: карточка влезает в ширину,
+ * имя и текст читаются, тап не меньше 44px, реакции свайпятся по горизонтали.
+ */
+export function planActivityCardNarrowPath(
+  viewportWidthPx: number,
+  snap: ActivityCardSnapshot | null | undefined,
+  dismissedKey?: string | null,
+): ActivityCardNarrowPath {
+  const gate = canShowActivityCard(snap, dismissedKey);
+  const key = snap ? activityCardKey(snap) : "";
+  const feed = planFeedNarrowPath(
+    viewportWidthPx,
+    { cardCount: gate.show ? 1 : 0, windowKey: key },
+    dismissedKey && key === dismissedKey ? dismissedKey : null,
+  );
+  return {
+    ...feed,
+    visible: gate.show,
+    reason: gate.reason,
+    nameMaxLines: 1,
+    commentExpandable: Boolean((snap?.comment ?? "").trim()),
+  };
+}
+
+/**
+ * Тихий полный синк: окно с сервера + уже догруженные старее окна.
+ * Пустой incoming на живой ленте не схлопывает список; тот же набор — тот же массив.
+ */
+export function mergePackFeedFullWindow(
+  prev: PackFeedItemDTO[],
+  incoming: PackFeedItemDTO[],
+): PackFeedItemDTO[] {
+  if (incoming.length === 0) {
+    return prev.length > 0 ? prev : incoming;
+  }
+  if (prev.length === 0) return incoming;
+  const windowOldestTs = minRegularFeedTs(incoming);
+  const olderKept =
+    windowOldestTs !== ""
+      ? prev.filter((p) => p.id > 0 && !p.is_pinned && feedTsMs(p.created_at) < feedTsMs(windowOldestTs))
+      : [];
+  const next =
+    olderKept.length > 0 ? sortPackFeedItemsDesc([...incoming, ...olderKept]) : incoming;
+  return sameFeedItems(prev, next) ? prev : next;
+}
+
 function trainingReportFirstLineKey(text: string): string {
   const line = text.trim().replace(/^#training_done\s*[—–-]\s*/i, "").split("\n")[0] ?? "";
   const m = line.match(/^([^,]+),\s*\d+\s*мин/i);
