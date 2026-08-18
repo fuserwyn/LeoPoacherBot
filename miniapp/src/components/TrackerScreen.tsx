@@ -4,7 +4,9 @@ import {
   sprintGenerate,
   sprintIdeas,
   trackerAttachImage,
+  trackerAuthors,
   trackerAutoQa,
+  trackerAvatarUrl,
   trackerCancel,
   trackerCreate,
   trackerDelete,
@@ -60,6 +62,13 @@ function parsePrompt(prompt: string): { sprint: number | null; text: string } {
   return { sprint: null, text: raw };
 }
 
+/** Автор задачи: гость мини-аппа или сам MyVibeLab, если ставили оттуда. */
+function authorLabel(task: TrackerTask, authors: Record<number, string>): string {
+  const id = Number(task.author_id) || 0;
+  if (!id) return "MyVibeLab";
+  return authors[id] || `id ${id}`;
+}
+
 function plural(n: number, one: string, few: string, many: string): string {
   const mod10 = n % 10;
   const mod100 = n % 100;
@@ -94,7 +103,9 @@ function metaParts(t: TrackerTask, isQa: boolean): string[] {
 }
 
 export function TrackerScreen({ initData, showAlert }: Props) {
-  const [tab, setTab] = useState<"board" | "sprint">("board");
+  const [tab, setTab] = useState<"board" | "task" | "sprint">("board");
+  /** author_id → как показать человека. Задачи знают только id. */
+  const [authors, setAuthors] = useState<Record<number, string>>({});
   const [role, setRole] = useState<"developer" | "tester">("developer");
   const [tasks, setTasks] = useState<TrackerTask[]>([]);
   const [loading, setLoading] = useState(true);
@@ -123,7 +134,23 @@ export function TrackerScreen({ initData, showAlert }: Props) {
     async (silent = false) => {
       try {
         const j = await trackerList(initData);
-        setTasks(j.tasks ?? []);
+        const list = j.tasks ?? [];
+        setTasks(list);
+        const ids = Array.from(
+          new Set(list.map((t) => Number(t.author_id) || 0).filter((id) => id > 0)),
+        );
+        if (ids.length > 0) {
+          const people = await trackerAuthors(initData, ids);
+          setAuthors((prev) => {
+            const next = { ...prev };
+            for (const p of people) {
+              next[p.user_id] =
+                p.display_name || (p.username ? `@${p.username}` : `id ${p.user_id}`);
+            }
+            for (const id of ids) if (!next[id]) next[id] = `id ${id}`;
+            return next;
+          });
+        }
         const openId = detailRef.current;
         if (openId) {
           const fresh = (j.tasks ?? []).find((t) => t.id === openId);
@@ -301,6 +328,15 @@ export function TrackerScreen({ initData, showAlert }: Props) {
         <button
           type="button"
           role="tab"
+          aria-selected={tab === "task"}
+          className={tab === "task" ? "on" : ""}
+          onClick={() => setTab("task")}
+        >
+          Задача
+        </button>
+        <button
+          type="button"
+          role="tab"
           aria-selected={tab === "sprint"}
           className={tab === "sprint" ? "on" : ""}
           onClick={() => setTab("sprint")}
@@ -355,7 +391,55 @@ export function TrackerScreen({ initData, showAlert }: Props) {
               : "Ожидает → в работе → Review → тест → выполнено. Задачи выполняет агент MyVibeLab."}
           </p>
 
-          {!isQa ? (
+          {loading ? (
+            <p className="tracker__muted">Загружаю доску…</p>
+          ) : (
+            <div className="tracker__cols">
+              {columns.map((col) => {
+                const items = pool.filter((t) =>
+                  isQa ? (t.qa_column || "todo") === col.key : (t.dev_column || "todo") === col.key,
+                );
+                return (
+                  <div className="tracker-col" data-col={col.key} key={col.key}>
+                    <div className="tracker-col__head">
+                      <span className="tracker-col__title">{col.title}</span>
+                      <span className="tracker-col__count">{items.length}</span>
+                    </div>
+                    <div className="tracker-col__list">
+                      {items.length === 0 ? (
+                        <div className="tracker-empty">
+                          <span className="tracker-empty__icon" aria-hidden>
+                            ∅
+                          </span>
+                          пусто
+                        </div>
+                      ) : (
+                        items.map((t) => (
+                          <TaskCard
+                            key={t.id}
+                            task={t}
+                            isQa={isQa}
+                            author={authorLabel(t, authors)}
+                            avatar={
+                              Number(t.author_id) > 0 ? trackerAvatarUrl(initData, Number(t.author_id)) : ""
+                            }
+                            onOpen={() => void openTask(t)}
+                          />
+                        ))
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </>
+      ) : tab === "task" ? (
+        <div className="tracker__task">
+          <p className="tracker__hint">
+            Задачу выполняет агент MyVibeLab в проекте Fat-Leopard: опиши, что сделать, когда запускать и приложи
+            картинку, если так понятнее.
+          </p>
             <div className="tracker__new">
               <textarea
                 value={prompt}
@@ -394,40 +478,7 @@ export function TrackerScreen({ initData, showAlert }: Props) {
                 </button>
               </div>
             </div>
-          ) : null}
-
-          {loading ? (
-            <p className="tracker__muted">Загружаю доску…</p>
-          ) : (
-            <div className="tracker__cols">
-              {columns.map((col) => {
-                const items = pool.filter((t) =>
-                  isQa ? (t.qa_column || "todo") === col.key : (t.dev_column || "todo") === col.key,
-                );
-                return (
-                  <div className="tracker-col" data-col={col.key} key={col.key}>
-                    <div className="tracker-col__head">
-                      <span className="tracker-col__title">{col.title}</span>
-                      <span className="tracker-col__count">{items.length}</span>
-                    </div>
-                    <div className="tracker-col__list">
-                      {items.length === 0 ? (
-                        <div className="tracker-empty">
-                          <span className="tracker-empty__icon" aria-hidden>
-                            ∅
-                          </span>
-                          пусто
-                        </div>
-                      ) : (
-                        items.map((t) => <TaskCard key={t.id} task={t} isQa={isQa} onOpen={() => void openTask(t)} />)
-                      )}
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          )}
-        </>
+        </div>
       ) : (
         <div className="tracker__sprint">
           <p className="tracker__hint">
@@ -546,6 +597,14 @@ export function TrackerScreen({ initData, showAlert }: Props) {
               <button type="button" className="tracker-modal__close" onClick={() => setDetail(null)} aria-label="Закрыть">
                 ✕
               </button>
+            </div>
+            <div className="tracker-card__author tracker-modal__author">
+              {Number(detail.author_id) > 0 ? (
+                <img src={trackerAvatarUrl(initData, Number(detail.author_id))} alt="" loading="lazy" />
+              ) : (
+                <span className="tracker-card__author-dot">🤖</span>
+              )}
+              <span>Поставил: {authorLabel(detail, authors)}</span>
             </div>
             <p className="tracker-modal__prompt">{parsePrompt(detail.prompt).text}</p>
             <div className="tracker-card__meta">
@@ -674,7 +733,19 @@ export function TrackerScreen({ initData, showAlert }: Props) {
   );
 }
 
-function TaskCard({ task, isQa, onOpen }: { task: TrackerTask; isQa: boolean; onOpen: () => void }) {
+function TaskCard({
+  task,
+  isQa,
+  author,
+  avatar,
+  onOpen,
+}: {
+  task: TrackerTask;
+  isQa: boolean;
+  author: string;
+  avatar: string;
+  onOpen: () => void;
+}) {
   const parsed = parsePrompt(task.prompt);
   const statusText = isQa
     ? `${task.qa_icon || "🧪"} ${task.qa_label || "QA"}`
@@ -688,6 +759,10 @@ function TaskCard({ task, isQa, onOpen }: { task: TrackerTask; isQa: boolean; on
       <div className="tracker-card__head">
         <span className="tracker-card__id">#{task.id}</span>
         <span className="tracker-card__status">{statusText}</span>
+      </div>
+      <div className="tracker-card__author">
+        {avatar ? <img src={avatar} alt="" loading="lazy" /> : <span className="tracker-card__author-dot">🤖</span>}
+        <span>{author}</span>
       </div>
       <div className="tracker-card__text">{parsed.text || task.prompt}</div>
       {parsed.sprint || task.kind === "deploy_fix" || task.manual_qa || task.fast_track || task.has_attachments ? (

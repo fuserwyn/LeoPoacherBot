@@ -14,6 +14,8 @@ import (
 	"strings"
 	"time"
 
+	"leo-bot/internal/database"
+
 	initdata "github.com/telegram-mini-apps/init-data-golang"
 )
 
@@ -146,6 +148,23 @@ func (b *Bot) MiniappTrackerAttach(
 		out = []byte("{}")
 	}
 	return json.RawMessage(out), nil
+}
+
+// MiniappTrackerAuthors — кто ставил задачи: ник и имя по telegram_id.
+// В трекере у задачи есть только author_id, а на доске нужен человек.
+func (b *Bot) MiniappTrackerAuthors(
+	viewerUserID int64, initD initdata.InitData, ids []int64,
+) ([]database.AdminPersonRow, error) {
+	if _, err := b.requireMiniappAdmin(viewerUserID, initD); err != nil {
+		return nil, err
+	}
+	if len(ids) == 0 {
+		return nil, nil
+	}
+	if len(ids) > 100 {
+		ids = ids[:100]
+	}
+	return b.db.AdminPeopleByIDs(b.adminPackChatID(), ids)
 }
 
 // trackerSession — подписанная гостевая сессия MyVibeLab: тот же формат, что

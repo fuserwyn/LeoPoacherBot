@@ -175,6 +175,27 @@ export async function trackerAttachImage(
   }
 }
 
+export type TrackerPerson = { user_id: number; username: string; display_name: string };
+
+/** Кто ставил задачи: в трекере есть только author_id, ник живёт у нас. */
+export async function trackerAuthors(initData: string, ids: number[]): Promise<TrackerPerson[]> {
+  if (!api || ids.length === 0) return [];
+  const res = await fetch(`${api}/api/miniapp/admin/tracker/authors`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ init_data: initData, ids }),
+  });
+  const j = (await res.json().catch(() => ({}))) as { ok?: boolean; people?: TrackerPerson[] };
+  if (!res.ok || j.ok === false) return [];
+  return j.people ?? [];
+}
+
+/** Аватарка участника: сервер отдаёт байты через Bot API, токен в клиент не уезжает. */
+export function trackerAvatarUrl(initData: string, userId: number): string {
+  if (!api || !userId) return "";
+  return `${api}/api/miniapp/user-avatar?init_data=${encodeURIComponent(initData)}&user_id=${userId}`;
+}
+
 export function sprintIdeas(initData: string, hint: string) {
   return call<{ ideas: SprintIdea[]; recommended_id?: string; analysis?: string; topic_question?: string }>(
     initData,

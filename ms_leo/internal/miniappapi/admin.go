@@ -668,6 +668,28 @@ func (s *Server) handlePostAdminWipe(w http.ResponseWriter, r *http.Request) {
 	s.writeAdminOK(w, map[string]any{"counts": counts, "done": true})
 }
 
+func (s *Server) handlePostAdminTrackerAuthors(w http.ResponseWriter, r *http.Request) {
+	var body struct {
+		InitData string  `json:"init_data"`
+		IDs      []int64 `json:"ids"`
+	}
+	corsWriteHeaders(w, r)
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		s.jsonErr(w, http.StatusBadRequest, "invalid_json")
+		return
+	}
+	parsed, ok := s.authMiniapp(w, body.InitData)
+	if !ok {
+		return
+	}
+	people, err := s.bot.MiniappTrackerAuthors(parsed.User.ID, parsed, body.IDs)
+	if err != nil {
+		s.writeAdminErr(w, err)
+		return
+	}
+	s.writeAdminOK(w, map[string]any{"people": people})
+}
+
 func (s *Server) handlePostAdminTrackerAttach(w http.ResponseWriter, r *http.Request) {
 	var body struct {
 		InitData string `json:"init_data"`

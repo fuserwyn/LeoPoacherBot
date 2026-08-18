@@ -7,6 +7,8 @@ import (
 	"regexp"
 	"strings"
 	"time"
+
+	"github.com/lib/pq"
 )
 
 // Консоль админа: список таблиц, страница таблицы и произвольный SQL.
@@ -325,6 +327,42 @@ func (d *Database) AdminSumCompletedPayments(packChatID int64, since time.Time) 
 			return nil, err
 		}
 		out = append(out, s)
+	}
+	return out, rows.Err()
+}
+
+// AdminPersonRow — кто это: ник и отображаемое имя по telegram_id.
+type AdminPersonRow struct {
+	UserID      int64  `json:"user_id"`
+	Username    string `json:"username"`
+	DisplayName string `json:"display_name"`
+}
+
+// AdminPeopleByIDs — имена участников пачкой. Нужно там, где в данных лежит
+// только telegram_id (например, автор задачи в трекере), а показать надо ник.
+func (d *Database) AdminPeopleByIDs(packChatID int64, ids []int64) ([]AdminPersonRow, error) {
+	if d == nil || d.db == nil || len(ids) == 0 {
+		return nil, nil
+	}
+	rows, err := d.db.Query(`
+		SELECT u.id,
+		       COALESCE(NULLIF(BTRIM(ts.username), ''), ''),
+		       COALESCE(NULLIF(BTRIM(p.display_name), ''), '')
+		FROM unnest($1::bigint[]) AS u(id)
+		LEFT JOIN training_state ts ON ts.user_id = u.id AND ts.chat_id = $2
+		LEFT JOIN miniapp_user_profile p ON p.user_id = u.id AND p.pack_chat_id = $2
+	`, pq.Array(ids), packChatID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out := make([]AdminPersonRow, 0, len(ids))
+	for rows.Next() {
+		var r AdminPersonRow
+		if err := rows.Scan(&r.UserID, &r.Username, &r.DisplayName); err != nil {
+			return nil, err
+		}
+		out = append(out, r)
 	}
 	return out, rows.Err()
 }
