@@ -624,3 +624,15 @@
   color: #ff6b64;
   border-color: rgba(255, 59, 48, 0.3);
 }
+
+/* Своя дата и время постановки задачи. */
+.tracker__at {
+  flex: 1 1 180px;
+  min-height: 36px;
+  padding: 6px 10px;
+  border-radius: 10px;
+  border: 1px solid var(--border-subtle);
+  background: var(--card-inner);
+  color: var(--text);
+  font: inherit;
+}

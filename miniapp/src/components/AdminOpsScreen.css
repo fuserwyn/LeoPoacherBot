@@ -201,3 +201,81 @@
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+
+/* Список таблиц базы — чипами: их десятки, вертикальный список не читается. */
+.ops-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.ops-chip {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 6px;
+  padding: 6px 10px;
+  border-radius: 999px;
+  border: 1px solid var(--border-subtle);
+  background: var(--card-inner);
+  color: var(--text);
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.ops-chip.on {
+  color: var(--accent);
+  border-color: color-mix(in srgb, var(--accent) 42%, transparent);
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
+}
+
+.ops-chip small {
+  font-size: 10.5px;
+  color: var(--muted);
+}
+
+/* Три числа месяца: расход, доход, разница. */
+.ops-money {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+}
+
+.ops-money__cell {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 12px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border-subtle);
+  background: var(--card-inner);
+  text-align: center;
+}
+
+.ops-money__cell small {
+  font-size: 11px;
+  color: var(--muted);
+}
+
+.ops-money__cell b {
+  font-size: 17px;
+  font-weight: 700;
+}
+
+.ops-money__cell--net {
+  border-color: rgba(52, 199, 89, 0.32);
+  background: rgba(52, 199, 89, 0.08);
+}
+
+.ops-money__cell--net b {
+  color: #4cd06a;
+}
+
+.ops-money__cell--net.is-minus {
+  border-color: rgba(255, 59, 48, 0.32);
+  background: rgba(255, 59, 48, 0.08);
+}
+
+.ops-money__cell--net.is-minus b {
+  color: #ff6b64;
+}

@@ -297,3 +297,43 @@ export function publishAdminPoll(initData: string, question: string, options: st
 export function wipePackFeed(initData: string, confirm: boolean) {
   return post<{ counts: AdminWipeCounts; done: boolean }>("/api/miniapp/admin/wipe", initData, { confirm });
 }
+
+/* Технические разделы: база проекта и деньги. */
+
+export type AdminDbTable = { name: string; rows: number };
+
+export type AdminQueryResult = {
+  columns: string[];
+  rows: string[][];
+  truncated: boolean;
+  took: string;
+};
+
+export type AdminResources = {
+  month: string;
+  cost_parts: { key: string; label: string; raw: number; usd: number }[];
+  cost_usd: number;
+  cost_note: string;
+  income: { currency: string; count: number; amount: number; usd: number }[];
+  income_usd: number;
+  net_usd: number;
+  rates_note: string;
+  payments_note: string;
+};
+
+export function fetchAdminDbTables(initData: string) {
+  return post<{ tables: AdminDbTable[] }>("/api/miniapp/admin/db/tables", initData);
+}
+
+export function fetchAdminDbTable(initData: string, table: string, limit = 50, offset = 0) {
+  return post<{ result: AdminQueryResult }>("/api/miniapp/admin/db/table", initData, { table, limit, offset });
+}
+
+/** Только чтение: сервер отклонит всё, кроме SELECT / WITH / EXPLAIN / SHOW / TABLE / VALUES. */
+export function runAdminDbQuery(initData: string, sql: string) {
+  return post<{ result: AdminQueryResult }>("/api/miniapp/admin/db/query", initData, { sql });
+}
+
+export function fetchAdminResources(initData: string) {
+  return post<{ resources: AdminResources }>("/api/miniapp/admin/resources", initData);
+}

@@ -98,6 +98,19 @@ type Config struct {
 	BoardSecret string
 	BoardURL    string
 	BoardRepo   string
+
+	// Раздел «Ресурсы» в админке: расход Railway за месяц и пересчёт оплат в
+	// доллары. Ставки — из тарифов Railway, курс — руками, чтобы не тянуть
+	// внешний сервис ради одной цифры.
+	RailwayToken          string
+	RailwayProjectID      string
+	UsagePriceRAMGBMonth  float64
+	UsagePriceCPUMonth    float64
+	UsagePriceDiskGBMonth float64
+	UsagePriceEgressGB    float64
+	UsageMinutesPerMonth  float64
+	UsdRubRate            float64
+	UsdPerStar            float64
 }
 
 func Load() (*Config, error) {

@@ -42,7 +42,13 @@ const WHEN_PRESETS = [
   { value: "через 1 час", label: "Через час" },
   { value: "завтра 9:00", label: "Завтра в 9:00" },
   { value: "каждый день 9:00", label: "Каждый день в 9:00" },
+  { value: "custom", label: "Дата и время…" },
 ];
+
+/** «2026-08-20T09:00» из datetime-local → «2026-08-20 09:00», как ждёт трекер. */
+function whenFromPicker(value: string): string {
+  return value.replace("T", " ");
+}
 
 /** «[Спринт 2] текст» → номер спринта отдельным бейджем, как в MyVibeLab. */
 function parsePrompt(prompt: string): { sprint: number | null; text: string } {
@@ -93,6 +99,7 @@ export function TrackerScreen({ initData, showAlert }: Props) {
   const [busy, setBusy] = useState(false);
   const [prompt, setPrompt] = useState("");
   const [when, setWhen] = useState(WHEN_PRESETS[0].value);
+  const [whenAt, setWhenAt] = useState("");
   const [detail, setDetail] = useState<TrackerTask | null>(null);
 
   const [hint, setHint] = useState("");
@@ -152,9 +159,16 @@ export function TrackerScreen({ initData, showAlert }: Props) {
       showAlert("Опиши задачу.");
       return;
     }
+    if (when === "custom" && !whenAt) {
+      showAlert("Выбери дату и время.");
+      return;
+    }
     setBusy(true);
     try {
-      const res = await trackerCreate(initData, { when, prompt: text });
+      const res = await trackerCreate(initData, {
+        when: when === "custom" ? whenFromPicker(whenAt) : when,
+        prompt: text,
+      });
       setPrompt("");
       showAlert(`Задача поставлена на ${res.when || "ближайший запуск"}.`);
       await load();
@@ -340,6 +354,14 @@ export function TrackerScreen({ initData, showAlert }: Props) {
                     </option>
                   ))}
                 </select>
+                {when === "custom" ? (
+                  <input
+                    type="datetime-local"
+                    className="tracker__at"
+                    value={whenAt}
+                    onChange={(e) => setWhenAt(e.target.value)}
+                  />
+                ) : null}
                 <button type="button" className="tracker__primary" disabled={busy} onClick={() => void createTask()}>
                   Поставить задачу
                 </button>

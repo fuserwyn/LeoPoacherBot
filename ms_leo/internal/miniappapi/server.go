@@ -191,6 +191,14 @@ func (s *Server) serve(w http.ResponseWriter, r *http.Request) {
 		s.handlePostAdminPoll(w, r)
 	case path == "/api/miniapp/admin/wipe" && r.Method == http.MethodPost:
 		s.handlePostAdminWipe(w, r)
+	case path == "/api/miniapp/admin/db/tables" && r.Method == http.MethodPost:
+		s.handlePostAdminDBTables(w, r)
+	case path == "/api/miniapp/admin/db/table" && r.Method == http.MethodPost:
+		s.handlePostAdminDBTable(w, r)
+	case path == "/api/miniapp/admin/db/query" && r.Method == http.MethodPost:
+		s.handlePostAdminDBQuery(w, r)
+	case path == "/api/miniapp/admin/resources" && r.Method == http.MethodPost:
+		s.handlePostAdminResources(w, r)
 	case path == "/api/miniapp/admin/support/inbox" && r.Method == http.MethodPost:
 		s.handlePostAdminSupportInbox(w, r)
 	case path == "/api/miniapp/admin/support/thread" && r.Method == http.MethodPost:

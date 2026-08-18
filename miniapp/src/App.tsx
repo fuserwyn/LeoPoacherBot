@@ -484,6 +484,8 @@ export function App() {
         />
       ) : null}
 
+      {/* В админке свой таббар (AdminScreen): пользовательские вкладки там лишние. */}
+      {adminOpen ? null : (
       <BottomNav
         active={tab}
         leoBadgeCount={leoPending}
@@ -523,6 +525,7 @@ export function App() {
           setTab("profile");
         }}
       />
+      )}
 
       {workoutOpen && (
         <NewWorkoutScreen

@@ -381,3 +381,56 @@
   font-size: 22px;
   font-weight: 700;
 }
+
+/* Админский таббар. Пользовательские вкладки (Стая/Лео/Правила/Профиль) в
+   админке не нужны — здесь свои разделы, и уходить из админки надо через
+   стрелку в шапке. */
+.admin__tabs {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 30;
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 2px;
+  padding: 6px 6px calc(6px + env(safe-area-inset-bottom, 0px));
+  background: var(--nav-bg);
+  backdrop-filter: blur(12px);
+  border-top: 1px solid var(--border-subtle);
+}
+
+.admin__tab {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  padding: 6px 2px;
+  border: 0;
+  border-radius: 10px;
+  background: transparent;
+  color: var(--muted);
+  font: inherit;
+  cursor: pointer;
+}
+
+.admin__tab.on {
+  color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
+}
+
+.admin__tab-ico {
+  font-size: 17px;
+  line-height: 1;
+}
+
+.admin__tab-label {
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+}
+
+/* Место под таббар, иначе последняя карточка уезжает под него. */
+.admin {
+  padding-bottom: calc(78px + env(safe-area-inset-bottom, 0px));
+}

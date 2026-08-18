@@ -668,6 +668,94 @@ func (s *Server) handlePostAdminWipe(w http.ResponseWriter, r *http.Request) {
 	s.writeAdminOK(w, map[string]any{"counts": counts, "done": true})
 }
 
+func (s *Server) handlePostAdminDBTables(w http.ResponseWriter, r *http.Request) {
+	var body struct {
+		InitData string `json:"init_data"`
+	}
+	corsWriteHeaders(w, r)
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		s.jsonErr(w, http.StatusBadRequest, "invalid_json")
+		return
+	}
+	parsed, ok := s.authMiniapp(w, body.InitData)
+	if !ok {
+		return
+	}
+	tables, err := s.bot.MiniappAdminDBTables(parsed.User.ID, parsed)
+	if err != nil {
+		s.writeAdminErr(w, err)
+		return
+	}
+	s.writeAdminOK(w, map[string]any{"tables": tables})
+}
+
+func (s *Server) handlePostAdminDBTable(w http.ResponseWriter, r *http.Request) {
+	var body struct {
+		InitData string `json:"init_data"`
+		Table    string `json:"table"`
+		Limit    int    `json:"limit"`
+		Offset   int    `json:"offset"`
+	}
+	corsWriteHeaders(w, r)
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		s.jsonErr(w, http.StatusBadRequest, "invalid_json")
+		return
+	}
+	parsed, ok := s.authMiniapp(w, body.InitData)
+	if !ok {
+		return
+	}
+	res, err := s.bot.MiniappAdminDBTable(parsed.User.ID, parsed, body.Table, body.Limit, body.Offset)
+	if err != nil {
+		s.writeAdminErr(w, err)
+		return
+	}
+	s.writeAdminOK(w, map[string]any{"result": res})
+}
+
+func (s *Server) handlePostAdminDBQuery(w http.ResponseWriter, r *http.Request) {
+	var body struct {
+		InitData string `json:"init_data"`
+		SQL      string `json:"sql"`
+	}
+	corsWriteHeaders(w, r)
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		s.jsonErr(w, http.StatusBadRequest, "invalid_json")
+		return
+	}
+	parsed, ok := s.authMiniapp(w, body.InitData)
+	if !ok {
+		return
+	}
+	res, err := s.bot.MiniappAdminDBQuery(parsed.User.ID, parsed, body.SQL)
+	if err != nil {
+		s.writeAdminErr(w, err)
+		return
+	}
+	s.writeAdminOK(w, map[string]any{"result": res})
+}
+
+func (s *Server) handlePostAdminResources(w http.ResponseWriter, r *http.Request) {
+	var body struct {
+		InitData string `json:"init_data"`
+	}
+	corsWriteHeaders(w, r)
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		s.jsonErr(w, http.StatusBadRequest, "invalid_json")
+		return
+	}
+	parsed, ok := s.authMiniapp(w, body.InitData)
+	if !ok {
+		return
+	}
+	res, err := s.bot.MiniappAdminResources(parsed.User.ID, parsed)
+	if err != nil {
+		s.writeAdminErr(w, err)
+		return
+	}
+	s.writeAdminOK(w, map[string]any{"resources": res})
+}
+
 func (s *Server) writeAdminOK(w http.ResponseWriter, payload map[string]any) {
 	if payload == nil {
 		payload = map[string]any{}

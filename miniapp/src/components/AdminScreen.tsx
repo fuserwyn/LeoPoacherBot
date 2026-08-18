@@ -27,7 +27,9 @@ import {
   type AdminUserCard,
   type AdminUserRow,
 } from "../lib/adminApi";
+import { AdminDataScreen } from "./AdminDataScreen";
 import { AdminOpsScreen, type AdminOpsSection } from "./AdminOpsScreen";
+import { AdminResourcesScreen } from "./AdminResourcesScreen";
 import { TrackerScreen } from "./TrackerScreen";
 import "./AdminScreen.css";
 
@@ -41,8 +43,18 @@ type Page =
   | "card"
   | "announce"
   | "price"
-  | "tracker"
   | AdminOpsSection;
+
+/** Вкладки админского таббара: у админа свои разделы, пользовательские тут ни к чему. */
+type AdminTab = "community" | "system" | "data" | "resources" | "tracker";
+
+const ADMIN_TABS: { key: AdminTab; icon: string; label: string }[] = [
+  { key: "community", icon: "👥", label: "Сообщество" },
+  { key: "system", icon: "⚙️", label: "Система" },
+  { key: "data", icon: "🗄", label: "Данные" },
+  { key: "resources", icon: "💵", label: "Ресурсы" },
+  { key: "tracker", icon: "🗂", label: "Трекер" },
+];
 
 type Props = {
   initData: string;
@@ -98,6 +110,7 @@ function hiddenKind(kind: string) {
 
 export function AdminScreen({ initData, inTelegram, showAlert, onClose }: Props) {
   const [page, setPage] = useState<Page>("home");
+  const [tab, setTab] = useState<AdminTab>("community");
   const [overview, setOverview] = useState<AdminOverview>(EMPTY_OVERVIEW);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
@@ -351,7 +364,7 @@ export function AdminScreen({ initData, inTelegram, showAlert, onClose }: Props)
 
   const title =
     page === "home"
-      ? "Админка"
+      ? (ADMIN_TABS.find((t) => t.key === tab)?.label ?? "Админка")
       : page === "support"
         ? "Поддержка"
         : page === "thread"
@@ -366,9 +379,7 @@ export function AdminScreen({ initData, inTelegram, showAlert, onClose }: Props)
                   ? userLabel(card?.display_name, card?.username, card?.user_id)
                   : page === "price"
                     ? "Цена доступа"
-                    : page === "tracker"
-                      ? "Трекер задач"
-                      : page === "analytics"
+                    : page === "analytics"
                         ? "Аналитика"
                         : page === "visits"
                           ? "Посещения бота"
@@ -394,7 +405,7 @@ export function AdminScreen({ initData, inTelegram, showAlert, onClose }: Props)
         <span className="admin__head-spacer" />
       </header>
 
-      {page === "home" && (
+      {page === "home" && tab === "community" && (
         <div className="admin__body">
           {loading ? (
             <p className="admin__muted">Загрузка…</p>
@@ -447,13 +458,6 @@ export function AdminScreen({ initData, inTelegram, showAlert, onClose }: Props)
                     <small>поиск, больничный, кик</small>
                   </span>
                 </button>
-                <button type="button" className="admin__tile" onClick={() => setPage("tracker")}>
-                  <span className="admin__tile-ico">🗂</span>
-                  <span className="admin__tile-text">
-                    <b>Трекер задач</b>
-                    <small>доска, спринты и задачи агенту</small>
-                  </span>
-                </button>
                 <button type="button" className="admin__tile" onClick={() => setPage("announce")}>
                   <span className="admin__tile-ico">📣</span>
                   <span className="admin__tile-text">
@@ -482,6 +486,29 @@ export function AdminScreen({ initData, inTelegram, showAlert, onClose }: Props)
                     <small>заявки и статусы доступа</small>
                   </span>
                 </button>
+                <button type="button" className="admin__tile" onClick={() => void openPrice()}>
+                  <span className="admin__tile-ico">💰</span>
+                  <span className="admin__tile-text">
+                    <b>Цена доступа</b>
+                    <small>
+                      {overview.access_price_rub > 0
+                        ? `${overview.access_price_rub} ₽ · вход и возврат`
+                        : "сколько платят за вход и возврат"}
+                    </small>
+                  </span>
+                </button>
+              </div>
+              <p className="admin__muted admin__hint">
+                Всё то же есть и в боте: /admin. Кубки и стрики конкретного человека — в карточке участника.
+              </p>
+            </>
+          )}
+        </div>
+      )}
+
+      {page === "home" && tab === "system" && (
+        <div className="admin__body">
+          <div className="admin__tiles">
                 <button type="button" className="admin__tile" onClick={() => setPage("analytics")}>
                   <span className="admin__tile-ico">📈</span>
                   <span className="admin__tile-text">
@@ -510,27 +537,26 @@ export function AdminScreen({ initData, inTelegram, showAlert, onClose }: Props)
                     <small>удалить всё содержимое стаи</small>
                   </span>
                 </button>
-                <button type="button" className="admin__tile" onClick={() => void openPrice()}>
-                  <span className="admin__tile-ico">💰</span>
-                  <span className="admin__tile-text">
-                    <b>Цена доступа</b>
-                    <small>
-                      {overview.access_price_rub > 0
-                        ? `${overview.access_price_rub} ₽ · вход и возврат`
-                        : "сколько платят за вход и возврат"}
-                    </small>
-                  </span>
-                </button>
-              </div>
-              <p className="admin__muted admin__hint">
-                Всё то же есть и в боте: /admin. Кубки и стрики конкретного человека — в карточке участника.
-              </p>
-            </>
-          )}
+          </div>
+          <p className="admin__muted admin__hint">
+            Технические разделы: метрики продукта, доступы и разовые операции над содержимым стаи.
+          </p>
         </div>
       )}
 
-      {page === "tracker" && (
+      {page === "home" && tab === "data" && (
+        <div className="admin__body">
+          <AdminDataScreen initData={initData} showAlert={showAlert} />
+        </div>
+      )}
+
+      {page === "home" && tab === "resources" && (
+        <div className="admin__body">
+          <AdminResourcesScreen initData={initData} showAlert={showAlert} />
+        </div>
+      )}
+
+      {page === "home" && tab === "tracker" && (
         <div className="admin__body">
           <TrackerScreen initData={initData} showAlert={showAlert} />
         </div>
@@ -846,6 +872,26 @@ export function AdminScreen({ initData, inTelegram, showAlert, onClose }: Props)
           ) : null}
         </div>
       )}
+      <nav className="admin__tabs" aria-label="Разделы админки">
+        {ADMIN_TABS.map((t) => (
+          <button
+            key={t.key}
+            type="button"
+            className={`admin__tab${tab === t.key ? " on" : ""}`}
+            aria-current={tab === t.key ? "page" : undefined}
+            onClick={() => {
+              setTab(t.key);
+              setPage("home");
+            }}
+          >
+            <span className="admin__tab-ico" aria-hidden>
+              {t.icon}
+            </span>
+            <span className="admin__tab-label">{t.label}</span>
+          </button>
+        ))}
+      </nav>
     </div>
   );
 }
+
