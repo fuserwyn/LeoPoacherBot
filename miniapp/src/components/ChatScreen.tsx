@@ -9,6 +9,7 @@ import { formatChatTime } from "../lib/timeAgo";
 import { LEO_AVATAR_URL } from "../lib/leoAvatar";
 import { resolveTrainingPhotoUrl } from "../lib/packFeed";
 import { CameraButton } from "./CameraButton";
+import { PhotoLightbox } from "./PhotoLightbox";
 import "./ChatScreen.css";
 
 const envApi = (import.meta.env.VITE_MINIAPP_API_URL as string | undefined)?.replace(/\/$/, "") ?? "";
@@ -128,6 +129,8 @@ export function ChatScreen({ name, initData, inTelegram, showAlert, onInboxOpene
   const [photo, setPhoto] = useState<File | null>(null);
   const [photoPreview, setPhotoPreview] = useState<string | null>(null);
   const [lightboxUrl, setLightboxUrl] = useState<string | null>(null);
+  /** Читает историю выше — показать кнопку «к последним». */
+  const [showJumpLatest, setShowJumpLatest] = useState(false);
   const photoInputRef = useRef<HTMLInputElement | null>(null);
   /** blob-URL оптимистичных превью — ревокаем на размонтировании, чтобы не текла память. */
   const optimisticBlobsRef = useRef<string[]>([]);
@@ -189,7 +192,9 @@ export function ChatScreen({ name, initData, inTelegram, showAlert, onInboxOpene
     const el = logRef.current;
     if (!el) return;
     const onScroll = () => {
-      userScrolledUpRef.current = !isNearLogBottom();
+      const nearBottom = isNearLogBottom();
+      userScrolledUpRef.current = !nearBottom;
+      setShowJumpLatest((prev) => (prev === !nearBottom ? prev : !nearBottom));
       userScrollingRef.current = true;
       if (scrollGestureTimerRef.current) clearTimeout(scrollGestureTimerRef.current);
       scrollGestureTimerRef.current = setTimeout(() => {
@@ -260,6 +265,7 @@ export function ChatScreen({ name, initData, inTelegram, showAlert, onInboxOpene
       if (items.length === 0) return;
       didInitialScrollRef.current = true;
       userScrolledUpRef.current = false;
+      setShowJumpLatest(false);
       tailMessageKeyRef.current = items[items.length - 1]?.uiKey ?? null;
       requestAnimationFrame(scrollLogToEnd);
       return;
@@ -272,6 +278,7 @@ export function ChatScreen({ name, initData, inTelegram, showAlert, onInboxOpene
     if (forceScrollRef.current) {
       forceScrollRef.current = false;
       userScrolledUpRef.current = false;
+      setShowJumpLatest(false);
       scrollLogToEnd();
       return;
     }
@@ -543,7 +550,7 @@ export function ChatScreen({ name, initData, inTelegram, showAlert, onInboxOpene
       )}
       <header className="chat__head">
         <div className="chat__head-avatarwrap">
-          <img className="chat__head-avatar" src={LEO_AVATAR_URL} width={52} height={52} alt="Лео" loading="eager" />
+          <img className="chat__head-avatar" src={LEO_AVATAR_URL} width={40} height={40} alt="Лео" loading="eager" />
           {showTypingCue && (
             <span className="chat__head-typing" aria-hidden="true">
               <span className="chat__head-typing-dots">
@@ -559,18 +566,21 @@ export function ChatScreen({ name, initData, inTelegram, showAlert, onInboxOpene
           <p className="chat__sub">{showTypingCue ? "печатает…" : name}</p>
         </div>
       </header>
-      <div
-        className="chat__log"
-        role="log"
-        aria-label="Сообщения с ботом"
-        ref={logRef}
-      >
+      <div className="chat__log-wrap">
+        <div
+          className="chat__log"
+          role="log"
+          aria-label="Сообщения с ботом"
+          ref={logRef}
+        >
         {loaded && items.length === 0 && (
           <div className="chat__row chat__row--sys">
-            <img className="chat__bubble-avatar" src={LEO_AVATAR_URL} width={36} height={36} alt="" aria-hidden="true" />
-            <div className="chat__bubble chat__bubble--sys">
-              Привет! Здесь личный чат с Лео — ИИ отвечает на любой текст. Тренировки — кнопка «+» внизу. История
-              синхронизируется между всеми твоими устройствами.
+            <img className="chat__bubble-avatar" src={LEO_AVATAR_URL} width={32} height={32} alt="" aria-hidden="true" />
+            <div className="chat__bubble-wrap chat__bubble-wrap--sys">
+              <div className="chat__bubble chat__bubble--sys">
+                Привет! Здесь личный чат с Лео — ИИ отвечает на любой текст. Тренировки — кнопка «+» внизу. История
+                синхронизируется между всеми твоими устройствами.
+              </div>
             </div>
           </div>
         )}
@@ -591,23 +601,30 @@ export function ChatScreen({ name, initData, inTelegram, showAlert, onInboxOpene
                   )}
                   {m.text.trim() !== "" && <span className="chat__bubble-text">{m.text}</span>}
                 </div>
-                <div className="chat__time chat__time--user">{formatChatTime(m.createdAt)}</div>
+                <time className="chat__time chat__time--user" dateTime={m.createdAt}>
+                  {formatChatTime(m.createdAt)}
+                </time>
               </div>
             </div>
           ) : (
             <div key={m.uiKey} className="chat__row chat__row--sys">
-              <img className="chat__bubble-avatar" src={LEO_AVATAR_URL} width={36} height={36} alt="" aria-hidden="true" />
+              <img className="chat__bubble-avatar" src={LEO_AVATAR_URL} width={32} height={32} alt="" aria-hidden="true" />
               <div className="chat__bubble-wrap chat__bubble-wrap--sys">
                 <div className="chat__bubble chat__bubble--sys">{m.text}</div>
                 <div className="chat__meta">
-                  <div className="chat__time chat__time--sys">{formatChatTime(m.createdAt)}</div>
+                  <time className="chat__time chat__time--sys" dateTime={m.createdAt}>
+                    {formatChatTime(m.createdAt)}
+                  </time>
                   {m.serverID != null && (
                     <button
                       type="button"
                       className={`chat__like${m.likeMe ? " chat__like--mine" : ""}`}
+                      aria-pressed={Boolean(m.likeMe)}
+                      aria-label={m.likeMe ? "Убрать отметку «нравится»" : "Нравится"}
                       onClick={() => void toggleLike(m.serverID)}
                     >
-                      ❤️ {m.likeCount ?? 0}
+                      <span aria-hidden="true">❤️</span>
+                      <span>{m.likeCount ?? 0}</span>
                     </button>
                   )}
                 </div>
@@ -617,17 +634,34 @@ export function ChatScreen({ name, initData, inTelegram, showAlert, onInboxOpene
         )}
         {showTypingCue && (
           <div className="chat__row chat__row--sys" role="status" aria-live="polite" aria-label="Лео печатает">
-            <img className="chat__bubble-avatar" src={LEO_AVATAR_URL} width={36} height={36} alt="" aria-hidden="true" />
-            <div className="chat__bubble chat__bubble--sys chat__bubble--typing" aria-hidden="true">
-              <span className="chat__typing-dots">
-                <span className="chat__dot" />
-                <span className="chat__dot" />
-                <span className="chat__dot" />
-              </span>
+            <img className="chat__bubble-avatar" src={LEO_AVATAR_URL} width={32} height={32} alt="" aria-hidden="true" />
+            <div className="chat__bubble-wrap chat__bubble-wrap--sys">
+              <div className="chat__bubble chat__bubble--sys chat__bubble--typing" aria-hidden="true">
+                <span className="chat__typing-dots">
+                  <span className="chat__dot" />
+                  <span className="chat__dot" />
+                  <span className="chat__dot" />
+                </span>
+              </div>
             </div>
           </div>
         )}
-        <div ref={endRef} className="chat__log-end" aria-hidden="true" />
+          <div ref={endRef} className="chat__log-end" aria-hidden="true" />
+        </div>
+        {showJumpLatest && (
+          <button
+            type="button"
+            className="chat__jump-latest"
+            aria-label="К последним сообщениям"
+            onClick={() => {
+              userScrolledUpRef.current = false;
+              setShowJumpLatest(false);
+              scrollLogToEnd();
+            }}
+          >
+            ↓
+          </button>
+        )}
       </div>
       {photoPreview != null && (
         <div className="chat__photo-pending">
@@ -683,38 +717,23 @@ export function ChatScreen({ name, initData, inTelegram, showAlert, onInboxOpene
           placeholder={photo ? "Подпись к фото (необязательно)…" : "Лео, подскажи…"}
           maxLength={4000}
           autoComplete="off"
+          autoCorrect="on"
+          autoCapitalize="sentences"
+          spellCheck
           enterKeyHint="send"
+          inputMode="text"
         />
-        <button type="submit" className="chat__send" disabled={sending || (!text.trim() && !photo)}>
+        <button
+          type="submit"
+          className="chat__send"
+          disabled={sending || (!text.trim() && !photo)}
+          aria-label={sending ? "Отправка…" : "Отправить"}
+        >
           {sending ? "…" : "➤"}
         </button>
       </form>
       {lightboxUrl != null && (
-        <div
-          className="chat__lightbox"
-          role="dialog"
-          aria-modal="true"
-          onClick={() => setLightboxUrl(null)}
-        >
-          <button
-            type="button"
-            className="chat__lightbox-close"
-            aria-label="Закрыть"
-            onClick={(e) => {
-              e.stopPropagation();
-              setLightboxUrl(null);
-            }}
-          >
-            ✕
-          </button>
-          <img
-            className="chat__lightbox-img"
-            src={lightboxUrl}
-            alt=""
-            referrerPolicy="no-referrer"
-            onClick={(e) => e.stopPropagation()}
-          />
-        </div>
+        <PhotoLightbox src={lightboxUrl} onClose={() => setLightboxUrl(null)} />
       )}
     </div>
   );
