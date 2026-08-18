@@ -1,4 +1,4 @@
-//! MyVibeLab для macOS.
+//! Fat Leopard для macOS: окно входа и окно мини-аппа стаи.
 //!
 //! Два окна: локальный экран входа (src/index.html) и окно с мини-аппом,
 //! который отдаёт сам бот. Вся работа с сетью и Keychain живёт здесь, в Rust —
@@ -121,7 +121,7 @@ fn open_login_window(app: &AppHandle) -> Result<(), String> {
         return Ok(());
     }
     let builder = WebviewWindowBuilder::new(app, LOGIN_LABEL, WebviewUrl::App("index.html".into()))
-        .title("MyVibeLab");
+        .title("Fat Leopard");
     // Размеры и центрирование — только для десктопа. На телефоне вебвью должен
     // занять экран сам: заданный inner_size там применяется буквально, и окно
     // шире дисплея обрезает вёрстку.
@@ -163,7 +163,7 @@ fn open_main_window(app: &AppHandle) -> Result<(), String> {
 
     let handle = app.clone();
     let builder = WebviewWindowBuilder::new(app, MAIN_LABEL, WebviewUrl::External(url))
-        .title("MyVibeLab");
+        .title("Fat Leopard");
     #[cfg(desktop)]
     let builder = builder
         .inner_size(1180.0, 820.0)

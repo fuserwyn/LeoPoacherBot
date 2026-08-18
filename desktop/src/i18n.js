@@ -1,7 +1,7 @@
 const STR = {
   ru: {
-    title: "Лаборатория",
-    sub: "Проекты и агенты",
+    title: "Fat Leopard",
+    sub: "Стая, тренировки и Лео — на компьютере",
     checking: "Проверяю сессию…",
     loading: "загрузка",
     idleHint: "Вход подтверждается в чате с ботом — пароль не нужен.",
@@ -35,8 +35,8 @@ const STR = {
     pageTitle: "Fat Leopard — вход",
   },
   en: {
-    title: "Lab",
-    sub: "Projects and agents",
+    title: "Fat Leopard",
+    sub: "Your pack on desktop",
     checking: "Checking session…",
     loading: "loading",
     idleHint: "Sign-in is confirmed in the bot chat — no password needed.",

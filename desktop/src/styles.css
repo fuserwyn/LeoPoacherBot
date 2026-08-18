@@ -570,3 +570,34 @@ button.link:hover:not(:disabled) {
     border-bottom: 1px solid var(--border);
   }
 }
+
+/* Экран входа Fat Leopard: только вход, без витрины проектов. */
+.app-shell--login {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  padding-top: 26px;
+}
+
+.app-shell--login .title {
+  margin: 4px 0 0;
+}
+
+.app-shell--login .page-sub {
+  margin: 0 0 6px;
+  text-align: center;
+}
+
+.app-shell--login .surface,
+.app-shell--login .settings {
+  width: 100%;
+}
+
+.leo {
+  width: 108px;
+  height: 108px;
+  border-radius: 26px;
+  object-fit: cover;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.18);
+}

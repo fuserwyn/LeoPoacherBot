@@ -77,7 +77,7 @@ pub fn deep_link(bot: &str, nonce: &str) -> String {
 fn client() -> Result<reqwest::Client, String> {
     reqwest::Client::builder()
         .timeout(std::time::Duration::from_secs(15))
-        .user_agent(concat!("MyVibeLab-Desktop/", env!("CARGO_PKG_VERSION")))
+        .user_agent(concat!("FatLeopard-Desktop/", env!("CARGO_PKG_VERSION")))
         .build()
         .map_err(|e| format!("не поднялся HTTP-клиент: {e}"))
 }
