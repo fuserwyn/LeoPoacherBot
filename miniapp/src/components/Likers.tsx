@@ -125,6 +125,7 @@ function LikerAvatar({ photoUrl, name }: { photoUrl?: string; name: string }) {
         src={photoUrl}
         alt=""
         loading="lazy"
+        referrerPolicy="no-referrer"
         onError={() => setFailed(true)}
       />
     </span>

@@ -1275,6 +1275,7 @@ export function PackGroupChatPanel({
                       height={32}
                       alt=""
                       loading="lazy"
+                      referrerPolicy="no-referrer"
                     />
                   ) : (
                     <span className="packroom__avatar-ph">🐾</span>

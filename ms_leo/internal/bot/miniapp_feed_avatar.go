@@ -67,10 +67,15 @@ func packFeedAvatarProxyURL(publicBase string, subjectUserID int64, initDataRaw 
 }
 
 func packFeedResolveAuthorPhoto(dbURL string, publicBase string, subjectUID int64, initDataRaw string) string {
+	// Всегда отдаём прокси: прямые t.me/userpic из WebApp init часто 403 в WebView
+	// (Referer / протухший CDN). Прокси сам тянет байты через Bot API или сохранённый URL.
+	if proxy := packFeedAvatarProxyURL(publicBase, subjectUID, initDataRaw); proxy != "" {
+		return proxy
+	}
 	if packFeedTelegramPhotoURLIsSafePublic(dbURL) {
 		return strings.TrimSpace(dbURL)
 	}
-	return packFeedAvatarProxyURL(publicBase, subjectUID, initDataRaw)
+	return ""
 }
 
 // enrichPackFeedAuthorPhotos — URL аватаров: безопасный photo_url из профиля или прокси через Bot API.
@@ -127,7 +132,9 @@ func (b *Bot) enrichPackFeedAuthorPhotos(items []PackFeedItem, chatID int64, ini
 	return items
 }
 
-// WritePackMemberAvatarHTTP — GET-аватар участника стаи (публичный URL из профиля или поток с api.telegram.org по серверу).
+// WritePackMemberAvatarHTTP — GET-аватар участника стаи. Байты всегда отдаём сами
+// (без 302 на t.me): редирект ломает картинку в WebView из‑за Referer и не даёт
+// откатиться на Bot API, если CDN-ссылка протухла.
 func (b *Bot) WritePackMemberAvatarHTTP(w http.ResponseWriter, r *http.Request, viewerUserID int64, subjectUserID int64, initD initdata.InitData) error {
 	if b == nil || b.api == nil {
 		return errors.New("bot unavailable")
@@ -142,14 +149,30 @@ func (b *Bot) WritePackMemberAvatarHTTP(w http.ResponseWriter, r *http.Request, 
 	if chatID == 0 {
 		return ErrPackFeedForbidden
 	}
-	if prof, err := b.db.GetMiniappUserProfile(subjectUserID, chatID); err == nil && packFeedTelegramPhotoURLIsSafePublic(prof.TelegramPhotoURL) {
-		http.Redirect(w, r, strings.TrimSpace(prof.TelegramPhotoURL), http.StatusFound)
+
+	if err := b.streamTelegramUserProfilePhoto(w, r, subjectUserID); err == nil {
 		return nil
+	}
+	if err := b.streamTelegramChatPhoto(w, r, subjectUserID); err == nil {
+		return nil
+	}
+
+	if prof, err := b.db.GetMiniappUserProfile(subjectUserID, chatID); err == nil && packFeedTelegramPhotoURLIsSafePublic(prof.TelegramPhotoURL) {
+		if ferr := streamPublicImageURL(w, r, strings.TrimSpace(prof.TelegramPhotoURL)); ferr == nil {
+			return nil
+		} else {
+			b.logger.Warnf("miniapp avatar stored url user=%d: %v", subjectUserID, ferr)
+		}
 	} else if err != nil && !errors.Is(err, sql.ErrNoRows) {
 		b.logger.Warnf("miniapp avatar profile load user=%d: %v", subjectUserID, err)
 	}
+	return ErrPackMemberAvatarNotFound
+}
 
-	photos, err := b.api.GetUserProfilePhotos(tgbotapi.NewUserProfilePhotos(subjectUserID))
+func (b *Bot) streamTelegramUserProfilePhoto(w http.ResponseWriter, r *http.Request, subjectUserID int64) error {
+	cfg := tgbotapi.NewUserProfilePhotos(subjectUserID)
+	cfg.Limit = 1
+	photos, err := b.api.GetUserProfilePhotos(cfg)
 	if err != nil {
 		b.logger.Warnf("miniapp GetUserProfilePhotos user=%d: %v", subjectUserID, err)
 		return ErrPackMemberAvatarNotFound
@@ -159,14 +182,46 @@ func (b *Bot) WritePackMemberAvatarHTTP(w http.ResponseWriter, r *http.Request, 
 	}
 	row := photos.Photos[0]
 	sz := row[len(row)-1]
+	return b.streamTelegramFileID(w, r, sz.FileID)
+}
 
-	file, err := b.api.GetFile(tgbotapi.FileConfig{FileID: sz.FileID})
-	if err != nil || strings.TrimSpace(file.FilePath) == "" {
-		b.logger.Warnf("miniapp GetFile avatar user=%d: %v", subjectUserID, err)
+func (b *Bot) streamTelegramChatPhoto(w http.ResponseWriter, r *http.Request, subjectUserID int64) error {
+	ch, err := b.api.GetChat(tgbotapi.ChatInfoConfig{ChatConfig: tgbotapi.ChatConfig{ChatID: subjectUserID}})
+	if err != nil {
+		b.logger.Warnf("miniapp GetChat avatar user=%d: %v", subjectUserID, err)
 		return ErrPackMemberAvatarNotFound
 	}
-	link := file.Link(b.api.Token)
+	if ch.Photo == nil {
+		return ErrPackMemberAvatarNotFound
+	}
+	fileID := strings.TrimSpace(ch.Photo.BigFileID)
+	if fileID == "" {
+		fileID = strings.TrimSpace(ch.Photo.SmallFileID)
+	}
+	if fileID == "" {
+		return ErrPackMemberAvatarNotFound
+	}
+	return b.streamTelegramFileID(w, r, fileID)
+}
 
+func (b *Bot) streamTelegramFileID(w http.ResponseWriter, r *http.Request, fileID string) error {
+	fileID = strings.TrimSpace(fileID)
+	if fileID == "" {
+		return ErrPackMemberAvatarNotFound
+	}
+	file, err := b.api.GetFile(tgbotapi.FileConfig{FileID: fileID})
+	if err != nil || strings.TrimSpace(file.FilePath) == "" {
+		b.logger.Warnf("miniapp GetFile avatar: %v", err)
+		return ErrPackMemberAvatarNotFound
+	}
+	return streamPublicImageURL(w, r, file.Link(b.api.Token))
+}
+
+func streamPublicImageURL(w http.ResponseWriter, r *http.Request, link string) error {
+	link = strings.TrimSpace(link)
+	if link == "" {
+		return ErrPackMemberAvatarNotFound
+	}
 	client := &http.Client{Timeout: 18 * time.Second}
 	req, err := http.NewRequestWithContext(r.Context(), http.MethodGet, link, nil)
 	if err != nil {
@@ -174,8 +229,7 @@ func (b *Bot) WritePackMemberAvatarHTTP(w http.ResponseWriter, r *http.Request, 
 	}
 	resp, err := client.Do(req)
 	if err != nil {
-		b.logger.Warnf("miniapp avatar fetch telegram file user=%d: %v", subjectUserID, err)
-		return ErrPackMemberAvatarNotFound
+		return err
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusOK {
@@ -184,6 +238,9 @@ func (b *Bot) WritePackMemberAvatarHTTP(w http.ResponseWriter, r *http.Request, 
 	ct := resp.Header.Get("Content-Type")
 	if ct == "" || ct == "application/octet-stream" {
 		ct = "image/jpeg"
+	}
+	if !strings.HasPrefix(ct, "image/") {
+		return ErrPackMemberAvatarNotFound
 	}
 	w.Header().Set("Content-Type", ct)
 	w.Header().Set("Cache-Control", "private, max-age=600")

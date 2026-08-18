@@ -876,7 +876,7 @@ export function ProfileScreen({
           aria-hidden
         >
           {userPhotoUrl ? (
-            <img src={userPhotoUrl} alt="" className="profile__avatar-img" width={88} height={88} />
+            <img src={userPhotoUrl} alt="" className="profile__avatar-img" width={88} height={88} referrerPolicy="no-referrer" />
           ) : (
             "🐆"
           )}
