@@ -762,12 +762,13 @@ export function TrackerScreen({ initData, showAlert }: Props) {
             ) : null}
             {detail.result ? <pre className="tracker-modal__log">{detail.result}</pre> : null}
             {detail.error ? <pre className="tracker-modal__log tracker-modal__log--err">{detail.error}</pre> : null}
-            {/* Перенос запуска. Выполняющуюся задачу трекер двигать не даёт —
-                сначала останови её, потом ставь новое время. */}
+            {/* Перенос запуска. Он же возвращает завершённую или отменённую
+                задачу в «Ожидает»: время в будущем — и она снова в очереди.
+                Выполняющуюся двигать нельзя, сначала останови. */}
             {detail.status !== "running" && detail.status !== "reviewing" ? (
               <div className="tracker-modal__move">
                 <label>
-                  Запуск
+                  {["canceled", "done", "error"].includes(detail.status) ? "Вернуть в ожидание на" : "Запуск"}
                   <input type="datetime-local" value={moveAt} onChange={(e) => setMoveAt(e.target.value)} />
                 </label>
                 <button
@@ -789,14 +790,14 @@ export function TrackerScreen({ initData, showAlert }: Props) {
               <button type="button" disabled={busy} onClick={() => setEditorFor(detail.id)}>
                 🖼 Картинка
               </button>
-              {detail.status === "canceled" ? (
+              {["canceled", "done", "error"].includes(detail.status) ? (
                 <button
                   type="button"
                   className="tracker-modal__accent"
                   disabled={busy}
                   onClick={() => void act(() => trackerRunNow(initData, detail.id), "Задача снова в работе.")}
                 >
-                  Запустить снова
+                  Вернуть в работу
                 </button>
               ) : null}
               {isQa && detail.handed_to_qa ? (
