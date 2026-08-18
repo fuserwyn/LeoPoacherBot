@@ -19,6 +19,7 @@ import {
   feedPostEditable,
   feedItemKey,
   isFeedMessage,
+  packMessageCommentReplyToId,
   type PackFeedItemDTO,
   type PackFeedThreadReplyDTO,
 } from "../lib/packFeed";
@@ -258,6 +259,10 @@ export function FeedScreen({
   const [msgThreadPosting, setMsgThreadPosting] = useState<Record<number, boolean>>({});
   const [msgThreadEdit, setMsgThreadEdit] = useState<
     Record<number, { replyId: number; originalText: string } | undefined>
+  >({});
+  /** Ответ на комментарий в треде сообщения (как в отчётах) — ключ id карточки pack_message. */
+  const [msgThreadReplyTargets, setMsgThreadReplyTargets] = useState<
+    Record<number, { replyToThreadId: number; authorLabel: string; excerpt: string } | undefined>
   >({});
   /** Идёт запрос подписки/отписки — ключ user_id автора. */
   const [followPosting, setFollowPosting] = useState<Record<number, boolean>>({});
@@ -728,14 +733,16 @@ export function FeedScreen({
   // --- Комменты (треды) к сообщениям pack_message: коммент = сообщение чата с reply_to ---
 
   // Публикация коммента под сообщением-карточкой (текст и/или фото).
+  // replyToCommentId — ответ конкретному комментарию (Лео или участник); иначе — на саму карточку.
   const postMessageComment = useCallback(
-    async (cardId: number, text: string, photo?: File | null) => {
+    async (cardId: number, text: string, photo?: File | null, replyToCommentId?: number) => {
       const t = text.trim();
       if (!t && !photo) {
         showAlert("Введи текст комментария или прикрепи фото.");
         return;
       }
       if (!apiBase || !initData) return;
+      const replyToId = packMessageCommentReplyToId(cardId, replyToCommentId);
       setMsgThreadPosting((p) => ({ ...p, [cardId]: true }));
       try {
         let res: Response;
@@ -743,14 +750,14 @@ export function FeedScreen({
           const fd = new FormData();
           fd.append("init_data", initData);
           fd.append("text", t);
-          fd.append("reply_to_id", String(cardId));
+          fd.append("reply_to_id", String(replyToId));
           fd.append("photo", photo, photo.name || "photo.jpg");
           res = await fetch(`${apiBase}/api/miniapp/pack-group/messages/photo`, { method: "POST", body: fd });
         } else {
           res = await fetch(`${apiBase}/api/miniapp/pack-group/messages`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ init_data: initData, text: t, reply_to_id: cardId }),
+            body: JSON.stringify({ init_data: initData, text: t, reply_to_id: replyToId }),
           });
         }
         const j = (await res.json().catch(() => ({}))) as { error?: string; message?: string };
@@ -763,6 +770,7 @@ export function FeedScreen({
           return;
         }
         setMsgThreadDrafts((d) => ({ ...d, [cardId]: "" }));
+        setMsgThreadReplyTargets((r) => ({ ...r, [cardId]: undefined }));
         await syncFeed({ full: true, silent: true });
       } catch (e) {
         showAlert(e instanceof Error ? e.message : "Сеть");
@@ -2006,11 +2014,27 @@ export function FeedScreen({
                         onThreadReplyEdit={(rid, text) => {
                           setMsgThreadEdit((r) => ({ ...r, [it.id]: { replyId: rid, originalText: text } }));
                           setMsgThreadDrafts((d) => ({ ...d, [it.id]: text }));
+                          setMsgThreadReplyTargets((r) => ({ ...r, [it.id]: undefined }));
                         }}
                         onThreadReplyReport={(rid) => void confirmReportMessage(rid)}
                         threadReplyDeleting={threadReplyDeleting}
                         threadReplyReporting={threadReplyReporting}
                         isAdmin={isAdmin}
+                        threadReplyIntent={msgThreadReplyTargets[it.id] ?? null}
+                        onCancelThreadReplyIntent={() =>
+                          setMsgThreadReplyTargets((r) => ({ ...r, [it.id]: undefined }))
+                        }
+                        onThreadReplyIntent={(payload) => {
+                          setMsgThreadEdit((r) => ({ ...r, [it.id]: undefined }));
+                          setMsgThreadReplyTargets((r) => ({
+                            ...r,
+                            [it.id]: {
+                              replyToThreadId: payload.replyToThreadId,
+                              authorLabel: payload.authorLabel,
+                              excerpt: payload.excerpt,
+                            },
+                          }));
+                        }}
                         threadComposer={{
                           draft: msgThreadDrafts[it.id] ?? "",
                           onDraftChange: (v) => setMsgThreadDrafts((d) => ({ ...d, [it.id]: v })),
@@ -2020,7 +2044,12 @@ export function FeedScreen({
                               void editMessageComment(it.id, edit.replyId, text);
                               return;
                             }
-                            void postMessageComment(it.id, text, photo);
+                            void postMessageComment(
+                              it.id,
+                              text,
+                              photo,
+                              msgThreadReplyTargets[it.id]?.replyToThreadId,
+                            );
                           },
                           posting: msgThreadPosting[it.id] ?? false,
                           editReplyId: msgThreadEdit[it.id]?.replyId,

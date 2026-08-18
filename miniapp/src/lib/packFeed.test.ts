@@ -5,6 +5,7 @@ import {
   feedItemKey,
   feedPostEditable,
   isFeedMessage,
+  packMessageCommentReplyToId,
   mergePackFeedReactions,
   optimisticTogglePackFeedReaction,
   optimisticToggleThreadReplyLike,
@@ -69,6 +70,12 @@ describe("feed keys / message detection", () => {
     expect(isFeedMessage({ type: "pack_message" })).toBe(true);
     expect(isFeedMessage({ type: "training_done", source: "message" })).toBe(true);
     expect(isFeedMessage({ type: "training_done", source: "feed" })).toBe(false);
+  });
+
+  it("packMessageCommentReplyToId targets a comment or the card", () => {
+    expect(packMessageCommentReplyToId(10)).toBe(10);
+    expect(packMessageCommentReplyToId(10, 0)).toBe(10);
+    expect(packMessageCommentReplyToId(10, 77)).toBe(77);
   });
 });
 

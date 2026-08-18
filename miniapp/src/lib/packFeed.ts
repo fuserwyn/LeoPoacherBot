@@ -226,6 +226,14 @@ export function isFeedMessage(d: Pick<PackFeedItemDTO, "type" | "source">): bool
   return d.type === "pack_message" || d.source === "message";
 }
 
+/** reply_to_id комментария в треде сообщения: ответ участнику/Лео или сама карточка. */
+export function packMessageCommentReplyToId(cardId: number, replyToCommentId?: number): number {
+  if (typeof replyToCommentId === "number" && replyToCommentId > 0) {
+    return replyToCommentId;
+  }
+  return cardId;
+}
+
 /** Сводит авторитетный набор закреплённых (с бэка) в текущую ленту:
  *  обновляет/добавляет закреплённые, снимает флаг с откреплённых. */
 export function reconcilePinnedFeed(

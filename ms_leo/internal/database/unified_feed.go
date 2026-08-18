@@ -149,19 +149,37 @@ func (d *Database) ListPackGroupChatFeedAfterTS(chatID, baselineID int64, sinceT
 	return scanPackGroupRows(d, q, chatID, baselineID, sinceTS.UTC(), limit)
 }
 
-// ListPackGroupRepliesForMessages — ответы-комментарии к сообщениям ленты, сгруппированные
-// по родителю (reply_to_id). Порядок внутри треда — по времени (старые сверху).
+// ListPackGroupRepliesForMessages — комментарии к сообщениям ленты, включая ответы
+// на комментарии (вложенный reply_to). Группировка по карточке-родителю (root_id).
+// Порядок внутри треда — по времени (старые сверху).
 func (d *Database) ListPackGroupRepliesForMessages(chatID int64, parentIDs []int64) (map[int64][]PackGroupChatRow, error) {
 	out := map[int64][]PackGroupChatRow{}
 	if chatID == 0 || len(parentIDs) == 0 {
 		return out, nil
 	}
 	rows, err := d.db.Query(`
-		SELECT id, from_user_id, COALESCE(username, ''), is_leo, message_text, created_at, reply_to_id, edited_at, COALESCE(photo_url, '')
-		FROM miniapp_pack_group_chat
-		WHERE pack_chat_id = $1
-		  AND COALESCE(is_hidden, FALSE) = FALSE
-		  AND reply_to_id = ANY($2)
+		WITH RECURSIVE thread AS (
+			SELECT
+				id, from_user_id, COALESCE(username, '') AS username, is_leo, message_text,
+				created_at, reply_to_id, edited_at, COALESCE(photo_url, '') AS photo_url,
+				reply_to_id AS root_id, 1 AS depth
+			FROM miniapp_pack_group_chat
+			WHERE pack_chat_id = $1
+			  AND COALESCE(is_hidden, FALSE) = FALSE
+			  AND reply_to_id = ANY($2)
+			UNION ALL
+			SELECT
+				c.id, c.from_user_id, COALESCE(c.username, ''), c.is_leo, c.message_text,
+				c.created_at, c.reply_to_id, c.edited_at, COALESCE(c.photo_url, ''),
+				t.root_id, t.depth + 1
+			FROM miniapp_pack_group_chat c
+			INNER JOIN thread t ON c.reply_to_id = t.id
+			WHERE c.pack_chat_id = $1
+			  AND COALESCE(c.is_hidden, FALSE) = FALSE
+			  AND t.depth < 20
+		)
+		SELECT id, from_user_id, username, is_leo, message_text, created_at, reply_to_id, edited_at, photo_url, root_id
+		FROM thread
 		ORDER BY created_at ASC, id ASC
 	`, chatID, pq.Array(parentIDs))
 	if err != nil {
@@ -170,12 +188,17 @@ func (d *Database) ListPackGroupRepliesForMessages(chatID int64, parentIDs []int
 	defer rows.Close()
 	for rows.Next() {
 		var m PackGroupChatRow
-		if err := rows.Scan(&m.ID, &m.FromUserID, &m.Username, &m.IsLeo, &m.MessageText, &m.CreatedAt, &m.ReplyToID, &m.EditedAt, &m.PhotoURL); err != nil {
+		if err := rows.Scan(&m.ID, &m.FromUserID, &m.Username, &m.IsLeo, &m.MessageText, &m.CreatedAt, &m.ReplyToID, &m.EditedAt, &m.PhotoURL, &m.RootID); err != nil {
 			return nil, err
 		}
-		if m.ReplyToID.Valid {
-			out[m.ReplyToID.Int64] = append(out[m.ReplyToID.Int64], m)
+		root := m.RootID
+		if root == 0 && m.ReplyToID.Valid {
+			root = m.ReplyToID.Int64
 		}
+		if root == 0 {
+			continue
+		}
+		out[root] = append(out[root], m)
 	}
 	return out, rows.Err()
 }

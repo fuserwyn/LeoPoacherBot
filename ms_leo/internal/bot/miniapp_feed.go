@@ -278,9 +278,21 @@ func (b *Bot) packFeedItemFromMessage(m *domain.PackGroupChatMessage, viewerUser
 	return item
 }
 
+// applyMessageThreadQuote — цитата «ответ на…», если комментарий отвечает не на
+// карточку-родителя, а на другое сообщение треда (Лео или участник).
+func applyMessageThreadQuote(pr *PackFeedThreadReply, m *domain.PackGroupChatMessage, rootParentID int64) {
+	if pr == nil || m == nil || m.ReplyToID <= 0 || m.ReplyToID == rootParentID {
+		return
+	}
+	pr.ReplyToID = m.ReplyToID
+	pr.ReplyToUsername = m.ReplyToUsername
+	pr.ReplyToText = m.ReplyToText
+	pr.ReplyToIsLeo = m.ReplyToIsLeo
+}
+
 // enrichPackFeedMessageThreads — подтягивает комментарии (ответы) к сообщениям ленты
-// как тред. Комментарий = сообщение чата с reply_to_id на карточку; поэтому переиспользуем
-// хранилище общего чата (вставка/редакт/удаление/фото — существующими эндпоинтами).
+// как тред, включая ответы на комментарии. Комментарий = сообщение чата с reply_to_id;
+// поэтому переиспользуем хранилище общего чата (вставка/редакт/удаление/фото).
 func (b *Bot) enrichPackFeedMessageThreads(items []PackFeedItem, viewerUserID, chatID int64, initDataRaw string) []PackFeedItem {
 	if b == nil || b.db == nil || chatID == 0 || len(items) == 0 {
 		return items
@@ -302,21 +314,24 @@ func (b *Bot) enrichPackFeedMessageThreads(items []PackFeedItem, viewerUserID, c
 	if len(repliesByParent) == 0 {
 		return items
 	}
-	// Собираем все ответы в domain-сообщения для обогащения аватарами (по user_id).
-	msgByID := make(map[int64]*domain.PackGroupChatMessage)
-	allMsgs := make([]*domain.PackGroupChatMessage, 0)
+	var allRows []database.PackGroupChatRow
 	for _, rows := range repliesByParent {
-		for _, r := range rows {
-			m := packGroupRowToMessage(r)
-			if m.PhotoURL != "" {
-				m.PhotoURL = b.canonicalMiniappTrainingPhotoURL(m.PhotoURL)
-			}
-			mp := &m
-			msgByID[m.ID] = mp
-			allMsgs = append(allMsgs, mp)
+		allRows = append(allRows, rows...)
+	}
+	// packGroupRowsToMessages заполняет цитату (reply_to_username/text) по родителю.
+	allMsgs := b.packGroupRowsToMessages(allRows)
+	for _, m := range allMsgs {
+		if m != nil && m.PhotoURL != "" {
+			m.PhotoURL = b.canonicalMiniappTrainingPhotoURL(m.PhotoURL)
 		}
 	}
 	allMsgs = b.enrichPackGroupChatAuthorPhotos(allMsgs, chatID, initDataRaw)
+	msgByID := make(map[int64]*domain.PackGroupChatMessage, len(allMsgs))
+	for _, m := range allMsgs {
+		if m != nil {
+			msgByID[m.ID] = m
+		}
+	}
 	for i := range items {
 		if items[i].Source != "message" {
 			continue
@@ -331,7 +346,7 @@ func (b *Bot) enrichPackFeedMessageThreads(items []PackFeedItem, viewerUserID, c
 			if m == nil {
 				continue
 			}
-			thread = append(thread, PackFeedThreadReply{
+			pr := PackFeedThreadReply{
 				ID:             m.ID,
 				UserID:         m.UserID,
 				Username:       m.Username,
@@ -342,7 +357,9 @@ func (b *Bot) enrichPackFeedMessageThreads(items []PackFeedItem, viewerUserID, c
 				AuthorPhotoURL: m.AuthorPhotoURL,
 				PhotoURL:       m.PhotoURL,
 				EditedAt:       m.EditedAt,
-			})
+			}
+			applyMessageThreadQuote(&pr, m, items[i].ID)
+			thread = append(thread, pr)
 		}
 		items[i].Thread = thread
 	}

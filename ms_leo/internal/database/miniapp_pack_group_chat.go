@@ -22,6 +22,8 @@ type PackGroupChatRow struct {
 	ReplyToID   sql.NullInt64
 	EditedAt    sql.NullTime
 	PhotoURL    string
+	// RootID — id карточки-родителя треда (заполняется ListPackGroupRepliesForMessages).
+	RootID int64
 }
 
 // InsertMiniappPackGroupMessage — одно сообщение в общем чате мини-аппа (photoURL — опц. вложение).
