@@ -522,6 +522,185 @@ export function sortPackFeedItemsDesc(items: PackFeedItemDTO[]): PackFeedItemDTO
   });
 }
 
+/** created_at → ms; битая дата даёт 0, чтобы курсоры не уезжали в NaN. */
+export function feedTsMs(s: string): number {
+  return Date.parse(s) || 0;
+}
+
+/** Самое свежее created_at среди реальных записей (id>0) — курсор «новее» (since_ts). */
+export function newestFeedTs(items: PackFeedItemDTO[]): string {
+  let best = "";
+  for (const it of items) {
+    if (it.id <= 0) continue;
+    if (best === "" || feedTsMs(it.created_at) > feedTsMs(best)) best = it.created_at;
+  }
+  return best;
+}
+
+/**
+ * Самое старое created_at обычной (не закреплённой) записи — курсор «загрузить ещё старее»
+ * (before_ts). Закрепы и оптимистичные (id<0) исключаем: они не задают границу окна.
+ */
+export function minRegularFeedTs(items: PackFeedItemDTO[]): string {
+  let oldest = "";
+  for (const it of items) {
+    if (it.id <= 0 || it.is_pinned) continue;
+    if (oldest === "" || feedTsMs(it.created_at) < feedTsMs(oldest)) oldest = it.created_at;
+  }
+  return oldest;
+}
+
+/** Сигнатура карточки: то, что видно в UI. Одинаковая — ререндер не нужен. */
+export function feedItemMotionKey(it: PackFeedItemDTO): string {
+  const rx = (it.reactions ?? [])
+    .map((r) => `${r.emoji}:${r.count}:${r.me ? 1 : 0}`)
+    .join(",");
+  const th = (it.thread ?? [])
+    .map(
+      (t) =>
+        `${t.id}:${t.like_count ?? 0}:${t.like_me ? 1 : 0}:${t.edited_at ?? ""}:${(t.text ?? "").length}`,
+    )
+    .join(",");
+  const poll = it.poll
+    ? `${it.poll.total_votes}:${it.poll.my_vote_index ?? -1}:${(it.poll.options ?? [])
+        .map((o) => o.votes)
+        .join("/")}`
+    : "";
+  return [
+    feedItemKey(it),
+    it.type,
+    it.text,
+    it.created_at,
+    it.edited_at ?? "",
+    it.is_pinned ? 1 : 0,
+    it.pinned_at ?? "",
+    it.is_friend ? 1 : 0,
+    it.is_you ? 1 : 0,
+    it.streak_days,
+    it.username,
+    it.author_photo_url ?? "",
+    it.training_photo_url ?? "",
+    rx,
+    th,
+    poll,
+  ].join("|");
+}
+
+/** true — тот же набор карточек в том же порядке (тихий поллинг не должен дёргать DOM). */
+export function sameFeedItems(a: PackFeedItemDTO[], b: PackFeedItemDTO[]): boolean {
+  if (a === b) return true;
+  if (a.length !== b.length) return false;
+  for (let i = 0; i < a.length; i++) {
+    if (feedItemMotionKey(a[i]!) !== feedItemMotionKey(b[i]!)) return false;
+  }
+  return true;
+}
+
+export const FEED_LIST_MOTION_MS = 160;
+
+export type FeedMotionReason = "ok" | "empty" | "repeat";
+
+export type FeedMotionPath = {
+  apply: boolean;
+  reason: FeedMotionReason;
+  scrollToTop: boolean;
+  animate: boolean;
+  reducedMotion: boolean;
+};
+
+export type FeedFilterSnapshot = {
+  scope: string;
+  type: string;
+  cats: readonly string[];
+};
+
+/**
+ * План плавного обновления ленты:
+ * пустой incoming на уже загруженной ленте (не reset) → empty, не трогаем;
+ * тот же набор карточек → repeat, не ререндерим;
+ * иначе — применяем (reset всегда может показать пустую ленту).
+ */
+export function planFeedMotion(opts: {
+  prev: PackFeedItemDTO[];
+  next: PackFeedItemDTO[];
+  reset?: boolean;
+  reducedMotion?: boolean;
+}): FeedMotionPath {
+  const reduced = Boolean(opts.reducedMotion);
+  if (!opts.reset && opts.next.length === 0 && opts.prev.length > 0) {
+    return { apply: false, reason: "empty", scrollToTop: false, animate: false, reducedMotion: reduced };
+  }
+  if (sameFeedItems(opts.prev, opts.next)) {
+    return { apply: false, reason: "repeat", scrollToTop: false, animate: false, reducedMotion: reduced };
+  }
+  return {
+    apply: true,
+    reason: "ok",
+    scrollToTop: false,
+    animate: !reduced,
+    reducedMotion: reduced,
+  };
+}
+
+/** Смена фильтра: повтор того же набора — стоим на месте; иначе — плавно наверх. */
+export function planFeedFilterMotion(
+  prev: FeedFilterSnapshot,
+  next: FeedFilterSnapshot,
+  reducedMotion = false,
+): FeedMotionPath {
+  const same =
+    prev.scope === next.scope &&
+    prev.type === next.type &&
+    prev.cats.length === next.cats.length &&
+    prev.cats.every((c, i) => c === next.cats[i]);
+  if (same) {
+    return { apply: false, reason: "repeat", scrollToTop: false, animate: false, reducedMotion };
+  }
+  return {
+    apply: true,
+    reason: "ok",
+    scrollToTop: true,
+    animate: !reducedMotion,
+    reducedMotion,
+  };
+}
+
+export function feedScrollBehavior(reducedMotion: boolean): ScrollBehavior {
+  return reducedMotion ? "auto" : "smooth";
+}
+
+export function prefersFeedReducedMotion(): boolean {
+  if (typeof window === "undefined" || typeof window.matchMedia !== "function") return false;
+  return window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+}
+
+export function scrollFeedToTop(reducedMotion = prefersFeedReducedMotion()): void {
+  if (typeof window === "undefined") return;
+  window.scrollTo({ top: 0, behavior: feedScrollBehavior(reducedMotion) });
+}
+
+/**
+ * Тихий полный синк: окно с сервера + уже догруженные старее окна.
+ * Пустой incoming на живой ленте не схлопывает список; тот же набор — тот же массив.
+ */
+export function mergePackFeedFullWindow(
+  prev: PackFeedItemDTO[],
+  incoming: PackFeedItemDTO[],
+): PackFeedItemDTO[] {
+  if (incoming.length === 0) {
+    return prev.length > 0 ? prev : incoming;
+  }
+  if (prev.length === 0) return incoming;
+  const windowOldestTs = minRegularFeedTs(incoming);
+  const olderKept =
+    windowOldestTs !== ""
+      ? prev.filter((p) => p.id > 0 && !p.is_pinned && feedTsMs(p.created_at) < feedTsMs(windowOldestTs))
+      : [];
+  const next =
+    olderKept.length > 0 ? sortPackFeedItemsDesc([...incoming, ...olderKept]) : incoming;
+  return sameFeedItems(prev, next) ? prev : next;
+}
+
 function trainingReportFirstLineKey(text: string): string {
   const line = text.trim().replace(/^#training_done\s*[—–-]\s*/i, "").split("\n")[0] ?? "";
   const m = line.match(/^([^,]+),\s*\d+\s*мин/i);

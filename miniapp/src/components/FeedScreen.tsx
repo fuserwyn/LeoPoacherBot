@@ -6,13 +6,22 @@ import { LEO_AVATAR_URL } from "../lib/leoAvatar";
 import {
   dtoToCard,
   feedHasMatchingTrainingReport,
+  feedTsMs,
+  mergePackFeedFullWindow,
   mergePackFeedIncremental,
   mergeFeedReactionsForType,
+  minRegularFeedTs,
+  newestFeedTs,
+  FEED_LIST_MOTION_MS,
   optimisticTogglePackFeedReaction,
   optimisticToggleThreadReplyLike,
+  planFeedFilterMotion,
+  prefersFeedReducedMotion,
   reconcilePinnedFeed,
   resolveFeedAvatarUrl,
   resolveTrainingPhotoUrl,
+  sameFeedItems,
+  scrollFeedToTop,
   sortPackFeedItemsDesc,
   extractEditableFeedPostText,
   buildFeedPostTextForSave,
@@ -45,31 +54,6 @@ function applyOptimisticFeedItem(items: PackFeedItemDTO[], optimistic: PackFeedI
   if (feedHasMatchingTrainingReport(items, optimistic.text, optimistic.user_id)) return items;
   if (items.some((i) => i.id === optimistic.id)) return items;
   return sortPackFeedItemsDesc([optimistic, ...items]);
-}
-
-const tsMs = (s: string): number => Date.parse(s) || 0;
-
-/** Самое свежее created_at среди реальных записей (id>0) — курсор «новее» (since_ts). */
-function newestFeedTs(items: PackFeedItemDTO[]): string {
-  let best = "";
-  for (const it of items) {
-    if (it.id <= 0) continue;
-    if (best === "" || tsMs(it.created_at) > tsMs(best)) best = it.created_at;
-  }
-  return best;
-}
-
-/**
- * Самое старое created_at обычной (не закреплённой) записи — курсор «загрузить ещё старее»
- * (before_ts). Закрепы и оптимистичные (id<0) исключаем: они не задают границу окна.
- */
-function minRegularFeedTs(items: PackFeedItemDTO[]): string {
-  let oldest = "";
-  for (const it of items) {
-    if (it.id <= 0 || it.is_pinned) continue;
-    if (oldest === "" || tsMs(it.created_at) < tsMs(oldest)) oldest = it.created_at;
-  }
-  return oldest;
 }
 
 type Props = {
@@ -335,35 +319,62 @@ export function FeedScreen({
     window.Telegram?.WebApp?.HapticFeedback?.impactOccurred?.("light");
   }, []);
 
+  const [feedListDim, setFeedListDim] = useState(false);
+  const feedDimTimerRef = useRef(0);
+
+  const playFilterMotion = useCallback(
+    (next: { scope: typeof feedScope; type: typeof feedTypeFilter; cats: readonly string[] }) => {
+      const motion = planFeedFilterMotion(
+        { scope: feedScope, type: feedTypeFilter, cats: feedCategoryIds },
+        next,
+        prefersFeedReducedMotion(),
+      );
+      if (!motion.apply) return false;
+      hapticLight();
+      if (motion.animate) {
+        setFeedListDim(true);
+        window.clearTimeout(feedDimTimerRef.current);
+        feedDimTimerRef.current = window.setTimeout(() => setFeedListDim(false), FEED_LIST_MOTION_MS);
+      }
+      if (motion.scrollToTop) scrollFeedToTop(motion.reducedMotion);
+      return true;
+    },
+    [feedScope, feedTypeFilter, feedCategoryIds, hapticLight],
+  );
+
+  useEffect(() => {
+    return () => window.clearTimeout(feedDimTimerRef.current);
+  }, []);
+
   const toggleFeedCategory = useCallback(
     (id: WorkoutCategoryId) => {
-      hapticLight();
-      setFeedCategoryIds((prev) => {
-        const next = new Set(prev);
-        if (next.has(id)) next.delete(id);
-        else next.add(id);
-        return sortWorkoutCategoryIds([...next]);
-      });
+      const next = new Set(feedCategoryIds);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      const cats = sortWorkoutCategoryIds([...next]);
+      if (!playFilterMotion({ scope: feedScope, type: feedTypeFilter, cats })) return;
+      setFeedCategoryIds(cats);
     },
-    [hapticLight],
+    [feedCategoryIds, feedScope, feedTypeFilter, playFilterMotion],
   );
 
   const clearFeedCategories = useCallback(() => {
-    hapticLight();
+    if (!playFilterMotion({ scope: feedScope, type: feedTypeFilter, cats: [] })) return;
     setFeedCategoryIds([]);
-  }, [hapticLight]);
+  }, [feedScope, feedTypeFilter, playFilterMotion]);
 
   // «Все типы»: первый тап (когда выбраны типы) — сброс к «все типы»; повторный
   // тап (когда уже «все типы») — разворачивает вертикальный список всех типов.
   const toggleAllTypes = useCallback(() => {
-    hapticLight();
     if (feedCategoryIds.length > 0) {
+      if (!playFilterMotion({ scope: feedScope, type: feedTypeFilter, cats: [] })) return;
       setFeedCategoryIds([]);
       setCatListOpen(false);
     } else {
+      hapticLight();
       setCatListOpen((o) => !o);
     }
-  }, [feedCategoryIds.length, hapticLight]);
+  }, [feedCategoryIds.length, feedScope, feedTypeFilter, playFilterMotion, hapticLight]);
 
   const refreshUnreadFeedCards = useCallback(async () => {
     if (!inTelegram || !initData.trim()) {
@@ -471,24 +482,16 @@ export function FeedScreen({
           const reconciled = reconcilePinnedFeed(incoming, pinned);
           if (opts?.reset) {
             // Явная перезагрузка (маунт / refreshToken / pull-to-refresh): окно с нуля.
-            setFeedItems(reconciled);
+            // Тот же набор — тот же массив, без лишнего ререндера карточек.
+            setFeedItems((prev) => (sameFeedItems(prev, reconciled) ? prev : reconciled));
             oldestTsRef.current = minRegularFeedTs(reconciled);
             setHasMoreOlder(incoming.length >= 50);
           } else {
             // Обычный полный синк (поллинг тредов/реакций, пост-экшн): НЕ схлопываем ленту —
             // сохраняем уже догруженные старые страницы, иначе бесконечная переподгрузка.
+            // Пустой/повторный ответ не дёргает DOM.
             setFeedItems((prev) => {
-              if (prev.length === 0) {
-                oldestTsRef.current = minRegularFeedTs(reconciled);
-                return reconciled;
-              }
-              const windowOldestTs = minRegularFeedTs(reconciled);
-              const olderKept =
-                windowOldestTs !== ""
-                  ? prev.filter((p) => p.id > 0 && !p.is_pinned && tsMs(p.created_at) < tsMs(windowOldestTs))
-                  : [];
-              const next =
-                olderKept.length > 0 ? sortPackFeedItemsDesc([...reconciled, ...olderKept]) : reconciled;
+              const next = mergePackFeedFullWindow(prev, reconciled);
               oldestTsRef.current = minRegularFeedTs(next);
               return next;
             });
@@ -511,14 +514,14 @@ export function FeedScreen({
             const merged = mergePackFeedIncremental(prev, incoming);
             const next = reconcilePinnedFeed(merged, pinned);
             const n = newestFeedTs(incoming);
-            if (n !== "" && tsMs(n) > tsMs(newestTsRef.current)) newestTsRef.current = n;
+            if (n !== "" && feedTsMs(n) > feedTsMs(newestTsRef.current)) newestTsRef.current = n;
             if (
               optimisticFeedItem &&
               feedHasMatchingTrainingReport(next, optimisticFeedItem.text, optimisticFeedItem.user_id)
             ) {
               onOptimisticConsumed?.();
             }
-            return next;
+            return sameFeedItems(prev, next) ? prev : next;
           });
         }
         loadedOnceRef.current = true;
@@ -562,7 +565,7 @@ export function FeedScreen({
       // так что их самое старое created_at и есть новый курсор.
       const olderOldest = minRegularFeedTs(older);
       const advanced =
-        olderOldest !== "" && (oldestTsRef.current === "" || tsMs(olderOldest) < tsMs(oldestTsRef.current));
+        olderOldest !== "" && (oldestTsRef.current === "" || feedTsMs(olderOldest) < feedTsMs(oldestTsRef.current));
       setFeedItems((prev) => {
         const next = mergePackFeedIncremental(prev, older);
         oldestTsRef.current = minRegularFeedTs(next);
@@ -1660,6 +1663,15 @@ export function FeedScreen({
                   feedTypeFilter === "all" && feedScope === "all" ? " is-active" : ""
                 }`}
                 onClick={() => {
+                  if (
+                    !playFilterMotion({
+                      scope: "all",
+                      type: "all",
+                      cats: feedCategoryIds,
+                    })
+                  ) {
+                    return;
+                  }
                   setFeedTypeFilter("all");
                   setFeedScope("all");
                 }}
@@ -1669,28 +1681,44 @@ export function FeedScreen({
               <button
                 type="button"
                 className={`feed__filter-pill${feedScope === "mine" ? " is-active" : ""}`}
-                onClick={() => setFeedScope((p) => (p === "mine" ? "all" : "mine"))}
+                onClick={() => {
+                  const next = feedScope === "mine" ? "all" : "mine";
+                  if (!playFilterMotion({ scope: next, type: feedTypeFilter, cats: feedCategoryIds })) return;
+                  setFeedScope(next);
+                }}
               >
                 Мои
               </button>
               <button
                 type="button"
                 className={`feed__filter-pill${feedScope === "friends" ? " is-active" : ""}`}
-                onClick={() => setFeedScope((p) => (p === "friends" ? "all" : "friends"))}
+                onClick={() => {
+                  const next = feedScope === "friends" ? "all" : "friends";
+                  if (!playFilterMotion({ scope: next, type: feedTypeFilter, cats: feedCategoryIds })) return;
+                  setFeedScope(next);
+                }}
               >
                 Друзья
               </button>
               <button
                 type="button"
                 className={`feed__filter-pill feed__filter-pill--type${feedTypeFilter === "training" ? " is-active" : ""}`}
-                onClick={() => setFeedTypeFilter((p) => (p === "training" ? "all" : "training"))}
+                onClick={() => {
+                  const next = feedTypeFilter === "training" ? "all" : "training";
+                  if (!playFilterMotion({ scope: feedScope, type: next, cats: feedCategoryIds })) return;
+                  setFeedTypeFilter(next);
+                }}
               >
                 Тренировки
               </button>
               <button
                 type="button"
                 className={`feed__filter-pill feed__filter-pill--type${feedTypeFilter === "message" ? " is-active" : ""}`}
-                onClick={() => setFeedTypeFilter((p) => (p === "message" ? "all" : "message"))}
+                onClick={() => {
+                  const next = feedTypeFilter === "message" ? "all" : "message";
+                  if (!playFilterMotion({ scope: feedScope, type: next, cats: feedCategoryIds })) return;
+                  setFeedTypeFilter(next);
+                }}
               >
                 Сообщения
               </button>
@@ -1820,7 +1848,7 @@ export function FeedScreen({
                 onClick={async () => {
                   if (manualRefreshing) return;
                   setManualRefreshing(true);
-                  window.scrollTo({ top: 0, behavior: "smooth" });
+                  scrollFeedToTop(prefersFeedReducedMotion());
                   newestTsRef.current = "";
                   oldestTsRef.current = "";
                   setHasMoreOlder(true);
@@ -1843,7 +1871,14 @@ export function FeedScreen({
           </div>
           {err && <p className="feed__err">{err}</p>}
           {loading && <p className="feed__load muted">Загрузка…</p>}
-          <div className="feed__list">
+          <div
+            className="feed__list"
+            data-feed-smooth={feedListDim ? "motion" : "idle"}
+            style={{
+              opacity: feedListDim ? 0.62 : 1,
+              transition: `opacity ${FEED_LIST_MOTION_MS}ms ease`,
+            }}
+          >
             {!loading && !useMockFeed && feedItems.length === 0 && !err && (
               <p className="feed__empty muted">Пока нет отчётов в базе (или нет MONETIZED_CHAT_ID).</p>
             )}
