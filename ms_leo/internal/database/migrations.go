@@ -1439,6 +1439,41 @@ var Migrations = []Migration{
 			DROP TABLE IF EXISTS pack_paywall_settings;
 		`,
 	},
+	{
+		Version:     75,
+		Description: "Вход в десктопное приложение через подтверждение в чате",
+		UpSQL: `
+			-- В обычном окне на компьютере объекта Telegram.WebApp нет, подписанного
+			-- initData взять неоткуда. Приложение открывает t.me/<bot>?start=auth_<nonce>,
+			-- человек жмёт «Войти» в чате, и мы выдаём токен сессии.
+			-- token_plain — одноразовая ячейка выдачи: живёт минуты и стирается при
+			-- первой же отдаче приложению.
+			CREATE TABLE IF NOT EXISTS desktop_logins (
+				nonce       TEXT PRIMARY KEY,
+				user_id     BIGINT,
+				status      TEXT NOT NULL DEFAULT 'pending',
+				token_plain TEXT,
+				created_at  TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
+				expires_at  TIMESTAMP WITH TIME ZONE NOT NULL
+			);
+
+			-- На руках у приложения токен, у нас только его хеш: дамп базы не должен
+			-- давать возможность зайти под чужим аккаунтом.
+			CREATE TABLE IF NOT EXISTS desktop_sessions (
+				token_hash   TEXT PRIMARY KEY,
+				user_id      BIGINT NOT NULL,
+				created_at   TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
+				last_used_at TIMESTAMP WITH TIME ZONE,
+				revoked_at   TIMESTAMP WITH TIME ZONE
+			);
+			CREATE INDEX IF NOT EXISTS idx_desktop_sessions_user
+				ON desktop_sessions (user_id, created_at DESC);
+		`,
+		DownSQL: `
+			DROP TABLE IF EXISTS desktop_sessions;
+			DROP TABLE IF EXISTS desktop_logins;
+		`,
+	},
 }
 
 // MigrationRecord представляет запись о выполненной миграции

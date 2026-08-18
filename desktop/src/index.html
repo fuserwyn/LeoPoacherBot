@@ -1,0 +1,121 @@
+<!doctype html>
+<html lang="ru">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Fat Leopard — вход</title>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <main class="app-shell">
+      <header class="topbar">
+        <div class="avatar-circle" aria-hidden="true">I</div>
+        <div class="topbar-actions" aria-hidden="true">
+          <div class="icon-circle">⌕</div>
+          <div class="icon-circle">＋</div>
+        </div>
+      </header>
+
+      <h1 class="title">Лаборатория</h1>
+      <p class="page-sub">Проекты и агенты</p>
+
+      <section class="surface">
+        <section id="viewChecking" class="view">
+          <p class="muted">Проверяю сессию…</p>
+          <div class="spinner" role="status" aria-label="загрузка"></div>
+        </section>
+
+        <section id="viewIdle" class="view hidden">
+          <p class="muted">Вход подтверждается в чате с ботом — пароль не нужен.</p>
+          <button id="loginBtn" class="primary">Войти через Telegram</button>
+          <p class="hint">Откроется Telegram. Нажми «Войти» в чате, и приложение продолжит само.</p>
+        </section>
+
+        <section id="viewWaiting" class="view hidden">
+          <div class="spinner" role="status" aria-label="ожидание"></div>
+          <p class="strong">Подтверди вход в Telegram</p>
+          <p class="muted">Жду подтверждения… <span id="countdown" class="mono"></span></p>
+          <button id="reopenBtn" class="ghost">Открыть Telegram снова</button>
+          <button id="cancelBtn" class="link">Отмена</button>
+        </section>
+
+        <section id="viewDone" class="view hidden">
+          <p class="strong" id="doneName">Готово</p>
+          <p class="muted">Открываю Fat Leopard…</p>
+        </section>
+      </section>
+
+      <p id="error" class="error hidden" role="alert"></p>
+
+      <section class="section">
+        <div class="stat-strip" aria-hidden="true">
+          <article class="stat-cell">
+            <div class="stat-cell__top">
+              <p class="grid-icon orange">◈</p>
+              <span class="grid-count">0</span>
+            </div>
+            <p class="grid-label">Всего</p>
+          </article>
+          <article class="stat-cell">
+            <div class="stat-cell__top">
+              <p class="grid-icon blue">✦</p>
+              <span class="grid-count">0</span>
+            </div>
+            <p class="grid-label">В работе</p>
+          </article>
+          <article class="stat-cell">
+            <div class="stat-cell__top">
+              <p class="grid-icon amber">⌁</p>
+              <span class="grid-count">0</span>
+            </div>
+            <p class="grid-label">Внимание</p>
+          </article>
+          <article class="stat-cell">
+            <div class="stat-cell__top">
+              <p class="grid-icon pink">✓</p>
+              <span class="grid-count">0</span>
+            </div>
+            <p class="grid-label">Ревью</p>
+          </article>
+        </div>
+        <div class="ws-panel" aria-hidden="true">
+          <p class="section-title">Проекты</p>
+        </div>
+      </section>
+
+      <details id="settings" class="settings">
+        <summary>Настройки подключения</summary>
+        <label for="baseUrl">Адрес сервера</label>
+        <input id="baseUrl" type="text" spellcheck="false" placeholder="https://fat-leopard-main.up.railway.app" />
+        <label for="botName">Бот</label>
+        <input id="botName" type="text" spellcheck="false" placeholder="FatLeopard_Bot" />
+        <div class="settings__actions">
+          <button id="saveSettingsBtn" class="ghost">Сохранить</button>
+          <button id="logoutBtn" class="link">Выйти из аккаунта</button>
+        </div>
+        <p class="hint">Адрес — тот же, что у кнопки «Открыть IDE» в боте (WEBAPP_URL).</p>
+      </details>
+
+      <nav class="bottom-nav" aria-hidden="true">
+        <button type="button" class="bottom-nav__item is-active">
+          <span class="bottom-nav__icon"><svg viewBox="0 0 24 24"><path d="M4 7.5A2.5 2.5 0 0 1 6.5 5H10l1.5 2H17.5A2.5 2.5 0 0 1 20 9.5v7A2.5 2.5 0 0 1 17.5 19h-11A2.5 2.5 0 0 1 4 16.5v-9z"/></svg></span>
+          <span class="bottom-nav__label">Проекты</span>
+        </button>
+        <button type="button" class="bottom-nav__item">
+          <span class="bottom-nav__icon"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg></span>
+          <span class="bottom-nav__label">Создать</span>
+        </button>
+        <button type="button" class="bottom-nav__item">
+          <span class="bottom-nav__icon"><svg viewBox="0 0 24 24"><path d="M5 4.5h5.2A3.3 3.3 0 0 1 13.5 7.8V20a2.4 2.4 0 0 0-2.2-1.4H5V4.5z"/><path d="M19 4.5h-5.2A3.3 3.3 0 0 0 10.5 7.8V20a2.4 2.4 0 0 1 2.2-1.4H19V4.5z"/></svg></span>
+          <span class="bottom-nav__label">Гайд</span>
+        </button>
+        <button type="button" class="bottom-nav__item">
+          <span class="bottom-nav__icon"><svg viewBox="0 0 24 24"><circle cx="12" cy="8" r="3.2"/><path d="M5.2 19c.9-3.3 3.4-5 6.8-5s5.9 1.7 6.8 5"/></svg></span>
+          <span class="bottom-nav__label">Профиль</span>
+        </button>
+      </nav>
+    </main>
+
+    <script src="main.js" type="module"></script>
+  </body>
+</html>

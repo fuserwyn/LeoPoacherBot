@@ -668,6 +668,49 @@ func (s *Server) handlePostAdminWipe(w http.ResponseWriter, r *http.Request) {
 	s.writeAdminOK(w, map[string]any{"counts": counts, "done": true})
 }
 
+// handlePostDesktopPoll — приложение ждёт подтверждения входа в чате.
+// Единственная ручка без авторизации: защита — неугадываемый nonce с коротким
+// сроком жизни (bot/desktop_auth.go).
+func (s *Server) handlePostDesktopPoll(w http.ResponseWriter, r *http.Request) {
+	var body struct {
+		Nonce string `json:"nonce"`
+	}
+	corsWriteHeaders(w, r)
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		s.jsonErr(w, http.StatusBadRequest, "invalid_json")
+		return
+	}
+	status, userID, token, err := s.bot.DesktopLoginPoll(body.Nonce)
+	if err != nil {
+		s.jsonErr(w, http.StatusInternalServerError, "desktop_poll_error")
+		return
+	}
+	out := map[string]any{"ok": true, "status": status}
+	if status == "ok" {
+		out["token"] = token
+		out["user"] = map[string]any{"id": userID}
+	}
+	w.Header().Set("Content-Type", "application/json; charset=utf-8")
+	_ = json.NewEncoder(w).Encode(out)
+}
+
+// handlePostDesktopLogout — отозвать токен, с которым пришёл запрос.
+func (s *Server) handlePostDesktopLogout(w http.ResponseWriter, r *http.Request) {
+	var body struct {
+		InitData string `json:"init_data"`
+	}
+	corsWriteHeaders(w, r)
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		s.jsonErr(w, http.StatusBadRequest, "invalid_json")
+		return
+	}
+	if err := s.bot.DesktopSessionRevoke(body.InitData); err != nil {
+		s.jsonErr(w, http.StatusInternalServerError, "desktop_logout_error")
+		return
+	}
+	s.writeAdminOK(w, map[string]any{})
+}
+
 func (s *Server) handlePostAdminLeoLab(w http.ResponseWriter, r *http.Request) {
 	var body struct {
 		InitData string `json:"init_data"`

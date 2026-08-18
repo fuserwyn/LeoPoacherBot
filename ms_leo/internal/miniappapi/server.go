@@ -181,6 +181,10 @@ func (s *Server) serve(w http.ResponseWriter, r *http.Request) {
 		s.handlePostAdminLeoPropose(w, r)
 	case path == "/api/miniapp/admin/leo-lab" && r.Method == http.MethodPost:
 		s.handlePostAdminLeoLab(w, r)
+	case path == "/api/miniapp/auth/desktop/poll" && r.Method == http.MethodPost:
+		s.handlePostDesktopPoll(w, r)
+	case path == "/api/miniapp/auth/desktop/logout" && r.Method == http.MethodPost:
+		s.handlePostDesktopLogout(w, r)
 	case path == "/api/miniapp/admin/analytics" && r.Method == http.MethodPost:
 		s.handlePostAdminAnalytics(w, r)
 	case path == "/api/miniapp/admin/visits" && r.Method == http.MethodPost:

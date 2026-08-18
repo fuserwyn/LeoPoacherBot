@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
+	"strings"
 	"time"
 
 	"leo-bot/internal/bot"
@@ -21,6 +22,15 @@ func (s *Server) authMiniapp(w http.ResponseWriter, initDataRaw string) (initdat
 	if initDataRaw == "" {
 		s.jsonErr(w, http.StatusBadRequest, "missing_init_data")
 		return initdata.InitData{}, false
+	}
+	// Десктопное приложение шлёт сюда токен сессии: подписанного initData в
+	// обычном окне взять неоткуда (bot/desktop_auth.go). Отличаем по префиксу.
+	if strings.HasPrefix(initDataRaw, bot.DesktopTokenPrefix) {
+		parsed, ok := s.authDesktopToken(w, initDataRaw)
+		if !ok {
+			return initdata.InitData{}, false
+		}
+		return parsed, true
 	}
 	if err := initdata.Validate(initDataRaw, s.token, 24*time.Hour); err != nil {
 		s.jsonErr(w, http.StatusUnauthorized, "invalid_init_data")
@@ -341,4 +351,24 @@ func (s *Server) handlePostFriendsUnfollow(w http.ResponseWriter, r *http.Reques
 	}
 	w.Header().Set("Content-Type", "application/json; charset=utf-8")
 	_ = json.NewEncoder(w).Encode(map[string]any{"ok": true, "following": false})
+}
+
+// authDesktopToken — сессия десктопного приложения. Собираем такой же
+// initdata.InitData, как у мини-аппа, только без чата: проверки на совпадение
+// чата стаи пропускают пустой Chat.ID, а всё остальное работает как обычно.
+func (s *Server) authDesktopToken(w http.ResponseWriter, token string) (initdata.InitData, bool) {
+	if s.bot == nil {
+		s.jsonErr(w, http.StatusServiceUnavailable, "server_unavailable")
+		return initdata.InitData{}, false
+	}
+	userID, err := s.bot.DesktopSessionOwner(token)
+	if err != nil {
+		s.jsonErr(w, http.StatusInternalServerError, "desktop_session_error")
+		return initdata.InitData{}, false
+	}
+	if userID == 0 {
+		s.jsonErr(w, http.StatusUnauthorized, "invalid_init_data")
+		return initdata.InitData{}, false
+	}
+	return initdata.InitData{User: initdata.User{ID: userID}}, true
 }

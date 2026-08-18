@@ -908,6 +908,14 @@ func (b *Bot) handleHelp(msg *tgbotapi.Message) {
 }
 
 func (b *Bot) handleStart(msg *tgbotapi.Message) {
+	// Вход в приложение на компьютере: ссылка t.me/<bot>?start=auth_<nonce>.
+	// Показываем только подтверждение — витрина тут не к месту.
+	if msg != nil && msg.Chat != nil && msg.Chat.IsPrivate() {
+		if nonce := ParseDesktopStartPayload(msg.CommandArguments()); nonce != "" {
+			b.handleDesktopLoginStart(msg, nonce)
+			return
+		}
+	}
 	// Фиксируем визит в личке
 	if msg.From != nil && msg.Chat.IsPrivate() && b.db != nil {
 		username := msg.From.UserName
@@ -2643,6 +2651,11 @@ func (b *Bot) handleCallbackQuery(callback *tgbotapi.CallbackQuery) {
 
 	if strings.HasPrefix(data, "admin_") {
 		b.handleAdminCallbackQuery(callback)
+		return
+	}
+
+	// Вход в десктопное приложение — подтверждение из чата.
+	if b.handleDesktopLoginCallback(callback) {
 		return
 	}
 

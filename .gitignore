@@ -81,3 +81,6 @@ __pycache__/
 ms_leo/scripts/recalc_legacy_pack_users.sql
 ms_leo/scripts/sync_pack_users_from_legacy_csv.sql
 ms_leo/scripts/set_legacy_sick_leave.sql
+# Десктопная сборка
+desktop/node_modules/
+desktop/src-tauri/target/

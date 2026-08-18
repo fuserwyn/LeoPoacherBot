@@ -1,0 +1,10 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "default",
+  "description": "Доступ к командам — только у локального экрана входа. Окно с мини-аппом (label main) грузит удалённую страницу и IPC не получает.",
+  "windows": ["login"],
+  "permissions": [
+    "core:default",
+    "opener:default"
+  ]
+}
