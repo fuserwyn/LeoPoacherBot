@@ -837,3 +837,15 @@
   font-size: 14px;
   font-weight: 600;
 }
+
+/* На широком экране доска показывает все колонки сразу, без прилипания. */
+@media (min-width: 900px) {
+  .tracker__cols {
+    scroll-snap-type: none;
+  }
+
+  .tracker-col {
+    flex: 1 1 0;
+    max-width: none;
+  }
+}

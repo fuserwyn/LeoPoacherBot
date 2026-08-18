@@ -17,12 +17,14 @@ import {
   sendAdminReportAction,
   sendAdminSupportReply,
   sendAdminUserAction,
+  setAdminUserStat,
   type AdminHiddenItem,
   type AdminOverview,
   type AdminPaywallPrice,
   type AdminReport,
   type AdminSupportConv,
   type AdminSupportMsg,
+  type AdminStatField,
   type AdminUserAction,
   type AdminUserCard,
   type AdminUserRow,
@@ -116,6 +118,13 @@ export function AdminScreen({ initData, inTelegram, showAlert, onClose }: Props)
   // его своей модалкой: нативный confirm Telegram на части клиентов молча
   // не показывается, и участник улетал из стаи с одного тапа.
   const [kickAsk, setKickAsk] = useState(false);
+  /** Что и на сколько правим в карточке: кубки, стрик, рекорд, тренировки. */
+  const [statValue, setStatValue] = useState<Record<AdminStatField, string>>({
+    cups: "",
+    streak: "",
+    record: "",
+    workouts: "1",
+  });
   const [tab, setTab] = useState<AdminTab>("community");
   const [overview, setOverview] = useState<AdminOverview>(EMPTY_OVERVIEW);
   const [loading, setLoading] = useState(true);
@@ -266,6 +275,25 @@ export function AdminScreen({ initData, inTelegram, showAlert, onClose }: Props)
     } catch (e) {
       showAlert(e instanceof Error ? e.message : "Пользователь не найден");
       setPage("users");
+    }
+  };
+
+  const changeStat = async (field: AdminStatField, mode: "set" | "add", sign = 1) => {
+    if (!card || busy) return;
+    const raw = Number(statValue[field]);
+    if (!Number.isFinite(raw)) {
+      showAlert("Впиши число.");
+      return;
+    }
+    setBusy(true);
+    try {
+      const j = await setAdminUserStat(initData, card.user_id, field, mode, Math.round(raw) * sign);
+      setCard(j.user);
+      void loadOverview();
+    } catch (e) {
+      showAlert(e instanceof Error ? e.message : "Не удалось изменить");
+    } finally {
+      setBusy(false);
     }
   };
 
@@ -814,6 +842,90 @@ export function AdminScreen({ initData, inTelegram, showAlert, onClose }: Props)
             {card.ugc_muted_until ? <p className="admin__warn">UGC-мьют до {formatChatTime(card.ugc_muted_until)}</p> : null}
             <p className="admin__row-meta">Нарушений UGC: {card.ugc_violations}</p>
           </div>
+          <section className="admin__stats-edit">
+            <h3 className="admin__stats-edit-title">Показатели</h3>
+            <p className="admin__muted admin__hint">
+              Уровень и попытки спасти стрик считаются от кубков — отдельно их задавать не нужно.
+            </p>
+
+            <div className="admin__stat-row">
+              <span>Кубки</span>
+              <input
+                inputMode="numeric"
+                value={statValue.cups}
+                onChange={(e) => setStatValue((p) => ({ ...p, cups: e.target.value }))}
+                placeholder={String(card.cups)}
+              />
+              <button type="button" disabled={busy} onClick={() => void changeStat("cups", "set")}>
+                Задать
+              </button>
+              <button type="button" disabled={busy} onClick={() => void changeStat("cups", "add")}>
+                +
+              </button>
+              <button type="button" disabled={busy} onClick={() => void changeStat("cups", "add", -1)}>
+                −
+              </button>
+            </div>
+
+            <div className="admin__stat-row">
+              <span>Стрик</span>
+              <input
+                inputMode="numeric"
+                value={statValue.streak}
+                onChange={(e) => setStatValue((p) => ({ ...p, streak: e.target.value }))}
+                placeholder={String(card.streak_days)}
+              />
+              <button type="button" disabled={busy} onClick={() => void changeStat("streak", "set")}>
+                Задать
+              </button>
+              <button type="button" disabled={busy} onClick={() => void changeStat("streak", "add")}>
+                +
+              </button>
+              <button type="button" disabled={busy} onClick={() => void changeStat("streak", "add", -1)}>
+                −
+              </button>
+            </div>
+
+            <div className="admin__stat-row">
+              <span>Рекорд</span>
+              <input
+                inputMode="numeric"
+                value={statValue.record}
+                onChange={(e) => setStatValue((p) => ({ ...p, record: e.target.value }))}
+                placeholder={String(card.max_streak_days)}
+              />
+              <button type="button" disabled={busy} onClick={() => void changeStat("record", "set")}>
+                Задать
+              </button>
+              <button type="button" disabled={busy} onClick={() => void changeStat("record", "add")}>
+                +
+              </button>
+              <button type="button" disabled={busy} onClick={() => void changeStat("record", "add", -1)}>
+                −
+              </button>
+            </div>
+
+            <div className="admin__stat-row">
+              <span>Тренировки</span>
+              <input
+                inputMode="numeric"
+                value={statValue.workouts}
+                onChange={(e) => setStatValue((p) => ({ ...p, workouts: e.target.value }))}
+                placeholder="1"
+              />
+              <button type="button" disabled={busy} onClick={() => void changeStat("workouts", "add")}>
+                Зачесть
+              </button>
+              <button type="button" disabled={busy} onClick={() => void changeStat("workouts", "add", -1)}>
+                Снять
+              </button>
+            </div>
+            <p className="admin__muted admin__hint">
+              Тренировки — это записи о сессиях, поэтому «зачесть» добавляет их сегодняшним днём, а «снять» убирает
+              последние.
+            </p>
+          </section>
+
           <div className="admin__actions admin__actions--stack">
             {card.sick_leave === "активен" || card.sick_leave === "ожидает" ? (
               <button type="button" className="admin__btn" disabled={busy} onClick={() => void actUser("sick_cancel", "Снять больничный?")}>

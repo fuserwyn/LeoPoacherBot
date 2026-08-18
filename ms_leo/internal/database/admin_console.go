@@ -366,3 +366,43 @@ func (d *Database) AdminPeopleByIDs(packChatID int64, ids []int64) ([]AdminPerso
 	}
 	return out, rows.Err()
 }
+
+// AdminSetMaxStreak — выставить рекорд стрика напрямую.
+//
+// UpdateStreak поднимает рекорд через GREATEST и опустить его не может, а
+// админу иногда нужно именно исправить цифру (например, накрутили тестами).
+func (d *Database) AdminSetMaxStreak(userID, packChatID int64, value int) error {
+	if d == nil || d.db == nil || userID == 0 || packChatID == 0 {
+		return nil
+	}
+	if value < 0 {
+		value = 0
+	}
+	_, err := d.db.Exec(`
+		UPDATE training_state SET max_streak_days = $3, updated_at = NOW()
+		WHERE user_id = $1 AND chat_id = $2
+	`, userID, packChatID, value)
+	return err
+}
+
+// AdminDeleteLatestTrainingSession — снять последнюю зачтённую тренировку.
+// Возвращает false, если сессий у человека нет.
+func (d *Database) AdminDeleteLatestTrainingSession(userID, packChatID int64) (bool, error) {
+	if d == nil || d.db == nil || userID == 0 {
+		return false, nil
+	}
+	res, err := d.db.Exec(`
+		DELETE FROM training_sessions
+		WHERE id = (
+			SELECT id FROM training_sessions
+			WHERE user_id = $1 AND chat_id = ANY($2::bigint[])
+			ORDER BY session_date DESC, id DESC
+			LIMIT 1
+		)
+	`, userID, pq.Array([]int64{packChatID, userID}))
+	if err != nil {
+		return false, err
+	}
+	n, _ := res.RowsAffected()
+	return n > 0, nil
+}

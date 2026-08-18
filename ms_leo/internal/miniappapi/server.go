@@ -235,6 +235,8 @@ func (s *Server) serve(w http.ResponseWriter, r *http.Request) {
 		s.handlePostAdminUsers(w, r)
 	case path == "/api/miniapp/admin/users/card" && r.Method == http.MethodPost:
 		s.handlePostAdminUserCard(w, r)
+	case path == "/api/miniapp/admin/users/stat" && r.Method == http.MethodPost:
+		s.handlePostAdminUserStat(w, r)
 	case path == "/api/miniapp/admin/users/action" && r.Method == http.MethodPost:
 		s.handlePostAdminUserAction(w, r)
 	case path == "/api/miniapp/admin/publish" && r.Method == http.MethodPost:

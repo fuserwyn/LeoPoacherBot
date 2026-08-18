@@ -186,6 +186,24 @@ export function fetchAdminUserCard(initData: string, targetUserId: number) {
   });
 }
 
+export type AdminStatField = "cups" | "streak" | "record" | "workouts";
+
+/** Правка показателей участника. mode=set — выставить, add — прибавить/снять. */
+export function setAdminUserStat(
+  initData: string,
+  targetUserId: number,
+  field: AdminStatField,
+  mode: "set" | "add",
+  value: number,
+) {
+  return post<{ user: AdminUserCard }>("/api/miniapp/admin/users/stat", initData, {
+    target_user_id: targetUserId,
+    field,
+    mode,
+    value,
+  });
+}
+
 export function sendAdminUserAction(initData: string, targetUserId: number, action: AdminUserAction) {
   return post("/api/miniapp/admin/users/action", initData, { target_user_id: targetUserId, action });
 }

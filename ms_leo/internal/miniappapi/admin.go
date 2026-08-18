@@ -417,6 +417,40 @@ func (s *Server) handlePostAdminPaywallPriceSet(w http.ResponseWriter, r *http.R
 
 // --- Разделы, переехавшие из чат-админки (bot/miniapp_admin_ops.go) --------
 
+// handlePostAdminUserStat — правка показателей участника из карточки.
+func (s *Server) handlePostAdminUserStat(w http.ResponseWriter, r *http.Request) {
+	var body struct {
+		InitData     string `json:"init_data"`
+		TargetUserID int64  `json:"target_user_id"`
+		Field        string `json:"field"`
+		Mode         string `json:"mode"`
+		Value        int    `json:"value"`
+	}
+	corsWriteHeaders(w, r)
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		s.jsonErr(w, http.StatusBadRequest, "invalid_json")
+		return
+	}
+	parsed, ok := s.authMiniapp(w, body.InitData)
+	if !ok {
+		return
+	}
+	err := s.bot.MiniappAdminSetStat(
+		parsed.User.ID, parsed, body.TargetUserID,
+		bot.MiniappAdminStatField(body.Field), body.Mode, body.Value,
+	)
+	if err != nil {
+		s.writeAdminErr(w, err)
+		return
+	}
+	card, err := s.bot.MiniappAdminUserCard(parsed.User.ID, parsed, body.TargetUserID)
+	if err != nil {
+		s.writeAdminErr(w, err)
+		return
+	}
+	s.writeAdminOK(w, map[string]any{"user": card})
+}
+
 func (s *Server) handlePostAdminAnalytics(w http.ResponseWriter, r *http.Request) {
 	var body struct {
 		InitData string `json:"init_data"`

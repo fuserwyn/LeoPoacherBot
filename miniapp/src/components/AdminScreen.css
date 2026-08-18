@@ -476,3 +476,96 @@
   font: inherit;
   cursor: pointer;
 }
+
+/* Правка показателей участника в карточке. */
+.admin__stats-edit {
+  margin-top: 14px;
+  padding: 12px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border-subtle);
+  background: var(--card-inner);
+}
+
+.admin__stats-edit-title {
+  margin: 0 0 4px;
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.admin__stat-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 8px;
+}
+
+.admin__stat-row span {
+  flex: 0 0 84px;
+  font-size: 13px;
+  color: var(--muted);
+}
+
+.admin__stat-row input {
+  flex: 1 1 60px;
+  min-width: 0;
+  min-height: 34px;
+  padding: 6px 8px;
+  border-radius: 8px;
+  border: 1px solid var(--border-subtle);
+  background: var(--card);
+  color: var(--text);
+  font: inherit;
+  text-align: center;
+}
+
+.admin__stat-row button {
+  flex: 0 0 auto;
+  min-height: 34px;
+  padding: 6px 10px;
+  border-radius: 8px;
+  border: 1px solid var(--border-subtle);
+  background: var(--card);
+  color: var(--text);
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.admin__stat-row button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+/* Широкий экран (десктопное приложение): админка перестаёт быть телефонной
+   колонкой — плитки в три ряда, статистика в четыре, таблицы и доска трекера
+   получают всю доступную ширину. */
+@media (min-width: 900px) {
+  .admin {
+    max-width: 1180px;
+    padding-inline: 12px;
+  }
+
+  .admin__body {
+    padding: 18px 20px 24px;
+  }
+
+  .admin__stats {
+    grid-template-columns: repeat(4, 1fr);
+  }
+
+  .admin__tiles {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 10px;
+  }
+
+  .admin__tabs {
+    max-width: 1180px;
+    margin: 0 auto;
+    border-radius: 14px 14px 0 0;
+  }
+
+  .admin__stat-row span {
+    flex-basis: 120px;
+  }
+}

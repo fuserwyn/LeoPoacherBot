@@ -302,3 +302,15 @@
   line-height: 1.5;
   white-space: pre-wrap;
 }
+
+/* Широкий экран: карточки разделов не растягиваются в одну строку текста. */
+@media (min-width: 900px) {
+  .ops-money {
+    max-width: 640px;
+  }
+
+  .ops-card,
+  .ops-table {
+    max-width: 100%;
+  }
+}
