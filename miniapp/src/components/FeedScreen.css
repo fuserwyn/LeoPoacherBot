@@ -1,0 +1,726 @@
+.feed__subpane--hidden {
+  display: none;
+}
+
+.feed {
+  padding: 0 8px 0;
+  max-width: 520px;
+  width: 100%;
+  margin: 0 auto;
+  position: relative;
+  overflow-x: clip;
+  box-sizing: border-box;
+}
+
+/* Шапка ленты: fixed, вне feed__pull-shift (transform ломает sticky в WebView/Telegram). */
+.feed__sticky {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 55;
+  padding-top: var(--safe-top, 0px);
+  background: var(--bg);
+  box-sizing: border-box;
+  pointer-events: none;
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.feed__sticky::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: -120px;
+  height: 120px;
+  background: var(--bg);
+  pointer-events: none;
+}
+
+.feed__sticky-inner {
+  position: relative;
+  z-index: 1;
+  max-width: 520px;
+  margin: 0 auto;
+  padding: 4px 8px 3px;
+  box-sizing: border-box;
+  background: var(--bg);
+  pointer-events: auto;
+}
+
+.feed__pull-shift {
+  padding-top: var(--feed-header-h, 0px);
+  box-sizing: border-box;
+  overflow-x: clip;
+  max-width: 100%;
+}
+
+.feed__header {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 6px;
+  margin-bottom: 6px;
+  padding-top: 1px;
+}
+
+.feed__brand {
+  align-self: center;
+  color: var(--text, #e8e8f0);
+  font-size: 1rem;
+  font-weight: 600;
+  line-height: 1.2;
+}
+
+.feed__hero {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  max-width: 100%;
+  min-width: 0;
+  padding-top: 1px;
+}
+
+.feed__kick-hint {
+  max-width: 100%;
+  text-align: center;
+  font-size: 9px;
+  font-weight: 600;
+  line-height: 1.25;
+  color: var(--muted, #8b8b9a);
+}
+
+.feed__level {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 4px;
+  padding: 5px 8px;
+  border-radius: 999px;
+  background: var(--card);
+  border: 1px solid var(--border-subtle);
+  flex-shrink: 0;
+}
+
+.feed__level-k {
+  font-size: 0.62rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--muted, #8b8b9a);
+}
+
+.feed__level-v {
+  font-size: 0.95rem;
+  font-weight: 800;
+  color: var(--text, #e8e8f0);
+  font-variant-numeric: tabular-nums;
+}
+
+.feed__streak {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: max-content;
+  max-width: 100%;
+  background: var(--card);
+  border: 1px solid var(--border-subtle);
+  padding: 6px 12px;
+  border-radius: 999px;
+  flex-shrink: 0;
+  box-sizing: border-box;
+}
+
+.feed__streak-row {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  line-height: 1;
+  min-width: 0;
+  text-align: center;
+}
+
+.feed__streak-word {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  padding-left: 0.04em;
+  text-transform: uppercase;
+  color: var(--muted, #8b8b9a);
+  line-height: 1;
+}
+
+.feed__streak-num {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.95rem;
+  font-weight: 800;
+  color: var(--accent);
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+}
+
+.feed__subtabs {
+  display: flex;
+  gap: 5px;
+  margin-bottom: 3px;
+}
+
+.feed__filters {
+  margin-bottom: 2px;
+}
+
+.feed__filter-scope {
+  /* Один ряд: Все · Мои · Друзья · Тренировки · Сообщения. Не переносим —
+     при нехватке ширины уезжает в горизонтальный скролл (без полосы). */
+  display: flex;
+  flex-wrap: nowrap;
+  align-items: center;
+  gap: 4px;
+  margin-bottom: 4px;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+}
+
+.feed__filter-scope::-webkit-scrollbar {
+  display: none;
+}
+
+.feed__filter-pill {
+  flex: 0 0 auto;
+  padding: 5px 11px;
+  border-radius: 999px;
+  border: 1px solid var(--border-subtle);
+  background: var(--card-inner);
+  color: var(--muted);
+  font-size: 0.72rem;
+  font-weight: 600;
+  line-height: 1.25;
+  cursor: pointer;
+  min-height: 32px;
+  white-space: nowrap;
+  display: inline-flex;
+  align-items: center;
+}
+
+.feed__filter-pill.is-active {
+  background: var(--tab-active-bg);
+  color: var(--tab-active-fg);
+  border-color: var(--tab-active-border);
+}
+
+/* Тренировки/Сообщения — другая ветка фильтрации (тип контента), поэтому
+   слегка другого цвета: розовый акцент вместо фиолетового. */
+.feed__filter-pill--type {
+  border-color: color-mix(in srgb, var(--accent-2) 30%, var(--border-subtle));
+}
+
+.feed__filter-pill--type.is-active {
+  background: color-mix(in srgb, var(--accent-2) 20%, transparent);
+  border-color: color-mix(in srgb, var(--accent-2) 55%, transparent);
+  color: var(--accent-2);
+}
+
+.feed__filter-cats {
+  display: flex;
+  flex-wrap: nowrap;
+  gap: 6px;
+  overflow-x: auto;
+  margin-bottom: 0;
+  padding-bottom: 1px;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+  /* Нативная инерция iOS; pan-x не отдаёт вертикаль ленте. Чипы — div, не button. */
+  touch-action: pan-x;
+  overscroll-behavior-x: contain;
+  overscroll-behavior-y: none;
+}
+
+.feed__filter-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  flex-shrink: 0;
+  padding: 5px 12px;
+  border-radius: 999px;
+  border: 1px solid var(--border-subtle);
+  background: var(--card-inner);
+  color: var(--text);
+  font-size: 0.7rem;
+  font-weight: 600;
+  line-height: 1.2;
+  cursor: pointer;
+  white-space: nowrap;
+  min-height: 32px;
+  touch-action: pan-x;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.feed__filter-chip.is-active {
+  border-color: color-mix(in srgb, var(--accent) 55%, transparent);
+  background: var(--accent-dim);
+  color: var(--accent);
+}
+
+.feed__filter-chip-emoji {
+  font-size: 0.88rem;
+  line-height: 1;
+}
+
+.feed__filter-chip-label {
+  max-width: 7.5rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Каретка у чипа «Все типы» — намёк на разворачиваемый список. */
+.feed__filter-chip--all {
+  gap: 4px;
+}
+
+.feed__filter-chip-caret {
+  font-size: 0.6rem;
+  line-height: 1;
+  transition: transform 0.15s ease;
+}
+
+.feed__filter-chip--all.is-open .feed__filter-chip-caret {
+  transform: rotate(180deg);
+}
+
+/* Вертикальный список всех типов (открывается повторным тапом по «Все типы»). */
+.feed__cat-list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin-top: 6px;
+  padding: 4px;
+  max-height: 46vh;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
+  border: 1px solid var(--border-subtle);
+  border-radius: 12px;
+  background: var(--card-inner);
+}
+
+.feed__cat-list-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 9px 12px;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--text);
+  font-size: 0.84rem;
+  font-weight: 600;
+  line-height: 1.2;
+  text-align: left;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.feed__cat-list-item:active {
+  background: var(--card);
+}
+
+.feed__cat-list-item.is-active {
+  border-color: color-mix(in srgb, var(--accent) 55%, transparent);
+  background: var(--accent-dim);
+  color: var(--accent);
+}
+
+.feed__cat-list-emoji {
+  font-size: 1.05rem;
+  line-height: 1;
+  flex-shrink: 0;
+}
+
+.feed__cat-list-label {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.feed__cat-list-check {
+  flex-shrink: 0;
+  font-size: 0.9rem;
+  color: var(--accent);
+}
+
+.feed__subtab {
+  flex: 1;
+  padding: 6px 10px;
+  border-radius: 8px;
+  border: 1px solid var(--border-subtle);
+  background: var(--card-inner);
+  color: var(--muted);
+  font-size: 0.82rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.feed__subtab.is-active {
+  background: var(--tab-active-bg);
+  color: var(--tab-active-fg);
+  border-color: var(--tab-active-border);
+}
+
+.feed__subtab-inner {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+}
+
+.feed__subtab-badge {
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  border-radius: 999px;
+  background: var(--accent, #ff6a2b);
+  color: #fff;
+  font-size: 0.68rem;
+  font-weight: 700;
+  line-height: 18px;
+  text-align: center;
+}
+
+.feed__list {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  min-width: 0;
+  max-width: 100%;
+  overflow-x: clip;
+  overflow-anchor: none;
+  padding-bottom: calc(var(--feed-bottom-nav-h, 88px) + var(--safe-bottom, 0px) + 14px);
+}
+
+/* Pull-to-refresh: только при оттяге, сразу под fixed-шапкой, перед «Тренировки стаи». */
+.feed__ptr {
+  position: relative;
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 4px;
+  min-height: 0;
+  pointer-events: none;
+  color: var(--text-muted, #8b8b9a);
+  font-size: 12px;
+  font-weight: 500;
+  overflow: hidden;
+  box-sizing: border-box;
+  padding-bottom: 2px;
+}
+
+.feed__ptr-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: var(--card, #1a1a22);
+  border: 1px solid var(--border-subtle);
+  font-size: 13px;
+  line-height: 1;
+  transition: transform 180ms ease;
+}
+
+.feed__ptr--ready .feed__ptr-icon {
+  color: var(--accent, #ff6a2b);
+  border-color: var(--accent, #ff6a2b);
+}
+
+.feed__ptr--refreshing .feed__ptr-icon {
+  animation: feedPtrSpin 0.9s linear infinite;
+  color: var(--accent, #ff6a2b);
+}
+
+@keyframes feedPtrSpin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.feed__ptr-label {
+  margin-bottom: 4px;
+  white-space: nowrap;
+}
+
+.feed__card-slot {
+  display: flex;
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
+  overflow-x: clip;
+}
+
+.feed__card-slot--them {
+  justify-content: flex-start;
+}
+
+.feed__card-slot--mine {
+  justify-content: flex-end;
+}
+
+/* Как в чате: свои справа, чужие слева; ширина карточки 11/14 полосы ленты. */
+.feed__card-slot .act-card {
+  margin-bottom: 0;
+  box-sizing: border-box;
+  width: calc(100% * 11 / 14);
+  max-width: calc(100% * 11 / 14);
+  flex-shrink: 0;
+}
+
+/* Закреплённое объявление — на всю ширину полосы, с акцентной рамкой сверху ленты. */
+.feed__card-slot--pinned {
+  justify-content: stretch;
+}
+
+.feed__card-slot--pinned .act-card {
+  width: 100%;
+  max-width: 100%;
+  margin: 0;
+  border-color: rgba(236, 160, 60, 0.42);
+  box-shadow: 0 4px 20px rgba(236, 160, 60, 0.12);
+}
+
+.feed__card-slot--them .act-card {
+  margin-right: auto;
+  margin-left: 0;
+}
+
+.feed__card-slot--mine .act-card {
+  margin-left: auto;
+  margin-right: 0;
+  border-color: rgba(72, 187, 120, 0.42);
+  box-shadow: 0 4px 20px rgba(34, 139, 87, 0.12);
+}
+
+.feed__pull-shift .feed__list {
+  margin-top: 0;
+}
+
+.feed__err {
+  color: #c0492f;
+  font-size: 0.9rem;
+  margin: 0 0 10px;
+}
+
+.feed__load,
+.feed__empty {
+  margin: 0 0 10px;
+  font-size: 0.9rem;
+}
+
+.feed__older {
+  min-height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 8px 0 4px;
+}
+
+.feed__older .feed__load {
+  margin: 0;
+}
+
+.feed__load-more {
+  appearance: none;
+  border: 1px solid var(--border-subtle, #2a2a36);
+  background: var(--card-bg, rgba(255, 255, 255, 0.04));
+  color: var(--text, #e8e8f0);
+  font: 600 0.9rem / 1.2 var(--font);
+  padding: 8px 20px;
+  border-radius: 999px;
+  cursor: pointer;
+}
+
+.feed__load-more:active {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.feed__section-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin: 10px 0 6px;
+  gap: 8px;
+}
+
+.feed__section-row .section-title {
+  margin-bottom: 0;
+}
+
+.feed__section-title {
+  text-transform: none;
+  letter-spacing: 0.02em;
+}
+
+.feed__refresh-btn {
+  flex-shrink: 0;
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--border-subtle);
+  background: var(--card);
+  color: var(--muted);
+  border-radius: 8px;
+  font-size: 1.1rem;
+  cursor: pointer;
+  transition: color 0.15s, border-color 0.15s;
+}
+
+.feed__refresh-btn:not(:disabled):hover {
+  color: var(--text);
+  border-color: rgba(51, 48, 74, 0.25);
+}
+
+.feed__refresh-btn:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+.feed__refresh-ico {
+  display: inline-block;
+  line-height: 1;
+}
+
+.feed__refresh-btn.is-refreshing {
+  opacity: 1;
+  color: var(--accent);
+  border-color: var(--accent);
+  cursor: default;
+}
+
+.feed__refresh-btn.is-refreshing .feed__refresh-ico {
+  animation: feedPtrSpin 0.8s linear infinite;
+}
+
+/* Шире мобилки — лента занимает весь экран. На ≥1024px добавляется авто-сетка
+   (2/3/4 колонки по ширине окна, минимум 420px на колонку). Mine/them различает
+   зелёный border у своих — chat-сдвиг в гриде теряет смысл. */
+@media (min-width: 600px) {
+  .feed {
+    max-width: none;
+    padding-left: 16px;
+    padding-right: 16px;
+  }
+  .feed__sticky-inner {
+    max-width: none;
+    padding-left: 16px;
+    padding-right: 16px;
+  }
+}
+@media (min-width: 1024px) {
+  .feed__list {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(420px, 1fr));
+    gap: 10px;
+    align-items: start;
+  }
+  .feed__card-slot {
+    width: 100%;
+  }
+  .feed__card-slot .act-card {
+    width: 100%;
+    max-width: 100%;
+    margin-left: 0;
+    margin-right: 0;
+  }
+}
+
+/* Узкий экран: полная ширина карточки, 44px тапы, свайп фильтров, без горизонтального вылета. */
+.feed {
+  --feed-gutter: 12px;
+  --feed-tap: 44px;
+  -webkit-text-size-adjust: 100%;
+  overscroll-behavior-x: none;
+}
+
+.feed[data-narrow="true"] {
+  padding-left: var(--feed-gutter);
+  padding-right: var(--feed-gutter);
+  max-width: 100%;
+}
+
+.feed[data-narrow="true"] .feed__sticky-inner {
+  padding-left: var(--feed-gutter);
+  padding-right: var(--feed-gutter);
+  max-width: 100%;
+}
+
+.feed[data-narrow="true"] .feed__brand {
+  font-size: 0.88rem;
+}
+
+.feed[data-narrow="true"] .feed__card-slot .act-card {
+  width: 100%;
+  max-width: 100%;
+}
+
+.feed[data-narrow="true"] .feed__section-title {
+  font-size: 1rem;
+}
+
+.feed__filter-scope,
+.feed__filter-cats {
+  touch-action: pan-x pinch-zoom;
+  overscroll-behavior-x: contain;
+  scroll-snap-type: x proximity;
+}
+
+.feed__filter-pill,
+.feed__filter-chip {
+  appearance: none;
+  -webkit-appearance: none;
+  min-height: var(--feed-tap);
+  min-width: var(--feed-tap);
+  padding: 0 14px;
+  font: inherit;
+  font-size: 0.82rem;
+  font-weight: 600;
+  scroll-snap-align: start;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: pan-x;
+}
+
+.feed__cat-list-item {
+  min-height: var(--feed-tap);
+}
+
+.feed__refresh-btn {
+  width: var(--feed-tap);
+  height: var(--feed-tap);
+  min-width: var(--feed-tap);
+  min-height: var(--feed-tap);
+  touch-action: manipulation;
+}
+
+.feed__load-more {
+  min-height: var(--feed-tap);
+  width: 100%;
+  max-width: 100%;
+  touch-action: manipulation;
+}
+
+.feed[data-narrow="false"] .feed__filter-scope,
+.feed[data-narrow="false"] .feed__filter-cats {
+  scroll-snap-type: none;
+}

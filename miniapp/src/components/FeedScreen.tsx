@@ -16,6 +16,8 @@ import {
   optimisticTogglePackFeedReaction,
   optimisticToggleThreadReplyLike,
   planFeedFilterMotion,
+  planFeedNarrowPath,
+  feedWindowKey,
   prefersFeedReducedMotion,
   reconcilePinnedFeed,
   resolveFeedAvatarUrl,
@@ -86,6 +88,9 @@ type Sub = "activity";
 type FeedViewportStyle = CSSProperties & {
   "--feed-vvh"?: string;
   "--feed-bottom-nav-h"?: string;
+  "--feed-gutter"?: string;
+  "--feed-tap"?: string;
+  "--feed-card-max"?: string;
 };
 
 /** Почему лента не грузится — у каждой причины свой текст, чтобы не путать API URL с клиентом. */
@@ -259,6 +264,11 @@ export function FeedScreen({
   /** Развёрнут ли вертикальный список всех типов (открывается повторным тапом по «Все типы»). */
   const [catListOpen, setCatListOpen] = useState(false);
   const [viewportStyle, setViewportStyle] = useState<FeedViewportStyle>({});
+  const [feedViewportWidth, setFeedViewportWidth] = useState(() =>
+    typeof window === "undefined"
+      ? 390
+      : Math.floor(window.visualViewport?.width || window.innerWidth || 390),
+  );
   const feedHeaderRef = useRef<HTMLDivElement>(null);
   /** Самое свежее created_at в окне — курсор «новее» (since_ts) для инкрементального синка. */
   const newestTsRef = useRef("");
@@ -314,6 +324,15 @@ export function FeedScreen({
     const rest = visibleFeedItems.filter((it) => !it.is_pinned);
     return [...pinned, ...rest];
   }, [visibleFeedItems]);
+
+  const feedNarrowPath = useMemo(
+    () =>
+      planFeedNarrowPath(feedViewportWidth, {
+        cardCount: orderedFeedItems.length,
+        windowKey: feedWindowKey(orderedFeedItems),
+      }),
+    [feedViewportWidth, orderedFeedItems],
+  );
 
   const hapticLight = useCallback(() => {
     window.Telegram?.WebApp?.HapticFeedback?.impactOccurred?.("light");
@@ -1568,18 +1587,27 @@ export function FeedScreen({
       // карточка резко сжимается в момент тапа по textarea и iOS не успевает корректно
       // докрутить поле над клавиатурой.
       const layoutH = Math.max(320, Math.floor(window.innerHeight || vv?.height || 320));
+      const layoutW = Math.max(1, Math.floor(vv?.width || window.innerWidth || 390));
       const bottomNavH = Math.ceil(
         document.querySelector<HTMLElement>(".bottom-nav")?.getBoundingClientRect().height ?? 0,
       );
+      const path = planFeedNarrowPath(layoutW, { cardCount: 0, windowKey: "" });
+      setFeedViewportWidth((prev) => (prev === layoutW ? prev : layoutW));
 
       setViewportStyle((prev) => {
         const next: FeedViewportStyle = {
           "--feed-vvh": `${layoutH}px`,
           "--feed-bottom-nav-h": `${bottomNavH}px`,
+          "--feed-gutter": `${path.gutterPx}px`,
+          "--feed-tap": `${path.tapPx}px`,
+          "--feed-card-max": `${path.maxWidthPx}px`,
         };
         if (
           prev["--feed-vvh"] === next["--feed-vvh"] &&
-          prev["--feed-bottom-nav-h"] === next["--feed-bottom-nav-h"]
+          prev["--feed-bottom-nav-h"] === next["--feed-bottom-nav-h"] &&
+          prev["--feed-gutter"] === next["--feed-gutter"] &&
+          prev["--feed-tap"] === next["--feed-tap"] &&
+          prev["--feed-card-max"] === next["--feed-card-max"]
         ) {
           return prev;
         }
@@ -1596,6 +1624,7 @@ export function FeedScreen({
     const vv = window.visualViewport;
     vv?.addEventListener("resize", scheduleRead);
     vv?.addEventListener("scroll", scheduleRead);
+    window.addEventListener("resize", scheduleRead);
     window.addEventListener("orientationchange", scheduleRead);
     const tg = window.Telegram?.WebApp as { onEvent?: (e: string, fn: () => void) => void } | undefined;
     tg?.onEvent?.("viewportChanged", scheduleRead);
@@ -1603,6 +1632,7 @@ export function FeedScreen({
       if (raf) cancelAnimationFrame(raf);
       vv?.removeEventListener("resize", scheduleRead);
       vv?.removeEventListener("scroll", scheduleRead);
+      window.removeEventListener("resize", scheduleRead);
       window.removeEventListener("orientationchange", scheduleRead);
       const tgOff = window.Telegram?.WebApp as { offEvent?: (e: string, fn: () => void) => void } | undefined;
       tgOff?.offEvent?.("viewportChanged", scheduleRead);
@@ -1636,7 +1666,15 @@ export function FeedScreen({
           : "";
 
   return (
-    <div className="feed" style={viewportStyle}>
+    <div
+      className={`feed${feedNarrowPath.compactHeader ? " feed--compact" : ""}`}
+      style={viewportStyle}
+      data-narrow={feedNarrowPath.narrow ? "true" : "false"}
+      data-stacked={feedNarrowPath.stacked ? "true" : "false"}
+      data-reason={feedNarrowPath.reason}
+      data-overflows={feedNarrowPath.overflowsHorizontally ? "true" : "false"}
+      data-swipe={feedNarrowPath.swipeAxis}
+    >
       <div className="feed__sticky" ref={feedHeaderRef}>
         <div className="feed__sticky-inner">
         <header className="feed__header">
@@ -1726,51 +1764,37 @@ export function FeedScreen({
             {feedTypeFilter !== "message" && (
             <div className="feed__filter-cats-wrap">
               <div className="feed__filter-cats" role="group" aria-label="Тип тренировки">
-                <div
-                  role="button"
-                  tabIndex={0}
+                <button
+                  type="button"
                   className={`feed__filter-chip feed__filter-chip--all${
                     feedCategoryIds.length === 0 ? " is-active" : ""
                   }${catListOpen ? " is-open" : ""}`}
                   aria-pressed={feedCategoryIds.length === 0}
                   aria-expanded={catListOpen}
                   onClick={toggleAllTypes}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter" || e.key === " ") {
-                      e.preventDefault();
-                      toggleAllTypes();
-                    }
-                  }}
                 >
                   <span className="feed__filter-chip-label">Все типы</span>
                   <span className="feed__filter-chip-caret" aria-hidden>
                     ▾
                   </span>
-                </div>
+                </button>
                 {!catListOpen &&
                   WORKOUT_CATEGORY_OPTIONS_ALPHABETICAL.map((c) => {
                     const active = feedCategoryIds.includes(c.id);
                     return (
-                      <div
+                      <button
                         key={c.id}
-                        role="button"
-                        tabIndex={0}
+                        type="button"
                         className={`feed__filter-chip${active ? " is-active" : ""}`}
                         aria-pressed={active}
                         onClick={() => toggleFeedCategory(c.id)}
-                        onKeyDown={(e) => {
-                          if (e.key === "Enter" || e.key === " ") {
-                            e.preventDefault();
-                            toggleFeedCategory(c.id);
-                          }
-                        }}
                         title={c.label}
                       >
                         <span className="feed__filter-chip-emoji" aria-hidden>
                           {c.emoji}
                         </span>
                         <span className="feed__filter-chip-label">{c.label}</span>
-                      </div>
+                      </button>
                     );
                   })}
               </div>
@@ -1896,7 +1920,7 @@ export function FeedScreen({
             {useMockFeed &&
               mockFallback(streak, !apiBase ? "no-api" : !inTelegram ? "no-telegram" : "no-initdata").map((c, i) => (
                 <div key={`mock-${i}`} className="feed__card-slot feed__card-slot--them">
-                  <ActivityCard {...c} />
+                  <ActivityCard {...c} viewportWidth={feedViewportWidth} />
                 </div>
               ))}
             {!useMockFeed &&
@@ -2038,6 +2062,7 @@ export function FeedScreen({
                       <ActivityCard
                         {...base}
                         {...followProps}
+                        viewportWidth={feedViewportWidth}
                         reactions={mergeFeedReactionsForType("pack_message", it.reactions)}
                         onReactionClick={(emoji) => void postMessageReact(it.id, emoji)}
                         onReport={!it.is_you ? () => void confirmReportMessage(it.id) : undefined}
@@ -2105,6 +2130,7 @@ export function FeedScreen({
                         {...pinnedLeoProps}
                         {...followProps}
                         {...postEditProps}
+                        viewportWidth={feedViewportWidth}
                         comment={adminPostText ?? base.comment}
                         pinned={isPinnedAnnouncement}
                         commentCollapsible={adminPostCollapsible}
@@ -2147,6 +2173,7 @@ export function FeedScreen({
                       {...pinnedLeoProps}
                       {...followProps}
                       {...postEditProps}
+                      viewportWidth={feedViewportWidth}
                       comment={adminPostText ?? base.comment}
                       pinned={isPinnedAnnouncement}
                       commentCollapsible={adminPostCollapsible}

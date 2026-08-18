@@ -14,6 +14,15 @@ import {
   optimisticToggleThreadReplyLike,
   planFeedFilterMotion,
   planFeedMotion,
+  planFeedNarrowPath,
+  planActivityCardNarrowPath,
+  canShowFeedNarrow,
+  canShowActivityCard,
+  activityCardKey,
+  feedWindowKey,
+  isNarrowFeedViewport,
+  NARROW_FEED_GUTTER_PX,
+  NARROW_FEED_MIN_TAP_PX,
   reconcilePinnedFeed,
   sameFeedItems,
   sortPackFeedItemsDesc,
@@ -254,5 +263,101 @@ describe("planFeedFilterMotion", () => {
     expect(path.reducedMotion).toBe(true);
     expect(path.scrollToTop).toBe(true);
     expect(feedScrollBehavior(true)).toBe("auto");
+  });
+});
+
+describe("пользовательский путь на узком экране", () => {
+  const snap = { cardCount: 3, windowKey: "feed:1,feed:2,feed:3" };
+
+  it("320px: stacked, in-bounds, 44px tap, swipe-y, no horizontal overflow", () => {
+    const path = planFeedNarrowPath(320, snap);
+    expect(path.visible).toBe(true);
+    expect(path.reason).toBe("ok");
+    expect(path.narrow).toBe(true);
+    expect(path.stacked).toBe(true);
+    expect(path.actionFullWidth).toBe(true);
+    expect(path.compactHeader).toBe(true);
+    expect(path.filtersScrollX).toBe(true);
+    expect(path.reactionsScrollX).toBe(true);
+    expect(path.pullToRefresh).toBe(true);
+    expect(path.swipeAxis).toBe("y");
+    expect(path.tapPx).toBeGreaterThanOrEqual(NARROW_FEED_MIN_TAP_PX);
+    expect(path.maxWidthPx).toBe(320 - NARROW_FEED_GUTTER_PX * 2);
+    expect(path.maxWidthPx).toBeLessThanOrEqual(320);
+    expect(path.overflowsHorizontally).toBe(false);
+    expect(isNarrowFeedViewport(320)).toBe(true);
+  });
+
+  it("wide preview keeps the compact column (old scenario)", () => {
+    const path = planFeedNarrowPath(768, snap);
+    expect(path.visible).toBe(true);
+    expect(path.narrow).toBe(false);
+    expect(path.stacked).toBe(false);
+    expect(path.actionFullWidth).toBe(false);
+    expect(path.filtersScrollX).toBe(false);
+    expect(path.compactHeader).toBe(false);
+    expect(path.overflowsHorizontally).toBe(false);
+    expect(path.swipeAxis).toBe("both");
+    expect(path.tapPx).toBeGreaterThanOrEqual(NARROW_FEED_MIN_TAP_PX);
+  });
+
+  it("empty input on a phone does not open a feed path", () => {
+    expect(canShowFeedNarrow(null).reason).toBe("empty");
+    expect(canShowFeedNarrow(undefined).reason).toBe("empty");
+    expect(canShowFeedNarrow({ cardCount: -1 }).reason).toBe("empty");
+    const path = planFeedNarrowPath(320, null);
+    expect(path.visible).toBe(false);
+    expect(path.reason).toBe("empty");
+    expect(path.narrow).toBe(true);
+    expect(path.stacked).toBe(true);
+  });
+
+  it("повтор after dismiss stays closed on a narrow screen", () => {
+    const key = feedWindowKey([item({ id: 1 }), item({ id: 2, source: "message" })]);
+    expect(key).toBe("feed:1,message:2");
+    const path = planFeedNarrowPath(360, { cardCount: 2, windowKey: key }, key);
+    expect(path.visible).toBe(false);
+    expect(path.reason).toBe("repeat");
+    expect(path.narrow).toBe(true);
+  });
+});
+
+describe("карточка тренировки на узком экране", () => {
+  const workout = { name: "Анна", activity: "Велосипед", comment: "Доехала до фонтана" };
+
+  it("320px: stacked, in-bounds, 44px tap, no horizontal overflow", () => {
+    const path = planActivityCardNarrowPath(320, workout);
+    expect(path.visible).toBe(true);
+    expect(path.reason).toBe("ok");
+    expect(path.narrow).toBe(true);
+    expect(path.stacked).toBe(true);
+    expect(path.actionFullWidth).toBe(true);
+    expect(path.tapPx).toBeGreaterThanOrEqual(NARROW_FEED_MIN_TAP_PX);
+    expect(path.maxWidthPx).toBe(320 - NARROW_FEED_GUTTER_PX * 2);
+    expect(path.overflowsHorizontally).toBe(false);
+    expect(path.commentExpandable).toBe(true);
+    expect(canShowActivityCard(workout).reason).toBe("ok");
+  });
+
+  it("wide preview keeps the compact row (old scenario)", () => {
+    const path = planActivityCardNarrowPath(768, workout);
+    expect(path.visible).toBe(true);
+    expect(path.narrow).toBe(false);
+    expect(path.stacked).toBe(false);
+    expect(path.actionFullWidth).toBe(false);
+    expect(path.overflowsHorizontally).toBe(false);
+  });
+
+  it("empty input on a phone does not open a card", () => {
+    const path = planActivityCardNarrowPath(320, { name: "", activity: "", comment: "" });
+    expect(path.visible).toBe(false);
+    expect(path.reason).toBe("empty");
+    expect(canShowActivityCard(null).reason).toBe("empty");
+  });
+
+  it("повтор after dismiss stays closed on a narrow screen", () => {
+    const path = planActivityCardNarrowPath(360, workout, activityCardKey(workout));
+    expect(path.visible).toBe(false);
+    expect(path.reason).toBe("repeat");
   });
 });

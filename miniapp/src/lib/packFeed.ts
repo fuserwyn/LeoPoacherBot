@@ -679,6 +679,162 @@ export function scrollFeedToTop(reducedMotion = prefersFeedReducedMotion()): voi
   window.scrollTo({ top: 0, behavior: feedScrollBehavior(reducedMotion) });
 }
 
+/** Telegram mini-app phone width — above this the feed stays a compact desktop column. */
+export const NARROW_FEED_MAX_WIDTH_PX = 390;
+export const NARROW_FEED_GUTTER_PX = 12;
+export const NARROW_FEED_MIN_TAP_PX = 44;
+export const NARROW_FEED_TITLE_LINES = 2;
+export const NARROW_FEED_COMMENT_LINES = 5;
+export const NARROW_FEED_PHOTO_MAX_H_PX = 220;
+export const WIDE_FEED_PHOTO_MAX_H_PX = 360;
+
+export type FeedNarrowSnapshot = {
+  /** Visible cards in the current window (0 is a valid empty state). */
+  cardCount: number;
+  /** Signature of the visible window — same after a no-op refresh is «повтор». */
+  windowKey?: string;
+};
+
+export type FeedNarrowPath = {
+  visible: boolean;
+  reason: FeedMotionReason;
+  narrow: boolean;
+  stacked: boolean;
+  gutterPx: number;
+  maxWidthPx: number;
+  tapPx: number;
+  actionFullWidth: boolean;
+  compactHeader: boolean;
+  filtersScrollX: boolean;
+  reactionsScrollX: boolean;
+  cardPadPx: number;
+  titleMaxLines: number;
+  commentMaxLines: number;
+  photoMaxHeightPx: number;
+  overflowsHorizontally: boolean;
+  swipeAxis: "y" | "both";
+  pullToRefresh: boolean;
+};
+
+export function isNarrowFeedViewport(widthPx: number): boolean {
+  return Number.isFinite(widthPx) && widthPx > 0 && widthPx <= NARROW_FEED_MAX_WIDTH_PX;
+}
+
+export function feedWindowKey(items: ReadonlyArray<Pick<PackFeedItemDTO, "id" | "source">>): string {
+  return items.map((it) => feedItemKey(it)).join(",");
+}
+
+/**
+ * Пустой/битый снимок → empty; тот же windowKey после dismiss → repeat.
+ * 0 карточек при валидном ключе — нормальная пустая лента (ok).
+ */
+export function canShowFeedNarrow(
+  snap: FeedNarrowSnapshot | null | undefined,
+  dismissedKey?: string | null,
+): { show: boolean; reason: FeedMotionReason } {
+  if (!snap || !Number.isFinite(snap.cardCount) || snap.cardCount < 0) {
+    return { show: false, reason: "empty" };
+  }
+  const key = (snap.windowKey ?? "").trim();
+  if (dismissedKey && key && dismissedKey === key) {
+    return { show: false, reason: "repeat" };
+  }
+  return { show: true, reason: "ok" };
+}
+
+/**
+ * Пользовательский путь на узком экране: лента влезает в ширину,
+ * карточки читаются, тапы не меньше 44px, свайп вниз — PTR, свайп вбок — фильтры/реакции.
+ * На широком превью — колонка без горизонтального скролла чипов.
+ */
+export function planFeedNarrowPath(
+  viewportWidthPx: number,
+  snap?: FeedNarrowSnapshot | null,
+  dismissedKey?: string | null,
+): FeedNarrowPath {
+  const gate = canShowFeedNarrow(snap, dismissedKey);
+  const width =
+    Number.isFinite(viewportWidthPx) && viewportWidthPx > 0 ? viewportWidthPx : NARROW_FEED_MAX_WIDTH_PX;
+  const narrow = isNarrowFeedViewport(width);
+  const gutterPx = NARROW_FEED_GUTTER_PX;
+  const maxWidthPx = Math.max(0, Math.floor(width - gutterPx * 2));
+
+  return {
+    visible: gate.show,
+    reason: gate.reason,
+    narrow,
+    stacked: narrow,
+    gutterPx,
+    maxWidthPx,
+    tapPx: NARROW_FEED_MIN_TAP_PX,
+    actionFullWidth: narrow,
+    compactHeader: narrow,
+    filtersScrollX: narrow,
+    reactionsScrollX: true,
+    cardPadPx: narrow ? 12 : 16,
+    titleMaxLines: NARROW_FEED_TITLE_LINES,
+    commentMaxLines: narrow ? NARROW_FEED_COMMENT_LINES : 8,
+    photoMaxHeightPx: narrow ? NARROW_FEED_PHOTO_MAX_H_PX : WIDE_FEED_PHOTO_MAX_H_PX,
+    overflowsHorizontally: false,
+    swipeAxis: narrow ? "y" : "both",
+    pullToRefresh: true,
+  };
+}
+
+export type ActivityCardSnapshot = {
+  name: string;
+  activity?: string;
+  comment?: string;
+};
+
+export type ActivityCardNarrowPath = FeedNarrowPath & {
+  nameMaxLines: number;
+  commentExpandable: boolean;
+};
+
+export function activityCardKey(snap: ActivityCardSnapshot): string {
+  return `${(snap.name ?? "").trim()}\0${(snap.activity ?? "").trim()}\0${(snap.comment ?? "").trim()}`;
+}
+
+export function canShowActivityCard(
+  snap: ActivityCardSnapshot | null | undefined,
+  dismissedKey?: string | null,
+): { show: boolean; reason: FeedMotionReason } {
+  if (!snap) return { show: false, reason: "empty" };
+  const name = (snap.name ?? "").trim();
+  const activity = (snap.activity ?? "").trim();
+  const comment = (snap.comment ?? "").trim();
+  if (!name && !activity && !comment) return { show: false, reason: "empty" };
+  const key = activityCardKey(snap);
+  if (dismissedKey && dismissedKey === key) return { show: false, reason: "repeat" };
+  return { show: true, reason: "ok" };
+}
+
+/**
+ * Пользовательский путь на узком экране: карточка влезает в ширину,
+ * имя и текст читаются, тап не меньше 44px, реакции свайпятся по горизонтали.
+ */
+export function planActivityCardNarrowPath(
+  viewportWidthPx: number,
+  snap: ActivityCardSnapshot | null | undefined,
+  dismissedKey?: string | null,
+): ActivityCardNarrowPath {
+  const gate = canShowActivityCard(snap, dismissedKey);
+  const key = snap ? activityCardKey(snap) : "";
+  const feed = planFeedNarrowPath(
+    viewportWidthPx,
+    { cardCount: gate.show ? 1 : 0, windowKey: key },
+    dismissedKey && key === dismissedKey ? dismissedKey : null,
+  );
+  return {
+    ...feed,
+    visible: gate.show,
+    reason: gate.reason,
+    nameMaxLines: 1,
+    commentExpandable: Boolean((snap?.comment ?? "").trim()),
+  };
+}
+
 /**
  * Тихий полный синк: окно с сервера + уже догруженные старее окна.
  * Пустой incoming на живой ленте не схлопывает список; тот же набор — тот же массив.
