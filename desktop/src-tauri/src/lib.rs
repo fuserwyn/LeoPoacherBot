@@ -127,8 +127,8 @@ fn open_login_window(app: &AppHandle) -> Result<(), String> {
     // шире дисплея обрезает вёрстку.
     #[cfg(desktop)]
     let builder = builder
-        .inner_size(460.0, 660.0)
-        .min_inner_size(420.0, 480.0)
+        .inner_size(560.0, 760.0)
+        .min_inner_size(460.0, 560.0)
         .center();
     builder
         .build()
@@ -166,8 +166,8 @@ fn open_main_window(app: &AppHandle) -> Result<(), String> {
         .title("Fat Leopard");
     #[cfg(desktop)]
     let builder = builder
-        .inner_size(1180.0, 820.0)
-        .min_inner_size(480.0, 600.0)
+        .inner_size(1440.0, 900.0)
+        .min_inner_size(900.0, 600.0)
         .center();
     builder
         .initialization_script(script.as_str())
