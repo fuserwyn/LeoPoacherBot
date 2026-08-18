@@ -131,15 +131,15 @@ export type ActivityCardPostEdit = {
 };
 
 /** Минимум реакций в строке до кнопки «⋯», если типов больше (остальное — в попапе); строка может переноситься (flex-wrap). */
-const TRAINING_REACTIONS_MIN_INLINE = 5;
+const TRAINING_REACTIONS_MIN_INLINE = 4;
 
 /** Ширина строки + кнопка «ещё»: оценка px на кнопку (эмодзи + отступы + счётчик). */
 function trainingReactionVisibleCount(rowWidth: number, total: number): number {
   if (total <= 0) return 0;
   if (rowWidth <= 0) return total;
-  const chip = 40;
+  const chip = 48;
   const gap = 6;
-  const moreBtn = 38;
+  const moreBtn = 44;
   const widthAll = total * chip + Math.max(0, total - 1) * gap;
   if (widthAll <= rowWidth) return total;
 
@@ -495,13 +495,19 @@ export function ActivityCard({
   const [threadInputFocused, setThreadInputFocused] = useState(false);
   // Закреплённое объявление: длинный текст свёрнут, разворачивается по кнопке.
   const [commentExpanded, setCommentExpanded] = useState(false);
-  // Свёрнутый вид показывает только первую строку, поэтому сворачиваем как только
-  // текст не помещается в одну строку: есть перенос строки или он заметно длинный.
+  // Объявление: одна строка. Обычный длинный комментарий: 5 строк, чтобы карточка
+  // не занимала весь экран на телефоне.
   const COMMENT_COLLAPSE_THRESHOLD = 80;
-  const canCollapseComment =
+  const LONG_COMMENT_THRESHOLD = 180;
+  const commentText = typeof comment === "string" ? comment : "";
+  const isAdminCollapse =
     commentCollapsible &&
-    typeof comment === "string" &&
-    (comment.includes("\n") || comment.trim().length > COMMENT_COLLAPSE_THRESHOLD);
+    (commentText.includes("\n") || commentText.trim().length > COMMENT_COLLAPSE_THRESHOLD);
+  const isLongComment =
+    !commentCollapsible &&
+    (commentText.split("\n").length > 5 || commentText.trim().length > LONG_COMMENT_THRESHOLD);
+  const canCollapseComment = isAdminCollapse || isLongComment;
+  const commentClampClass = isAdminCollapse ? "act-card__comment--clamped" : "act-card__comment--clamped-soft";
   const [lightboxOpen, setLightboxOpen] = useState(false);
   // Источник для лайтбокса: фото отчёта (по умолчанию) или фото из комментария.
   const [lightboxSrc, setLightboxSrc] = useState<string | null>(null);
@@ -691,10 +697,8 @@ export function ActivityCard({
     picker.setOpen(true);
   };
 
-  // Надёжное открытие пикера на тач-вебвью Telegram: обычный click по большому
-  // скролл-контейнеру часто теряется при малейшем движении пальца, поэтому
-  // открываем и по touchend (тап без сдвига), и по зажатию (~350мс). Скролл
-  // (сдвиг пальца) отменяет жест и не открывает пикер.
+  // Тач: только long-press открывает пикер — короткий тап и свайп остаются скроллу ленты.
+  // Мышь/десктоп: обычный клик по посту (как в Telegram Desktop).
   const pressStart = useRef<{ x: number; y: number } | null>(null);
   const pressMoved = useRef(false);
   const pressFired = useRef(false);
@@ -719,12 +723,12 @@ export function ActivityCard({
       if (pressMoved.current) return;
       pressFired.current = true;
       openPicker(target);
-    }, 350);
+    }, 420);
   };
   const onCardTouchMove = (e: ReactTouchEvent) => {
     const t = e.touches[0];
     const s = pressStart.current;
-    if (t && s && (Math.abs(t.clientX - s.x) > 10 || Math.abs(t.clientY - s.y) > 10)) {
+    if (t && s && (Math.abs(t.clientX - s.x) > 14 || Math.abs(t.clientY - s.y) > 14)) {
       pressMoved.current = true;
       clearLpTimer();
     }
@@ -734,15 +738,10 @@ export function ActivityCard({
     recentTouch.current = Date.now();
     if (pressFired.current) {
       e.preventDefault();
-      return;
     }
-    if (pressMoved.current) return;
-    if (!canReact || isInteractiveTarget(e.target)) return;
-    e.preventDefault(); // гасим синтетический click, чтобы пикер не открывался дважды
-    openPicker(e.target);
   };
   const onCardClick = (e: ReactMouseEvent) => {
-    if (Date.now() - recentTouch.current < 600) return; // click после тача — уже обработали
+    if (Date.now() - recentTouch.current < 600) return; // click после тача — не открываем повторно
     openPicker(e.target);
   };
 
@@ -914,7 +913,7 @@ export function ActivityCard({
           (canCollapseComment ? (
             <div className="act-card__comment-collapsible">
               <p
-                className={`act-card__comment${commentExpanded ? "" : " act-card__comment--clamped"}`}
+                className={`act-card__comment${commentExpanded ? "" : ` ${commentClampClass}`}`}
               >
                 {comment}
               </p>

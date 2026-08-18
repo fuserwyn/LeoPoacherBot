@@ -248,7 +248,7 @@ export function useChipPress(onTap: () => void, onLongPress?: () => void, disabl
     onTouchMove: (e: ReactTouchEvent) => {
       const t = e.touches[0];
       const s = startXY.current;
-      if (t && s && (Math.abs(t.clientX - s.x) > 8 || Math.abs(t.clientY - s.y) > 8)) {
+      if (t && s && (Math.abs(t.clientX - s.x) > 14 || Math.abs(t.clientY - s.y) > 14)) {
         moved.current = true;
         clearTimer();
       }
@@ -306,7 +306,7 @@ export function useLongPress(onLongPress: () => void) {
     onTouchMove: (e: ReactTouchEvent) => {
       const t = e.touches[0];
       const s = startXY.current;
-      if (t && s && (Math.abs(t.clientX - s.x) > 10 || Math.abs(t.clientY - s.y) > 10)) clear();
+      if (t && s && (Math.abs(t.clientX - s.x) > 14 || Math.abs(t.clientY - s.y) > 14)) clear();
     },
     onTouchEnd: clear,
     onTouchCancel: clear,

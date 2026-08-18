@@ -354,6 +354,13 @@ export function FeedScreen({
     setFeedCategoryIds([]);
   }, [hapticLight]);
 
+  useEffect(() => {
+    if (!catListOpen) return;
+    const onScroll = () => setCatListOpen(false);
+    window.addEventListener("scroll", onScroll, { passive: true });
+    return () => window.removeEventListener("scroll", onScroll);
+  }, [catListOpen]);
+
   // «Все типы»: первый тап (когда выбраны типы) — сброс к «все типы»; повторный
   // тап (когда уже «все типы») — разворачивает вертикальный список всех типов.
   const toggleAllTypes = useCallback(() => {
@@ -1660,6 +1667,7 @@ export function FeedScreen({
                   feedTypeFilter === "all" && feedScope === "all" ? " is-active" : ""
                 }`}
                 onClick={() => {
+                  hapticLight();
                   setFeedTypeFilter("all");
                   setFeedScope("all");
                 }}
@@ -1669,28 +1677,40 @@ export function FeedScreen({
               <button
                 type="button"
                 className={`feed__filter-pill${feedScope === "mine" ? " is-active" : ""}`}
-                onClick={() => setFeedScope((p) => (p === "mine" ? "all" : "mine"))}
+                onClick={() => {
+                  hapticLight();
+                  setFeedScope((p) => (p === "mine" ? "all" : "mine"));
+                }}
               >
                 Мои
               </button>
               <button
                 type="button"
                 className={`feed__filter-pill${feedScope === "friends" ? " is-active" : ""}`}
-                onClick={() => setFeedScope((p) => (p === "friends" ? "all" : "friends"))}
+                onClick={() => {
+                  hapticLight();
+                  setFeedScope((p) => (p === "friends" ? "all" : "friends"));
+                }}
               >
                 Друзья
               </button>
               <button
                 type="button"
                 className={`feed__filter-pill feed__filter-pill--type${feedTypeFilter === "training" ? " is-active" : ""}`}
-                onClick={() => setFeedTypeFilter((p) => (p === "training" ? "all" : "training"))}
+                onClick={() => {
+                  hapticLight();
+                  setFeedTypeFilter((p) => (p === "training" ? "all" : "training"));
+                }}
               >
                 Тренировки
               </button>
               <button
                 type="button"
                 className={`feed__filter-pill feed__filter-pill--type${feedTypeFilter === "message" ? " is-active" : ""}`}
-                onClick={() => setFeedTypeFilter((p) => (p === "message" ? "all" : "message"))}
+                onClick={() => {
+                  hapticLight();
+                  setFeedTypeFilter((p) => (p === "message" ? "all" : "message"));
+                }}
               >
                 Сообщения
               </button>

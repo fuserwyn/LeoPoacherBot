@@ -122,6 +122,45 @@ describe("avatarFallbackGlyph", () => {
   });
 });
 
+describe("ActivityCard reaction picker gesture", () => {
+  it("does not open the picker on a short touch tap (keeps scroll free)", () => {
+    const { container } = render(
+      <ActivityCard
+        {...baseProps}
+        streak={2}
+        onReactionClick={() => {}}
+        reactions={[{ emoji: "🔥", count: 0, me: false }]}
+      />,
+    );
+    const card = container.querySelector(".act-card")!;
+    fireEvent.touchStart(card, { touches: [{ clientX: 12, clientY: 12 }] });
+    fireEvent.touchEnd(card);
+    expect(document.querySelector(".act-card__react-picker")).toBeNull();
+  });
+
+  it("opens the picker on a mouse click (desktop)", () => {
+    const { container } = render(
+      <ActivityCard
+        {...baseProps}
+        streak={2}
+        onReactionClick={() => {}}
+        reactions={[{ emoji: "🔥", count: 0, me: false }]}
+      />,
+    );
+    fireEvent.click(container.querySelector(".act-card")!);
+    expect(document.querySelector(".act-card__react-picker")).toBeTruthy();
+  });
+
+  it("clamps a long regular comment and expands on tap", () => {
+    const long = "Очень длинный отчёт. ".repeat(20);
+    render(<ActivityCard {...baseProps} streak={2} comment={long} />);
+    const toggle = screen.getByRole("button", { name: "Показать полностью" });
+    expect(toggle).toBeTruthy();
+    fireEvent.click(toggle);
+    expect(screen.getByRole("button", { name: "Свернуть" })).toBeTruthy();
+  });
+});
+
 describe("ActivityCard avatar fallback on load error", () => {
   it("shows the author initial when the avatar image fails, not a paw", () => {
     const { container } = render(

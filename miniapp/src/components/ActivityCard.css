@@ -1,11 +1,11 @@
 .act-card {
   background: var(--card);
   border-radius: var(--radius-lg);
-  padding: 8px 10px 10px;
+  padding: 12px 14px 14px;
   border: 1px solid var(--border-subtle);
   margin-bottom: 14px;
-  /* Компактная карточка; при открытых комментариях см. .act-card--thread-open */
-  max-height: min(33dvh, 33vh);
+  /* Карточка растёт под контент: скроллится лента, не внутреннее окно.
+     Высотный потолок 33vh резал текст и заставлял палец бороться с вложенным скроллом. */
   max-width: 100%;
   display: flex;
   flex-direction: column;
@@ -16,32 +16,10 @@
   overflow-anchor: none;
 }
 
-/* Открытый тред: карточка растёт под содержимое, скроллится вся лента.
-   Раньше карточка оставалась ограниченной по высоте, а тело превращалось в
-   окно на 24dvh — пост обрезался посреди строки, и панель «Свернуть
-   комментарии» выглядела наехавшей на текст. */
-.act-card--thread-open {
-  max-height: none;
-  touch-action: pan-y;
-}
-
-/* Карточка с фото — фото показываем целиком, а не обрезанным */
-.act-card--has-photo {
-  max-height: none;
-}
-
-.act-card--has-photo .act-card__body {
-  overflow: visible;
-}
-
-/* Развёрнутое объявление: карточка растёт под текст, без внутреннего скролла —
-   читается целиком, прокручивается вся лента. */
+.act-card--thread-open,
+.act-card--has-photo,
 .act-card--comment-expanded {
-  max-height: none;
-}
-
-.act-card--comment-expanded .act-card__body {
-  overflow: visible;
+  touch-action: pan-y;
 }
 
 .act-card--leo {
@@ -63,8 +41,8 @@
 .act-card__head {
   display: flex;
   align-items: flex-start;
-  gap: 8px;
-  margin-bottom: 6px;
+  gap: 10px;
+  margin-bottom: 8px;
   flex-shrink: 0;
   position: relative;
 }
@@ -89,10 +67,17 @@
   font-size: 20px;
   line-height: 1;
   letter-spacing: 1px;
-  padding: 2px 6px;
+  width: 44px;
+  height: 44px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  margin: -6px -8px 0 0;
   cursor: pointer;
   color: var(--muted, #8b8b9a);
   opacity: 0.92;
+  -webkit-tap-highlight-color: transparent;
 }
 
 .act-card__menu-toggle:hover:not(:disabled),
@@ -133,12 +118,13 @@
 .act-card__menu-item {
   display: block;
   width: 100%;
-  padding: 10px 12px;
+  min-height: 44px;
+  padding: 12px 14px;
   border: none;
   border-radius: 8px;
   background: transparent;
   font: inherit;
-  font-size: 14px;
+  font-size: 15px;
   line-height: 1.35;
   text-align: left;
   color: var(--text, #e8e8f0);
@@ -155,8 +141,8 @@
 }
 
 .act-card__avatar {
-  width: 34px;
-  height: 34px;
+  width: 40px;
+  height: 40px;
   border-radius: 50%;
   background: var(--card-inner);
   display: flex;
@@ -228,9 +214,9 @@
 }
 
 .act-card__row--name {
-  margin-bottom: 1px;
-  /* Место под абсолютную кнопку «⋯», чтобы длинное имя не уезжало под неё. */
-  padding-right: 30px;
+  margin-bottom: 2px;
+  /* Место под абсолютную кнопку «⋯» (44px hit-area). */
+  padding-right: 40px;
 }
 
 .act-card__row--sub {
@@ -240,8 +226,9 @@
 }
 
 .act-card__name {
-  font-weight: 600;
-  font-size: 14px;
+  font-weight: 650;
+  font-size: 15px;
+  letter-spacing: -0.01em;
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -249,7 +236,7 @@
 }
 
 .act-card__time {
-  font-size: 11px;
+  font-size: 12px;
   color: var(--text-muted);
   margin: 0;
   /* Сжимаемся с многоточием, чтобы пилюля стрика (в т.ч. 3-значного) оставалась
@@ -272,12 +259,13 @@
   align-items: center;
   justify-content: space-between;
   gap: 8px;
-  margin-bottom: 2px;
+  margin-bottom: 4px;
 }
 
 .act-card__type {
-  font-weight: 600;
-  font-size: 13px;
+  font-weight: 650;
+  font-size: 15px;
+  letter-spacing: -0.01em;
   margin-bottom: 2px;
   min-width: 0;
 }
@@ -323,19 +311,16 @@
   width: 100%;
   min-width: 0;
   max-width: 100%;
-  flex: 1;
-  min-height: 0;
+  flex: 0 0 auto;
   overflow-x: clip;
-  overflow-y: auto;
-  -webkit-overflow-scrolling: touch;
+  overflow-y: visible;
   overscroll-behavior-x: none;
   touch-action: pan-y;
 }
 
-/* Тело поста при открытом треде остаётся в потоке: внутренний скролл резал
-   текст по середине строки, а в iOS WebView (Telegram) ещё и оставлял
-   «призрак» заголовка поверх фото. */
-.act-card--thread-open .act-card__body {
+.act-card--thread-open .act-card__body,
+.act-card--has-photo .act-card__body,
+.act-card--comment-expanded .act-card__body {
   flex: 0 0 auto;
   max-height: none;
   overflow: visible;
@@ -347,9 +332,9 @@
 }
 
 .act-card__details {
-  font-size: 12px;
-  line-height: 1.35;
-  margin-bottom: 4px;
+  font-size: 13px;
+  line-height: 1.45;
+  margin-bottom: 6px;
   color: var(--text-muted);
   overflow-wrap: break-word;
   word-break: break-word;
@@ -357,9 +342,9 @@
 }
 
 .act-card__comment {
-  font-size: 12px;
-  line-height: 1.35;
-  margin-bottom: 6px;
+  font-size: 15px;
+  line-height: 1.45;
+  margin-bottom: 8px;
   color: var(--text);
   overflow-wrap: break-word;
   word-break: break-word;
@@ -396,14 +381,25 @@
   margin-bottom: 2px;
 }
 
+/* Длинный обычный комментарий: 5 строк, чтобы карточка не занимала весь экран. */
+.act-card__comment--clamped-soft {
+  display: -webkit-box;
+  -webkit-line-clamp: 5;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  margin-bottom: 2px;
+}
+
 .act-card__comment-toggle {
   border: none;
   background: transparent;
-  padding: 0;
-  font-size: 12px;
+  min-height: 36px;
+  padding: 6px 0;
+  font-size: 14px;
   font-weight: 600;
   color: var(--accent, #2ea76e);
   cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
 }
 
 .act-card__poll {
@@ -419,7 +415,8 @@
   justify-content: space-between;
   gap: 8px;
   width: 100%;
-  padding: 8px 12px;
+  min-height: 44px;
+  padding: 10px 14px;
   border-radius: 10px;
   border: 1px solid var(--border-subtle);
   background: var(--fill-subtle);
@@ -436,7 +433,7 @@
 }
 
 .act-card__poll-label {
-  font-size: 0.82rem;
+  font-size: 0.9rem;
   font-weight: 600;
   line-height: 1.25;
 }
@@ -482,8 +479,8 @@
 }
 
 .act-card__ai-text {
-  font-size: 11px;
-  line-height: 1.35;
+  font-size: 13px;
+  line-height: 1.4;
   color: var(--text-muted);
   margin: 0;
 }
@@ -494,7 +491,7 @@
   z-index: 2;
   width: 100%;
   min-width: 0;
-  padding: 6px 0 8px;
+  padding: 8px 0 4px;
   margin: 0;
   /* Прозрачный фон и без верхней линии — полоса реакций сливается с телом поста
      (раньше собственный непрозрачный var(--card) + border-top читались отдельной
@@ -617,9 +614,10 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  min-width: 34px;
-  height: 30px;
-  padding: 0 8px;
+  min-width: 44px;
+  min-height: 36px;
+  height: 36px;
+  padding: 0 10px;
   border-radius: 999px;
   font-size: 18px;
   line-height: 1;
@@ -660,9 +658,10 @@
 .act-card__react-btn {
   display: inline-flex;
   align-items: center;
-  gap: 2px;
-  font-size: 14px;
-  padding: 4px 6px;
+  gap: 3px;
+  min-height: 36px;
+  font-size: 16px;
+  padding: 6px 10px;
   border-radius: 999px;
   /* Единый цвет для всех пилюль реакций (раньше var(--fill-soft) давал белесый
      фон у чужих реакций, а «своя» была фиолетовой — выглядело разнородно). */
@@ -688,7 +687,7 @@
 }
 
 .act-card__react-cnt {
-  font-size: 12px;
+  font-size: 13px;
   color: var(--text-muted);
 }
 
@@ -715,8 +714,8 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 40px;
-  height: 40px;
+  width: 44px;
+  height: 44px;
   padding: 0;
   font-size: 24px;
   line-height: 1;
@@ -742,7 +741,7 @@
 
 .act-card__thread {
   /* Один кегль для текста комментария и поля ввода (плейсхолдер в WebKit не всегда наследует font-size). */
-  --act-thread-font-size: 12px;
+  --act-thread-font-size: 14px;
   --act-thread-line-height: 1.4;
   margin-top: 0;
   padding-top: 0;
@@ -770,20 +769,21 @@
   width: 100%;
   gap: 8px;
   box-sizing: border-box;
-  min-height: 32px;
-  padding: 6px 8px;
-  margin: 0 0 0;
+  min-height: 44px;
+  padding: 10px 12px;
+  margin: 4px 0 0;
   border: 1px solid var(--border-subtle);
   border-radius: var(--radius-sm);
   background: var(--card-inner);
   color: var(--text);
   font: inherit;
-  font-size: 12px;
-  font-weight: 500;
+  font-size: 14px;
+  font-weight: 600;
   line-height: 1.35;
   flex-shrink: 0;
   cursor: pointer;
   text-align: left;
+  -webkit-tap-highlight-color: transparent;
 }
 
 .act-card__thread-toggle:hover {
@@ -817,15 +817,12 @@
 }
 
 .act-card__thread-body {
-  flex: 1 1 auto;
-  min-height: 0;
+  flex: 0 0 auto;
   min-width: 0;
   max-width: 100%;
   overflow-x: clip;
-  overflow-y: auto;
-  -webkit-overflow-scrolling: touch;
+  overflow-y: visible;
   overscroll-behavior-x: none;
-  overscroll-behavior-y: contain;
   touch-action: pan-y;
   padding-bottom: 4px;
 }
@@ -905,8 +902,9 @@
 
 .act-card__thread-del {
   flex-shrink: 0;
-  padding: 2px 8px;
-  font-size: 12px;
+  min-height: 36px;
+  padding: 8px 10px;
+  font-size: 13px;
   border: none;
   border-radius: 6px;
   background: transparent;
@@ -931,8 +929,9 @@
 
 .act-card__thread-edit {
   flex-shrink: 0;
-  padding: 2px 8px;
-  font-size: 12px;
+  min-height: 36px;
+  padding: 8px 10px;
+  font-size: 13px;
   border: none;
   border-radius: 6px;
   background: transparent;
@@ -1114,11 +1113,12 @@
 
 .act-card__thread-answer {
   margin-top: 8px;
-  padding: 4px 0;
+  min-height: 36px;
+  padding: 8px 4px;
   border: none;
   background: none;
   font: inherit;
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 600;
   color: rgba(90, 140, 255, 0.95);
   cursor: pointer;
@@ -1145,8 +1145,9 @@
   border: none;
   background: transparent;
   color: #6b7280;
-  font-size: 13px;
-  padding: 0;
+  font-size: 14px;
+  min-height: 36px;
+  padding: 8px 6px;
   cursor: pointer;
 }
 
@@ -1182,8 +1183,8 @@
 
 .act-card__reply-intent-cancel {
   flex-shrink: 0;
-  width: 28px;
-  height: 28px;
+  width: 36px;
+  height: 36px;
   border: none;
   border-radius: 8px;
   background: var(--fill-strong);
@@ -1259,7 +1260,8 @@
 
 .act-card__thread-send {
   align-self: flex-end;
-  padding: 8px 16px;
+  min-height: 44px;
+  padding: 10px 18px;
   border-radius: 999px;
   border: none;
   background: var(--accent);
@@ -1282,8 +1284,8 @@
 
 .act-card__thread-attach {
   flex: 0 0 auto;
-  width: 38px;
-  height: 38px;
+  width: 44px;
+  height: 44px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -1445,6 +1447,9 @@
 .act-card__photo {
   width: 100%;
   height: auto;
+  max-height: min(52vh, 420px);
+  object-fit: contain;
+  background: var(--card-inner);
   display: block;
 }
 
@@ -1479,5 +1484,23 @@
 
 .act-card__photo-fallback-text {
   flex: 1 1 auto;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .act-card--reactable {
+    cursor: pointer;
+  }
+}
+
+@media (min-width: 600px) {
+  .act-card {
+    padding: 14px 16px 16px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .act-card__react-pick {
+    transition: none;
+  }
 }
 

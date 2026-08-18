@@ -3,7 +3,7 @@
 }
 
 .feed {
-  padding: 0 8px 0;
+  padding: 0 12px 0;
   max-width: 520px;
   width: 100%;
   margin: 0 auto;
@@ -42,7 +42,7 @@
   z-index: 1;
   max-width: 520px;
   margin: 0 auto;
-  padding: 4px 8px 3px;
+  padding: 4px 12px 6px;
   box-sizing: border-box;
   background: var(--bg);
   pointer-events: auto;
@@ -175,37 +175,33 @@
 }
 
 .feed__filter-scope {
-  /* Один ряд: Все · Мои · Друзья · Тренировки · Сообщения. Не переносим —
-     при нехватке ширины уезжает в горизонтальный скролл (без полосы). */
+  /* Два измерения фильтра: перенос вместо скрытого горизонтального скролла,
+     чтобы не конкурировать со свайпом ленты. */
   display: flex;
-  flex-wrap: nowrap;
+  flex-wrap: wrap;
   align-items: center;
-  gap: 4px;
-  margin-bottom: 4px;
-  overflow-x: auto;
-  -webkit-overflow-scrolling: touch;
-  scrollbar-width: none;
-}
-
-.feed__filter-scope::-webkit-scrollbar {
-  display: none;
+  gap: 6px;
+  margin-bottom: 8px;
 }
 
 .feed__filter-pill {
-  flex: 0 0 auto;
-  padding: 5px 11px;
+  flex: 1 1 auto;
+  justify-content: center;
+  padding: 8px 14px;
   border-radius: 999px;
   border: 1px solid var(--border-subtle);
   background: var(--card-inner);
   color: var(--muted);
-  font-size: 0.72rem;
+  font-size: 0.82rem;
   font-weight: 600;
   line-height: 1.25;
   cursor: pointer;
-  min-height: 32px;
+  min-height: 40px;
   white-space: nowrap;
   display: inline-flex;
   align-items: center;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
 }
 
 .feed__filter-pill.is-active {
@@ -226,38 +222,57 @@
   color: var(--accent-2);
 }
 
+.feed__filter-cats-wrap {
+  position: relative;
+}
+
+.feed__filter-cats-wrap::after {
+  content: "";
+  position: absolute;
+  right: 0;
+  top: 0;
+  bottom: 0;
+  width: 20px;
+  pointer-events: none;
+  background: linear-gradient(to right, transparent, var(--bg));
+}
+
+.feed__filter-cats-wrap:has(.feed__cat-list)::after {
+  display: none;
+}
+
 .feed__filter-cats {
   display: flex;
   flex-wrap: nowrap;
-  gap: 6px;
+  gap: 8px;
   overflow-x: auto;
   margin-bottom: 0;
-  padding-bottom: 1px;
+  padding: 0 2px 2px;
+  scroll-padding-inline: 8px;
   -webkit-overflow-scrolling: touch;
   scrollbar-width: none;
-  /* Нативная инерция iOS; pan-x не отдаёт вертикаль ленте. Чипы — div, не button. */
-  touch-action: pan-x;
+  /* Горизонтальный свайп чипов + вертикальный скролл ленты с того же ряда. */
+  touch-action: pan-x pan-y;
   overscroll-behavior-x: contain;
-  overscroll-behavior-y: none;
 }
 
 .feed__filter-chip {
   display: inline-flex;
   align-items: center;
-  gap: 3px;
+  gap: 4px;
   flex-shrink: 0;
-  padding: 5px 12px;
+  padding: 8px 14px;
   border-radius: 999px;
   border: 1px solid var(--border-subtle);
   background: var(--card-inner);
   color: var(--text);
-  font-size: 0.7rem;
+  font-size: 0.8rem;
   font-weight: 600;
   line-height: 1.2;
   cursor: pointer;
   white-space: nowrap;
-  min-height: 32px;
-  touch-action: pan-x;
+  min-height: 40px;
+  touch-action: manipulation;
   -webkit-tap-highlight-color: transparent;
 }
 
@@ -314,7 +329,8 @@
   align-items: center;
   gap: 10px;
   width: 100%;
-  padding: 9px 12px;
+  min-height: 44px;
+  padding: 10px 12px;
   border: 1px solid transparent;
   border-radius: 8px;
   background: transparent;
@@ -398,7 +414,7 @@
 .feed__list {
   display: flex;
   flex-direction: column;
-  gap: 5px;
+  gap: 10px;
   min-width: 0;
   max-width: 100%;
   overflow-x: clip;
@@ -466,6 +482,8 @@
   min-width: 0;
   max-width: 100%;
   overflow-x: clip;
+  content-visibility: auto;
+  contain-intrinsic-size: auto 240px;
 }
 
 .feed__card-slot--them {
@@ -476,12 +494,12 @@
   justify-content: flex-end;
 }
 
-/* Как в чате: свои справа, чужие слева; ширина карточки 11/14 полосы ленты. */
+/* На узком экране карточка на всю ширину: 11/14 оставляла ~20% пустоты и резала текст. */
 .feed__card-slot .act-card {
   margin-bottom: 0;
   box-sizing: border-box;
-  width: calc(100% * 11 / 14);
-  max-width: calc(100% * 11 / 14);
+  width: 100%;
+  max-width: 100%;
   flex-shrink: 0;
 }
 
@@ -544,7 +562,8 @@
   background: var(--card-bg, rgba(255, 255, 255, 0.04));
   color: var(--text, #e8e8f0);
   font: 600 0.9rem / 1.2 var(--font);
-  padding: 8px 20px;
+  min-height: 44px;
+  padding: 10px 22px;
   border-radius: 999px;
   cursor: pointer;
 }
@@ -569,12 +588,13 @@
 .feed__section-title {
   text-transform: none;
   letter-spacing: 0.02em;
+  font-size: 13px;
 }
 
 .feed__refresh-btn {
   flex-shrink: 0;
-  width: 32px;
-  height: 32px;
+  width: 44px;
+  height: 44px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -632,16 +652,24 @@
   .feed__list {
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(420px, 1fr));
-    gap: 10px;
+    gap: 12px;
     align-items: start;
   }
   .feed__card-slot {
     width: 100%;
+    content-visibility: visible;
   }
   .feed__card-slot .act-card {
     width: 100%;
     max-width: 100%;
     margin-left: 0;
     margin-right: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .feed__refresh-btn.is-refreshing .feed__refresh-ico,
+  .feed__ptr--refreshing .feed__ptr-icon {
+    animation: none;
   }
 }
