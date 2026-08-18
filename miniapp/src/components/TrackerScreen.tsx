@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
+  askLeoTask,
   sprintApply,
   sprintGenerate,
   sprintIdeas,
@@ -114,6 +115,10 @@ export function TrackerScreen({ initData, showAlert }: Props) {
   const [when, setWhen] = useState(WHEN_PRESETS[0].value);
   const [whenAt, setWhenAt] = useState("");
   const [image, setImage] = useState<TaskImage | null>(null);
+  const [leoQuestion, setLeoQuestion] = useState("");
+  const [leoReply, setLeoReply] = useState("");
+  const [leoTask, setLeoTask] = useState("");
+  const [leoBusy, setLeoBusy] = useState(false);
   const [editorFor, setEditorFor] = useState<"new" | number | null>(null);
   const [detail, setDetail] = useState<TrackerTask | null>(null);
   const [moveAt, setMoveAt] = useState("");
@@ -218,6 +223,25 @@ export function TrackerScreen({ initData, showAlert }: Props) {
       showAlert(e instanceof Error ? e.message : "Не удалось поставить задачу");
     } finally {
       setBusy(false);
+    }
+  };
+
+  // «Спросить Леопарда»: тот же Лео, что и в чате, только формулирует задачу.
+  const askLeo = async () => {
+    const q = leoQuestion.trim();
+    if (!q) {
+      showAlert("Спроси что-нибудь у Лео.");
+      return;
+    }
+    setLeoBusy(true);
+    try {
+      const j = await askLeoTask(initData, q);
+      setLeoReply(j.reply);
+      setLeoTask(j.task);
+    } catch (e) {
+      showAlert(e instanceof Error ? e.message : "Лео промолчал");
+    } finally {
+      setLeoBusy(false);
     }
   };
 
@@ -440,6 +464,44 @@ export function TrackerScreen({ initData, showAlert }: Props) {
             Задачу выполняет агент MyVibeLab в проекте Fat-Leopard: опиши, что сделать, когда запускать и приложи
             картинку, если так понятнее.
           </p>
+
+          <div className="tracker__leo">
+            <div className="tracker__leo-head">
+              <span aria-hidden>🐆</span>
+              <b>Спросить Леопарда</b>
+            </div>
+            <p className="tracker__hint">
+              Лео посмотрит на затею своим взглядом и сформулирует задачу — можно взять его текст как есть.
+            </p>
+            <div className="tracker__new-row">
+              <input
+                value={leoQuestion}
+                onChange={(e) => setLeoQuestion(e.target.value)}
+                placeholder="Что улучшить в приложении стаи?"
+              />
+              <button type="button" className="tracker__attach" disabled={leoBusy} onClick={() => void askLeo()}>
+                {leoBusy ? "Думает…" : "Спросить"}
+              </button>
+            </div>
+            {leoReply ? <p className="tracker__leo-reply">{leoReply}</p> : null}
+            {leoTask ? (
+              <>
+                <p className="tracker__leo-task">{leoTask}</p>
+                <button
+                  type="button"
+                  className="tracker__primary tracker__primary--block"
+                  onClick={() => {
+                    setPrompt(leoTask);
+                    setLeoReply("");
+                    setLeoTask("");
+                    setLeoQuestion("");
+                  }}
+                >
+                  Взять в задачу
+                </button>
+              </>
+            ) : null}
+          </div>
             <div className="tracker__new">
               <textarea
                 value={prompt}

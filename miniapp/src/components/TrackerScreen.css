@@ -785,3 +785,49 @@
   flex-direction: column;
   gap: 4px;
 }
+
+/* «Спросить Леопарда» — блок во вкладке «Задача». */
+.tracker__leo {
+  margin-bottom: 14px;
+  padding: 12px;
+  border-radius: 12px;
+  border: 1px solid color-mix(in srgb, var(--accent) 26%, var(--border-subtle));
+  background: color-mix(in srgb, var(--accent) 7%, var(--card-inner));
+}
+
+.tracker__leo-head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 14px;
+  margin-bottom: 4px;
+}
+
+.tracker__leo .tracker__new-row input {
+  flex: 1 1 160px;
+  min-height: 36px;
+  padding: 8px 10px;
+  border-radius: 10px;
+  border: 1px solid var(--border-subtle);
+  background: var(--card-inner);
+  color: var(--text);
+  font: inherit;
+}
+
+.tracker__leo-reply {
+  margin: 10px 0 0;
+  font-size: 13.5px;
+  line-height: 1.45;
+  color: var(--text);
+}
+
+.tracker__leo-task {
+  margin: 8px 0 0;
+  padding: 10px;
+  border-radius: 10px;
+  background: var(--card-inner);
+  font-size: 12.5px;
+  line-height: 1.45;
+  color: var(--muted);
+  white-space: pre-wrap;
+}

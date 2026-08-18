@@ -173,6 +173,8 @@ func (s *Server) serve(w http.ResponseWriter, r *http.Request) {
 		s.handlePostAdminTrackerAttach(w, r)
 	case path == "/api/miniapp/admin/tracker/authors" && r.Method == http.MethodPost:
 		s.handlePostAdminTrackerAuthors(w, r)
+	case path == "/api/miniapp/admin/tracker/leo" && r.Method == http.MethodPost:
+		s.handlePostAdminAskLeo(w, r)
 	case path == "/api/miniapp/admin/analytics" && r.Method == http.MethodPost:
 		s.handlePostAdminAnalytics(w, r)
 	case path == "/api/miniapp/admin/visits" && r.Method == http.MethodPost:

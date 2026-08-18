@@ -175,6 +175,30 @@ export async function trackerAttachImage(
   }
 }
 
+/** «Спросить Леопарда»: реплика в его стиле плюс сухая формулировка задачи. */
+export async function askLeoTask(
+  initData: string,
+  question: string,
+): Promise<{ reply: string; task: string }> {
+  if (!api) throw new Error("API не настроен");
+  const res = await fetch(`${api}/api/miniapp/admin/tracker/leo`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ init_data: initData, question }),
+  });
+  const j = (await res.json().catch(() => ({}))) as {
+    ok?: boolean;
+    reply?: string;
+    task?: string;
+    error?: string;
+    message?: string;
+  };
+  if (!res.ok || j.ok === false) {
+    throw new Error(j.message || trackerErrorLabel(j.error) || `Ошибка ${res.status}`);
+  }
+  return { reply: j.reply ?? "", task: j.task ?? "" };
+}
+
 export type TrackerPerson = { user_id: number; username: string; display_name: string };
 
 /** Кто ставил задачи: в трекере есть только author_id, ник живёт у нас. */
