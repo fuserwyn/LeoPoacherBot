@@ -116,10 +116,20 @@ export function AdminScreen({ initData, inTelegram, showAlert, onClose }: Props)
   const sheetRef = useRef<HTMLDivElement>(null);
   const onCloseRef = useRef(onClose);
   onCloseRef.current = onClose;
+  const closingRef = useRef(false);
   const closeSheet = useCallback(() => {
+    if (closingRef.current) return;
+    closingRef.current = true;
     const el = document.activeElement;
     if (el instanceof HTMLElement) el.blur();
-    onCloseRef.current();
+    const sheet = sheetRef.current;
+    if (!sheet) {
+      onCloseRef.current();
+      return;
+    }
+    sheet.style.transition = "transform 0.18s ease-in";
+    sheet.style.transform = "translateY(105%)";
+    window.setTimeout(() => onCloseRef.current(), 170);
   }, []);
 
   const [page, setPage] = useState<Page>("home");
@@ -470,7 +480,7 @@ export function AdminScreen({ initData, inTelegram, showAlert, onClose }: Props)
 
   // Свайп шторки вниз = выйти из админки (как у тренировки). Тянуть можно за
   // грабер/шапку или за тело, когда скролл у самого верха. Из полей ввода и
-  // внутренних модалок жест не начинаем.
+  // внутренних модалок жест не начинаем. Touch + pointer: в мини-аппе и на десктопе.
   useEffect(() => {
     const sheet = sheetRef.current;
     if (!sheet) return;
@@ -478,46 +488,53 @@ export function AdminScreen({ initData, inTelegram, showAlert, onClose }: Props)
     let dy = 0;
     let tracking = false;
     let dragging = false;
-    const onStart = (e: TouchEvent) => {
-      const t = e.touches[0];
-      if (!t) return;
-      const target = e.target as HTMLElement | null;
-      if (target?.closest("textarea, input, select, [contenteditable='true']")) return;
-      if (target?.closest(".admin__modal, .tracker-modal")) return;
-      let el: HTMLElement | null = target;
+
+    const blocked = (target: EventTarget | null) => {
+      const hit = target as HTMLElement | null;
+      if (hit?.closest("textarea, input, select, [contenteditable='true']")) return true;
+      if (hit?.closest(".admin__close, .admin__back, .admin__modal, .tracker-modal")) return true;
+      let el: HTMLElement | null = hit;
       while (el && el !== sheet) {
         const oy = window.getComputedStyle(el).overflowY;
-        if ((oy === "auto" || oy === "scroll") && el.scrollTop > 1) return;
+        if ((oy === "auto" || oy === "scroll") && el.scrollTop > 1) return true;
         el = el.parentElement;
       }
-      startY = t.clientY;
+      return false;
+    };
+
+    const begin = (y: number, target: EventTarget | null) => {
+      if (closingRef.current || blocked(target)) return;
+      startY = y;
       dy = 0;
       dragging = false;
       tracking = true;
     };
-    const onMove = (e: TouchEvent) => {
+
+    const move = (y: number, ev?: Event) => {
       if (!tracking) return;
-      const t = e.touches[0];
-      if (!t) return;
-      dy = t.clientY - startY;
+      dy = y - startY;
       if (!dragging) {
         if (dy > 14) {
           dragging = true;
           sheet.style.transition = "none";
+          sheet.style.userSelect = "none";
         } else {
           if (dy < -8) tracking = false;
           return;
         }
       }
-      e.preventDefault();
+      ev?.preventDefault();
       sheet.style.transform = `translateY(${Math.max(0, dy)}px)`;
     };
-    const onEnd = () => {
+
+    const finish = () => {
       if (!tracking) return;
       tracking = false;
       if (!dragging) return;
       dragging = false;
+      sheet.style.userSelect = "";
       if (dy > 96) {
+        closingRef.current = true;
         const active = document.activeElement;
         if (active instanceof HTMLElement) active.blur();
         sheet.style.transition = "transform 0.18s ease-in";
@@ -528,15 +545,42 @@ export function AdminScreen({ initData, inTelegram, showAlert, onClose }: Props)
         sheet.style.transform = "";
       }
     };
-    sheet.addEventListener("touchstart", onStart, { passive: true });
-    sheet.addEventListener("touchmove", onMove, { passive: false });
-    sheet.addEventListener("touchend", onEnd);
-    sheet.addEventListener("touchcancel", onEnd);
+
+    const onTouchStart = (e: TouchEvent) => {
+      const t = e.touches[0];
+      if (t) begin(t.clientY, e.target);
+    };
+    const onTouchMove = (e: TouchEvent) => {
+      const t = e.touches[0];
+      if (t) move(t.clientY, e);
+    };
+    const onPointerDown = (e: PointerEvent) => {
+      if (e.pointerType === "touch") return;
+      if (e.button !== 0) return;
+      begin(e.clientY, e.target);
+    };
+    const onPointerMove = (e: PointerEvent) => {
+      if (e.pointerType === "touch") return;
+      move(e.clientY, e);
+    };
+
+    sheet.addEventListener("touchstart", onTouchStart, { passive: true });
+    sheet.addEventListener("touchmove", onTouchMove, { passive: false });
+    sheet.addEventListener("touchend", finish);
+    sheet.addEventListener("touchcancel", finish);
+    sheet.addEventListener("pointerdown", onPointerDown);
+    window.addEventListener("pointermove", onPointerMove);
+    window.addEventListener("pointerup", finish);
+    window.addEventListener("pointercancel", finish);
     return () => {
-      sheet.removeEventListener("touchstart", onStart);
-      sheet.removeEventListener("touchmove", onMove);
-      sheet.removeEventListener("touchend", onEnd);
-      sheet.removeEventListener("touchcancel", onEnd);
+      sheet.removeEventListener("touchstart", onTouchStart);
+      sheet.removeEventListener("touchmove", onTouchMove);
+      sheet.removeEventListener("touchend", finish);
+      sheet.removeEventListener("touchcancel", finish);
+      sheet.removeEventListener("pointerdown", onPointerDown);
+      window.removeEventListener("pointermove", onPointerMove);
+      window.removeEventListener("pointerup", finish);
+      window.removeEventListener("pointercancel", finish);
     };
   }, []);
 
@@ -580,18 +624,16 @@ export function AdminScreen({ initData, inTelegram, showAlert, onClose }: Props)
       <div className="admin-backdrop" aria-hidden="true" onClick={closeSheet} />
       <div ref={sheetRef} className="admin" role="dialog" aria-modal="true" aria-label="Админка">
       <div className="admin__grabber" aria-hidden="true" />
+      <button type="button" className="admin__close" onClick={closeSheet} aria-label="Закрыть">
+        ✕
+      </button>
       <header className="admin__head">
-        {page === "home" ? (
-          <span className="admin__head-spacer" />
-        ) : (
+        {page !== "home" ? (
           <button type="button" className="admin__back" onClick={back} aria-label="Назад">
             ←
           </button>
-        )}
+        ) : null}
         <h1 className="admin__title">{title}</h1>
-        <button type="button" className="admin__close" onClick={closeSheet} aria-label="Закрыть">
-          ✕
-        </button>
       </header>
 
       {page === "home" && tab === "community" && (

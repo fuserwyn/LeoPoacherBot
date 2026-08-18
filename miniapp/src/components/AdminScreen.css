@@ -2,14 +2,14 @@
 .admin-backdrop {
   position: fixed;
   inset: 0;
-  z-index: 19;
+  z-index: 199;
   background: rgba(0, 0, 0, 0.5);
   animation: adminFade 0.2s ease-out;
 }
 
 .admin {
   /* Шторка, не полноэкранная страница: зазор сверху, скругление, грабер и ✕.
-     Выход — свайп вниз или крестик справа в шапке. */
+     Выход — свайп вниз или крестик в правом верхнем углу. */
   position: fixed;
   top: calc(var(--safe-top, 0px) + 44px);
   bottom: 0;
@@ -20,7 +20,7 @@
   max-width: 520px;
   margin: 0 auto;
   background: var(--bg);
-  z-index: 20;
+  z-index: 200;
   overflow: hidden;
   border-radius: 20px 20px 0 0;
   box-shadow: 0 -10px 34px rgba(0, 0, 0, 0.4);
@@ -34,6 +34,7 @@
   margin: 8px auto 2px;
   border-radius: 2px;
   background: var(--border-subtle, #2a2a36);
+  touch-action: none;
 }
 
 @keyframes adminSheetUp {
@@ -64,23 +65,23 @@
 }
 
 .admin__head {
+  position: relative;
   display: flex;
   align-items: center;
+  justify-content: center;
   gap: 8px;
-  padding: 6px 12px 8px;
+  padding: 6px 48px 8px;
   border-bottom: 1px solid var(--border-subtle);
+  touch-action: none;
 }
 
-.admin__back,
-.admin__head-spacer,
-.admin__close {
+.admin__back {
+  position: absolute;
+  left: 10px;
+  top: 50%;
+  transform: translateY(-50%);
   width: 36px;
   height: 36px;
-  flex-shrink: 0;
-}
-
-.admin__back,
-.admin__close {
   border: 0;
   border-radius: 50%;
   background: var(--card-inner);
@@ -89,18 +90,27 @@
   cursor: pointer;
 }
 
+/* Крестик — в правом верхнем углу шторки (заголовок по центру). */
 .admin__close {
+  position: absolute;
+  top: 8px;
+  right: 10px;
+  width: 36px;
+  height: 36px;
+  border: 1px solid var(--border-subtle);
+  border-radius: 50%;
   display: flex;
   align-items: center;
   justify-content: center;
+  background: var(--card-inner);
   color: var(--muted, #8b8b9a);
   font-size: 16px;
   font-weight: 600;
-  border: 1px solid var(--border-subtle);
+  cursor: pointer;
+  z-index: 2;
 }
 
 .admin__title {
-  flex: 1;
   margin: 0;
   text-align: center;
   font-size: 17px;
