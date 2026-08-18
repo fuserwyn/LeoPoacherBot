@@ -13,7 +13,6 @@ import (
 	"leo-bot/internal/database"
 	"leo-bot/internal/logger"
 
-	initdata "github.com/telegram-mini-apps/init-data-golang"
 )
 
 const maxTextRunes = 4000
@@ -298,12 +297,12 @@ func (s *Server) handlePostMessage(w http.ResponseWriter, r *http.Request) {
 		s.jsonErr(w, http.StatusBadRequest, "missing_init_data")
 		return
 	}
-	if err := initdata.Validate(body.InitData, s.token, 24*time.Hour); err != nil {
+	if err := s.validateInit(body.InitData); err != nil {
 		s.logger.Warnf("miniapp init_data invalid: %v", err)
 		s.jsonErr(w, http.StatusUnauthorized, "invalid_init_data")
 		return
 	}
-	parsed, err := initdata.Parse(body.InitData)
+	parsed, err := s.parseInit(body.InitData)
 	if err != nil {
 		s.jsonErr(w, http.StatusBadRequest, "parse_init_data")
 		return
@@ -360,12 +359,12 @@ func (s *Server) handlePostPersonalReplyPoll(w http.ResponseWriter, r *http.Requ
 		s.jsonErr(w, http.StatusBadRequest, "missing_init_data")
 		return
 	}
-	if err := initdata.Validate(body.InitData, s.token, 24*time.Hour); err != nil {
+	if err := s.validateInit(body.InitData); err != nil {
 		s.logger.Warnf("miniapp personal poll: invalid init: %v", err)
 		s.jsonErr(w, http.StatusUnauthorized, "invalid_init_data")
 		return
 	}
-	parsed, err := initdata.Parse(body.InitData)
+	parsed, err := s.parseInit(body.InitData)
 	if err != nil {
 		s.jsonErr(w, http.StatusBadRequest, "parse_init_data")
 		return
@@ -409,12 +408,12 @@ func (s *Server) handlePostPersonalReplyDrain(w http.ResponseWriter, r *http.Req
 		s.jsonErr(w, http.StatusBadRequest, "missing_init_data")
 		return
 	}
-	if err := initdata.Validate(body.InitData, s.token, 24*time.Hour); err != nil {
+	if err := s.validateInit(body.InitData); err != nil {
 		s.logger.Warnf("miniapp personal drain: invalid init: %v", err)
 		s.jsonErr(w, http.StatusUnauthorized, "invalid_init_data")
 		return
 	}
-	parsed, err := initdata.Parse(body.InitData)
+	parsed, err := s.parseInit(body.InitData)
 	if err != nil {
 		s.jsonErr(w, http.StatusBadRequest, "parse_init_data")
 		return
@@ -454,12 +453,12 @@ func (s *Server) handlePostPersonalPendingCount(w http.ResponseWriter, r *http.R
 		s.jsonErr(w, http.StatusBadRequest, "missing_init_data")
 		return
 	}
-	if err := initdata.Validate(body.InitData, s.token, 24*time.Hour); err != nil {
+	if err := s.validateInit(body.InitData); err != nil {
 		s.logger.Warnf("miniapp pending count: invalid init: %v", err)
 		s.jsonErr(w, http.StatusUnauthorized, "invalid_init_data")
 		return
 	}
-	parsed, err := initdata.Parse(body.InitData)
+	parsed, err := s.parseInit(body.InitData)
 	if err != nil {
 		s.jsonErr(w, http.StatusBadRequest, "parse_init_data")
 		return
@@ -502,12 +501,12 @@ func (s *Server) handlePostFeedTrainingThreadUnreadCount(w http.ResponseWriter, 
 		s.jsonErr(w, http.StatusBadRequest, "missing_init_data")
 		return
 	}
-	if err := initdata.Validate(body.InitData, s.token, 24*time.Hour); err != nil {
+	if err := s.validateInit(body.InitData); err != nil {
 		s.logger.Warnf("miniapp feed thread unread count: invalid init: %v", err)
 		s.jsonErr(w, http.StatusUnauthorized, "invalid_init_data")
 		return
 	}
-	parsed, err := initdata.Parse(body.InitData)
+	parsed, err := s.parseInit(body.InitData)
 	if err != nil {
 		s.jsonErr(w, http.StatusBadRequest, "parse_init_data")
 		return
@@ -548,12 +547,12 @@ func (s *Server) handlePostFeedTrainingThreadUnreadClear(w http.ResponseWriter, 
 		s.jsonErr(w, http.StatusBadRequest, "missing_init_data")
 		return
 	}
-	if err := initdata.Validate(body.InitData, s.token, 24*time.Hour); err != nil {
+	if err := s.validateInit(body.InitData); err != nil {
 		s.logger.Warnf("miniapp feed thread unread clear: invalid init: %v", err)
 		s.jsonErr(w, http.StatusUnauthorized, "invalid_init_data")
 		return
 	}
-	parsed, err := initdata.Parse(body.InitData)
+	parsed, err := s.parseInit(body.InitData)
 	if err != nil {
 		s.jsonErr(w, http.StatusBadRequest, "parse_init_data")
 		return
@@ -610,12 +609,12 @@ func (s *Server) handlePostFeed(w http.ResponseWriter, r *http.Request) {
 		s.jsonErr(w, http.StatusBadRequest, "missing_init_data")
 		return
 	}
-	if err := initdata.Validate(body.InitData, s.token, 24*time.Hour); err != nil {
+	if err := s.validateInit(body.InitData); err != nil {
 		s.logger.Warnf("miniapp feed init_data invalid: %v", err)
 		s.jsonErr(w, http.StatusUnauthorized, "invalid_init_data")
 		return
 	}
-	parsed, err := initdata.Parse(body.InitData)
+	parsed, err := s.parseInit(body.InitData)
 	if err != nil {
 		s.jsonErr(w, http.StatusBadRequest, "parse_init_data")
 		return
@@ -679,12 +678,12 @@ func (s *Server) handlePostFeedPin(w http.ResponseWriter, r *http.Request) {
 		s.jsonErr(w, http.StatusBadRequest, "missing_user_message_id")
 		return
 	}
-	if err := initdata.Validate(body.InitData, s.token, 24*time.Hour); err != nil {
+	if err := s.validateInit(body.InitData); err != nil {
 		s.logger.Warnf("miniapp feed pin: invalid init: %v", err)
 		s.jsonErr(w, http.StatusUnauthorized, "invalid_init_data")
 		return
 	}
-	parsed, err := initdata.Parse(body.InitData)
+	parsed, err := s.parseInit(body.InitData)
 	if err != nil {
 		s.jsonErr(w, http.StatusBadRequest, "parse_init_data")
 		return
@@ -737,12 +736,12 @@ func (s *Server) handlePostFeedPollVote(w http.ResponseWriter, r *http.Request) 
 		s.jsonErr(w, http.StatusBadRequest, "missing_user_message_id")
 		return
 	}
-	if err := initdata.Validate(body.InitData, s.token, 24*time.Hour); err != nil {
+	if err := s.validateInit(body.InitData); err != nil {
 		s.logger.Warnf("miniapp feed poll vote invalid init: %v", err)
 		s.jsonErr(w, http.StatusUnauthorized, "invalid_init_data")
 		return
 	}
-	parsed, err := initdata.Parse(body.InitData)
+	parsed, err := s.parseInit(body.InitData)
 	if err != nil {
 		s.jsonErr(w, http.StatusBadRequest, "parse_init_data")
 		return
@@ -793,12 +792,12 @@ func (s *Server) handleGetUserAvatar(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "invalid_user_id", http.StatusBadRequest)
 		return
 	}
-	if err := initdata.Validate(initData, s.token, 24*time.Hour); err != nil {
+	if err := s.validateInit(initData); err != nil {
 		s.logger.Warnf("miniapp user-avatar init_data invalid: %v", err)
 		http.Error(w, "invalid_init_data", http.StatusUnauthorized)
 		return
 	}
-	parsed, err := initdata.Parse(initData)
+	parsed, err := s.parseInit(initData)
 	if err != nil || parsed.User.ID == 0 {
 		http.Error(w, "parse_init_data", http.StatusBadRequest)
 		return
@@ -846,12 +845,12 @@ func (s *Server) handlePostFeedTrainingReact(w http.ResponseWriter, r *http.Requ
 		s.jsonErr(w, http.StatusBadRequest, "missing_user_message_id")
 		return
 	}
-	if err := initdata.Validate(body.InitData, s.token, 24*time.Hour); err != nil {
+	if err := s.validateInit(body.InitData); err != nil {
 		s.logger.Warnf("miniapp feed training react: invalid init: %v", err)
 		s.jsonErr(w, http.StatusUnauthorized, "invalid_init_data")
 		return
 	}
-	parsed, err := initdata.Parse(body.InitData)
+	parsed, err := s.parseInit(body.InitData)
 	if err != nil {
 		s.jsonErr(w, http.StatusBadRequest, "parse_init_data")
 		return
@@ -956,12 +955,12 @@ func (s *Server) handlePostFeedTrainingThread(w http.ResponseWriter, r *http.Req
 		s.jsonErr(w, http.StatusBadRequest, "missing_user_message_id")
 		return
 	}
-	if err := initdata.Validate(initDataRaw, s.token, 24*time.Hour); err != nil {
+	if err := s.validateInit(initDataRaw); err != nil {
 		s.logger.Warnf("miniapp feed training thread: invalid init: %v", err)
 		s.jsonErr(w, http.StatusUnauthorized, "invalid_init_data")
 		return
 	}
-	parsed, err := initdata.Parse(initDataRaw)
+	parsed, err := s.parseInit(initDataRaw)
 	if err != nil {
 		s.jsonErr(w, http.StatusBadRequest, "parse_init_data")
 		return
@@ -1050,12 +1049,12 @@ func (s *Server) handlePostFeedTrainingThreadDelete(w http.ResponseWriter, r *ht
 		s.jsonErr(w, http.StatusBadRequest, "missing_thread_reply_id")
 		return
 	}
-	if err := initdata.Validate(body.InitData, s.token, 24*time.Hour); err != nil {
+	if err := s.validateInit(body.InitData); err != nil {
 		s.logger.Warnf("miniapp feed training thread delete: invalid init: %v", err)
 		s.jsonErr(w, http.StatusUnauthorized, "invalid_init_data")
 		return
 	}
-	parsed, err := initdata.Parse(body.InitData)
+	parsed, err := s.parseInit(body.InitData)
 	if err != nil {
 		s.jsonErr(w, http.StatusBadRequest, "parse_init_data")
 		return
@@ -1126,12 +1125,12 @@ func (s *Server) handlePostFeedTrainingThreadEdit(w http.ResponseWriter, r *http
 		s.jsonErr(w, http.StatusBadRequest, "text_too_long")
 		return
 	}
-	if err := initdata.Validate(body.InitData, s.token, 24*time.Hour); err != nil {
+	if err := s.validateInit(body.InitData); err != nil {
 		s.logger.Warnf("miniapp feed training thread edit: invalid init: %v", err)
 		s.jsonErr(w, http.StatusUnauthorized, "invalid_init_data")
 		return
 	}
-	parsed, err := initdata.Parse(body.InitData)
+	parsed, err := s.parseInit(body.InitData)
 	if err != nil {
 		s.jsonErr(w, http.StatusBadRequest, "parse_init_data")
 		return
@@ -1209,12 +1208,12 @@ func (s *Server) handlePostFeedEdit(w http.ResponseWriter, r *http.Request) {
 		s.jsonErr(w, http.StatusBadRequest, "text_too_long")
 		return
 	}
-	if err := initdata.Validate(body.InitData, s.token, 24*time.Hour); err != nil {
+	if err := s.validateInit(body.InitData); err != nil {
 		s.logger.Warnf("miniapp feed edit: invalid init: %v", err)
 		s.jsonErr(w, http.StatusUnauthorized, "invalid_init_data")
 		return
 	}
-	parsed, err := initdata.Parse(body.InitData)
+	parsed, err := s.parseInit(body.InitData)
 	if err != nil {
 		s.jsonErr(w, http.StatusBadRequest, "parse_init_data")
 		return
@@ -1273,12 +1272,12 @@ func (s *Server) handlePostFeedDelete(w http.ResponseWriter, r *http.Request) {
 		s.jsonErr(w, http.StatusBadRequest, "missing_user_message_id")
 		return
 	}
-	if err := initdata.Validate(body.InitData, s.token, 24*time.Hour); err != nil {
+	if err := s.validateInit(body.InitData); err != nil {
 		s.logger.Warnf("miniapp feed delete: invalid init: %v", err)
 		s.jsonErr(w, http.StatusUnauthorized, "invalid_init_data")
 		return
 	}
-	parsed, err := initdata.Parse(body.InitData)
+	parsed, err := s.parseInit(body.InitData)
 	if err != nil {
 		s.jsonErr(w, http.StatusBadRequest, "parse_init_data")
 		return
@@ -1332,12 +1331,12 @@ func (s *Server) handlePostFeedTrainingThreadLike(w http.ResponseWriter, r *http
 		s.jsonErr(w, http.StatusBadRequest, "missing_thread_reply_id")
 		return
 	}
-	if err := initdata.Validate(body.InitData, s.token, 24*time.Hour); err != nil {
+	if err := s.validateInit(body.InitData); err != nil {
 		s.logger.Warnf("miniapp feed training thread like: invalid init: %v", err)
 		s.jsonErr(w, http.StatusUnauthorized, "invalid_init_data")
 		return
 	}
-	parsed, err := initdata.Parse(body.InitData)
+	parsed, err := s.parseInit(body.InitData)
 	if err != nil {
 		s.jsonErr(w, http.StatusBadRequest, "parse_init_data")
 		return
@@ -1399,12 +1398,12 @@ func (s *Server) handlePostFeedReport(w http.ResponseWriter, r *http.Request) {
 		s.jsonErr(w, http.StatusBadRequest, "missing_user_message_id")
 		return
 	}
-	if err := initdata.Validate(body.InitData, s.token, 24*time.Hour); err != nil {
+	if err := s.validateInit(body.InitData); err != nil {
 		s.logger.Warnf("miniapp feed report: invalid init: %v", err)
 		s.jsonErr(w, http.StatusUnauthorized, "invalid_init_data")
 		return
 	}
-	parsed, err := initdata.Parse(body.InitData)
+	parsed, err := s.parseInit(body.InitData)
 	if err != nil {
 		s.jsonErr(w, http.StatusBadRequest, "parse_init_data")
 		return
@@ -1468,12 +1467,12 @@ func (s *Server) handlePostPackGroupReport(w http.ResponseWriter, r *http.Reques
 		s.jsonErr(w, http.StatusBadRequest, "missing_message_id")
 		return
 	}
-	if err := initdata.Validate(body.InitData, s.token, 24*time.Hour); err != nil {
+	if err := s.validateInit(body.InitData); err != nil {
 		s.logger.Warnf("miniapp pack group report: invalid init: %v", err)
 		s.jsonErr(w, http.StatusUnauthorized, "invalid_init_data")
 		return
 	}
-	parsed, err := initdata.Parse(body.InitData)
+	parsed, err := s.parseInit(body.InitData)
 	if err != nil {
 		s.jsonErr(w, http.StatusBadRequest, "parse_init_data")
 		return
@@ -1532,12 +1531,12 @@ func (s *Server) handlePostPackGroupFeed(w http.ResponseWriter, r *http.Request)
 		s.jsonErr(w, http.StatusBadRequest, "missing_init_data")
 		return
 	}
-	if err := initdata.Validate(body.InitData, s.token, 24*time.Hour); err != nil {
+	if err := s.validateInit(body.InitData); err != nil {
 		s.logger.Warnf("miniapp pack group feed: invalid init: %v", err)
 		s.jsonErr(w, http.StatusUnauthorized, "invalid_init_data")
 		return
 	}
-	parsed, err := initdata.Parse(body.InitData)
+	parsed, err := s.parseInit(body.InitData)
 	if err != nil {
 		s.jsonErr(w, http.StatusBadRequest, "parse_init_data")
 		return
@@ -1583,11 +1582,11 @@ func (s *Server) handlePostPackGroupSearch(w http.ResponseWriter, r *http.Reques
 		s.jsonErr(w, http.StatusBadRequest, "missing_init_data")
 		return
 	}
-	if err := initdata.Validate(body.InitData, s.token, 24*time.Hour); err != nil {
+	if err := s.validateInit(body.InitData); err != nil {
 		s.jsonErr(w, http.StatusUnauthorized, "invalid_init_data")
 		return
 	}
-	parsed, err := initdata.Parse(body.InitData)
+	parsed, err := s.parseInit(body.InitData)
 	if err != nil {
 		s.jsonErr(w, http.StatusBadRequest, "parse_init_data")
 		return
@@ -1642,12 +1641,12 @@ func (s *Server) handlePostPackGroupMessage(w http.ResponseWriter, r *http.Reque
 		s.jsonErr(w, http.StatusBadRequest, "missing_init_data")
 		return
 	}
-	if err := initdata.Validate(body.InitData, s.token, 24*time.Hour); err != nil {
+	if err := s.validateInit(body.InitData); err != nil {
 		s.logger.Warnf("miniapp pack group msg: invalid init: %v", err)
 		s.jsonErr(w, http.StatusUnauthorized, "invalid_init_data")
 		return
 	}
-	parsed, err := initdata.Parse(body.InitData)
+	parsed, err := s.parseInit(body.InitData)
 	if err != nil {
 		s.jsonErr(w, http.StatusBadRequest, "parse_init_data")
 		return
@@ -1715,12 +1714,12 @@ func (s *Server) handlePostPackGroupMessageDelete(w http.ResponseWriter, r *http
 		s.jsonErr(w, http.StatusBadRequest, "missing_message_id")
 		return
 	}
-	if err := initdata.Validate(body.InitData, s.token, 24*time.Hour); err != nil {
+	if err := s.validateInit(body.InitData); err != nil {
 		s.logger.Warnf("miniapp pack group delete: invalid init: %v", err)
 		s.jsonErr(w, http.StatusUnauthorized, "invalid_init_data")
 		return
 	}
-	parsed, err := initdata.Parse(body.InitData)
+	parsed, err := s.parseInit(body.InitData)
 	if err != nil {
 		s.jsonErr(w, http.StatusBadRequest, "parse_init_data")
 		return
@@ -1783,12 +1782,12 @@ func (s *Server) handlePostPackGroupMessageEdit(w http.ResponseWriter, r *http.R
 		s.jsonErr(w, http.StatusBadRequest, "text_too_long")
 		return
 	}
-	if err := initdata.Validate(body.InitData, s.token, 24*time.Hour); err != nil {
+	if err := s.validateInit(body.InitData); err != nil {
 		s.logger.Warnf("miniapp pack group edit: invalid init: %v", err)
 		s.jsonErr(w, http.StatusUnauthorized, "invalid_init_data")
 		return
 	}
-	parsed, err := initdata.Parse(body.InitData)
+	parsed, err := s.parseInit(body.InitData)
 	if err != nil {
 		s.jsonErr(w, http.StatusBadRequest, "parse_init_data")
 		return
@@ -1839,12 +1838,12 @@ func (s *Server) handlePostPackGroupUnreadCount(w http.ResponseWriter, r *http.R
 		s.jsonErr(w, http.StatusBadRequest, "missing_init_data")
 		return
 	}
-	if err := initdata.Validate(body.InitData, s.token, 24*time.Hour); err != nil {
+	if err := s.validateInit(body.InitData); err != nil {
 		s.logger.Warnf("miniapp pack group unread count: invalid init: %v", err)
 		s.jsonErr(w, http.StatusUnauthorized, "invalid_init_data")
 		return
 	}
-	parsed, err := initdata.Parse(body.InitData)
+	parsed, err := s.parseInit(body.InitData)
 	if err != nil {
 		s.jsonErr(w, http.StatusBadRequest, "parse_init_data")
 		return
@@ -1884,12 +1883,12 @@ func (s *Server) handlePostPackGroupUnreadClear(w http.ResponseWriter, r *http.R
 		s.jsonErr(w, http.StatusBadRequest, "missing_init_data")
 		return
 	}
-	if err := initdata.Validate(body.InitData, s.token, 24*time.Hour); err != nil {
+	if err := s.validateInit(body.InitData); err != nil {
 		s.logger.Warnf("miniapp pack group unread clear: invalid init: %v", err)
 		s.jsonErr(w, http.StatusUnauthorized, "invalid_init_data")
 		return
 	}
-	parsed, err := initdata.Parse(body.InitData)
+	parsed, err := s.parseInit(body.InitData)
 	if err != nil {
 		s.jsonErr(w, http.StatusBadRequest, "parse_init_data")
 		return
@@ -1934,12 +1933,12 @@ func (s *Server) handlePostPackGroupReact(w http.ResponseWriter, r *http.Request
 		s.jsonErr(w, http.StatusBadRequest, "missing_message_id")
 		return
 	}
-	if err := initdata.Validate(body.InitData, s.token, 24*time.Hour); err != nil {
+	if err := s.validateInit(body.InitData); err != nil {
 		s.logger.Warnf("miniapp pack group react: invalid init: %v", err)
 		s.jsonErr(w, http.StatusUnauthorized, "invalid_init_data")
 		return
 	}
-	parsed, err := initdata.Parse(body.InitData)
+	parsed, err := s.parseInit(body.InitData)
 	if err != nil {
 		s.jsonErr(w, http.StatusBadRequest, "parse_init_data")
 		return
@@ -1995,12 +1994,12 @@ func (s *Server) handlePostPersonalChatFeed(w http.ResponseWriter, r *http.Reque
 		s.jsonErr(w, http.StatusBadRequest, "missing_init_data")
 		return
 	}
-	if err := initdata.Validate(body.InitData, s.token, 24*time.Hour); err != nil {
+	if err := s.validateInit(body.InitData); err != nil {
 		s.logger.Warnf("miniapp personal chat feed invalid init: %v", err)
 		s.jsonErr(w, http.StatusUnauthorized, "invalid_init_data")
 		return
 	}
-	parsed, err := initdata.Parse(body.InitData)
+	parsed, err := s.parseInit(body.InitData)
 	if err != nil {
 		s.jsonErr(w, http.StatusBadRequest, "parse_init_data")
 		return
@@ -2050,12 +2049,12 @@ func (s *Server) handlePostPersonalChatLike(w http.ResponseWriter, r *http.Reque
 		s.jsonErr(w, http.StatusBadRequest, "missing_message_id")
 		return
 	}
-	if err := initdata.Validate(body.InitData, s.token, 24*time.Hour); err != nil {
+	if err := s.validateInit(body.InitData); err != nil {
 		s.logger.Warnf("miniapp personal chat like invalid init: %v", err)
 		s.jsonErr(w, http.StatusUnauthorized, "invalid_init_data")
 		return
 	}
-	parsed, err := initdata.Parse(body.InitData)
+	parsed, err := s.parseInit(body.InitData)
 	if err != nil {
 		s.jsonErr(w, http.StatusBadRequest, "parse_init_data")
 		return
@@ -2101,12 +2100,12 @@ func (s *Server) handlePostSupportChatFeed(w http.ResponseWriter, r *http.Reques
 		s.jsonErr(w, http.StatusBadRequest, "missing_init_data")
 		return
 	}
-	if err := initdata.Validate(body.InitData, s.token, 24*time.Hour); err != nil {
+	if err := s.validateInit(body.InitData); err != nil {
 		s.logger.Warnf("miniapp support feed invalid init: %v", err)
 		s.jsonErr(w, http.StatusUnauthorized, "invalid_init_data")
 		return
 	}
-	parsed, err := initdata.Parse(body.InitData)
+	parsed, err := s.parseInit(body.InitData)
 	if err != nil {
 		s.jsonErr(w, http.StatusBadRequest, "parse_init_data")
 		return
@@ -2170,12 +2169,12 @@ func (s *Server) handlePostSupportChatSend(w http.ResponseWriter, r *http.Reques
 		s.jsonErr(w, http.StatusBadRequest, "missing_init_data")
 		return
 	}
-	if err := initdata.Validate(body.InitData, s.token, 24*time.Hour); err != nil {
+	if err := s.validateInit(body.InitData); err != nil {
 		s.logger.Warnf("miniapp support send invalid init: %v", err)
 		s.jsonErr(w, http.StatusUnauthorized, "invalid_init_data")
 		return
 	}
-	parsed, err := initdata.Parse(body.InitData)
+	parsed, err := s.parseInit(body.InitData)
 	if err != nil {
 		s.jsonErr(w, http.StatusBadRequest, "parse_init_data")
 		return
@@ -2219,11 +2218,11 @@ func (s *Server) handlePostHealthStatus(w http.ResponseWriter, r *http.Request) 
 		s.jsonErr(w, http.StatusBadRequest, "missing_init_data")
 		return
 	}
-	if err := initdata.Validate(body.InitData, s.token, 24*time.Hour); err != nil {
+	if err := s.validateInit(body.InitData); err != nil {
 		s.jsonErr(w, http.StatusUnauthorized, "invalid_init_data")
 		return
 	}
-	parsed, err := initdata.Parse(body.InitData)
+	parsed, err := s.parseInit(body.InitData)
 	if err != nil {
 		s.jsonErr(w, http.StatusBadRequest, "parse_init_data")
 		return
@@ -2266,11 +2265,11 @@ func (s *Server) handlePostOnboardingEnsure(w http.ResponseWriter, r *http.Reque
 		s.jsonErr(w, http.StatusBadRequest, "missing_init_data")
 		return
 	}
-	if err := initdata.Validate(body.InitData, s.token, 24*time.Hour); err != nil {
+	if err := s.validateInit(body.InitData); err != nil {
 		s.jsonErr(w, http.StatusUnauthorized, "invalid_init_data")
 		return
 	}
-	parsed, err := initdata.Parse(body.InitData)
+	parsed, err := s.parseInit(body.InitData)
 	if err != nil {
 		s.jsonErr(w, http.StatusBadRequest, "parse_init_data")
 		return
@@ -2321,11 +2320,11 @@ func (s *Server) handlePostProfileLoad(w http.ResponseWriter, r *http.Request) {
 		s.jsonErr(w, http.StatusBadRequest, "missing_init_data")
 		return
 	}
-	if err := initdata.Validate(body.InitData, s.token, 24*time.Hour); err != nil {
+	if err := s.validateInit(body.InitData); err != nil {
 		s.jsonErr(w, http.StatusUnauthorized, "invalid_init_data")
 		return
 	}
-	parsed, err := initdata.Parse(body.InitData)
+	parsed, err := s.parseInit(body.InitData)
 	if err != nil {
 		s.jsonErr(w, http.StatusBadRequest, "parse_init_data")
 		return
@@ -2406,11 +2405,11 @@ func (s *Server) handlePostProfileSave(w http.ResponseWriter, r *http.Request) {
 		s.jsonErr(w, http.StatusBadRequest, "missing_init_data")
 		return
 	}
-	if err := initdata.Validate(body.InitData, s.token, 24*time.Hour); err != nil {
+	if err := s.validateInit(body.InitData); err != nil {
 		s.jsonErr(w, http.StatusUnauthorized, "invalid_init_data")
 		return
 	}
-	parsed, err := initdata.Parse(body.InitData)
+	parsed, err := s.parseInit(body.InitData)
 	if err != nil {
 		s.jsonErr(w, http.StatusBadRequest, "parse_init_data")
 		return
@@ -2505,11 +2504,11 @@ func (s *Server) handlePostStreakSaveUse(w http.ResponseWriter, r *http.Request)
 		s.jsonErr(w, http.StatusBadRequest, "missing_init_data")
 		return
 	}
-	if err := initdata.Validate(body.InitData, s.token, 24*time.Hour); err != nil {
+	if err := s.validateInit(body.InitData); err != nil {
 		s.jsonErr(w, http.StatusUnauthorized, "invalid_init_data")
 		return
 	}
-	parsed, err := initdata.Parse(body.InitData)
+	parsed, err := s.parseInit(body.InitData)
 	if err != nil {
 		s.jsonErr(w, http.StatusBadRequest, "parse_init_data")
 		return

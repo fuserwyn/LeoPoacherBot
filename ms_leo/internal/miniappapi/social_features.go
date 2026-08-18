@@ -5,7 +5,6 @@ import (
 	"errors"
 	"net/http"
 	"strings"
-	"time"
 
 	"leo-bot/internal/bot"
 
@@ -32,11 +31,11 @@ func (s *Server) authMiniapp(w http.ResponseWriter, initDataRaw string) (initdat
 		}
 		return parsed, true
 	}
-	if err := initdata.Validate(initDataRaw, s.token, 24*time.Hour); err != nil {
+	if err := s.validateInit(initDataRaw); err != nil {
 		s.jsonErr(w, http.StatusUnauthorized, "invalid_init_data")
 		return initdata.InitData{}, false
 	}
-	parsed, err := initdata.Parse(initDataRaw)
+	parsed, err := s.parseInit(initDataRaw)
 	if err != nil {
 		s.jsonErr(w, http.StatusBadRequest, "parse_init_data")
 		return initdata.InitData{}, false

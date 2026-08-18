@@ -3,9 +3,6 @@ package miniappapi
 import (
 	"encoding/json"
 	"net/http"
-	"time"
-
-	initdata "github.com/telegram-mini-apps/init-data-golang"
 )
 
 // Донаты из профиля мини-аппа. Суммы приходят из тиров конфига, а не из запроса «как есть»:
@@ -23,11 +20,11 @@ func (s *Server) donateAuth(w http.ResponseWriter, r *http.Request, initData str
 		s.jsonErr(w, http.StatusBadRequest, "missing_init_data")
 		return 0, false
 	}
-	if err := initdata.Validate(initData, s.token, 24*time.Hour); err != nil {
+	if err := s.validateInit(initData); err != nil {
 		s.jsonErr(w, http.StatusUnauthorized, "invalid_init_data")
 		return 0, false
 	}
-	parsed, err := initdata.Parse(initData)
+	parsed, err := s.parseInit(initData)
 	if err != nil {
 		s.jsonErr(w, http.StatusBadRequest, "parse_init_data")
 		return 0, false

@@ -12,12 +12,9 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
-	"time"
 	"unicode/utf8"
 
 	"leo-bot/internal/bot"
-
-	initdata "github.com/telegram-mini-apps/init-data-golang"
 )
 
 const maxWorkoutPhotoBytes = 6 << 20 // 6 MiB
@@ -141,12 +138,12 @@ func (s *Server) handlePostWorkoutWithPhoto(w http.ResponseWriter, r *http.Reque
 		s.jsonErr(w, http.StatusBadRequest, "missing_fields")
 		return
 	}
-	if err := initdata.Validate(initD, s.token, 24*time.Hour); err != nil {
+	if err := s.validateInit(initD); err != nil {
 		s.logger.Warnf("miniapp workout init_data invalid: %v", err)
 		s.jsonErr(w, http.StatusUnauthorized, "invalid_init_data")
 		return
 	}
-	parsed, err := initdata.Parse(initD)
+	parsed, err := s.parseInit(initD)
 	if err != nil || parsed.User.ID == 0 {
 		s.jsonErr(w, http.StatusBadRequest, "parse_init_data")
 		return
@@ -274,12 +271,12 @@ func (s *Server) handlePostLeoMessageWithPhoto(w http.ResponseWriter, r *http.Re
 		s.jsonErr(w, http.StatusBadRequest, "text_too_long")
 		return
 	}
-	if err := initdata.Validate(initD, s.token, 24*time.Hour); err != nil {
+	if err := s.validateInit(initD); err != nil {
 		s.logger.Warnf("miniapp leo photo init_data invalid: %v", err)
 		s.jsonErr(w, http.StatusUnauthorized, "invalid_init_data")
 		return
 	}
-	parsed, err := initdata.Parse(initD)
+	parsed, err := s.parseInit(initD)
 	if err != nil || parsed.User.ID == 0 {
 		s.jsonErr(w, http.StatusBadRequest, "parse_init_data")
 		return
@@ -358,12 +355,12 @@ func (s *Server) handlePostPackGroupMessageWithPhoto(w http.ResponseWriter, r *h
 			replyToID = v
 		}
 	}
-	if err := initdata.Validate(initD, s.token, 24*time.Hour); err != nil {
+	if err := s.validateInit(initD); err != nil {
 		s.logger.Warnf("miniapp pack group photo init_data invalid: %v", err)
 		s.jsonErr(w, http.StatusUnauthorized, "invalid_init_data")
 		return
 	}
-	parsed, err := initdata.Parse(initD)
+	parsed, err := s.parseInit(initD)
 	if err != nil || parsed.User.ID == 0 {
 		s.jsonErr(w, http.StatusBadRequest, "parse_init_data")
 		return
@@ -493,12 +490,12 @@ func (s *Server) handlePostFeedPhoto(w http.ResponseWriter, r *http.Request) {
 		s.jsonErr(w, http.StatusBadRequest, "missing_user_message_id")
 		return
 	}
-	if err := initdata.Validate(initD, s.token, 24*time.Hour); err != nil {
+	if err := s.validateInit(initD); err != nil {
 		s.logger.Warnf("miniapp feed photo init_data invalid: %v", err)
 		s.jsonErr(w, http.StatusUnauthorized, "invalid_init_data")
 		return
 	}
-	parsed, err := initdata.Parse(initD)
+	parsed, err := s.parseInit(initD)
 	if err != nil || parsed.User.ID == 0 {
 		s.jsonErr(w, http.StatusBadRequest, "parse_init_data")
 		return
@@ -556,12 +553,12 @@ func (s *Server) handlePostFeedPhotoDelete(w http.ResponseWriter, r *http.Reques
 		s.jsonErr(w, http.StatusBadRequest, "missing_user_message_id")
 		return
 	}
-	if err := initdata.Validate(body.InitData, s.token, 24*time.Hour); err != nil {
+	if err := s.validateInit(body.InitData); err != nil {
 		s.logger.Warnf("miniapp feed photo delete init_data invalid: %v", err)
 		s.jsonErr(w, http.StatusUnauthorized, "invalid_init_data")
 		return
 	}
-	parsed, err := initdata.Parse(body.InitData)
+	parsed, err := s.parseInit(body.InitData)
 	if err != nil || parsed.User.ID == 0 {
 		s.jsonErr(w, http.StatusBadRequest, "parse_init_data")
 		return

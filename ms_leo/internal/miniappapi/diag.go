@@ -5,12 +5,9 @@ import (
 	"fmt"
 	"net/http"
 	"strings"
-	"time"
 	"unicode"
 
 	"leo-bot/internal/database"
-
-	initdata "github.com/telegram-mini-apps/init-data-golang"
 )
 
 // sanitizeDiagField чистит контролируемое клиентом значение перед записью в лог:
@@ -52,9 +49,9 @@ func (s *Server) handlePostDiagInitSource(w http.ResponseWriter, r *http.Request
 	valid := false
 	var userID int64
 	if body.InitData != "" && s.token != "" {
-		if err := initdata.Validate(body.InitData, s.token, 24*time.Hour); err == nil {
+		if err := s.validateInit(body.InitData); err == nil {
 			valid = true
-			if parsed, perr := initdata.Parse(body.InitData); perr == nil {
+			if parsed, perr := s.parseInit(body.InitData); perr == nil {
 				userID = parsed.User.ID
 			}
 		}
@@ -85,11 +82,11 @@ func (s *Server) handlePostLeoCommentDisplayed(w http.ResponseWriter, r *http.Re
 		w.WriteHeader(http.StatusNoContent)
 		return
 	}
-	if err := initdata.Validate(body.InitData, s.token, 24*time.Hour); err != nil {
+	if err := s.validateInit(body.InitData); err != nil {
 		w.WriteHeader(http.StatusNoContent)
 		return
 	}
-	parsed, err := initdata.Parse(body.InitData)
+	parsed, err := s.parseInit(body.InitData)
 	if err != nil || parsed.User.ID == 0 {
 		w.WriteHeader(http.StatusNoContent)
 		return
@@ -140,11 +137,11 @@ func (s *Server) handlePostAnalyticsEvent(w http.ResponseWriter, r *http.Request
 		w.WriteHeader(http.StatusNoContent)
 		return
 	}
-	if err := initdata.Validate(body.InitData, s.token, 24*time.Hour); err != nil {
+	if err := s.validateInit(body.InitData); err != nil {
 		w.WriteHeader(http.StatusNoContent)
 		return
 	}
-	parsed, err := initdata.Parse(body.InitData)
+	parsed, err := s.parseInit(body.InitData)
 	if err != nil || parsed.User.ID == 0 {
 		w.WriteHeader(http.StatusNoContent)
 		return
