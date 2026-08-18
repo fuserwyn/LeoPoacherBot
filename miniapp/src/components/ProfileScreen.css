@@ -953,15 +953,13 @@ html.app-keyboard-open .profile__health-actions--keyboard {
   margin-bottom: 0;
 }
 
-/* Вход в админку — первым блоком под шапкой профиля и только для админов.
-   Раньше он лежал в самом подвале рядом с «Поддержкой», и до него надо было
-   пролистать ачивки, здоровье, уведомления и донат. */
+/* Вход в админку — последним блоком профиля и только для админов. */
 .profile__admin-cta {
   display: flex;
   align-items: center;
   gap: 12px;
   width: 100%;
-  margin-top: 14px;
+  margin-top: 18px;
   padding: 12px 14px;
   text-align: left;
   border-radius: var(--radius-sm);

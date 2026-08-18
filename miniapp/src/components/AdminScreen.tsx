@@ -27,10 +27,22 @@ import {
   type AdminUserCard,
   type AdminUserRow,
 } from "../lib/adminApi";
+import { AdminOpsScreen, type AdminOpsSection } from "./AdminOpsScreen";
 import { TrackerScreen } from "./TrackerScreen";
 import "./AdminScreen.css";
 
-type Page = "home" | "support" | "thread" | "reports" | "hidden" | "users" | "card" | "announce" | "price" | "tracker";
+type Page =
+  | "home"
+  | "support"
+  | "thread"
+  | "reports"
+  | "hidden"
+  | "users"
+  | "card"
+  | "announce"
+  | "price"
+  | "tracker"
+  | AdminOpsSection;
 
 type Props = {
   initData: string;
@@ -356,7 +368,21 @@ export function AdminScreen({ initData, inTelegram, showAlert, onClose }: Props)
                     ? "Цена доступа"
                     : page === "tracker"
                       ? "Трекер задач"
-                      : "Объявление";
+                      : page === "analytics"
+                        ? "Аналитика"
+                        : page === "visits"
+                          ? "Посещения бота"
+                          : page === "payments"
+                            ? "Оплаты"
+                            : page === "admins"
+                              ? "Админы"
+                              : page === "scheduled"
+                                ? "Отложенные посты"
+                                : page === "poll"
+                                  ? "Опрос в ленту"
+                                  : page === "wipe"
+                                    ? "Очистить ленту и чат"
+                                    : "Объявление";
 
   return (
     <div className="admin">
@@ -435,6 +461,55 @@ export function AdminScreen({ initData, inTelegram, showAlert, onClose }: Props)
                     <small>пост в ленту от админа или Лео</small>
                   </span>
                 </button>
+                <button type="button" className="admin__tile" onClick={() => setPage("poll")}>
+                  <span className="admin__tile-ico">🗳</span>
+                  <span className="admin__tile-text">
+                    <b>Опрос</b>
+                    <small>вопрос и варианты в ленту</small>
+                  </span>
+                </button>
+                <button type="button" className="admin__tile" onClick={() => setPage("scheduled")}>
+                  <span className="admin__tile-ico">📅</span>
+                  <span className="admin__tile-text">
+                    <b>Отложенные</b>
+                    <small>посты по расписанию</small>
+                  </span>
+                </button>
+                <button type="button" className="admin__tile" onClick={() => setPage("payments")}>
+                  <span className="admin__tile-ico">💳</span>
+                  <span className="admin__tile-text">
+                    <b>Оплаты</b>
+                    <small>заявки и статусы доступа</small>
+                  </span>
+                </button>
+                <button type="button" className="admin__tile" onClick={() => setPage("analytics")}>
+                  <span className="admin__tile-ico">📈</span>
+                  <span className="admin__tile-text">
+                    <b>Аналитика</b>
+                    <small>воронки, KPI, каналы</small>
+                  </span>
+                </button>
+                <button type="button" className="admin__tile" onClick={() => setPage("visits")}>
+                  <span className="admin__tile-ico">📊</span>
+                  <span className="admin__tile-text">
+                    <b>Посещения бота</b>
+                    <small>кто и как часто заходит</small>
+                  </span>
+                </button>
+                <button type="button" className="admin__tile" onClick={() => setPage("admins")}>
+                  <span className="admin__tile-ico">🛡</span>
+                  <span className="admin__tile-text">
+                    <b>Админы</b>
+                    <small>выдать и снять права</small>
+                  </span>
+                </button>
+                <button type="button" className="admin__tile" onClick={() => setPage("wipe")}>
+                  <span className="admin__tile-ico">🗑</span>
+                  <span className="admin__tile-text">
+                    <b>Очистить ленту и чат</b>
+                    <small>удалить всё содержимое стаи</small>
+                  </span>
+                </button>
                 <button type="button" className="admin__tile" onClick={() => void openPrice()}>
                   <span className="admin__tile-ico">💰</span>
                   <span className="admin__tile-text">
@@ -448,7 +523,7 @@ export function AdminScreen({ initData, inTelegram, showAlert, onClose }: Props)
                 </button>
               </div>
               <p className="admin__muted admin__hint">
-                Полное управление кубками, оплатами и отложенными постами по-прежнему в боте: /admin.
+                Всё то же есть и в боте: /admin. Кубки и стрики конкретного человека — в карточке участника.
               </p>
             </>
           )}
@@ -458,6 +533,18 @@ export function AdminScreen({ initData, inTelegram, showAlert, onClose }: Props)
       {page === "tracker" && (
         <div className="admin__body">
           <TrackerScreen initData={initData} showAlert={showAlert} />
+        </div>
+      )}
+
+      {(page === "analytics" ||
+        page === "visits" ||
+        page === "payments" ||
+        page === "admins" ||
+        page === "scheduled" ||
+        page === "poll" ||
+        page === "wipe") && (
+        <div className="admin__body">
+          <AdminOpsScreen section={page} initData={initData} showAlert={showAlert} />
         </div>
       )}
 

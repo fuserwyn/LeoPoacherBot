@@ -920,19 +920,6 @@ export function ProfileScreen({
         </div>
       </header>
 
-      {isAdmin && onAdmin ? (
-        <button type="button" className="profile__admin-cta" onClick={onAdmin}>
-          <span className="profile__admin-cta-ico" aria-hidden>
-            🛠
-          </span>
-          <span className="profile__admin-cta-text">
-            <b>Админка стаи</b>
-            <small>поддержка, жалобы, участники, трекер задач</small>
-          </span>
-          <span className="profile__admin-cta-badge">только админам</span>
-        </button>
-      ) : null}
-
       <div className="profile__grid3">
         <div className="profile__stat-slot">
           <div
@@ -1524,6 +1511,19 @@ export function ProfileScreen({
           Сообщить о проблеме
         </button>
       </div>
+
+      {isAdmin && onAdmin ? (
+        <button type="button" className="profile__admin-cta" onClick={onAdmin}>
+          <span className="profile__admin-cta-ico" aria-hidden>
+            🛠
+          </span>
+          <span className="profile__admin-cta-text">
+            <b>Админка стаи</b>
+            <small>поддержка, жалобы, участники, трекер задач</small>
+          </span>
+          <span className="profile__admin-cta-badge">только админам</span>
+        </button>
+      ) : null}
 
     </div>
   );

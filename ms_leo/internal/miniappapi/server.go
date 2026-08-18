@@ -169,6 +169,28 @@ func (s *Server) serve(w http.ResponseWriter, r *http.Request) {
 		s.handlePostAdminOverview(w, r)
 	case path == "/api/miniapp/admin/tracker" && r.Method == http.MethodPost:
 		s.handlePostAdminTracker(w, r)
+	case path == "/api/miniapp/admin/analytics" && r.Method == http.MethodPost:
+		s.handlePostAdminAnalytics(w, r)
+	case path == "/api/miniapp/admin/visits" && r.Method == http.MethodPost:
+		s.handlePostAdminVisits(w, r)
+	case path == "/api/miniapp/admin/payments" && r.Method == http.MethodPost:
+		s.handlePostAdminPayments(w, r)
+	case path == "/api/miniapp/admin/admins" && r.Method == http.MethodPost:
+		s.handlePostAdminAdmins(w, r)
+	case path == "/api/miniapp/admin/admins/add" && r.Method == http.MethodPost:
+		s.handlePostAdminAdminsAdd(w, r)
+	case path == "/api/miniapp/admin/admins/remove" && r.Method == http.MethodPost:
+		s.handlePostAdminAdminsRemove(w, r)
+	case path == "/api/miniapp/admin/scheduled" && r.Method == http.MethodPost:
+		s.handlePostAdminScheduled(w, r)
+	case path == "/api/miniapp/admin/scheduled/add" && r.Method == http.MethodPost:
+		s.handlePostAdminScheduledAdd(w, r)
+	case path == "/api/miniapp/admin/scheduled/cancel" && r.Method == http.MethodPost:
+		s.handlePostAdminScheduledCancel(w, r)
+	case path == "/api/miniapp/admin/poll" && r.Method == http.MethodPost:
+		s.handlePostAdminPoll(w, r)
+	case path == "/api/miniapp/admin/wipe" && r.Method == http.MethodPost:
+		s.handlePostAdminWipe(w, r)
 	case path == "/api/miniapp/admin/support/inbox" && r.Method == http.MethodPost:
 		s.handlePostAdminSupportInbox(w, r)
 	case path == "/api/miniapp/admin/support/thread" && r.Method == http.MethodPost:

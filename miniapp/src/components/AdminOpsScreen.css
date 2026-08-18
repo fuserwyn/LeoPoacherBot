@@ -1,0 +1,203 @@
+/* Разделы админки из чата: таблицы, списки и формы. Оформление — как у
+   остальной админки мини-аппа, чтобы не выделялось. */
+
+.ops {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.ops-muted {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.4;
+  color: var(--muted);
+}
+
+.ops-card {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border-subtle);
+  background: var(--card-inner);
+}
+
+.ops-card--danger {
+  border-color: rgba(255, 59, 48, 0.3);
+  background: rgba(255, 59, 48, 0.06);
+}
+
+.ops-card p {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.ops-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+
+.ops input,
+.ops select,
+.ops textarea {
+  flex: 1 1 160px;
+  min-width: 0;
+  min-height: 36px;
+  padding: 8px 10px;
+  border-radius: 10px;
+  border: 1px solid var(--border-subtle);
+  background: var(--card-inner);
+  color: var(--text);
+  font: inherit;
+  font-size: 14px;
+}
+
+.ops textarea {
+  min-height: 72px;
+  resize: vertical;
+}
+
+.ops button {
+  min-height: 36px;
+  padding: 8px 14px;
+  border-radius: 10px;
+  border: 1px solid var(--border-subtle);
+  background: var(--card-inner);
+  color: var(--text);
+  font: inherit;
+  cursor: pointer;
+}
+
+.ops button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.ops-primary {
+  border: 0;
+  background: var(--accent);
+  color: #fff;
+  font-weight: 600;
+}
+
+.ops-danger {
+  color: #ff6b64;
+  border-color: rgba(255, 59, 48, 0.32);
+}
+
+.ops-danger--block {
+  width: 100%;
+}
+
+.ops-periods {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.ops-periods button {
+  flex: 1 1 0;
+  min-width: 72px;
+  font-size: 12px;
+}
+
+.ops-periods button.on {
+  color: var(--accent);
+  border-color: color-mix(in srgb, var(--accent) 40%, transparent);
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
+}
+
+.ops-table {
+  padding: 12px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border-subtle);
+  background: var(--card-inner);
+}
+
+.ops-table__title {
+  margin: 0 0 4px;
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.ops-table__subtitle {
+  margin: 0 0 8px;
+  font-size: 12px;
+  line-height: 1.4;
+  color: var(--muted);
+}
+
+/* Таблицы приходят из чата, где ширина фиксирована моноширинным шрифтом.
+   Здесь даём горизонтальный скролл, чтобы столбцы не ломались на телефоне. */
+.ops-table__scroll {
+  overflow-x: auto;
+}
+
+.ops-table table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12.5px;
+}
+
+.ops-table th {
+  text-align: left;
+  padding: 6px 8px 6px 0;
+  color: var(--muted);
+  font-weight: 600;
+  white-space: nowrap;
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.ops-table td {
+  padding: 6px 8px 6px 0;
+  border-bottom: 1px solid var(--border-subtle);
+  white-space: nowrap;
+}
+
+.ops-table tr:last-child td {
+  border-bottom: none;
+}
+
+.ops-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.ops-list li {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border-subtle);
+  background: var(--card-inner);
+}
+
+.ops-list li span {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.ops-list li b {
+  font-size: 13px;
+}
+
+.ops-list li small {
+  font-size: 12px;
+  color: var(--muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}

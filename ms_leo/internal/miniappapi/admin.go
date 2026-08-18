@@ -414,3 +414,265 @@ func (s *Server) handlePostAdminPaywallPriceSet(w http.ResponseWriter, r *http.R
 	w.Header().Set("Content-Type", "application/json; charset=utf-8")
 	_ = json.NewEncoder(w).Encode(map[string]any{"ok": true, "price": price})
 }
+
+// --- Разделы, переехавшие из чат-админки (bot/miniapp_admin_ops.go) --------
+
+func (s *Server) handlePostAdminAnalytics(w http.ResponseWriter, r *http.Request) {
+	var body struct {
+		InitData string `json:"init_data"`
+		Days     int    `json:"days"`
+	}
+	corsWriteHeaders(w, r)
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		s.jsonErr(w, http.StatusBadRequest, "invalid_json")
+		return
+	}
+	parsed, ok := s.authMiniapp(w, body.InitData)
+	if !ok {
+		return
+	}
+	data, err := s.bot.MiniappAdminAnalyticsData(parsed.User.ID, parsed, body.Days)
+	if err != nil {
+		s.writeAdminErr(w, err)
+		return
+	}
+	s.writeAdminOK(w, map[string]any{"analytics": data})
+}
+
+func (s *Server) handlePostAdminVisits(w http.ResponseWriter, r *http.Request) {
+	var body struct {
+		InitData string `json:"init_data"`
+	}
+	corsWriteHeaders(w, r)
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		s.jsonErr(w, http.StatusBadRequest, "invalid_json")
+		return
+	}
+	parsed, ok := s.authMiniapp(w, body.InitData)
+	if !ok {
+		return
+	}
+	tables, err := s.bot.MiniappAdminVisits(parsed.User.ID, parsed)
+	if err != nil {
+		s.writeAdminErr(w, err)
+		return
+	}
+	s.writeAdminOK(w, map[string]any{"tables": tables})
+}
+
+func (s *Server) handlePostAdminPayments(w http.ResponseWriter, r *http.Request) {
+	var body struct {
+		InitData string `json:"init_data"`
+		Offset   int    `json:"offset"`
+		Limit    int    `json:"limit"`
+	}
+	corsWriteHeaders(w, r)
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		s.jsonErr(w, http.StatusBadRequest, "invalid_json")
+		return
+	}
+	parsed, ok := s.authMiniapp(w, body.InitData)
+	if !ok {
+		return
+	}
+	data, err := s.bot.MiniappAdminPaymentsPage(parsed.User.ID, parsed, body.Offset, body.Limit)
+	if err != nil {
+		s.writeAdminErr(w, err)
+		return
+	}
+	s.writeAdminOK(w, map[string]any{"payments": data})
+}
+
+func (s *Server) handlePostAdminAdmins(w http.ResponseWriter, r *http.Request) {
+	var body struct {
+		InitData string `json:"init_data"`
+	}
+	corsWriteHeaders(w, r)
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		s.jsonErr(w, http.StatusBadRequest, "invalid_json")
+		return
+	}
+	parsed, ok := s.authMiniapp(w, body.InitData)
+	if !ok {
+		return
+	}
+	people, err := s.bot.MiniappAdminAdminsList(parsed.User.ID, parsed)
+	if err != nil {
+		s.writeAdminErr(w, err)
+		return
+	}
+	s.writeAdminOK(w, map[string]any{"admins": people})
+}
+
+func (s *Server) handlePostAdminAdminsAdd(w http.ResponseWriter, r *http.Request) {
+	var body struct {
+		InitData string `json:"init_data"`
+		Query    string `json:"query"`
+	}
+	corsWriteHeaders(w, r)
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		s.jsonErr(w, http.StatusBadRequest, "invalid_json")
+		return
+	}
+	parsed, ok := s.authMiniapp(w, body.InitData)
+	if !ok {
+		return
+	}
+	id, err := s.bot.MiniappAdminAddAdmin(parsed.User.ID, parsed, body.Query)
+	if err != nil {
+		s.writeAdminErr(w, err)
+		return
+	}
+	s.writeAdminOK(w, map[string]any{"user_id": id})
+}
+
+func (s *Server) handlePostAdminAdminsRemove(w http.ResponseWriter, r *http.Request) {
+	var body struct {
+		InitData string `json:"init_data"`
+		UserID   int64  `json:"user_id"`
+	}
+	corsWriteHeaders(w, r)
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		s.jsonErr(w, http.StatusBadRequest, "invalid_json")
+		return
+	}
+	parsed, ok := s.authMiniapp(w, body.InitData)
+	if !ok {
+		return
+	}
+	if err := s.bot.MiniappAdminRemoveAdmin(parsed.User.ID, parsed, body.UserID); err != nil {
+		s.writeAdminErr(w, err)
+		return
+	}
+	s.writeAdminOK(w, map[string]any{})
+}
+
+func (s *Server) handlePostAdminScheduled(w http.ResponseWriter, r *http.Request) {
+	var body struct {
+		InitData string `json:"init_data"`
+	}
+	corsWriteHeaders(w, r)
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		s.jsonErr(w, http.StatusBadRequest, "invalid_json")
+		return
+	}
+	parsed, ok := s.authMiniapp(w, body.InitData)
+	if !ok {
+		return
+	}
+	posts, err := s.bot.MiniappAdminScheduledPosts(parsed.User.ID, parsed)
+	if err != nil {
+		s.writeAdminErr(w, err)
+		return
+	}
+	s.writeAdminOK(w, map[string]any{"posts": posts})
+}
+
+func (s *Server) handlePostAdminScheduledAdd(w http.ResponseWriter, r *http.Request) {
+	var body struct {
+		InitData string `json:"init_data"`
+		Author   string `json:"author"`
+		Text     string `json:"text"`
+		At       string `json:"at"`
+	}
+	corsWriteHeaders(w, r)
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		s.jsonErr(w, http.StatusBadRequest, "invalid_json")
+		return
+	}
+	parsed, ok := s.authMiniapp(w, body.InitData)
+	if !ok {
+		return
+	}
+	id, err := s.bot.MiniappAdminSchedulePost(parsed.User.ID, parsed, body.Author, body.Text, body.At)
+	if err != nil {
+		s.writeAdminErr(w, err)
+		return
+	}
+	s.writeAdminOK(w, map[string]any{"id": id})
+}
+
+func (s *Server) handlePostAdminScheduledCancel(w http.ResponseWriter, r *http.Request) {
+	var body struct {
+		InitData string `json:"init_data"`
+		ID       int64  `json:"id"`
+	}
+	corsWriteHeaders(w, r)
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		s.jsonErr(w, http.StatusBadRequest, "invalid_json")
+		return
+	}
+	parsed, ok := s.authMiniapp(w, body.InitData)
+	if !ok {
+		return
+	}
+	if err := s.bot.MiniappAdminCancelScheduledPost(parsed.User.ID, parsed, body.ID); err != nil {
+		s.writeAdminErr(w, err)
+		return
+	}
+	s.writeAdminOK(w, map[string]any{})
+}
+
+func (s *Server) handlePostAdminPoll(w http.ResponseWriter, r *http.Request) {
+	var body struct {
+		InitData string   `json:"init_data"`
+		Question string   `json:"question"`
+		Options  []string `json:"options"`
+	}
+	corsWriteHeaders(w, r)
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		s.jsonErr(w, http.StatusBadRequest, "invalid_json")
+		return
+	}
+	parsed, ok := s.authMiniapp(w, body.InitData)
+	if !ok {
+		return
+	}
+	if err := s.bot.MiniappAdminPublishPoll(parsed.User.ID, parsed, body.Question, body.Options); err != nil {
+		s.writeAdminErr(w, err)
+		return
+	}
+	s.writeAdminOK(w, map[string]any{})
+}
+
+func (s *Server) handlePostAdminWipe(w http.ResponseWriter, r *http.Request) {
+	var body struct {
+		InitData string `json:"init_data"`
+		Confirm  bool   `json:"confirm"`
+	}
+	corsWriteHeaders(w, r)
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		s.jsonErr(w, http.StatusBadRequest, "invalid_json")
+		return
+	}
+	parsed, ok := s.authMiniapp(w, body.InitData)
+	if !ok {
+		return
+	}
+	// Без confirm только считаем, что удалится: очистка необратима, поэтому
+	// подтверждение приходит отдельным запросом.
+	if !body.Confirm {
+		counts, err := s.bot.MiniappAdminWipeCounts(parsed.User.ID, parsed)
+		if err != nil {
+			s.writeAdminErr(w, err)
+			return
+		}
+		s.writeAdminOK(w, map[string]any{"counts": counts, "done": false})
+		return
+	}
+	counts, err := s.bot.MiniappAdminWipeExecute(parsed.User.ID, parsed)
+	if err != nil {
+		s.writeAdminErr(w, err)
+		return
+	}
+	s.writeAdminOK(w, map[string]any{"counts": counts, "done": true})
+}
+
+func (s *Server) writeAdminOK(w http.ResponseWriter, payload map[string]any) {
+	if payload == nil {
+		payload = map[string]any{}
+	}
+	payload["ok"] = true
+	w.Header().Set("Content-Type", "application/json; charset=utf-8")
+	_ = json.NewEncoder(w).Encode(payload)
+}

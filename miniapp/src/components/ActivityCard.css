@@ -16,12 +16,12 @@
   overflow-anchor: none;
 }
 
-/* Открытый тред: почти на экран, чтобы можно было читать переписку без крошечного окна */
+/* Открытый тред: карточка растёт под содержимое, скроллится вся лента.
+   Раньше карточка оставалась ограниченной по высоте, а тело превращалось в
+   окно на 24dvh — пост обрезался посреди строки, и панель «Свернуть
+   комментарии» выглядела наехавшей на текст. */
 .act-card--thread-open {
-  max-height: min(
-    620px,
-    calc(var(--feed-vvh, 100dvh) - var(--feed-bottom-nav-h, 88px) - var(--safe-top, 0px) - 18px)
-  );
+  max-height: none;
   touch-action: pan-y;
 }
 
@@ -332,17 +332,11 @@
   touch-action: pan-y;
 }
 
+/* Тело поста при открытом треде остаётся в потоке: внутренний скролл резал
+   текст по середине строки, а в iOS WebView (Telegram) ещё и оставлял
+   «призрак» заголовка поверх фото. */
 .act-card--thread-open .act-card__body {
-  flex: 0 1 auto;
-  max-height: min(24dvh, 24vh);
-  overflow-y: auto;
-}
-
-/* Фото-карточка: при раскрытии треда тело НЕ превращаем в обрезанный 24dvh
-   скролл-вьюпорт. Большое фото в нём схлопывается, а iOS WebView (Telegram)
-   не перерисовывает освободившуюся область — заголовок/детали остаются
-   «призраком» поверх фото. Оставляем тело в потоке, страница скроллится. */
-.act-card--has-photo.act-card--thread-open .act-card__body {
+  flex: 0 0 auto;
   max-height: none;
   overflow: visible;
 }
@@ -764,9 +758,9 @@
 }
 
 .act-card--thread-open .act-card__thread {
-  flex: 1 1 auto;
+  flex: 0 0 auto;
   min-height: 0;
-  overflow: hidden;
+  overflow: visible;
 }
 
 .act-card__thread-toggle {

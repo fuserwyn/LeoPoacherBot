@@ -209,3 +209,91 @@ export function resetAdminPaywallPrice(initData: string) {
     reset: true,
   });
 }
+
+/* Разделы, переехавшие из чат-админки: аналитика, посещения, оплаты, админы,
+   отложенные посты, опросы и очистка ленты. Считает всё бэкенд теми же
+   запросами, что и для чата, — здесь только показываем. */
+
+export type AdminTable = {
+  title: string;
+  subtitle: string;
+  columns: string[];
+  rows: string[][];
+};
+
+export type AdminAnalytics = {
+  period: string;
+  last_event_at: string;
+  tables: AdminTable[];
+};
+
+export type AdminPerson = {
+  user_id: number;
+  username: string;
+  static: boolean;
+  added_at: string;
+};
+
+export type AdminScheduledPost = {
+  id: number;
+  author: string;
+  text: string;
+  scheduled_at: string;
+};
+
+export type AdminWipeCounts = {
+  feed_posts: number;
+  feed_threads: number;
+  feed_reports: number;
+  pack_chat_messages: number;
+};
+
+export function fetchAdminAnalytics(initData: string, days: number) {
+  return post<{ analytics: AdminAnalytics }>("/api/miniapp/admin/analytics", initData, { days });
+}
+
+export function fetchAdminVisits(initData: string) {
+  return post<{ tables: AdminTable[] }>("/api/miniapp/admin/visits", initData);
+}
+
+export function fetchAdminPayments(initData: string, offset = 0, limit = 20) {
+  return post<{ payments: { total: number; offset: number; limit: number; table: AdminTable } }>(
+    "/api/miniapp/admin/payments",
+    initData,
+    { offset, limit },
+  );
+}
+
+export function fetchAdminAdmins(initData: string) {
+  return post<{ admins: AdminPerson[] }>("/api/miniapp/admin/admins", initData);
+}
+
+export function addAdminPerson(initData: string, query: string) {
+  return post<{ user_id: number }>("/api/miniapp/admin/admins/add", initData, { query });
+}
+
+export function removeAdminPerson(initData: string, userId: number) {
+  return post<Record<string, never>>("/api/miniapp/admin/admins/remove", initData, { user_id: userId });
+}
+
+export function fetchAdminScheduledPosts(initData: string) {
+  return post<{ posts: AdminScheduledPost[] }>("/api/miniapp/admin/scheduled", initData);
+}
+
+/** at — «2026-08-20T09:00» по МСК, как в поле datetime-local. */
+export function addAdminScheduledPost(initData: string, author: string, text: string, at: string) {
+  return post<{ id: number }>("/api/miniapp/admin/scheduled/add", initData, { author, text, at });
+}
+
+export function cancelAdminScheduledPost(initData: string, id: number) {
+  return post<Record<string, never>>("/api/miniapp/admin/scheduled/cancel", initData, { id });
+}
+
+export function publishAdminPoll(initData: string, question: string, options: string[]) {
+  return post<Record<string, never>>("/api/miniapp/admin/poll", initData, { question, options });
+}
+
+/** confirm=false — только посчитать, что удалится; true — удалить. */
+export function wipePackFeed(initData: string, confirm: boolean) {
+  return post<{ counts: AdminWipeCounts; done: boolean }>("/api/miniapp/admin/wipe", initData, { confirm });
+}
