@@ -181,6 +181,8 @@ func (s *Server) serve(w http.ResponseWriter, r *http.Request) {
 		s.handlePostAdminLeoPropose(w, r)
 	case path == "/api/miniapp/admin/leo-lab" && r.Method == http.MethodPost:
 		s.handlePostAdminLeoLab(w, r)
+	case path == "/api/miniapp/board/notify" && r.Method == http.MethodPost:
+		s.handleBoardNotify(w, r)
 	case path == "/api/miniapp/auth/desktop/poll" && (r.Method == http.MethodGet || r.Method == http.MethodPost):
 		s.handleDesktopPoll(w, r)
 	case path == "/api/miniapp/auth/desktop/logout" && r.Method == http.MethodPost:

@@ -16,6 +16,7 @@ import (
 
 	"leo-bot/internal/database"
 
+	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 	initdata "github.com/telegram-mini-apps/init-data-golang"
 )
 
@@ -274,4 +275,49 @@ func (b *Bot) MiniappTrackerCall(
 		raw = []byte("{}")
 	}
 	return json.RawMessage(raw), nil
+}
+
+// VerifyTrackerToken — проверить подпись, которой MyVibeLab метит свои запросы
+// к нам (уведомления о задачах). Формат тот же, что у ссылки на доску.
+// Возвращает repo и id человека, для которого запрос.
+func (b *Bot) VerifyTrackerToken(token, kind string) (repo string, userID int64, ok bool) {
+	secret := strings.TrimSpace(b.config.BoardSecret)
+	if secret == "" || token == "" || !strings.Contains(token, ".") {
+		return "", 0, false
+	}
+	parts := strings.SplitN(token, ".", 2)
+	mac := hmac.New(sha256.New, []byte(secret))
+	mac.Write([]byte(parts[0]))
+	want := base64.RawURLEncoding.EncodeToString(mac.Sum(nil))
+	if !hmac.Equal([]byte(want), []byte(parts[1])) {
+		return "", 0, false
+	}
+	raw, err := base64.RawURLEncoding.DecodeString(parts[0])
+	if err != nil {
+		return "", 0, false
+	}
+	var payload struct {
+		Kind string `json:"k"`
+		Repo string `json:"r"`
+		User int64  `json:"u"`
+		Exp  int64  `json:"e"`
+	}
+	if err := json.Unmarshal(raw, &payload); err != nil {
+		return "", 0, false
+	}
+	if payload.Kind != kind || payload.Exp < time.Now().Unix() {
+		return "", 0, false
+	}
+	return payload.Repo, payload.User, true
+}
+
+// NotifyTrackerAuthor — написать автору задачи в личку от имени бота стаи.
+func (b *Bot) NotifyTrackerAuthor(userID int64, text string) error {
+	if b == nil || b.api == nil || userID == 0 {
+		return fmt.Errorf("некому писать")
+	}
+	msg := tgbotapi.NewMessage(userID, text)
+	msg.DisableWebPagePreview = true
+	_, err := b.api.Send(msg)
+	return err
 }

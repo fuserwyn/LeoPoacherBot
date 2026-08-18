@@ -705,6 +705,40 @@ func (s *Server) handlePostAdminWipe(w http.ResponseWriter, r *http.Request) {
 // handleDesktopPoll — приложение ждёт подтверждения входа в чате (GET или POST).
 // Единственная ручка без авторизации: защита — неугадываемый nonce с коротким
 // сроком жизни (bot/desktop_auth.go).
+// handleBoardNotify — MyVibeLab сообщает автору о судьбе его задачи.
+//
+// Без авторизации мини-аппа: запрос приходит от сервера к серверу, поэтому
+// подписан общим секретом доски. Пишем в личку тому, кто задачу ставил.
+func (s *Server) handleBoardNotify(w http.ResponseWriter, r *http.Request) {
+	corsWriteHeaders(w, r)
+	var body struct {
+		Repo     string `json:"repo"`
+		AuthorID int64  `json:"author_id"`
+		TaskID   int64  `json:"task_id"`
+		Text     string `json:"text"`
+		Token    string `json:"token"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		s.jsonErr(w, http.StatusBadRequest, "invalid_json")
+		return
+	}
+	repo, userID, ok := s.bot.VerifyTrackerToken(body.Token, "notify")
+	if !ok || userID == 0 || userID != body.AuthorID || repo != body.Repo {
+		s.jsonErr(w, http.StatusUnauthorized, "bad_signature")
+		return
+	}
+	text := strings.TrimSpace(body.Text)
+	if text == "" {
+		s.jsonErr(w, http.StatusBadRequest, "empty_text")
+		return
+	}
+	if err := s.bot.NotifyTrackerAuthor(userID, text); err != nil {
+		s.jsonErr(w, http.StatusBadGateway, "notify_failed")
+		return
+	}
+	s.writeAdminOK(w, map[string]any{})
+}
+
 func (s *Server) handleDesktopPoll(w http.ResponseWriter, r *http.Request) {
 	corsWriteHeaders(w, r)
 	// Приложение опрашивает GET-ом с ?nonce=, POST с телом оставлен для ручных

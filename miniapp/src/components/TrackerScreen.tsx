@@ -67,7 +67,7 @@ function parsePrompt(prompt: string): { sprint: number | null; text: string } {
 /** Автор задачи: гость мини-аппа или сам MyVibeLab, если ставили оттуда. */
 function authorLabel(task: TrackerTask, authors: Record<number, string>): string {
   const id = Number(task.author_id) || 0;
-  if (!id) return "MyVibeLab";
+  if (!id) return "Из чата";
   return authors[id] || `id ${id}`;
 }
 
@@ -153,8 +153,8 @@ export function TrackerScreen({ initData, showAlert }: Props) {
           setAuthors((prev) => {
             const next = { ...prev };
             for (const p of people) {
-              next[p.user_id] =
-                p.display_name || (p.username ? `@${p.username}` : `id ${p.user_id}`);
+              const nick = (p.username || "").replace(/^@+/, "");
+              next[p.user_id] = p.display_name || (nick ? `@${nick}` : `id ${p.user_id}`);
             }
             for (const id of ids) if (!next[id]) next[id] = `id ${id}`;
             return next;
@@ -452,7 +452,7 @@ export function TrackerScreen({ initData, showAlert }: Props) {
           <p className="tracker__hint">
             {isQa
               ? "После сдачи агент сам прогоняет AI-тест. Можно принять, вернуть в работу или запустить тест ещё раз."
-              : "Ожидает → в работе → Review → тест → выполнено. Задачи выполняет агент MyVibeLab."}
+              : "Ожидает → в работе → Review → тест → выполнено."}
           </p>
 
           {loading ? (
@@ -501,8 +501,7 @@ export function TrackerScreen({ initData, showAlert }: Props) {
       ) : tab === "task" ? (
         <div className="tracker__task">
           <p className="tracker__hint">
-            Задачу выполняет агент MyVibeLab в проекте Fat-Leopard: опиши, что сделать, когда запускать и приложи
-            картинку, если так понятнее.
+            Опиши, что сделать, когда запускать и приложи картинку, если так понятнее.
           </p>
 
           <div className="tracker__leo">
