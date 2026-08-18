@@ -199,6 +199,31 @@ export async function askLeoTask(
   return { reply: j.reply ?? "", task: j.task ?? "" };
 }
 
+/** Спринт глазами Лео: реплика, тема и набор задач. */
+export async function leoSprint(
+  initData: string,
+  hint: string,
+): Promise<{ reply: string; theme: string; tasks: string[] }> {
+  if (!api) throw new Error("API не настроен");
+  const res = await fetch(`${api}/api/miniapp/admin/tracker/leo-sprint`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ init_data: initData, hint }),
+  });
+  const j = (await res.json().catch(() => ({}))) as {
+    ok?: boolean;
+    reply?: string;
+    theme?: string;
+    tasks?: string[];
+    error?: string;
+    message?: string;
+  };
+  if (!res.ok || j.ok === false) {
+    throw new Error(j.message || trackerErrorLabel(j.error) || `Ошибка ${res.status}`);
+  }
+  return { reply: j.reply ?? "", theme: j.theme ?? "", tasks: j.tasks ?? [] };
+}
+
 export type TrackerPerson = { user_id: number; username: string; display_name: string };
 
 /** Кто ставил задачи: в трекере есть только author_id, ник живёт у нас. */

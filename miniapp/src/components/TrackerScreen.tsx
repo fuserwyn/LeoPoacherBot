@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   askLeoTask,
+  leoSprint,
   sprintApply,
   sprintGenerate,
   sprintIdeas,
@@ -129,7 +130,8 @@ export function TrackerScreen({ initData, showAlert }: Props) {
   const [ideas, setIdeas] = useState<SprintIdea[]>([]);
   const [pickedIdea, setPickedIdea] = useState<string>("");
   const [features, setFeatures] = useState<(SprintFeature & { _on: boolean })[]>([]);
-  const [sprintBusy, setSprintBusy] = useState<"" | "ideas" | "plan" | "apply">("");
+  const [sprintBusy, setSprintBusy] = useState<"" | "ideas" | "plan" | "apply" | "leo">("");
+  const [leoSprintReply, setLeoSprintReply] = useState("");
 
   const isQa = role === "tester";
   const detailRef = useRef<number | null>(null);
@@ -284,6 +286,31 @@ export function TrackerScreen({ initData, showAlert }: Props) {
       setPickedIdea(String(j.recommended_id || (j.ideas ?? [])[0]?.id || ""));
     } catch (e) {
       showAlert(e instanceof Error ? e.message : "Не удалось предложить идеи");
+    } finally {
+      setSprintBusy("");
+    }
+  };
+
+  // Спринт от Лео: он же придумывает тему и нарезку. Задачи кладём в тот же
+  // список, что и обычный генератор, — дальше «Поставить задачи в план».
+  const askLeoSprint = async () => {
+    setSprintBusy("leo");
+    setLeoSprintReply("");
+    try {
+      const j = await leoSprint(initData, hint.trim());
+      setLeoSprintReply(j.reply);
+      if (j.theme) setHint(j.theme);
+      setIdeas([]);
+      setFeatures(
+        j.tasks.map((t, i) => ({
+          title: t.split(/[.!?]/, 1)[0].slice(0, 80) || `Задача ${i + 1}`,
+          prompt: t,
+          sprint: 1,
+          _on: true,
+        })),
+      );
+    } catch (e) {
+      showAlert(e instanceof Error ? e.message : "Лео промолчал");
     } finally {
       setSprintBusy("");
     }
@@ -581,7 +608,16 @@ export function TrackerScreen({ initData, showAlert }: Props) {
             >
               {sprintBusy === "ideas" ? "Думаю…" : "Предложить идеи"}
             </button>
+            <button
+              type="button"
+              className="tracker__attach"
+              disabled={sprintBusy !== ""}
+              onClick={() => void askLeoSprint()}
+            >
+              {sprintBusy === "leo" ? "Лео думает…" : "🐆 Спринт от Лео"}
+            </button>
           </div>
+          {leoSprintReply ? <p className="tracker__leo-reply">🐆 {leoSprintReply}</p> : null}
 
           {ideas.length > 0 ? (
             <div className="tracker__ideas">
