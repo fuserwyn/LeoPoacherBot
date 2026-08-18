@@ -60,13 +60,16 @@ func (s *Server) handlePostAdminOverview(w http.ResponseWriter, r *http.Request)
 	_ = json.NewEncoder(w).Encode(map[string]any{"ok": true, "overview": overview})
 }
 
-// handlePostAdminTrackerLink — одноразовая ссылка на доску трекера MyVibeLab.
-// Подпись делаем на сервере: секрет в браузер не отдаём, иначе ссылку смог бы
-// собрать кто угодно, кто открыл мини-апп.
-func (s *Server) handlePostAdminTrackerLink(w http.ResponseWriter, r *http.Request) {
+// handlePostAdminTracker — единственная дверь мини-аппа к доске задач в
+// MyVibeLab: op из белого списка, всё остальное делает bot.MiniappTrackerCall.
+// Ответ трекера отдаём как есть — формат карточек и статусов у нас общий.
+func (s *Server) handlePostAdminTracker(w http.ResponseWriter, r *http.Request) {
 	corsWriteHeaders(w, r)
 	var body struct {
-		InitData string `json:"init_data"`
+		InitData string         `json:"init_data"`
+		Op       string         `json:"op"`
+		TaskID   int64          `json:"task_id"`
+		Payload  map[string]any `json:"payload"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
 		s.jsonErr(w, http.StatusBadRequest, "invalid_json")
@@ -76,13 +79,13 @@ func (s *Server) handlePostAdminTrackerLink(w http.ResponseWriter, r *http.Reque
 	if !ok {
 		return
 	}
-	link, err := s.bot.MiniappTrackerLink(parsed.User.ID, parsed)
+	data, err := s.bot.MiniappTrackerCall(parsed.User.ID, parsed, body.Op, body.TaskID, body.Payload)
 	if err != nil {
 		s.writeAdminErr(w, err)
 		return
 	}
 	w.Header().Set("Content-Type", "application/json; charset=utf-8")
-	_ = json.NewEncoder(w).Encode(map[string]any{"ok": true, "link": link})
+	_ = json.NewEncoder(w).Encode(map[string]any{"ok": true, "data": data})
 }
 
 func (s *Server) handlePostAdminSupportInbox(w http.ResponseWriter, r *http.Request) {

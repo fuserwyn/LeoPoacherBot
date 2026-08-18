@@ -1,0 +1,626 @@
+/* Доска трекера — перенос оформления с доски MyVibeLab на токены мини-аппа:
+   те же колонки с цветной верхней кромкой, те же карточки с #id, статусом,
+   бейджами и живым логом, те же чипы сводки. */
+
+.tracker {
+  padding: 0 0 24px;
+}
+
+.tracker__tabs {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 12px;
+}
+
+.tracker__tabs button {
+  flex: 1;
+  min-height: 36px;
+  padding: 8px 12px;
+  border-radius: 10px;
+  border: 1px solid var(--border-subtle);
+  background: var(--card-inner);
+  color: var(--muted);
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.tracker__tabs button.on {
+  color: var(--text);
+  border-color: color-mix(in srgb, var(--accent) 40%, var(--border-subtle));
+  background: color-mix(in srgb, var(--accent) 10%, var(--card-inner));
+}
+
+.tracker__toolbar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.tracker__roles {
+  display: flex;
+  gap: 6px;
+  flex: 1;
+  min-width: 0;
+}
+
+.tracker__roles button {
+  flex: 1 1 0;
+  min-width: 0;
+  min-height: 28px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  border: 1px solid var(--border-subtle);
+  background: transparent;
+  color: var(--muted);
+  font: inherit;
+  font-size: 11px;
+  font-weight: 700;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.tracker__roles button.on {
+  color: var(--accent);
+  border-color: color-mix(in srgb, var(--accent) 40%, transparent);
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
+}
+
+.tracker__refresh {
+  flex: none;
+  min-height: 28px;
+  padding: 4px 12px;
+  border-radius: 999px;
+  border: 1px solid var(--border-subtle);
+  background: transparent;
+  color: var(--muted);
+  font: inherit;
+  font-size: 11px;
+  cursor: pointer;
+}
+
+.tracker__summary {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+  margin-bottom: 8px;
+}
+
+.tracker-stat {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: var(--card-inner);
+  border: 1px solid var(--border-subtle);
+  font-size: 12px;
+  color: var(--muted);
+  line-height: 1.2;
+}
+
+.tracker-stat strong {
+  color: var(--text);
+  font-weight: 650;
+}
+
+.tracker-stat--active {
+  border-color: color-mix(in srgb, var(--accent) 28%, transparent);
+  background: color-mix(in srgb, var(--accent) 10%, transparent);
+  color: var(--accent);
+}
+
+.tracker-stat--active strong {
+  color: var(--accent);
+}
+
+.tracker-stat--err {
+  border-color: rgba(255, 59, 48, 0.28);
+  background: rgba(255, 59, 48, 0.08);
+  color: #ff6b64;
+}
+
+.tracker-stat--err strong {
+  color: #ff6b64;
+}
+
+.tracker__hint,
+.tracker__muted {
+  font-size: 12px;
+  color: var(--muted);
+  line-height: 1.4;
+  margin: 0 0 10px;
+}
+
+.tracker__new,
+.tracker__sprint textarea {
+  margin-bottom: 12px;
+}
+
+.tracker__new textarea,
+.tracker__sprint textarea {
+  width: 100%;
+  min-height: 68px;
+  resize: vertical;
+  padding: 10px 12px;
+  border-radius: 10px;
+  border: 1px solid var(--border-subtle);
+  background: var(--card-inner);
+  color: var(--text);
+  font: inherit;
+  font-size: 14px;
+}
+
+.tracker__new-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  margin-top: 8px;
+}
+
+.tracker__new-row select {
+  flex: 1 1 140px;
+  min-height: 36px;
+  padding: 6px 10px;
+  border-radius: 10px;
+  border: 1px solid var(--border-subtle);
+  background: var(--card-inner);
+  color: var(--text);
+  font: inherit;
+}
+
+.tracker__num {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.tracker__num input {
+  width: 60px;
+  min-height: 32px;
+  padding: 4px 8px;
+  border-radius: 8px;
+  border: 1px solid var(--border-subtle);
+  background: var(--card-inner);
+  color: var(--text);
+  font: inherit;
+}
+
+.tracker__primary {
+  min-height: 36px;
+  padding: 8px 16px;
+  border-radius: 10px;
+  border: 0;
+  background: var(--accent);
+  color: #fff;
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.tracker__primary:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+
+.tracker__primary--block {
+  width: 100%;
+  margin-top: 8px;
+}
+
+/* Колонки: горизонтальная лента с прилипанием, как на доске MyVibeLab —
+   на телефоне иначе не показать шесть статусов сразу. */
+.tracker__cols {
+  display: flex;
+  gap: 10px;
+  overflow-x: auto;
+  scroll-snap-type: x mandatory;
+  padding-bottom: 8px;
+  margin: 0 -4px;
+  padding-left: 4px;
+  padding-right: 4px;
+}
+
+.tracker-col {
+  flex: 1 0 78%;
+  max-width: 320px;
+  min-width: 0;
+  box-sizing: border-box;
+  scroll-snap-align: start;
+  background: var(--card-inner);
+  border: 1px solid var(--border-subtle);
+  border-top: 3px solid var(--border-subtle);
+  border-radius: 12px;
+  padding: 10px;
+}
+
+.tracker-col[data-col="todo"] {
+  border-top-color: var(--text-label);
+}
+.tracker-col[data-col="doing"] {
+  border-top-color: var(--accent);
+}
+.tracker-col[data-col="review"] {
+  border-top-color: #0a84ff;
+}
+.tracker-col[data-col="test"] {
+  border-top-color: #af52de;
+}
+.tracker-col[data-col="done"] {
+  border-top-color: #34c759;
+}
+.tracker-col[data-col="canceled"] {
+  border-top-color: #ff3b30;
+}
+
+.tracker-col__head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.tracker-col__title {
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tracker-col__count {
+  flex: none;
+  min-width: 22px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  text-align: center;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 14%, transparent);
+}
+
+.tracker-col__list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-height: 48px;
+}
+
+.tracker-card {
+  padding: 10px 10px 10px 12px;
+  border-radius: 10px;
+  border: 1px solid var(--border-subtle);
+  border-left: 3px solid var(--border-subtle);
+  background: var(--card);
+  text-align: left;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.tracker-card:active {
+  border-color: color-mix(in srgb, var(--accent) 45%, transparent);
+}
+
+.tracker-card.is-running {
+  border-left-color: var(--accent);
+  border-color: color-mix(in srgb, var(--accent) 35%, transparent);
+  animation: trackerPulse 1.8s ease-in-out infinite;
+}
+
+@keyframes trackerPulse {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 color-mix(in srgb, var(--accent) 8%, transparent);
+  }
+  50% {
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 12%, transparent);
+  }
+}
+
+.tracker-card.is-review {
+  border-left-color: #0a84ff;
+}
+.tracker-card.is-qa {
+  border-left-color: #34c759;
+}
+.tracker-card.is-holding {
+  border-left-style: dashed;
+  opacity: 0.92;
+}
+.tracker-card.is-err {
+  border-left-color: #ff3b30;
+  border-color: rgba(255, 59, 48, 0.42);
+}
+
+.tracker-card__head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 8px;
+}
+
+.tracker-card__id {
+  flex: none;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--accent);
+}
+
+.tracker-card__status {
+  flex: 1 1 auto;
+  max-width: 62%;
+  text-align: right;
+  font-size: 10.5px;
+  font-weight: 650;
+  line-height: 1.2;
+  color: var(--muted);
+  overflow-wrap: anywhere;
+}
+
+.tracker-card__text {
+  margin-top: 6px;
+  font-size: 13px;
+  line-height: 1.45;
+  color: var(--text);
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  word-break: break-word;
+}
+
+.tracker-card__badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: 6px;
+}
+
+.tracker-badge {
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 1.35;
+}
+
+.tracker-badge--sprint {
+  color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 14%, transparent);
+  border: 1px solid color-mix(in srgb, var(--accent) 24%, transparent);
+}
+
+.tracker-badge--deploy {
+  color: #4ea1ff;
+  background: rgba(10, 132, 255, 0.12);
+  border: 1px solid rgba(10, 132, 255, 0.24);
+}
+
+.tracker-badge--qa {
+  color: #4cd06a;
+  background: rgba(52, 199, 89, 0.12);
+  border: 1px solid rgba(52, 199, 89, 0.26);
+}
+
+.tracker-badge--photo {
+  color: var(--muted);
+  background: var(--card-inner);
+  border: 1px solid var(--border-subtle);
+}
+
+.tracker-card__live {
+  margin-top: 7px;
+  padding: 6px 8px;
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
+  color: var(--accent);
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 11px;
+  line-height: 1.35;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.tracker-card__meta {
+  display: flex;
+  flex-wrap: wrap;
+  margin-top: 6px;
+  font-size: 11px;
+  line-height: 1.35;
+  color: var(--muted);
+}
+
+.tracker-card__meta span:not(:last-child)::after {
+  content: " · ";
+  opacity: 0.65;
+}
+
+.tracker-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 5px;
+  padding: 18px 10px;
+  border: 1px dashed var(--border-subtle);
+  border-radius: 10px;
+  background: var(--card);
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.tracker-empty__icon {
+  font-size: 20px;
+  opacity: 0.45;
+}
+
+.tracker__subtitle {
+  margin: 14px 0 8px;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text);
+}
+
+.tracker-idea,
+.tracker-feat {
+  display: flex;
+  gap: 10px;
+  width: 100%;
+  padding: 10px 12px;
+  margin-bottom: 8px;
+  border-radius: 10px;
+  border: 1px solid var(--border-subtle);
+  background: var(--card);
+  color: var(--text);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.tracker-idea {
+  flex-direction: column;
+  gap: 4px;
+}
+
+.tracker-idea.on {
+  border-color: color-mix(in srgb, var(--accent) 45%, transparent);
+  background: color-mix(in srgb, var(--accent) 8%, var(--card));
+}
+
+.tracker-idea b,
+.tracker-feat b {
+  font-size: 14px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.tracker-idea small,
+.tracker-feat small {
+  display: block;
+  margin-top: 4px;
+  font-size: 12px;
+  color: var(--muted);
+  line-height: 1.4;
+}
+
+.tracker-feat input {
+  margin-top: 3px;
+  flex: none;
+}
+
+.tracker-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.6);
+  padding: 12px;
+}
+
+.tracker-modal__box {
+  width: 100%;
+  max-width: 520px;
+  max-height: 86vh;
+  overflow-y: auto;
+  padding: 16px;
+  border-radius: 16px 16px 12px 12px;
+  border: 1px solid var(--border-subtle);
+  background: var(--bg-elevated);
+}
+
+.tracker-modal__head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.tracker-modal__status {
+  flex: 1;
+  font-size: 13px;
+  font-weight: 650;
+  color: var(--muted);
+}
+
+.tracker-modal__close {
+  flex: none;
+  width: 30px;
+  height: 30px;
+  border-radius: 999px;
+  border: 1px solid var(--border-subtle);
+  background: transparent;
+  color: var(--muted);
+  font: inherit;
+  cursor: pointer;
+}
+
+.tracker-modal__prompt {
+  margin: 0 0 8px;
+  font-size: 14px;
+  line-height: 1.5;
+  color: var(--text);
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.tracker-modal__log {
+  margin: 10px 0 0;
+  padding: 10px;
+  border-radius: 8px;
+  background: var(--card-inner);
+  color: var(--muted);
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 11.5px;
+  line-height: 1.45;
+  max-height: 36vh;
+  overflow: auto;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.tracker-modal__log--err {
+  color: #ff8079;
+}
+
+.tracker-modal__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 14px;
+}
+
+.tracker-modal__actions button {
+  flex: 1 1 30%;
+  min-height: 38px;
+  padding: 8px 12px;
+  border-radius: 10px;
+  border: 1px solid var(--border-subtle);
+  background: var(--card-inner);
+  color: var(--text);
+  font: inherit;
+  cursor: pointer;
+}
+
+.tracker-modal__actions button:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+
+.tracker-modal__danger {
+  color: #ff6b64;
+  border-color: rgba(255, 59, 48, 0.3);
+}

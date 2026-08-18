@@ -146,12 +146,6 @@ export function fetchAdminOverview(initData: string) {
   return post<{ overview: AdminOverview }>("/api/miniapp/admin/overview", initData);
 }
 
-// Ссылка на доску трекера в MyVibeLab. Подписывает бэкенд, здесь только
-// открываем — секрет подписи в браузер не попадает.
-export function fetchAdminTrackerLink(initData: string) {
-  return post<{ link: string }>("/api/miniapp/admin/tracker-link", initData);
-}
-
 export function fetchAdminSupportInbox(initData: string) {
   return post<{ conversations: AdminSupportConv[] }>("/api/miniapp/admin/support/inbox", initData);
 }

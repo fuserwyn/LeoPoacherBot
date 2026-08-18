@@ -8,7 +8,6 @@ import {
   fetchAdminReports,
   fetchAdminSupportInbox,
   fetchAdminSupportThread,
-  fetchAdminTrackerLink,
   fetchAdminUserCard,
   fetchAdminUsers,
   publishAdminPost,
@@ -28,9 +27,10 @@ import {
   type AdminUserCard,
   type AdminUserRow,
 } from "../lib/adminApi";
+import { TrackerScreen } from "./TrackerScreen";
 import "./AdminScreen.css";
 
-type Page = "home" | "support" | "thread" | "reports" | "hidden" | "users" | "card" | "announce" | "price";
+type Page = "home" | "support" | "thread" | "reports" | "hidden" | "users" | "card" | "announce" | "price" | "tracker";
 
 type Props = {
   initData: string;
@@ -123,19 +123,6 @@ export function AdminScreen({ initData, inTelegram, showAlert, onClose }: Props)
   useEffect(() => {
     void loadOverview();
   }, [loadOverview]);
-
-  // Трекер живёт в MyVibeLab: берём подписанную ссылку и открываем её. Ссылка
-  // одноразовая по смыслу (5 минут), поэтому запрашиваем на каждое нажатие.
-  const openTracker = async () => {
-    try {
-      const j = await fetchAdminTrackerLink(initData);
-      const wa = window.Telegram?.WebApp;
-      if (wa?.openLink) wa.openLink(j.link);
-      else window.open(j.link, "_blank", "noopener");
-    } catch (e) {
-      showAlert(e instanceof Error ? e.message : "Не удалось открыть трекер");
-    }
-  };
 
   const openSupport = async () => {
     setPage("support");
@@ -367,7 +354,9 @@ export function AdminScreen({ initData, inTelegram, showAlert, onClose }: Props)
                   ? userLabel(card?.display_name, card?.username, card?.user_id)
                   : page === "price"
                     ? "Цена доступа"
-                    : "Объявление";
+                    : page === "tracker"
+                      ? "Трекер задач"
+                      : "Объявление";
 
   return (
     <div className="admin">
@@ -432,11 +421,11 @@ export function AdminScreen({ initData, inTelegram, showAlert, onClose }: Props)
                     <small>поиск, больничный, кик</small>
                   </span>
                 </button>
-                <button type="button" className="admin__tile" onClick={() => void openTracker()}>
+                <button type="button" className="admin__tile" onClick={() => setPage("tracker")}>
                   <span className="admin__tile-ico">🗂</span>
                   <span className="admin__tile-text">
                     <b>Трекер задач</b>
-                    <small>доска и спринты в MyVibeLab</small>
+                    <small>доска, спринты и задачи агенту</small>
                   </span>
                 </button>
                 <button type="button" className="admin__tile" onClick={() => setPage("announce")}>
@@ -463,6 +452,12 @@ export function AdminScreen({ initData, inTelegram, showAlert, onClose }: Props)
               </p>
             </>
           )}
+        </div>
+      )}
+
+      {page === "tracker" && (
+        <div className="admin__body">
+          <TrackerScreen initData={initData} showAlert={showAlert} />
         </div>
       )}
 
