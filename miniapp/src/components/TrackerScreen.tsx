@@ -35,6 +35,7 @@ const DEV_COLS = [
   { key: "doing", title: "В работе" },
   { key: "review", title: "Review" },
   { key: "test", title: "Тест" },
+  { key: "deploy", title: "Сборка" },
   { key: "done", title: "Выполнено" },
   { key: "canceled", title: "Отменено" },
 ];
@@ -86,6 +87,7 @@ function cardClasses(t: TrackerTask, isQa: boolean): string {
   } else if (t.status === "running" || t.status === "reviewing") cls.push("is-running");
   else if (t.dev_column === "review") cls.push("is-review");
   else if (t.dev_column === "test") cls.push("is-qa");
+  else if (t.dev_column === "deploy") cls.push("is-deploy");
   else if (t.status === "holding") cls.push("is-holding");
   if (t.error) cls.push("is-err");
   if (t.handed_to_qa && !isQa) cls.push("is-qa");

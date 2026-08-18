@@ -251,6 +251,10 @@
 .tracker-col[data-col="test"] {
   border-top-color: #af52de;
 }
+.tracker-col[data-col="deploy"] {
+  border-top-color: #ffb020;
+}
+
 .tracker-col[data-col="done"] {
   border-top-color: #34c759;
 }
@@ -332,6 +336,12 @@
 }
 .tracker-card.is-qa {
   border-left-color: #34c759;
+}
+
+/* Сборка: агент своё отдал, ждём сервер. */
+.tracker-card.is-deploy {
+  border-left-color: #ffb020;
+  border-color: rgba(255, 176, 32, 0.35);
 }
 .tracker-card.is-holding {
   border-left-style: dashed;

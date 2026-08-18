@@ -321,3 +321,22 @@ func (b *Bot) NotifyTrackerAuthor(userID int64, text string) error {
 	_, err := b.api.Send(msg)
 	return err
 }
+
+// NotifyTrackerResult — сообщить о судьбе задачи: автору, а если его нет
+// (задачу ставили из чата) — админам стаи.
+func (b *Bot) NotifyTrackerResult(authorID int64, text string) error {
+	if authorID != 0 {
+		return b.NotifyTrackerAuthor(authorID, text)
+	}
+	targets := b.config.AdminTelegramUserIDs()
+	if len(targets) == 0 {
+		return fmt.Errorf("некому писать: админы не заданы")
+	}
+	var firstErr error
+	for _, id := range targets {
+		if err := b.NotifyTrackerAuthor(id, text); err != nil && firstErr == nil {
+			firstErr = err
+		}
+	}
+	return firstErr
+}

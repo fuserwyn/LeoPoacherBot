@@ -723,7 +723,7 @@ func (s *Server) handleBoardNotify(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	repo, userID, ok := s.bot.VerifyTrackerToken(body.Token, "notify")
-	if !ok || userID == 0 || userID != body.AuthorID || repo != body.Repo {
+	if !ok || userID != body.AuthorID || repo != body.Repo {
 		s.jsonErr(w, http.StatusUnauthorized, "bad_signature")
 		return
 	}
@@ -732,7 +732,9 @@ func (s *Server) handleBoardNotify(w http.ResponseWriter, r *http.Request) {
 		s.jsonErr(w, http.StatusBadRequest, "empty_text")
 		return
 	}
-	if err := s.bot.NotifyTrackerAuthor(userID, text); err != nil {
+	// Автора может не быть: задачу ставили из чата, а не из мини-аппа. Тогда
+	// результат уходит админам стаи — иначе о выполненной задаче никто не узнает.
+	if err := s.bot.NotifyTrackerResult(userID, text); err != nil {
 		s.jsonErr(w, http.StatusBadGateway, "notify_failed")
 		return
 	}
