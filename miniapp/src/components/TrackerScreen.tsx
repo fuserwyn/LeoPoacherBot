@@ -9,6 +9,8 @@ import {
   trackerDelete,
   trackerList,
   trackerQa,
+  trackerReschedule,
+  trackerRunNow,
   trackerTask,
   type SprintFeature,
   type SprintIdea,
@@ -101,6 +103,7 @@ export function TrackerScreen({ initData, showAlert }: Props) {
   const [when, setWhen] = useState(WHEN_PRESETS[0].value);
   const [whenAt, setWhenAt] = useState("");
   const [detail, setDetail] = useState<TrackerTask | null>(null);
+  const [moveAt, setMoveAt] = useState("");
 
   const [hint, setHint] = useState("");
   const [sprintCount, setSprintCount] = useState(1);
@@ -181,6 +184,7 @@ export function TrackerScreen({ initData, showAlert }: Props) {
 
   const openTask = async (task: TrackerTask) => {
     setDetail(task);
+    setMoveAt("");
     try {
       const j = await trackerTask(initData, task.id);
       if (j.task) setDetail(j.task);
@@ -531,7 +535,40 @@ export function TrackerScreen({ initData, showAlert }: Props) {
             ) : null}
             {detail.result ? <pre className="tracker-modal__log">{detail.result}</pre> : null}
             {detail.error ? <pre className="tracker-modal__log tracker-modal__log--err">{detail.error}</pre> : null}
+            {/* Перенос запуска. Выполняющуюся задачу трекер двигать не даёт —
+                сначала останови её, потом ставь новое время. */}
+            {detail.status !== "running" && detail.status !== "reviewing" ? (
+              <div className="tracker-modal__move">
+                <label>
+                  Запуск
+                  <input type="datetime-local" value={moveAt} onChange={(e) => setMoveAt(e.target.value)} />
+                </label>
+                <button
+                  type="button"
+                  disabled={busy || !moveAt}
+                  onClick={() =>
+                    void act(
+                      () => trackerReschedule(initData, detail.id, moveAt.replace("T", " ")),
+                      "Время запуска изменено.",
+                    )
+                  }
+                >
+                  Перенести
+                </button>
+              </div>
+            ) : null}
+
             <div className="tracker-modal__actions">
+              {detail.status === "canceled" ? (
+                <button
+                  type="button"
+                  className="tracker-modal__accent"
+                  disabled={busy}
+                  onClick={() => void act(() => trackerRunNow(initData, detail.id), "Задача снова в работе.")}
+                >
+                  Запустить снова
+                </button>
+              ) : null}
               {isQa && detail.handed_to_qa ? (
                 <>
                   <button
@@ -561,9 +598,16 @@ export function TrackerScreen({ initData, showAlert }: Props) {
                 <button
                   type="button"
                   disabled={busy}
-                  onClick={() => void act(() => trackerCancel(initData, detail.id), "Задача отменена.")}
+                  onClick={() =>
+                    void act(
+                      () => trackerCancel(initData, detail.id),
+                      detail.status === "running" || detail.status === "reviewing"
+                        ? "Задача остановлена."
+                        : "Задача отменена.",
+                    )
+                  }
                 >
-                  Отменить
+                  {detail.status === "running" || detail.status === "reviewing" ? "Остановить" : "Отменить"}
                 </button>
               ) : null}
               {detail.can_delete ? (

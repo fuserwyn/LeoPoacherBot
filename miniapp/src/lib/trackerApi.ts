@@ -143,6 +143,16 @@ export function trackerQa(initData: string, taskId: number, action: "start" | "p
   return call<{ ok: boolean }>(initData, "qa", { payload: { id: taskId, action } });
 }
 
+/** Перенести запуск. Отменённую/завершённую этим же вернуть в «Ожидает» — время должно быть в будущем. */
+export function trackerReschedule(initData: string, taskId: number, when: string) {
+  return call<{ ok: boolean }>(initData, "reschedule", { payload: { id: taskId, when } });
+}
+
+/** Возобновить отменённую задачу немедленно. */
+export function trackerRunNow(initData: string, taskId: number) {
+  return call<{ ok: boolean }>(initData, "reschedule", { payload: { id: taskId, mode: "now" } });
+}
+
 export function trackerAutoQa(initData: string, taskId: number) {
   return call<{ ok: boolean }>(initData, "auto_qa", { payload: { id: taskId } });
 }
