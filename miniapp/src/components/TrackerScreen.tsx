@@ -16,8 +16,10 @@ import {
   trackerCreate,
   trackerDelete,
   trackerList,
+  trackerPromote,
   trackerQa,
   trackerReschedule,
+  trackerRevert,
   trackerRunNow,
   trackerTask,
   type LeoAutonomy,
@@ -1021,6 +1023,46 @@ export function TrackerScreen({ initData, showAlert }: Props) {
             ) : null}
             {detail.result ? <pre className="tracker-modal__log">{detail.result}</pre> : null}
             {detail.error ? <pre className="tracker-modal__log tracker-modal__log--err">{detail.error}</pre> : null}
+            {/* Что делать с результатом выполненной задачи: забрать со стенда
+                в основную ветку или откатить обратным коммитом. Обе операции
+                идут по запомненному коммиту задачи, поэтому без него кнопок нет. */}
+            {detail.status === "done" && detail.commit ? (
+              <div className="tracker-modal__result">
+                <span className="tracker-modal__commit">
+                  коммит {detail.commit}
+                  {detail.branch ? ` · ветка ${detail.branch}` : ""}
+                </span>
+                <div className="tracker-modal__result-row">
+                  {detail.branch ? (
+                    <button
+                      type="button"
+                      className="tracker__primary"
+                      disabled={busy}
+                      onClick={() =>
+                        void actOnDetail(
+                          () => trackerPromote(initData, detail.id),
+                          "Забрал на основной стенд.",
+                        )
+                      }
+                    >
+                      Забрать на основной стенд
+                    </button>
+                  ) : null}
+                  <button
+                    type="button"
+                    className="tracker__attach"
+                    disabled={busy}
+                    onClick={() => {
+                      if (!window.confirm("Откатить результат этой задачи обратным коммитом?")) return;
+                      void actOnDetail(() => trackerRevert(initData, detail.id), "Задача откачена.");
+                    }}
+                  >
+                    Откатить
+                  </button>
+                </div>
+              </div>
+            ) : null}
+
             {/* Перенос запуска. Он же возвращает завершённую или отменённую
                 задачу в «Ожидает»: время в будущем — и она снова в очереди.
                 Выполняющуюся двигать нельзя, сначала останови. */}

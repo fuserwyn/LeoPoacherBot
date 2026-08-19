@@ -45,6 +45,10 @@ export type TrackerTask = {
   has_attachments: boolean;
   /** Приходит только в детали задачи: что именно приложено. */
   attachments?: TrackerAttachment[];
+  /** Ветка задачи: пусто — основной стенд, иначе тестовый. */
+  branch?: string;
+  /** Короткий sha коммита, которым закончилась задача. */
+  commit?: string;
   author_id: number | null;
   steps?: string[];
   steps_running?: boolean;
@@ -85,6 +89,8 @@ export type TrackerOp =
   | "auto_qa"
   | "prompt"
   | "reschedule"
+  | "promote"
+  | "revert"
   | "sprint_ideas"
   | "sprint_generate"
   | "sprint_apply";
@@ -142,6 +148,16 @@ export function trackerCreate(
   },
 ) {
   return call<{ id: number; when: string }>(initData, "create", { payload });
+}
+
+/** Забрать результат выполненной задачи со стенда в основную ветку. */
+export function trackerPromote(initData: string, taskId: number) {
+  return call<{ commit: string }>(initData, "promote", { payload: { id: taskId } });
+}
+
+/** Откатить результат выполненной задачи обратным коммитом. */
+export function trackerRevert(initData: string, taskId: number) {
+  return call<{ commit: string }>(initData, "revert", { payload: { id: taskId } });
 }
 
 export function trackerTask(initData: string, taskId: number) {

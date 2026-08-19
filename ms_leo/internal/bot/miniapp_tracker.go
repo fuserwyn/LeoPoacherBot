@@ -50,11 +50,14 @@ type trackerOp struct {
 }
 
 var trackerOps = map[string]trackerOp{
-	"list":            {http.MethodGet, "/api/scheduled", false},
-	"create":          {http.MethodPost, "/api/scheduled", false},
-	"task":            {http.MethodGet, "/api/scheduled/{id}", false},
-	"status":          {http.MethodGet, "/api/scheduled/{id}/status", false},
-	"cancel":          {http.MethodPost, "/api/scheduled/cancel", false},
+	"list":   {http.MethodGet, "/api/scheduled", false},
+	"create": {http.MethodPost, "/api/scheduled", false},
+	"task":   {http.MethodGet, "/api/scheduled/{id}", false},
+	"status": {http.MethodGet, "/api/scheduled/{id}/status", false},
+	"cancel": {http.MethodPost, "/api/scheduled/cancel", false},
+	// Результат выполненной задачи: забрать со стенда в прод или откатить.
+	"promote":         {http.MethodPost, "/api/scheduled/promote", true},
+	"revert":          {http.MethodPost, "/api/scheduled/revert", true},
 	"delete":          {http.MethodDelete, "/api/scheduled/{id}", false},
 	"qa":              {http.MethodPost, "/api/scheduled/qa", false},
 	"auto_qa":         {http.MethodPost, "/api/scheduled/auto_qa", true},

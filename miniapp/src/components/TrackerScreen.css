@@ -979,3 +979,27 @@
   object-fit: contain;
   border-radius: 12px;
 }
+
+/* Что делать с результатом выполненной задачи. */
+.tracker-modal__result {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 12px 0 4px;
+  padding: 10px;
+  border: 1px solid var(--border-subtle);
+  border-radius: 12px;
+  background: var(--card-inner);
+}
+
+.tracker-modal__commit {
+  font-size: 0.76rem;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.tracker-modal__result-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
