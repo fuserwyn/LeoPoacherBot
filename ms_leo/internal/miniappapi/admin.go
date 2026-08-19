@@ -738,6 +738,9 @@ func (s *Server) handleBoardNotify(w http.ResponseWriter, r *http.Request) {
 		s.jsonErr(w, http.StatusBadGateway, "notify_failed")
 		return
 	}
+	// Карточка уже могла стать «выполнено» без пуша — сборку запускаем сами,
+	// вебхук не ждём: пуш и билд длятся минуты.
+	s.bot.ShipTrackerTaskInBackground(body.TaskID, userID)
 	s.writeAdminOK(w, map[string]any{})
 }
 

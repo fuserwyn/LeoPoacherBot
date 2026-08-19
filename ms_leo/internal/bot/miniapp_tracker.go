@@ -66,6 +66,11 @@ var trackerOps = map[string]trackerOp{
 	"sprint_ideas":    {http.MethodPost, "/api/scheduled/sprints/ideas", true},
 	"sprint_generate": {http.MethodPost, "/api/scheduled/sprints/generate", true},
 	"sprint_apply":    {http.MethodPost, "/api/scheduled/sprints/apply", true},
+	// Пуш в репозиторий и проверка сборки на сервере: задача может уже быть
+	// «выполнена», а контейнер — ещё со старым кодом, если авто-пуш не сработал.
+	"push":           {http.MethodPost, "/api/push", true},
+	"deploy_refresh": {http.MethodPost, "/api/deploy/refresh", true},
+	"deploy_watch":   {http.MethodGet, "/api/deploy/watch", false},
 }
 
 // MiniappTrackerAttach — приложить картинку к задаче.
@@ -276,15 +281,20 @@ func (b *Bot) trackerSession(userID int64, name string) (string, error) {
 	if secret == "" || repo == "" || strings.TrimSpace(b.config.BoardURL) == "" {
 		return "", ErrTrackerNotConfigured
 	}
-	payload, err := json.Marshal(map[string]any{
+	// Пустую ветку в подпись не кладём: MyVibeLab тогда заводит отдельную
+	// ветку задачи, помечает её «выполнено» и не пушит в основную — сборка
+	// на сервере не стартует. Нет поля — работает ветка репозитория по умолчанию.
+	sess := map[string]any{
 		"k": "sess",
 		"r": repo,
 		"u": userID,
 		"n": name,
-		// Ветка внутри подписи: MyVibeLab выполнит задачу именно в ней.
-		"b": strings.TrimSpace(b.config.BoardBranch),
 		"e": time.Now().Add(trackerSessionTTL).Unix(),
-	})
+	}
+	if branch := strings.TrimSpace(b.config.BoardBranch); branch != "" {
+		sess["b"] = branch
+	}
+	payload, err := json.Marshal(sess)
 	if err != nil {
 		return "", err
 	}
@@ -315,7 +325,11 @@ func (b *Bot) MiniappTrackerCall(
 	if _, err := b.requireMiniappAdmin(viewerUserID, initD); err != nil {
 		return nil, err
 	}
-	return b.trackerRequest(op, taskID, payload, viewerUserID, trackerViewerName(initD))
+	name := trackerViewerName(initD)
+	if op == "ship" {
+		return b.shipCompletedTrackerTask(taskID, payload, viewerUserID, name)
+	}
+	return b.trackerRequest(op, taskID, payload, viewerUserID, name)
 }
 
 // trackerRequest — сам поход к доске MyVibeLab от имени userID.
@@ -349,6 +363,16 @@ func (b *Bot) trackerRequest(
 			if _, set := payload["model"]; !set {
 				payload["model"] = model
 			}
+		}
+		// Без авто-пуша агент закрывает задачу локальным коммитом, статус
+		// «выполнено», а на сервер код не уезжает — фича не собирается.
+		if _, set := payload["auto_push"]; !set {
+			payload["auto_push"] = true
+		}
+	}
+	if op == "sprint_apply" && payload != nil {
+		if _, set := payload["auto_push"]; !set {
+			payload["auto_push"] = true
 		}
 	}
 
@@ -398,6 +422,162 @@ func (b *Bot) trackerRequest(
 		raw = []byte("{}")
 	}
 	return json.RawMessage(raw), nil
+}
+
+// trackerTaskSnapshot — поля задачи, нужные чтобы понять, надо ли собирать на сервере.
+type trackerTaskSnapshot struct {
+	Status string `json:"status"`
+	Branch string `json:"branch"`
+	Commit string `json:"commit"`
+	Error  string `json:"error"`
+}
+
+func parseTrackerTaskSnapshot(raw json.RawMessage) (trackerTaskSnapshot, error) {
+	var wrap struct {
+		Task trackerTaskSnapshot `json:"task"`
+	}
+	if err := json.Unmarshal(raw, &wrap); err != nil {
+		return trackerTaskSnapshot{}, err
+	}
+	if wrap.Task.Status != "" || wrap.Task.Commit != "" {
+		return wrap.Task, nil
+	}
+	var flat trackerTaskSnapshot
+	if err := json.Unmarshal(raw, &flat); err != nil {
+		return trackerTaskSnapshot{}, err
+	}
+	return flat, nil
+}
+
+func trackerPayloadTaskID(taskID int64, payload map[string]any) int64 {
+	if taskID > 0 {
+		return taskID
+	}
+	if payload == nil {
+		return 0
+	}
+	switch id := payload["id"].(type) {
+	case float64:
+		return int64(id)
+	case int64:
+		return id
+	case int:
+		return int64(id)
+	case json.Number:
+		n, _ := id.Int64()
+		return n
+	}
+	return 0
+}
+
+// shipCompletedTrackerTask — после «выполнено» довести код до сервера:
+// изолированную ветку забрать в основную (только на проде), запушить и
+// проверить сборку. Иначе карточка зелёная, а контейнер со старым кодом.
+func (b *Bot) shipCompletedTrackerTask(taskID int64, payload map[string]any, userID int64, name string) (json.RawMessage, error) {
+	taskID = trackerPayloadTaskID(taskID, payload)
+	if taskID <= 0 {
+		return nil, ErrAdminActionInvalid
+	}
+	if name == "" {
+		name = "Стая"
+	}
+	raw, err := b.trackerRequest("task", taskID, nil, userID, name)
+	if err != nil {
+		return nil, err
+	}
+	task, err := parseTrackerTaskSnapshot(raw)
+	if err != nil {
+		return nil, err
+	}
+	if strings.TrimSpace(task.Status) != "done" || strings.TrimSpace(task.Error) != "" || strings.TrimSpace(task.Commit) == "" {
+		out, _ := json.Marshal(map[string]any{"ok": true, "skipped": true})
+		return out, nil
+	}
+
+	var (
+		promoted bool
+		pushed   bool
+		deployed bool
+		problems []string
+	)
+	// На тестовом стенде (BOARD_BRANCH задан) в основную не забираем — иначе
+	// эксперимент уедет в прод. На проде отдельная ветка задачи как раз и
+	// мешает сборке: сервер смотрит основную.
+	if strings.TrimSpace(task.Branch) != "" && b.config != nil && strings.TrimSpace(b.config.BoardBranch) == "" {
+		if _, err := b.trackerRequest("promote", 0, map[string]any{"id": taskID}, userID, name); err != nil {
+			problems = append(problems, "перенос: "+err.Error())
+		} else {
+			promoted = true
+		}
+	}
+	if _, err := b.trackerRequest("push", 0, map[string]any{}, userID, name); err != nil {
+		problems = append(problems, "пуш: "+err.Error())
+	} else {
+		pushed = true
+	}
+	if _, err := b.trackerRequest("deploy_refresh", 0, map[string]any{}, userID, name); err != nil {
+		problems = append(problems, "сборка: "+err.Error())
+	} else {
+		deployed = true
+	}
+	if len(problems) > 0 && !pushed && !deployed && !promoted {
+		return nil, fmt.Errorf("%s", strings.Join(problems, "; "))
+	}
+	out, err := json.Marshal(map[string]any{
+		"ok":       true,
+		"promoted": promoted,
+		"pushed":   pushed,
+		"deployed": deployed,
+		"error":    strings.Join(problems, "; "),
+	})
+	return out, err
+}
+
+// ShipTrackerTaskInBackground — после уведомления доски довести сдачу до
+// сервера, не держа вебхук. Пуш и сборка занимают минуты, автору ответ уже ушёл.
+func (b *Bot) ShipTrackerTaskInBackground(taskID, authorID int64) {
+	if b == nil || taskID <= 0 {
+		return
+	}
+	go func() {
+		defer func() {
+			if rec := recover(); rec != nil && b.logger != nil {
+				b.logger.Errorf("трекер: паника при сборке #%d: %v", taskID, rec)
+			}
+		}()
+		userID := authorID
+		if userID <= 0 {
+			userID = b.leoBoardUserID()
+		}
+		var err error
+		for attempt := 0; attempt < 4; attempt++ {
+			if attempt > 0 {
+				time.Sleep(3 * time.Second)
+			}
+			var raw json.RawMessage
+			raw, err = b.shipCompletedTrackerTask(taskID, nil, userID, "Стая")
+			if err != nil {
+				continue
+			}
+			var res struct {
+				Skipped bool `json:"skipped"`
+			}
+			_ = json.Unmarshal(raw, &res)
+			if !res.Skipped {
+				return
+			}
+			err = nil
+		}
+		if err != nil {
+			if b.logger != nil {
+				b.logger.Warnf("трекер: не собрать задачу #%d на сервере: %v", taskID, err)
+			}
+			note := fmt.Sprintf("Задача #%d выполнена, но сборка на сервере не стартовала: %s", taskID, err.Error())
+			if nerr := b.NotifyTrackerResult(authorID, note); nerr != nil && b.logger != nil {
+				b.logger.Warnf("трекер: не сообщить о срыве сборки #%d: %v", taskID, nerr)
+			}
+		}
+	}()
 }
 
 // VerifyTrackerToken — проверить подпись, которой MyVibeLab метит свои запросы

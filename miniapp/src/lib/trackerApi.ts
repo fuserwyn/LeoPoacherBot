@@ -51,6 +51,8 @@ export type TrackerTask = {
   branch?: string;
   /** Короткий sha коммита, которым закончилась задача. */
   commit?: string;
+  /** Агент сам пушит результат. Выкл — карточка «выполнена», сервер без сборки. */
+  auto_push?: boolean;
   author_id: number | null;
   steps?: string[];
   steps_running?: boolean;
@@ -93,6 +95,7 @@ export type TrackerOp =
   | "reschedule"
   | "promote"
   | "revert"
+  | "ship"
   | "sprint_ideas"
   | "sprint_generate"
   | "sprint_apply";
@@ -145,11 +148,15 @@ export function trackerCreate(
     auto_review?: boolean;
     manual_qa?: boolean;
     fast_track?: boolean;
+    /** Агент пушит сам, иначе «выполнено» не попадёт на сервер. */
+    auto_push?: boolean;
     /** Задачу придумал Лео: на доске автором пишем его. */
     leo?: boolean;
   },
 ) {
-  return call<{ id: number; when: string }>(initData, "create", { payload });
+  return call<{ id: number; when: string }>(initData, "create", {
+    payload: { auto_push: true, ...payload },
+  });
 }
 
 /** Забрать результат выполненной задачи со стенда в основную ветку. */
@@ -160,6 +167,15 @@ export function trackerPromote(initData: string, taskId: number) {
 /** Откатить результат выполненной задачи обратным коммитом. */
 export function trackerRevert(initData: string, taskId: number) {
   return call<{ commit: string }>(initData, "revert", { payload: { id: taskId } });
+}
+
+/** Довести выполненную задачу до сервера: перенос в основную ветку, пуш, сборка. */
+export function trackerShip(initData: string, taskId: number) {
+  return call<{ promoted?: boolean; pushed?: boolean; deployed?: boolean; skipped?: boolean; error?: string }>(
+    initData,
+    "ship",
+    { task_id: taskId, payload: { id: taskId } },
+  );
 }
 
 export function trackerTask(initData: string, taskId: number) {
@@ -384,5 +400,7 @@ export function sprintApply(
   initData: string,
   payload: { features: SprintFeature[]; sprint_count: number; tasks_per_sprint: number },
 ) {
-  return call<{ created?: number; ok?: boolean }>(initData, "sprint_apply", { payload });
+  return call<{ created?: number; ok?: boolean }>(initData, "sprint_apply", {
+    payload: { auto_push: true, ...payload },
+  });
 }

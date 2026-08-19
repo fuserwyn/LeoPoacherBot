@@ -21,6 +21,7 @@ import {
   trackerReschedule,
   trackerRevert,
   trackerRunNow,
+  trackerShip,
   trackerTask,
   type LeoAutonomy,
   type SprintFeature,
@@ -137,6 +138,7 @@ function metaParts(t: TrackerTask, isQa: boolean): string[] {
   if (!isQa && t.auto_review) parts.push("авто-ревью");
   if (t.manual_qa) parts.push("ручное QA");
   if (t.fast_track) parts.push("без ревью и теста");
+  if (t.auto_push === false) parts.push("без пуша");
   if (!isQa && t.handed_to_qa) parts.push("→ QA");
   if (t.error) parts.push("ошибка");
   return parts;
@@ -652,7 +654,7 @@ export function TrackerScreen({ initData, showAlert }: Props) {
           <p className="tracker__hint">
             {isQa
               ? "После сдачи агент сам прогоняет AI-тест. Можно принять, вернуть в работу или запустить тест ещё раз."
-              : "Ожидает → в работе → Review → тест → выполнено."}
+              : "Ожидает → в работе → Review → тест → сборка на сервере → выполнено."}
           </p>
 
           {loading ? (
@@ -1099,6 +1101,20 @@ export function TrackerScreen({ initData, showAlert }: Props) {
                       Забрать на основной стенд
                     </button>
                   ) : null}
+                  <button
+                    type="button"
+                    className="tracker__primary"
+                    disabled={busy}
+                    onClick={() =>
+                      void actOnDetail(async () => {
+                        const res = await trackerShip(initData, detail.id);
+                        if (res.skipped) throw new Error("Задачу ещё рано собирать.");
+                        if (res.error) throw new Error(res.error);
+                      }, "Сборка на сервере запущена.")
+                    }
+                  >
+                    Собрать на сервере
+                  </button>
                   <button
                     type="button"
                     className="tracker__attach"
