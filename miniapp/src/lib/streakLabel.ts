@@ -119,7 +119,7 @@ export function streakSaveHint(
   attemptsAvail: number,
 ): string | null {
   const reason = streakSaveWindowError(daysSinceLastTraining, attemptsAvail);
-  if (!reason) return "Можно закрыть один пропущенный день.";
+  if (!reason) return "Можно восстановить сгоревший стрик, если случайно забыл внести тренировку.";
   switch (reason) {
     case "no_attempts":
       return "Попыток не осталось — расти по уровням, чтобы получить ещё.";

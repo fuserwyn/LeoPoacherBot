@@ -37,7 +37,7 @@ describe("streak save window contract", () => {
 
 describe("streakSaveHint", () => {
   it("all reasons have user-facing copy", () => {
-    expect(streakSaveHint(2, 1)).toMatch(/закрыть один пропущенный/i);
+    expect(streakSaveHint(2, 1)).toMatch(/восстановить сгоревший стрик/i);
     expect(streakSaveHint(1, 1)).toMatch(/ещё жив/i);
     expect(streakSaveHint(0, 1)).toMatch(/ещё жив/i);
     expect(streakSaveHint(3, 1)).toMatch(/больше одного дня/i);
@@ -62,6 +62,6 @@ describe("Анечка-сценарий: стрик жив → кнопка disa
     const daysSince = 2;
     expect(effectiveStreakDays(stored, daysSince)).toBe(0);
     expect(canUseStreakSave(daysSince, 1)).toBe(true);
-    expect(streakSaveHint(daysSince, 1)).toMatch(/закрыть один пропущенный/i);
+    expect(streakSaveHint(daysSince, 1)).toMatch(/восстановить сгоревший стрик/i);
   });
 });

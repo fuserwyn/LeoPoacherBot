@@ -7,7 +7,6 @@ import {
   canUseStreakSave,
   effectiveStreakDays,
   streakBurnLabel,
-  streakSaveHint,
 } from "../lib/streakLabel";
 import { getStoredTheme, setTheme, type ThemeMode } from "../lib/theme";
 import {
@@ -846,7 +845,6 @@ export function ProfileScreen({
   const displayedInactiveDays = hasTimerSync && timerInactiveDays != null ? timerInactiveDays : daysSinceLastTraining;
   const showKickBanner = !onSick && daysForKickUi >= 7;
   const streakSaveBlocked = !canUseStreakSave(daysSinceLastTraining, saveStreakAvail);
-  const saveStreakHintText = streakSaveHint(daysSinceLastTraining, saveStreakAvail);
 
   const healthActionsKeyboard = sickFormOpen && healthInputFocused;
 
@@ -1142,7 +1140,6 @@ export function ProfileScreen({
         </div>
       </section>
 
-      <h2 className="section-title">Спасение стрика</h2>
       <div className="profile__streak-save">
         <button
           type="button"
@@ -1159,9 +1156,9 @@ export function ProfileScreen({
           осталось {saveStreakAvail}/{saveStreakMax}
         </span>
       </div>
-      {saveStreakHintText ? (
-        <p className="profile__hint muted profile__streak-save-hint">{saveStreakHintText}</p>
-      ) : null}
+      <p className="profile__hint muted profile__streak-save-hint">
+        Можно восстановить сгоревший стрик, если случайно забыл внести тренировку.
+      </p>
 
       <h2 className="section-title">Здоровье</h2>
       {onSick === null ? (
