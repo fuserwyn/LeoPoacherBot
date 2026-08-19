@@ -28,7 +28,7 @@
 
 .rules__accordion-trigger {
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   justify-content: space-between;
   gap: 12px;
   width: 100%;
@@ -67,17 +67,17 @@
 
 .rules__accordion-chevron {
   flex-shrink: 0;
+  display: block;
   width: 8px;
   height: 8px;
-  margin-top: 6px;
   border-right: 2px solid var(--accent);
   border-bottom: 2px solid var(--accent);
   transform: rotate(45deg);
+  transform-origin: 62% 62%;
   transition: transform 0.15s ease;
 }
 
 .rules__accordion--open .rules__accordion-chevron {
-  margin-top: 8px;
   transform: rotate(225deg);
 }
 
@@ -204,15 +204,6 @@
   text-align: right;
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
-}
-
-.rules__h2 {
-  font-size: 13px;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
-  color: var(--accent);
-  margin: 0 0 8px;
 }
 
 .rules__code {

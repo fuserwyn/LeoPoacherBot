@@ -353,14 +353,24 @@ function RuleAccordionItem({
 }) {
   return (
     <section className={`rules__accordion${open ? " rules__accordion--open" : ""}`}>
-      <button type="button" className="rules__accordion-trigger" onClick={onToggle} aria-expanded={open}>
+      <button
+        type="button"
+        className="rules__accordion-trigger"
+        onClick={onToggle}
+        aria-expanded={open}
+        aria-controls={`rules-panel-${section.id}`}
+      >
         <span className="rules__accordion-head">
           <span className="rules__accordion-title">{section.title}</span>
           <span className="rules__accordion-summary">{section.summary}</span>
         </span>
         <span className="rules__accordion-chevron" aria-hidden />
       </button>
-      {open ? <div className="rules__accordion-body">{section.body}</div> : null}
+      {open ? (
+        <div id={`rules-panel-${section.id}`} className="rules__accordion-body" role="region">
+          {section.body}
+        </div>
+      ) : null}
     </section>
   );
 }
