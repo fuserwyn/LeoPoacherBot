@@ -344,6 +344,19 @@
   transform: rotate(180deg);
 }
 
+/* Тап по свободной области: сворачивает список и оставляет выбранный фильтр. */
+.feed__cat-list-dismiss {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  cursor: default;
+  -webkit-tap-highlight-color: transparent;
+}
+
 /* Вертикальный список всех типов — оверлей, не двигает --feed-header-h и ленту. */
 .feed__cat-list {
   position: absolute;

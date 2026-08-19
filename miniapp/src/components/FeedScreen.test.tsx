@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { afterEach, describe, expect, it } from "vitest";
-import { cleanup, render, screen, waitFor } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { FeedScreen } from "./FeedScreen";
 
 class ROStub {
@@ -53,5 +53,32 @@ describe("FeedScreen tab keep-alive", () => {
       <FeedScreen {...baseProps} active refreshToken={0} onOptimisticConsumed={() => {}} />,
     );
     expect(screen.queryByText("Загрузка…")).toBeNull();
+  });
+});
+
+describe("FeedScreen workout type dropdown", () => {
+  async function openAllTypesList() {
+    render(<FeedScreen {...baseProps} active refreshToken={0} />);
+    await waitFor(() => expect(screen.queryByText("Загрузка…")).toBeNull());
+    fireEvent.click(screen.getByRole("button", { name: /Все типы/ }));
+    expect(screen.getByRole("listbox", { name: "Все типы тренировок" })).toBeTruthy();
+  }
+
+  it("closes the list and applies the filter on a second tap of Все типы", async () => {
+    await openAllTypesList();
+    fireEvent.click(screen.getByRole("option", { name: /Все типы/ }));
+    expect(screen.queryByRole("listbox", { name: "Все типы тренировок" })).toBeNull();
+  });
+
+  it("closes the list and applies the filter on tap outside", async () => {
+    await openAllTypesList();
+    fireEvent.click(screen.getByRole("button", { name: "Применить фильтр типов" }));
+    expect(screen.queryByRole("listbox", { name: "Все типы тренировок" })).toBeNull();
+  });
+
+  it("closes the list on a second tap of the Все типы chip", async () => {
+    await openAllTypesList();
+    fireEvent.click(screen.getByRole("button", { name: /Все типы/ }));
+    expect(screen.queryByRole("listbox", { name: "Все типы тренировок" })).toBeNull();
   });
 });

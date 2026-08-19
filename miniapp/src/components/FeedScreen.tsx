@@ -357,6 +357,12 @@ export function FeedScreen({
   const clearFeedCategories = useCallback(() => {
     hapticLight();
     setFeedCategoryIds([]);
+    setCatListOpen(false);
+  }, [hapticLight]);
+
+  const applyCatListAndClose = useCallback(() => {
+    hapticLight();
+    setCatListOpen(false);
   }, [hapticLight]);
 
   useEffect(() => {
@@ -384,17 +390,21 @@ export function FeedScreen({
     return () => window.clearTimeout(id);
   }, [listSwapClass]);
 
-  // «Все типы»: первый тап (когда выбраны типы) — сброс к «все типы»; повторный
-  // тап (когда уже «все типы») — разворачивает вертикальный список всех типов.
+  // «Все типы»: список открыт — повторный тап сворачивает и оставляет текущий
+  // фильтр. Список закрыт и выбраны типы — сброс к «все типы». Список закрыт и
+  // уже «все типы» — разворачивает вертикальный список.
   const toggleAllTypes = useCallback(() => {
     hapticLight();
+    if (catListOpen) {
+      setCatListOpen(false);
+      return;
+    }
     if (feedCategoryIds.length > 0) {
       setFeedCategoryIds([]);
-      setCatListOpen(false);
     } else {
-      setCatListOpen((o) => !o);
+      setCatListOpen(true);
     }
-  }, [feedCategoryIds.length, hapticLight]);
+  }, [catListOpen, feedCategoryIds.length, hapticLight]);
 
   const refreshUnreadFeedCards = useCallback(async () => {
     if (!inTelegram || !initData.trim()) {
@@ -1672,6 +1682,14 @@ export function FeedScreen({
 
   return (
     <div className="feed" style={viewportStyle}>
+      {catListOpen && sub === "activity" && (
+        <button
+          type="button"
+          className="feed__cat-list-dismiss"
+          aria-label="Применить фильтр типов"
+          onClick={applyCatListAndClose}
+        />
+      )}
       <div className="feed__sticky" ref={feedHeaderRef}>
         <div className="feed__sticky-inner">
         <header className="feed__header">
