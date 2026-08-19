@@ -114,8 +114,6 @@ function clampWorkoutMinutes(n: number): number {
 
 type Props = {
   onClose: () => void;
-  /** Предвыбор типа с карты тренировок — форма открывается уже с выбранным видом. */
-  initialTypes?: WorkoutCategoryId[];
   showAlert?: (message: string) => void;
   /**
    * Клик по «Хочу вносить не только спорт» — best-effort счётчик интереса к фиче.
@@ -144,7 +142,7 @@ const OTHER_LABEL_MAX = 80;
 /** Прикрепление фото к отчёту. Фото грузятся в Cloudflare R2 (см. R2_* в env). */
 const PHOTO_ENABLED = true;
 
-export function NewWorkoutScreen({ onClose, onSave, showAlert, onNonSportInterest, initialTypes }: Props) {
+export function NewWorkoutScreen({ onClose, onSave, showAlert, onNonSportInterest }: Props) {
   const { visualH } = useViewportMetrics();
 
   useEffect(() => {
@@ -174,7 +172,7 @@ export function NewWorkoutScreen({ onClose, onSave, showAlert, onNonSportInteres
   const [inputFocused, setInputFocused] = useState(false);
   const showKeyboardBar = inputFocused;
 
-  const [types, setTypes] = useState<WorkoutCategoryId[]>(() => initialTypes ?? []);
+  const [types, setTypes] = useState<WorkoutCategoryId[]>([]);
   const otherSelected = types.includes("other");
   const toggleType = useCallback((id: WorkoutCategoryId) => {
     setTypes((prev) => (prev.includes(id) ? prev.filter((t) => t !== id) : [...prev, id]));

@@ -24,7 +24,6 @@ import { fetchPackGroupUnreadCount } from "./lib/packGroupUnread";
 import { ensureMiniappOnboarding } from "./lib/miniappOnboarding";
 import { syncDeviceTimezone } from "./lib/timezoneSync";
 import { reportMiniappOpened, reportWorkoutLogStarted, reportNonSportInterest } from "./lib/miniappEvents";
-import type { WorkoutCategoryId } from "./lib/workoutCategories";
 import "./App.css";
 
 type Tab = "chat" | "feed" | "rules" | "profile";
@@ -58,7 +57,6 @@ export function App() {
   }, [tg]);
   const [tab, setTab] = useState<Tab>("feed");
   const [workoutOpen, setWorkoutOpen] = useState(false);
-  const [workoutPreset, setWorkoutPreset] = useState<WorkoutCategoryId[] | undefined>(undefined);
   const [supportOpen, setSupportOpen] = useState(false);
   const [adminOpen, setAdminOpen] = useState(false);
   const [streak, setStreak] = useState(hookStreak);
@@ -444,13 +442,6 @@ export function App() {
               void refreshProfileStats();
             }}
             onRefreshStats={refreshProfileStats}
-            onSelectWorkout={(type) => {
-              setSupportOpen(false);
-              setAdminOpen(false);
-              setWorkoutPreset([type]);
-              setWorkoutOpen(true);
-              reportWorkoutLogStarted(initData);
-            }}
             isAdmin={isAdmin}
             onSupport={() => {
               setWorkoutOpen(false);
@@ -520,7 +511,6 @@ export function App() {
         onAddWorkout={() => {
           setSupportOpen(false);
           setAdminOpen(false);
-          setWorkoutPreset(undefined);
           setWorkoutOpen(true);
           reportWorkoutLogStarted(initData); // §4: открыл форму логирования
         }}
@@ -541,8 +531,6 @@ export function App() {
 
       {workoutOpen && (
         <NewWorkoutScreen
-          key={workoutPreset?.join(",") ?? "blank"}
-          initialTypes={workoutPreset}
           showAlert={showAlert}
           onNonSportInterest={() => {
             if (inTelegram && initData?.trim()) {
@@ -551,10 +539,7 @@ export function App() {
             }
             return false; // нет initData — заявка не ушла, экран покажет ретрай
           }}
-          onClose={() => {
-            setWorkoutOpen(false);
-            setWorkoutPreset(undefined);
-          }}
+          onClose={() => setWorkoutOpen(false)}
           onSave={async ({ types, min, intensity, note, photo, otherLabel }) => {
             if (!inTelegram || !initData) {
               showAlert("Открой мини-апп из Telegram (нужен initData).");

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { STREAK_ACHIEVEMENTS, WORKOUT_ACHIEVEMENTS, workoutsWordRu } from "../lib/achievements";
 import { inactivityHighlight } from "../lib/inactivityHighlight";
 import { inactiveDaysFromRemovalRemaining, removalRemainingUntil } from "../lib/inactivityRemoval";
@@ -19,9 +19,6 @@ import {
   type DonateOptions,
 } from "../lib/donate";
 import { DonateThanksToast } from "./DonateThanksToast";
-import { TrainingMap } from "./TrainingMap";
-import { buildTrainingMapSnapshot, fetchTrainingMap, type TrainingMapSnapshot } from "../lib/trainingMap";
-import type { WorkoutCategoryId } from "../lib/workoutCategories";
 import "./ProfileScreen.css";
 
 const api = (import.meta.env.VITE_MINIAPP_API_URL as string | undefined)?.replace(/\/$/, "") ?? "";
@@ -77,8 +74,6 @@ type Props = {
   isAdmin?: boolean;
   /** Перезагрузить кубки/уровень/стрик с сервера (из App). */
   onRefreshStats?: () => void;
-  /** Открыть форму тренировки с выбранным с карты типом (одно нажатие). */
-  onSelectWorkout?: (type: WorkoutCategoryId) => void;
   /** Вкладка «Профиль» видима (keep-alive). */
   active?: boolean;
 };
@@ -104,7 +99,6 @@ export function ProfileScreen({
   onAdmin,
   isAdmin = false,
   onRefreshStats,
-  onSelectWorkout,
   active = true,
 }: Props) {
   const [cups, setCups] = useState(xp);
@@ -157,12 +151,6 @@ export function ProfileScreen({
   const [donateRub, setDonateRub] = useState<number | null>(null);
   const [donateBusy, setDonateBusy] = useState(false);
   const [donateThanks, setDonateThanks] = useState(false);
-
-  const localMap = useMemo(() => buildTrainingMapSnapshot(workouts), [workouts]);
-  const [trainingMap, setTrainingMap] = useState<TrainingMapSnapshot>(localMap);
-  useEffect(() => {
-    setTrainingMap(localMap);
-  }, [localMap]);
 
   // Друзья по стае: только те, за кем viewer уже подписался в ленте.
   const [friends, setFriends] = useState<FriendMember[]>([]);
@@ -289,17 +277,6 @@ export function ProfileScreen({
     void load();
     onRefreshStats?.();
   }, [load, active, onRefreshStats]);
-
-  useEffect(() => {
-    if (!active) return;
-    let cancelled = false;
-    void fetchTrainingMap(initData, workouts).then((snap) => {
-      if (!cancelled) setTrainingMap(snap);
-    });
-    return () => {
-      cancelled = true;
-    };
-  }, [active, initData, workouts]);
 
   const loadReminder = useCallback(async () => {
     if (!api || !inTelegram || !initData?.trim()) {
@@ -977,13 +954,6 @@ export function ProfileScreen({
           🔥 стрик {burnLabel}
         </div>
       ) : null}
-
-      <TrainingMap
-        map={trainingMap}
-        onSelectWorkout={(type) => {
-          onSelectWorkout?.(type);
-        }}
-      />
 
       <section className="profile__achievements" aria-label="Ачивки">
         <div className="profile__achievements-head">
