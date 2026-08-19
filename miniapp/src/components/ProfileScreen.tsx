@@ -959,13 +959,12 @@ export function ProfileScreen({
       ) : null}
 
       <section className="profile__achievements" aria-label="Ачивки">
-        <div className="profile__achievements-head">
-          <h2 className="section-title profile__achievements-title">Ачивки</h2>
+        <div className="profile__achievements-group">
+          <span>Ачивки за стрики</span>
           <span className="profile__achievements-count">
-            {achievementCount + workoutAchEarned}/{achievementsMax + WORKOUT_ACHIEVEMENTS.length}
+            {achievementCount}/{achievementsMax}
           </span>
         </div>
-        <div className="profile__achievements-group">Ачивки за стрики</div>
         <div className="profile__achievements-strip">
         {STREAK_ACHIEVEMENTS.map(({ days, colorClass, variant }, i) => (
           <div key={days} className={`profile__achievement ${colorClass}${i < achievementCount ? " is-earned" : ""}`}>
@@ -1041,7 +1040,12 @@ export function ProfileScreen({
           </div>
         ))}
         </div>
-        <div className="profile__achievements-group">Ачивки за тренировки</div>
+        <div className="profile__achievements-group">
+          <span>Ачивки за тренировки</span>
+          <span className="profile__achievements-count">
+            {workoutAchEarned}/{WORKOUT_ACHIEVEMENTS.length}
+          </span>
+        </div>
         <div className="profile__achievements-strip">
         {WORKOUT_ACHIEVEMENTS.map(({ count, variant }, i) => (
           <div
