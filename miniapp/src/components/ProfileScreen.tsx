@@ -932,7 +932,7 @@ export function ProfileScreen({
               inactiveHighlight !== "none" ? ` stat-card--inactive-${inactiveHighlight}` : ""
             }`}
           >
-            <div className="stat-card__label">Дней подряд</div>
+            <div className="stat-card__label">Текущий стрик</div>
             <div className="stat-card__val">{displayStreak}</div>
           </div>
         </div>
