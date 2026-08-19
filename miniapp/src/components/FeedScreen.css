@@ -179,17 +179,26 @@
 }
 
 .feed__filter-scope {
-  /* Два измерения фильтра: перенос вместо скрытого горизонтального скролла,
-     чтобы не конкурировать со свайпом ленты. */
+  /* Все пять фильтров — одной строкой: «Сообщения» такой же фильтр, как
+     «Тренировки», и стоит рядом с ним. При переносе он оставался один на
+     строке и растягивался во всю ширину, будто это вкладка, а не фильтр.
+     Если строка не влезла — листается вбок, как ряд типов ниже. */
   display: flex;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   align-items: center;
   gap: 6px;
   margin-bottom: 8px;
+  overflow-x: auto;
+  padding-bottom: 2px;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+  touch-action: pan-x pan-y;
+  overscroll-behavior-x: contain;
 }
 
 .feed__filter-pill {
-  flex: 1 1 auto;
+  /* Ни растягивать, ни сжимать: растяжение и делало из «Сообщений» полосу. */
+  flex: 0 0 auto;
   justify-content: center;
   padding: 8px 14px;
   border-radius: 999px;
@@ -228,6 +237,20 @@
   background: color-mix(in srgb, var(--accent-2) 20%, transparent);
   border-color: color-mix(in srgb, var(--accent-2) 55%, transparent);
   color: var(--accent-2);
+}
+
+/* Телефон: пять фильтров в одну строку помещаются только с более узкими
+   полями и чуть мельче текстом. */
+@media (max-width: 430px) {
+  .feed__filter-scope {
+    gap: 5px;
+  }
+
+  .feed__filter-pill {
+    padding-left: 10px;
+    padding-right: 10px;
+    font-size: 0.78rem;
+  }
 }
 
 .feed__filter-cats-wrap {
