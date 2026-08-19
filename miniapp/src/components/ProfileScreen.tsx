@@ -156,6 +156,9 @@ export function ProfileScreen({
   const [friends, setFriends] = useState<FriendMember[]>([]);
   const [friendsLoading, setFriendsLoading] = useState(false);
   const [followingOpen, setFollowingOpen] = useState(false);
+  // Уведомления свёрнуты по умолчанию: пять тумблеров подряд занимали пол-экрана
+  // профиля, а меняют их редко.
+  const [notifOpen, setNotifOpen] = useState(false);
   const [friendBusyId, setFriendBusyId] = useState<number | null>(null);
   // Глобальный тумблер «Тренировки друзей» (центр уведомлений): DM о тренировке
   // друга по всем подпискам сразу. Состояние — bool_or по notify_workouts подписок.
@@ -1240,7 +1243,19 @@ export function ProfileScreen({
       )}
 
       <section className="profile__notif">
-        <h2 className="section-title profile__notif-title">🔔 Уведомления</h2>
+        <button
+          type="button"
+          className={`section-title profile__notif-title profile__notif-toggle${notifOpen ? " is-open" : ""}`}
+          aria-expanded={notifOpen}
+          onClick={() => setNotifOpen((open) => !open)}
+        >
+          🔔 Уведомления
+          <span className="profile__notif-chevron" aria-hidden>
+            {notifOpen ? "▲" : "▼"}
+          </span>
+        </button>
+        {notifOpen && (
+        <>
         <div className="profile__reminder">
           <label className="profile__reminder-row">
           <span className="profile__reminder-label">Напоминать внести тренировку</span>
@@ -1364,6 +1379,8 @@ export function ProfileScreen({
           )
         )}
         </div>
+        </>
+        )}
       </section>
 
       <h2 className="section-title">Профиль (для Лео)</h2>

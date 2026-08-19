@@ -1231,3 +1231,30 @@ html.app-keyboard-open .profile__health-actions--keyboard {
   border-color: color-mix(in srgb, var(--accent) 55%, transparent);
   color: var(--accent);
 }
+
+/* Заголовок «Уведомления» — это кнопка: блок свёрнут по умолчанию.
+   Кнопке нужно снять браузерные умолчания, чтобы она выглядела заголовком. */
+.profile__notif-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  text-align: left;
+  cursor: pointer;
+  font: inherit;
+  font-size: 13px;
+  color: var(--accent);
+}
+
+/* Свёрнутый блок стоит последним в профиле — нижний отступ ему не нужен. */
+.profile__notif-toggle:not(.is-open) {
+  margin-bottom: 0;
+}
+
+.profile__notif-chevron {
+  font-size: 11px;
+  opacity: 0.7;
+}

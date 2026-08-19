@@ -369,6 +369,8 @@ export type ActivityCardProps = {
   streak: number;
   /** Для системных карточек (приветствие Лео) — не показывать стрик. */
   hideStreak?: boolean;
+  /** Текст никогда не сворачивать: «Мудрость дня» читают целиком, без «Показать полностью». */
+  commentAlwaysFull?: boolean;
   /** Светлая подсветка для специальных карточек админа/системы. */
   lightTone?: boolean;
   timeAgo: string;
@@ -446,6 +448,7 @@ export function ActivityCard({
   name,
   streak,
   hideStreak = false,
+  commentAlwaysFull = false,
   lightTone = false,
   timeAgo,
   emoji,
@@ -501,6 +504,7 @@ export function ActivityCard({
   const LONG_COMMENT_THRESHOLD = 180;
   const commentText = typeof comment === "string" ? comment : "";
   const isAdminCollapse =
+    !commentAlwaysFull &&
     commentCollapsible &&
     (commentText.includes("\n") || commentText.trim().length > COMMENT_COLLAPSE_THRESHOLD);
   // Карточка Лео («Мудрость дня» и его реплики) должна занимать в ленте столько
@@ -509,6 +513,7 @@ export function ActivityCard({
   const isLeoCard = hideStreak;
   const isLongComment =
     !commentCollapsible &&
+    !commentAlwaysFull &&
     (commentText.split("\n").length > (isLeoCard ? 2 : 5) ||
       commentText.trim().length > (isLeoCard ? 110 : LONG_COMMENT_THRESHOLD));
   const canCollapseComment = isAdminCollapse || isLongComment;

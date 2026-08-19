@@ -1936,6 +1936,9 @@ export function FeedScreen({
                 // (разворачивается по «Показать полностью», без внутреннего скролла).
                 const adminPostText = it.type === "admin_post" ? it.text.trim() : undefined;
                 const adminPostCollapsible = it.type === "admin_post";
+                // Мудрость дня читают целиком: это короткий текст дня, и «Показать
+                // полностью» на нём — лишний шаг ради двух строк.
+                const alwaysFullComment = it.type === "daily_wisdom";
                 // Закреп — исключительно голос Лео: единый аватар/имя независимо от автора поста.
                 const pinnedLeoProps: Partial<ActivityCardProps> = isPinnedAnnouncement
                   ? {
@@ -2121,6 +2124,7 @@ export function FeedScreen({
                         comment={adminPostText ?? base.comment}
                         pinned={isPinnedAnnouncement}
                         commentCollapsible={adminPostCollapsible}
+                        commentAlwaysFull={alwaysFullComment}
                         onTogglePin={canPinCard ? () => void setFeedPostPinned(it.id, !it.is_pinned) : undefined}
                         pinPosting={feedPinPosting[it.id] ?? false}
                         reactions={supportsReactions ? mergeFeedReactionsForType(it.type, it.reactions) : undefined}
@@ -2163,6 +2167,7 @@ export function FeedScreen({
                       comment={adminPostText ?? base.comment}
                       pinned={isPinnedAnnouncement}
                       commentCollapsible={adminPostCollapsible}
+                      commentAlwaysFull={alwaysFullComment}
                       onTogglePin={canPinCard ? () => void setFeedPostPinned(it.id, !it.is_pinned) : undefined}
                       pinPosting={feedPinPosting[it.id] ?? false}
                       poll={
