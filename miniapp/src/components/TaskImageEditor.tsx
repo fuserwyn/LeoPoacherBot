@@ -140,7 +140,13 @@ export function TaskImageEditor({ onDone, onCancel, initialFile }: Props) {
   };
 
   return (
-    <div className="imged" role="dialog" aria-modal="true">
+    <div
+      className="imged"
+      role="dialog"
+      aria-modal="true"
+      onPointerDown={(e) => e.stopPropagation()}
+      onTouchStart={(e) => e.stopPropagation()}
+    >
       <div className="imged__box">
         <div className="imged__head">
           <b>Картинка к задаче</b>

@@ -492,7 +492,8 @@ export function AdminScreen({ initData, inTelegram, showAlert, onClose }: Props)
     const blocked = (target: EventTarget | null) => {
       const hit = target as HTMLElement | null;
       if (hit?.closest("textarea, input, select, [contenteditable='true']")) return true;
-      if (hit?.closest(".admin__close, .admin__back, .admin__modal, .tracker-modal")) return true;
+      // Редактор фото и просмотр кадра: палец едет по холсту, это не закрытие шторки.
+      if (hit?.closest(".admin__close, .admin__back, .admin__modal, .tracker-modal, .imged, .tracker-zoom")) return true;
       let el: HTMLElement | null = hit;
       while (el && el !== sheet) {
         const oy = window.getComputedStyle(el).overflowY;
