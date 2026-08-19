@@ -200,9 +200,12 @@ export function trackerReschedule(initData: string, taskId: number, when: string
   return call<{ ok: boolean }>(initData, "reschedule", { payload: { id: taskId, when } });
 }
 
-/** Возобновить отменённую задачу немедленно. */
+/** Вернуть завершённую или отменённую задачу в очередь. Доска принимает только
+ *  время в будущем — «сейчас» для неё та же фраза, что при постановке задачи. */
 export function trackerRunNow(initData: string, taskId: number) {
-  return call<{ ok: boolean }>(initData, "reschedule", { payload: { id: taskId, mode: "now" } });
+  return call<{ ok: boolean }>(initData, "reschedule", {
+    payload: { id: taskId, when: "через 1 мин" },
+  });
 }
 
 export function trackerAutoQa(initData: string, taskId: number) {

@@ -79,6 +79,14 @@ function taskNo(task: TrackerTask): number {
   return Number(task.num) || Number(task.id);
 }
 
+/** Завершённую, отменённую или упавшую задачу можно снова поставить в очередь. */
+function canReturnToWork(task: TrackerTask): boolean {
+  const status = String(task.status || "").toLowerCase();
+  const column = String(task.dev_column || "").toLowerCase();
+  return ["canceled", "cancelled", "done", "error", "holding"].includes(status)
+    || ["canceled", "cancelled", "done"].includes(column);
+}
+
 /** RFC3339 с сервера → «19.08 14:30» в часовом поясе читателя. Пусто — прочерк. */
 function formatWhen(iso: string): string {
   const t = Date.parse(iso || "");
@@ -1138,7 +1146,7 @@ export function TrackerScreen({ initData, showAlert }: Props) {
             {detail.status !== "running" && detail.status !== "reviewing" ? (
               <div className="tracker-modal__move">
                 <label>
-                  {["canceled", "done", "error"].includes(detail.status) ? "Вернуть в ожидание на" : "Запуск"}
+                  {canReturnToWork(detail) ? "Вернуть в ожидание на" : "Запуск"}
                   <input type="datetime-local" value={moveAt} onChange={(e) => setMoveAt(e.target.value)} />
                 </label>
                 <button
@@ -1160,12 +1168,14 @@ export function TrackerScreen({ initData, showAlert }: Props) {
               <button type="button" disabled={busy} onClick={() => setEditorFor(detail.id)}>
                 🖼 Картинка
               </button>
-              {["canceled", "done", "error"].includes(detail.status) ? (
+              {canReturnToWork(detail) ? (
                 <button
                   type="button"
                   className="tracker-modal__accent"
                   disabled={busy}
-                  onClick={() => void act(() => trackerRunNow(initData, detail.id), "Задача снова в работе.")}
+                  onClick={() =>
+                    void actOnDetail(() => trackerRunNow(initData, detail.id), "Задача снова в работе.")
+                  }
                 >
                   Вернуть в работу
                 </button>

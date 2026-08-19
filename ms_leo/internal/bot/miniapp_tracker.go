@@ -375,6 +375,9 @@ func (b *Bot) trackerRequest(
 			payload["auto_push"] = true
 		}
 	}
+	// «Вернуть в работу» раньше слало mode=now без when — доска отвечает
+	// «Укажи время в будущем» и задача остаётся на месте.
+	normalizeTrackerReschedule(op, payload)
 
 	var body io.Reader
 	if spec.method != http.MethodGet && payload != nil {
@@ -447,6 +450,24 @@ func parseTrackerTaskSnapshot(raw json.RawMessage) (trackerTaskSnapshot, error) 
 		return trackerTaskSnapshot{}, err
 	}
 	return flat, nil
+}
+
+// normalizeTrackerReschedule — mode=now без when превращаем в «через 1 мин»:
+// так же ставит форма «Сейчас», и доска снова ставит задачу в «Ожидает».
+func normalizeTrackerReschedule(op string, payload map[string]any) {
+	if op != "reschedule" || payload == nil {
+		return
+	}
+	when, _ := payload["when"].(string)
+	if strings.TrimSpace(when) != "" {
+		return
+	}
+	mode, _ := payload["mode"].(string)
+	if !strings.EqualFold(strings.TrimSpace(mode), "now") {
+		return
+	}
+	payload["when"] = "через 1 мин"
+	delete(payload, "mode")
 }
 
 func trackerPayloadTaskID(taskID int64, payload map[string]any) int64 {

@@ -79,6 +79,23 @@ func TestParseTrackerTaskSnapshotWrapAndFlat(t *testing.T) {
 	}
 }
 
+func TestNormalizeTrackerRescheduleNow(t *testing.T) {
+	p := map[string]any{"id": float64(7), "mode": "now"}
+	normalizeTrackerReschedule("reschedule", p)
+	if p["when"] != "через 1 мин" {
+		t.Fatalf("when: %#v", p["when"])
+	}
+	if _, ok := p["mode"]; ok {
+		t.Fatalf("mode must be dropped, got %#v", p["mode"])
+	}
+	keep := map[string]any{"id": float64(1), "when": "завтра 4:20"}
+	normalizeTrackerReschedule("reschedule", keep)
+	if keep["when"] != "завтра 4:20" {
+		t.Fatalf("explicit when must stay, got %#v", keep["when"])
+	}
+	normalizeTrackerReschedule("cancel", p)
+}
+
 func TestTrackerPayloadTaskID(t *testing.T) {
 	if got := trackerPayloadTaskID(9, map[string]any{"id": float64(3)}); got != 9 {
 		t.Fatalf("explicit id wins, got %d", got)
