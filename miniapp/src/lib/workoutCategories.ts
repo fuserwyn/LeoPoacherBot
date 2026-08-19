@@ -49,7 +49,7 @@ export const WORKOUT_CATEGORY_OPTIONS: WorkoutCategoryOption[] = [
   { id: "football", label: "Футбол", emoji: "⚽" },
   { id: "volleyball", label: "Волейбол", emoji: "🏐" },
   { id: "tennis", label: "Теннис", emoji: "🎾" },
-  { id: "padel", label: "Падел", emoji: "🟢" },
+  { id: "padel", label: "Падел", emoji: "🏏" },
   { id: "other", label: "Другое", emoji: "✨" },
 ];
 
