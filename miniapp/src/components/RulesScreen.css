@@ -13,28 +13,6 @@
   }
 }
 
-.rules__header {
-  margin-bottom: 20px;
-  padding-top: 4px;
-  text-align: center;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-}
-
-.rules__title {
-  font-size: 22px;
-  font-weight: 700;
-  letter-spacing: -0.02em;
-  margin-bottom: 8px;
-}
-
-.rules__lead {
-  font-size: 14px;
-  line-height: 1.4;
-  max-width: 28rem;
-}
-
 .rules__accordion-list {
   display: flex;
   flex-direction: column;
@@ -89,11 +67,18 @@
 
 .rules__accordion-chevron {
   flex-shrink: 0;
-  font-size: 18px;
-  font-weight: 600;
-  line-height: 1;
-  color: var(--accent);
-  margin-top: 2px;
+  width: 8px;
+  height: 8px;
+  margin-top: 6px;
+  border-right: 2px solid var(--accent);
+  border-bottom: 2px solid var(--accent);
+  transform: rotate(45deg);
+  transition: transform 0.15s ease;
+}
+
+.rules__accordion--open .rules__accordion-chevron {
+  margin-top: 8px;
+  transform: rotate(225deg);
 }
 
 .rules__accordion-body {
@@ -238,8 +223,4 @@
   background: var(--card-inner);
   color: var(--text);
   border: 1px solid var(--border-subtle);
-}
-
-.rules .muted {
-  color: var(--text-muted);
 }

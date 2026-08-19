@@ -358,9 +358,7 @@ function RuleAccordionItem({
           <span className="rules__accordion-title">{section.title}</span>
           <span className="rules__accordion-summary">{section.summary}</span>
         </span>
-        <span className="rules__accordion-chevron" aria-hidden>
-          {open ? "−" : "+"}
-        </span>
+        <span className="rules__accordion-chevron" aria-hidden />
       </button>
       {open ? <div className="rules__accordion-body">{section.body}</div> : null}
     </section>
@@ -373,11 +371,6 @@ export function RulesScreen({ accessPriceRub = 99 }: { accessPriceRub?: number }
 
   return (
     <div className="rules">
-      <header className="rules__header">
-        <h1 className="rules__title">Правила Стаи</h1>
-        <p className="rules__lead muted">Разверни раздел, чтобы прочитать подробности. Краткая суть видна в свёрнутом виде.</p>
-      </header>
-
       <div className="rules__accordion-list">
         {sections.map((section) => (
           <RuleAccordionItem
