@@ -33,6 +33,15 @@ describe("parseTrainingDoneCategories — мультивыбор", () => {
     expect(parseTrainingDoneCategories("теннис + падел, 90 мин, инт. 3/5")).toEqual(["tennis", "padel"]);
   });
 
+  it("разбирает футбол и волейбол как отдельные виды", () => {
+    expect(parseTrainingDoneCategories("футбол, 60 мин, инт. 3/5")).toEqual(["football"]);
+    expect(parseTrainingDoneCategories("волейбол, 45 мин, инт. 4/5")).toEqual(["volleyball"]);
+    expect(parseTrainingDoneCategories("футбол + волейбол, 90 мин, инт. 3/5")).toEqual([
+      "football",
+      "volleyball",
+    ]);
+  });
+
   it("нераспознанный формат → пустой массив", () => {
     expect(parseTrainingDoneCategories("просто текст")).toEqual([]);
   });
@@ -66,5 +75,10 @@ describe("заголовок карточки", () => {
   it("показывает теннис и падел как отдельные подписи", () => {
     expect(trainingDoneCategoryDisplayLabel("теннис, 60 мин, инт. 3/5")).toBe("Теннис");
     expect(trainingDoneCategoryDisplayLabel("падел, 45 мин, инт. 4/5")).toBe("Падел");
+  });
+
+  it("показывает футбол и волейбол как отдельные подписи", () => {
+    expect(trainingDoneCategoryDisplayLabel("футбол, 60 мин, инт. 3/5")).toBe("Футбол");
+    expect(trainingDoneCategoryDisplayLabel("волейбол, 45 мин, инт. 4/5")).toBe("Волейбол");
   });
 });

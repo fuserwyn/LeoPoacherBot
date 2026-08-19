@@ -564,6 +564,8 @@ export function App() {
               pole: "пилон",
               rollerblade: "ролики",
               basketball: "баскетбол",
+              football: "футбол",
+              volleyball: "волейбол",
               tennis: "теннис",
               padel: "падел",
               other: "другое",
