@@ -3,7 +3,10 @@
 }
 
 .feed {
-  padding: 0 12px 0;
+  /* Боковой отступ ленты держим переменной: на него же опирается сдвиг карточек
+     к кромке экрана, иначе на планшете (16px) остаётся щель. */
+  --feed-side: 12px;
+  padding: 0 var(--feed-side) 0;
   max-width: 520px;
   width: 100%;
   margin: 0 auto;
@@ -555,12 +558,13 @@
   justify-content: flex-end;
 }
 
-/* На узком экране карточка на всю ширину: 11/14 оставляла ~20% пустоты и резала текст. */
+/* Лента читается как переписка: карточка занимает не всю полосу, а 88% —
+   свободные 12% с противоположной стороны и показывают, чья запись. */
 .feed__card-slot .act-card {
   margin-bottom: 0;
   box-sizing: border-box;
   width: 100%;
-  max-width: 100%;
+  max-width: 88%;
   flex-shrink: 0;
 }
 
@@ -569,6 +573,7 @@
   justify-content: stretch;
 }
 
+/* Закреп — исключение: он общий для стаи, поэтому во всю полосу и без сдвигов. */
 .feed__card-slot--pinned .act-card {
   width: 100%;
   max-width: 100%;
@@ -577,16 +582,27 @@
   box-shadow: 0 4px 20px rgba(236, 160, 60, 0.12);
 }
 
+/* Чужая запись прижата к левой кромке: отрицательное поле гасит боковой
+   отступ ленты (.feed padding: 0 12px), карточка встаёт вплотную к краю. */
 .feed__card-slot--them .act-card {
   margin-right: auto;
-  margin-left: 0;
+  margin-left: calc(-1 * var(--feed-side));
 }
 
+/* Своя — к правой кромке, тем же приёмом. */
 .feed__card-slot--mine .act-card {
   margin-left: auto;
-  margin-right: 0;
+  margin-right: calc(-1 * var(--feed-side));
   border-color: rgba(72, 187, 120, 0.42);
   box-shadow: 0 4px 20px rgba(34, 139, 87, 0.12);
+}
+
+/* Закреп остаётся в полосе: у правил выше та же специфичность, и без этого
+   сброса объявление уехало бы к кромке вслед за обычными карточками. */
+.feed__card-slot--pinned.feed__card-slot--them .act-card,
+.feed__card-slot--pinned.feed__card-slot--mine .act-card {
+  margin-left: 0;
+  margin-right: 0;
 }
 
 .feed__pull-shift .feed__list {
@@ -699,9 +715,8 @@
    зелёный border у своих — chat-сдвиг в гриде теряет смысл. */
 @media (min-width: 600px) {
   .feed {
+    --feed-side: 16px;
     max-width: none;
-    padding-left: 16px;
-    padding-right: 16px;
   }
   .feed__sticky-inner {
     max-width: none;

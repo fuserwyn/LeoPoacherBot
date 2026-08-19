@@ -121,7 +121,15 @@ export function trackerList(initData: string) {
 
 export function trackerCreate(
   initData: string,
-  payload: { when: string; prompt: string; auto_review?: boolean; manual_qa?: boolean; fast_track?: boolean },
+  payload: {
+    when: string;
+    prompt: string;
+    auto_review?: boolean;
+    manual_qa?: boolean;
+    fast_track?: boolean;
+    /** Задачу придумал Лео: на доске автором пишем его. */
+    leo?: boolean;
+  },
 ) {
   return call<{ id: number; when: string }>(initData, "create", { payload });
 }

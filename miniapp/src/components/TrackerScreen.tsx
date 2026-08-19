@@ -22,6 +22,7 @@ import {
   type TrackerTask,
 } from "../lib/trackerApi";
 import { TaskImageEditor, type TaskImage } from "./TaskImageEditor";
+import { LEO_AVATAR_URL } from "../lib/leoAvatar";
 import "./TrackerScreen.css";
 
 type Props = {
@@ -65,11 +66,22 @@ function parsePrompt(prompt: string): { sprint: number | null; text: string } {
   return { sprint: null, text: raw };
 }
 
-/** Автор задачи: гость мини-аппа или сам MyVibeLab, если ставили оттуда. */
+/** Задачу придумал Лео, а админ одобрил. Тот же id пишет MyVibeLab (board_share.LEO_AUTHOR_ID). */
+const LEO_AUTHOR_ID = -1;
+
+/** Автор задачи: Лео, гость мини-аппа или сам MyVibeLab, если ставили оттуда. */
 function authorLabel(task: TrackerTask, authors: Record<number, string>): string {
   const id = Number(task.author_id) || 0;
+  if (id === LEO_AUTHOR_ID) return "Лео";
   if (!id) return "Из чата";
   return authors[id] || `id ${id}`;
+}
+
+/** Картинка автора: у Лео своя, у людей — из чата стаи, у задач из чата её нет. */
+function authorAvatar(task: TrackerTask, initData: string): string {
+  const id = Number(task.author_id) || 0;
+  if (id === LEO_AUTHOR_ID) return LEO_AVATAR_URL;
+  return id > 0 ? trackerAvatarUrl(initData, id) : "";
 }
 
 function plural(n: number, one: string, few: string, many: string): string {
@@ -200,7 +212,7 @@ export function TrackerScreen({ initData, showAlert }: Props) {
     await createTaskWith(prompt.trim());
   };
 
-  const createTaskWith = async (raw: string) => {
+  const createTaskWith = async (raw: string, opts?: { leo?: boolean }) => {
     const text = raw.trim();
     if (!text) {
       showAlert("Опиши задачу.");
@@ -215,6 +227,8 @@ export function TrackerScreen({ initData, showAlert }: Props) {
       const res = await trackerCreate(initData, {
         when: when === "custom" ? whenFromPicker(whenAt) : when,
         prompt: text,
+        // Задачу сочинил Лео — пусть на доске и стоит он, а не тот, кто одобрил.
+        leo: opts?.leo,
       });
       if (image && res.id) {
         // Картинку трекер принимает только к существующей задаче, поэтому
@@ -259,7 +273,7 @@ export function TrackerScreen({ initData, showAlert }: Props) {
     if (!proposal?.task) return;
     setPrompt(proposal.task);
     setProposal(null);
-    await createTaskWith(proposal.task);
+    await createTaskWith(proposal.task, { leo: true });
   };
 
   const openTask = async (task: TrackerTask) => {
@@ -486,9 +500,7 @@ export function TrackerScreen({ initData, showAlert }: Props) {
                             task={t}
                             isQa={isQa}
                             author={authorLabel(t, authors)}
-                            avatar={
-                              Number(t.author_id) > 0 ? trackerAvatarUrl(initData, Number(t.author_id)) : ""
-                            }
+                            avatar={authorAvatar(t, initData)}
                             onOpen={() => void openTask(t)}
                           />
                         ))
@@ -746,8 +758,8 @@ export function TrackerScreen({ initData, showAlert }: Props) {
               </button>
             </div>
             <div className="tracker-card__author tracker-modal__author">
-              {Number(detail.author_id) > 0 ? (
-                <img src={trackerAvatarUrl(initData, Number(detail.author_id))} alt="" loading="lazy" />
+              {authorAvatar(detail, initData) ? (
+                <img src={authorAvatar(detail, initData)} alt="" loading="lazy" />
               ) : (
                 <span className="tracker-card__author-dot">🤖</span>
               )}

@@ -323,9 +323,10 @@ func (b *Bot) NotifyTrackerAuthor(userID int64, text string) error {
 }
 
 // NotifyTrackerResult — сообщить о судьбе задачи: автору, а если его нет
-// (задачу ставили из чата) — админам стаи.
+// (ставили из чата) или автор не человек (задачу придумал Лео — id меньше
+// нуля) — админам стаи.
 func (b *Bot) NotifyTrackerResult(authorID int64, text string) error {
-	if authorID != 0 {
+	if authorID > 0 {
 		return b.NotifyTrackerAuthor(authorID, text)
 	}
 	targets := b.config.AdminTelegramUserIDs()
