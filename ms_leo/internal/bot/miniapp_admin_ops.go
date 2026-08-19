@@ -291,6 +291,13 @@ func (b *Bot) MiniappAdminAddAdmin(viewerUserID int64, initD initdata.InitData, 
 	if err := b.db.AddDynamicAdmin(targetID, username, viewerUserID); err != nil {
 		return 0, err
 	}
+	// Права проверяются по кэшу в памяти, а не по базе: без перезагрузки
+	// добавленный из мини-аппа админ оставался обычным человеком до рестарта
+	// сервиса — со стороны это выглядело как «добавление не работает».
+	b.reloadDynamicAdmins()
+	// Нижняя клавиатура в личке зависит от прав — как и при добавлении из чата,
+	// сбрасываем её кэш, иначе кнопки админ-панели не появятся.
+	b.privateBottomKeyboardKind.Delete(targetID)
 	return targetID, nil
 }
 
@@ -312,6 +319,9 @@ func (b *Bot) MiniappAdminRemoveAdmin(viewerUserID int64, initD initdata.InitDat
 	if _, err := b.db.RemoveDynamicAdmin(targetID); err != nil {
 		return err
 	}
+	// Снятие прав тоже должно действовать сразу, а не после рестарта.
+	b.reloadDynamicAdmins()
+	b.privateBottomKeyboardKind.Delete(targetID)
 	return nil
 }
 
