@@ -159,6 +159,8 @@ export function ProfileScreen({
   // Уведомления свёрнуты по умолчанию: пять тумблеров подряд занимали пол-экрана
   // профиля, а меняют их редко.
   const [notifOpen, setNotifOpen] = useState(false);
+  // Имя и пол спрятаны за шевроном: меняют редко, на экране занимают заметное место.
+  const [personalOpen, setPersonalOpen] = useState(false);
   const [friendBusyId, setFriendBusyId] = useState<number | null>(null);
   // Глобальный тумблер «Тренировки друзей» (центр уведомлений): DM о тренировке
   // друга по всем подпискам сразу. Состояние — bool_or по notify_workouts подписок.
@@ -1383,46 +1385,62 @@ export function ProfileScreen({
         )}
       </section>
 
-      <h2 className="section-title">Профиль (для Лео)</h2>
-      {profileLoading && <p className="muted">Загрузка профиля…</p>}
-      <div className="profile__form">
-        <label className="profile__field">
-          <span>Имя (как обращаться)</span>
-          <input
-            type="text"
-            className="profile__input"
-            value={profile.displayName}
-            onChange={(e) => setProfile((p) => ({ ...p, displayName: e.target.value.slice(0, 64) }))}
-            placeholder="Например, Саша"
-            maxLength={64}
-            autoComplete="name"
-            disabled={profileLoading}
-          />
-        </label>
-        <label className="profile__field">
-          <span>Пол</span>
-          <select
-            className="profile__input"
-            value={profile.gender}
-            onChange={(e) => setProfile((p) => ({ ...p, gender: e.target.value as "m" | "f" | "" }))}
-            disabled={profileLoading}
-          >
-            <option value="">Не указывать</option>
-            <option value="m">Мужской</option>
-            <option value="f">Женский</option>
-          </select>
-        </label>
-        {(profileDirty || profileSaving) && (
-          <button
-            type="button"
-            className="profile__save"
-            onClick={() => void saveProfile()}
-            disabled={profileLoading || profileSaving || !profileDirty}
-          >
-            {profileSaving ? "Сохраняю…" : "Сохранить"}
-          </button>
+      <section className="profile__personal">
+        <button
+          type="button"
+          className={`section-title profile__personal-title profile__notif-toggle${personalOpen ? " is-open" : ""}`}
+          aria-expanded={personalOpen}
+          onClick={() => setPersonalOpen((open) => !open)}
+        >
+          Личные данные
+          <span className="profile__notif-chevron" aria-hidden>
+            {personalOpen ? "▲" : "▼"}
+          </span>
+        </button>
+        {personalOpen && (
+          <>
+            {profileLoading && <p className="muted">Загрузка профиля…</p>}
+            <div className="profile__form">
+              <label className="profile__field">
+                <span>Имя (как обращаться)</span>
+                <input
+                  type="text"
+                  className="profile__input"
+                  value={profile.displayName}
+                  onChange={(e) => setProfile((p) => ({ ...p, displayName: e.target.value.slice(0, 64) }))}
+                  placeholder="Например, Саша"
+                  maxLength={64}
+                  autoComplete="name"
+                  disabled={profileLoading}
+                />
+              </label>
+              <label className="profile__field">
+                <span>Пол</span>
+                <select
+                  className="profile__input"
+                  value={profile.gender}
+                  onChange={(e) => setProfile((p) => ({ ...p, gender: e.target.value as "m" | "f" | "" }))}
+                  disabled={profileLoading}
+                >
+                  <option value="">Не указывать</option>
+                  <option value="m">Мужской</option>
+                  <option value="f">Женский</option>
+                </select>
+              </label>
+              {(profileDirty || profileSaving) && (
+                <button
+                  type="button"
+                  className="profile__save"
+                  onClick={() => void saveProfile()}
+                  disabled={profileLoading || profileSaving || !profileDirty}
+                >
+                  {profileSaving ? "Сохраняю…" : "Сохранить"}
+                </button>
+              )}
+            </div>
+          </>
         )}
-      </div>
+      </section>
 
       <div className="profile__theme">
         <h2 className="section-title">Тема</h2>

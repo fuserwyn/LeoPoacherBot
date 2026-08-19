@@ -791,6 +791,26 @@
   margin-bottom: 24px;
 }
 
+/* «Личные данные» — тот же карточный блок, что и «Уведомления»: свёрнут за шевроном. */
+.profile__personal {
+  margin-bottom: 24px;
+  padding: 14px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border-subtle);
+  background: var(--card-inner);
+}
+
+.profile__personal-title {
+  margin-top: 0;
+  margin-bottom: 12px;
+  font-size: 13px;
+  color: var(--accent);
+}
+
+.profile__personal .profile__form {
+  margin-bottom: 0;
+}
+
 .profile__field {
   display: flex;
   flex-direction: column;
