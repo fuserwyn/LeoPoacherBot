@@ -162,7 +162,7 @@ func (b *Bot) standSwitch(on bool) error {
 // «выключение не сработало».
 func (b *Bot) standAutoDeploy(serviceID string, enabled bool) error {
 	_, err := b.railwayCall(
-		`mutation($in:ServiceInstanceAutoDeployUpdateInput!){ serviceInstanceAutoDeployUpdate(input:$in) }`,
+		`mutation($in:ServiceInstanceAutoDeployUpdateInput!){ serviceInstanceAutoDeployUpdate(input:$in){ enabled } }`,
 		map[string]any{"in": map[string]any{
 			"serviceId":     serviceID,
 			"environmentId": strings.TrimSpace(b.config.LabEnvironmentID),
