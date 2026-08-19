@@ -71,10 +71,12 @@ func (b *Bot) MiniappLabStand(
 		if err := b.standSwitch(false); err != nil {
 			return out, err
 		}
+		b.announceStand(false, trackerViewerName(initD))
 	case "start":
 		if err := b.standSwitch(true); err != nil {
 			return out, err
 		}
+		b.announceStand(true, trackerViewerName(initD))
 	default:
 		return out, ErrAdminActionInvalid
 	}
@@ -91,6 +93,27 @@ func (b *Bot) MiniappLabStand(
 		}
 	}
 	return out, nil
+}
+
+// announceStand — сказать админам, что стенд включили или выключили.
+//
+// Стенд общий на троих: тот, кто его не трогал, должен понимать, почему он вдруг
+// не отвечает или, наоборот, снова тратит ресурсы.
+func (b *Bot) announceStand(on bool, who string) {
+	who = strings.TrimSpace(who)
+	if who == "" {
+		who = "админ"
+	}
+	text := fmt.Sprintf("🧪 Тестовый стенд выключен (%s).\n\n"+
+		"Приложения остановлены. Базы и тома на месте — включение вернёт стенд "+
+		"с теми же данными.", who)
+	if on {
+		text = fmt.Sprintf("🧪 Тестовый стенд включён (%s).\n\n"+
+			"Сервисы поднимаются, это занимает пару минут.", who)
+	}
+	if err := b.NotifyTrackerResult(0, text); err != nil {
+		b.logger.Warnf("стенд: не сообщить админам: %v", err)
+	}
 }
 
 // standSwitch — поднять или остановить приложения стенда.
