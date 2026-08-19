@@ -161,6 +161,71 @@ describe("ActivityCard reaction picker gesture", () => {
   });
 });
 
+describe("ActivityCard thread reply", () => {
+  const thread = [
+    {
+      id: 11,
+      author: "Лео",
+      text: "Красиво пробежал",
+      timeAgo: "сейчас",
+      isYou: false,
+      isLeo: true,
+    },
+    {
+      id: 12,
+      author: "Аня",
+      text: "огонь",
+      timeAgo: "сейчас",
+      isYou: false,
+    },
+  ];
+  const composer = {
+    draft: "",
+    onDraftChange: () => {},
+    onSubmit: () => {},
+    posting: false,
+  };
+
+  it("lets you reply to Leo or another participant in the thread", () => {
+    const calls: { replyToThreadId: number; authorLabel: string }[] = [];
+    render(
+      <ActivityCard
+        {...baseProps}
+        streak={2}
+        threadReplies={thread}
+        threadComposer={composer}
+        onThreadReplyIntent={(payload) => calls.push(payload)}
+      />,
+    );
+    fireEvent.click(screen.getByRole("button", { name: /Комментарии/ }));
+    const buttons = screen.getAllByRole("button", { name: "Ответить" });
+    expect(buttons).toHaveLength(2);
+    fireEvent.click(buttons[0]);
+    fireEvent.click(buttons[1]);
+    expect(calls[0]).toMatchObject({ replyToThreadId: 11, authorLabel: "Лео" });
+    expect(calls[1]).toMatchObject({ replyToThreadId: 12, authorLabel: "Аня" });
+  });
+
+  it("shows the reply intent banner like on a report card", () => {
+    render(
+      <ActivityCard
+        {...baseProps}
+        streak={2}
+        threadReplies={thread}
+        threadComposer={composer}
+        threadReplyIntent={{ replyToThreadId: 11, authorLabel: "Лео", excerpt: "Красиво пробежал" }}
+        onCancelThreadReplyIntent={() => {}}
+      />,
+    );
+    fireEvent.click(screen.getByRole("button", { name: /Комментарии/ }));
+    const banner = document.querySelector(".act-card__reply-intent");
+    expect(banner?.textContent).toContain("Ответ");
+    expect(banner?.textContent).toContain("Лео");
+    expect(banner?.textContent).toContain("Красиво пробежал");
+    expect(screen.getByPlaceholderText("Сообщение для Лео…")).toBeTruthy();
+  });
+});
+
 describe("ActivityCard avatar fallback on load error", () => {
   it("shows the author initial when the avatar image fails, not a paw", () => {
     const { container } = render(

@@ -6,6 +6,7 @@ import {
   feedPostEditable,
   isFeedMessage,
   packMessageCommentReplyToId,
+  mapFeedThreadQuote,
   mergePackFeedReactions,
   optimisticTogglePackFeedReaction,
   optimisticToggleThreadReplyLike,
@@ -76,6 +77,33 @@ describe("feed keys / message detection", () => {
     expect(packMessageCommentReplyToId(10)).toBe(10);
     expect(packMessageCommentReplyToId(10, 0)).toBe(10);
     expect(packMessageCommentReplyToId(10, 77)).toBe(77);
+  });
+
+  it("mapFeedThreadQuote keeps a reply to Leo even without text", () => {
+    expect(
+      mapFeedThreadQuote({
+        user_id: 3,
+        reply_to_id: 77,
+        reply_to_is_leo: true,
+        reply_to_text: "",
+        reply_to_username: "",
+      }),
+    ).toEqual({ author: "Лео", text: "", isLeo: true, isAdmin: false });
+  });
+
+  it("mapFeedThreadQuote keeps a reply to a participant", () => {
+    expect(
+      mapFeedThreadQuote({
+        user_id: 3,
+        reply_to_id: 12,
+        reply_to_username: "Аня",
+        reply_to_text: "огонь",
+      }),
+    ).toEqual({ author: "Аня", text: "огонь", isLeo: false, isAdmin: false });
+  });
+
+  it("mapFeedThreadQuote hides a bare reply_to without author or text", () => {
+    expect(mapFeedThreadQuote({ user_id: 3, reply_to_id: 12 })).toBeUndefined();
   });
 });
 

@@ -591,8 +591,11 @@ func (b *Bot) handleLeopardMoneyTrainingDone(msg *tgbotapi.Message, personalRepl
 
 // feedThreadAuthorLabel — как подписать автора строки треда в транскрипте для Лео.
 func feedThreadAuthorLabel(r database.TrainingFeedThreadRow) string {
-	if r.FromUserID == 0 {
+	if trainingThreadParentIsLeo(r) {
 		return "Лео"
+	}
+	if strings.EqualFold(strings.TrimSpace(r.PostedAs), "admin") {
+		return "Админ"
 	}
 	n := strings.TrimSpace(r.Username)
 	if n == "" {
@@ -645,7 +648,8 @@ func (b *Bot) buildFeedThreadTranscript(trainingUserMessageID, triggerThreadRepl
 	return strings.TrimRight(sb.String(), "\n")
 }
 
-// LeoReplyInFeedThread — ответ Лео в треде комментариев под отчётом тренировки.
+// LeoReplyInFeedThread — ответ Лео в треде комментариев под карточкой ленты
+// (отчёт, больничный, объявление — как reply в отчётах).
 // Срабатывает, когда участник явно позвал Лео через @leo (даже если реплай был на сообщение
 // другого участника) ИЛИ ответил на сообщение самого Лео. Лео подхватывает контекст ВСЕГО
 // треда, а не только сообщения-родителя. Реплика Лео привязывается к комментарию, который её
@@ -657,6 +661,7 @@ func (b *Bot) LeoReplyInFeedThread(
 	triggerText string,
 	replyToThreadID int64,
 	calledByMention bool,
+	parentType string,
 ) {
 	if b == nil || b.db == nil || b.aiClient == nil {
 		return
@@ -707,36 +712,42 @@ func (b *Bot) LeoReplyInFeedThread(
 		}
 	}
 
+	kind := feedThreadLeoPromptKind(parentType)
+	isTraining := parentType == "training_done" || parentType == ""
 	qb := strings.Builder{}
-	qb.WriteString("Ты Лео — Fat Leopard. Ты участвуешь в комментариях под отчётом о тренировке в ленте стаи (мини-апп).\n\n")
+	qb.WriteString("Ты Лео — Fat Leopard. Ты участвуешь в комментариях под " + kind + " в ленте стаи (мини-апп).\n\n")
 	if calledByMention {
 		qb.WriteString("Участник «" + commenterName + "» позвал тебя через @leo в комментарии. Ответь именно ему, опираясь на весь разговор в треде ниже.\n\n")
 	} else {
 		qb.WriteString("Участник «" + commenterName + "» ответил на твоё сообщение в треде. Продолжи диалог, опираясь на весь разговор в треде ниже.\n\n")
 	}
-	if commenterIsAuthor {
+	if isTraining && commenterIsAuthor {
 		qb.WriteString("Отчёт о тренировке (контекст ниже) принадлежит самому собеседнику — он автор этого отчёта.\n\n")
-	} else {
+	} else if isTraining {
 		qb.WriteString("ВАЖНО про авторство: отчёт о тренировке (контекст ниже) написал участник «" + authorName + "». " +
 			"С тобой сейчас разговаривает ДРУГОЙ участник — «" + commenterName + "». " +
 			"Собеседник НЕ делал эту тренировку, он лишь комментирует чужой отчёт. " +
 			"Не приписывай тренировку, цифры и вид активности из отчёта собеседнику.\n\n")
+	} else if !commenterIsAuthor && authorName != "" {
+		qb.WriteString("Автор карточки — «" + authorName + "», собеседник — «" + commenterName + "». Не путай их.\n\n")
 	}
 	qb.WriteString("Весь тред комментариев (по порядку; строка с пометкой «← на это ответь» — последняя реплика, на которую нужно ответить):\n")
 	if wrapped := moderation.WrapUserContent("feed_thread", transcript); wrapped != "" {
 		qb.WriteString(wrapped)
 	}
-	qb.WriteString("\n\nОтветь собеседнику 1–4 короткими предложениями: остроумно, по-хищному по-дружески, можно лёгкую иронию. Реагируй по делу на последнюю реплику и общий контекст треда — не пересказывай длинный отчёт ниже целиком.\n")
+	qb.WriteString("\n\nОтветь собеседнику 1–4 короткими предложениями: остроумно, по-хищному по-дружески, можно лёгкую иронию. Реагируй по делу на последнюю реплику и общий контекст треда — не пересказывай длинный пост ниже целиком.\n")
 	qb.WriteString("Без Markdown, без нумерации списков. Не начинай ответ с «@leo» или имени. Эмодзи — не больше двух на весь ответ. Без мета («как языковая модель»).\n")
 	if strings.TrimSpace(profName) != "" {
 		qb.WriteString("Имя из профиля (если уместно в обращении): " + strings.TrimSpace(profName) + "\n")
 	}
 
 	ctxBody := strings.Builder{}
-	if commenterIsAuthor {
+	if isTraining && commenterIsAuthor {
 		ctxBody.WriteString("Выдержка из текста отчёта собеседника о его тренировке (контекст, не цитируй дословно целиком):\n")
-	} else {
+	} else if isTraining {
 		ctxBody.WriteString("Выдержка из текста отчёта о тренировке участника «" + authorName + "» — это НЕ тренировка собеседника (контекст, не цитируй дословно целиком):\n")
+	} else {
+		ctxBody.WriteString("Выдержка из текста карточки (контекст, не цитируй дословно целиком):\n")
 	}
 	if wrapped := moderation.WrapUserContent("training_report", truncateForDM(reportText, 900)); wrapped != "" {
 		ctxBody.WriteString(wrapped)

@@ -20,6 +20,7 @@ import {
   feedItemKey,
   isFeedMessage,
   packMessageCommentReplyToId,
+  mapFeedThreadQuote,
   type PackFeedItemDTO,
   type PackFeedThreadReplyDTO,
 } from "../lib/packFeed";
@@ -1969,21 +1970,7 @@ export function FeedScreen({
                   it.type === "inactive_notice";
                 const slotClass = `feed__card-slot${it.is_you && !isLeoSystemFeed ? " feed__card-slot--mine" : " feed__card-slot--them"}`;
                 const threadReplies = (it.thread ?? []).map((tr) => {
-                  const rq =
-                    typeof tr.reply_to_id === "number" &&
-                    tr.reply_to_id > 0 &&
-                    ((tr.reply_to_text || "").trim() !== "" || (tr.reply_to_username || "").trim() !== "")
-                      ? {
-                          author: tr.reply_to_is_leo
-                            ? "Лео"
-                            : tr.reply_to_is_admin
-                              ? "Админ"
-                              : (tr.reply_to_username || "").trim() || `Участник ${tr.user_id}`,
-                          text: (tr.reply_to_text || "").trim(),
-                          isLeo: Boolean(tr.reply_to_is_leo),
-                          isAdmin: Boolean(tr.reply_to_is_admin),
-                        }
-                      : undefined;
+                  const rq = mapFeedThreadQuote(tr);
                   return {
                     id: tr.id,
                     author: (tr.username || "").trim() || `Участник ${tr.user_id}`,

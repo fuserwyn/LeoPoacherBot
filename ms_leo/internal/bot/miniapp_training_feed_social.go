@@ -49,6 +49,38 @@ func packFeedSupportsThread(messageType string) bool {
 	}
 }
 
+// trainingThreadParentIsLeo — системный Лео (from_user_id=0) или голос «от имени Лео».
+func trainingThreadParentIsLeo(row database.TrainingFeedThreadRow) bool {
+	if row.FromUserID == 0 {
+		return true
+	}
+	return strings.EqualFold(strings.TrimSpace(row.PostedAs), "leo")
+}
+
+// shouldLeoReplyInFeedThread — как в отчётах: ответ на Лео или @leo в любом треде ленты.
+func shouldLeoReplyInFeedThread(typ string, officialVoice, replyingToLeo, mentionsLeo bool) bool {
+	if officialVoice {
+		return false
+	}
+	if !replyingToLeo && !mentionsLeo {
+		return false
+	}
+	return packFeedSupportsThread(typ)
+}
+
+func feedThreadLeoPromptKind(typ string) string {
+	switch typ {
+	case "sick_leave":
+		return "заявкой на больничный"
+	case "healthy":
+		return "сообщением о возвращении с больничного"
+	case userMessageTypeAdminPost, userMessageTypeAdminPoll:
+		return "объявлением стаи"
+	default:
+		return "отчётом о тренировке"
+	}
+}
+
 func packFeedSupportsReactions(messageType string) bool {
 	switch messageType {
 	case "training_done", "sick_leave", "healthy",
@@ -194,9 +226,7 @@ func (b *Bot) PackTrainingFeedThreadPost(viewerUserID int64, initD initdata.Init
 		if !ok || parent.UserMessageID != userMessageID {
 			return ErrTrainingFeedThreadInvalidReply
 		}
-		if parent.FromUserID == 0 {
-			replyingToLeo = true
-		}
+		replyingToLeo = trainingThreadParentIsLeo(parent)
 	}
 	// Лео отвечает в треде, если его явно позвали через @leo (даже если реплай был на
 	// сообщение другого участника) ИЛИ если это reply на сообщение самого Лео.
@@ -215,7 +245,8 @@ func (b *Bot) PackTrainingFeedThreadPost(viewerUserID int64, initD initdata.Init
 	b.afterPackTrainingThreadInserted(chatID, userMessageID, viewerUserID, uname, text, threadID, replyToThreadID, typ)
 	b.trackFeedCommentPosted(viewerUserID, utf8.RuneCountInString(text))
 	// Автоответ Лео не нужен, если комментарий уже опубликован официальным голосом.
-	if !officialVoice && (replyingToLeo || mentionsLeo) && threadID != 0 && typ == "training_done" {
+	// Как в отчётах: ответ на Лео / @leo в любом треде ленты (тренировка, больничный, объявление).
+	if shouldLeoReplyInFeedThread(typ, officialVoice, replyingToLeo, mentionsLeo) && threadID != 0 {
 		txt := text
 		uid := viewerUserID
 		tid := threadID
@@ -223,13 +254,14 @@ func (b *Bot) PackTrainingFeedThreadPost(viewerUserID int64, initD initdata.Init
 		cid := chatID
 		rtt := replyToThreadID
 		mention := mentionsLeo
+		parentTyp := typ
 		go func() {
 			defer func() {
 				if r := recover(); r != nil {
 					b.logger.Errorf("leo feed thread reply panic: %v", r)
 				}
 			}()
-			b.LeoReplyInFeedThread(cid, umid, tid, uid, txt, rtt, mention)
+			b.LeoReplyInFeedThread(cid, umid, tid, uid, txt, rtt, mention, parentTyp)
 		}()
 	}
 	return nil

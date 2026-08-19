@@ -234,6 +234,36 @@ export function packMessageCommentReplyToId(cardId: number, replyToCommentId?: n
   return cardId;
 }
 
+export type FeedThreadQuote = {
+  author: string;
+  text: string;
+  isLeo?: boolean;
+  isAdmin?: boolean;
+};
+
+/** Цитата «ответ на…» в треде: Лео/Админ показываем даже без текста (фото-only). */
+export function mapFeedThreadQuote(
+  tr: Pick<
+    PackFeedThreadReplyDTO,
+    | "user_id"
+    | "reply_to_id"
+    | "reply_to_username"
+    | "reply_to_text"
+    | "reply_to_is_leo"
+    | "reply_to_is_admin"
+  >,
+): FeedThreadQuote | undefined {
+  const replyToId = typeof tr.reply_to_id === "number" ? tr.reply_to_id : 0;
+  if (replyToId <= 0) return undefined;
+  const isLeo = Boolean(tr.reply_to_is_leo);
+  const isAdmin = Boolean(tr.reply_to_is_admin);
+  const username = (tr.reply_to_username || "").trim();
+  const text = (tr.reply_to_text || "").trim();
+  if (!isLeo && !isAdmin && text === "" && username === "") return undefined;
+  const author = isLeo ? "Лео" : isAdmin ? "Админ" : username || `Участник ${tr.user_id}`;
+  return { author, text, isLeo, isAdmin };
+}
+
 /** Сводит авторитетный набор закреплённых (с бэка) в текущую ленту:
  *  обновляет/добавляет закреплённые, снимает флаг с откреплённых. */
 export function reconcilePinnedFeed(
