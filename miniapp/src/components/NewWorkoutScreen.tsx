@@ -103,7 +103,7 @@ const INTENSITIES: { v: 1 | 2 | 3 | 4 | 5; label: string }[] = [
 ];
 
 /** Пресеты минут (до 120); произвольное значение — поле «Своё», лимит как в формуле кубков на бэке. */
-const PRESET_MIN = [5, 15, 30, 45, 60, 75, 90, 120] as const;
+const PRESET_MIN = [5, 15, 20, 30, 45, 60, 75, 90, 120] as const;
 const WORKOUT_MIN_MIN = 1;
 const WORKOUT_MIN_MAX = 480;
 
