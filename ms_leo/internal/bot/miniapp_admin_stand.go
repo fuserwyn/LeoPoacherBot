@@ -202,10 +202,11 @@ func (b *Bot) standStopService(serviceID string) error {
 	if node.Status == "REMOVED" || node.Status == "CRASHED" || node.Status == "FAILED" {
 		return nil
 	}
-	// deploymentStop, а не deploymentRemove: нам нужно погасить контейнер, а не
-	// стереть запись о выкате — иначе история деплоев стенда рассыпается.
+	// deploymentRemove, а не deploymentStop: stop гасит контейнер, но в API
+	// деплой продолжает числиться успешным — прогресс и подпись кнопки на этом
+	// врали бы. После remove статус становится REMOVED, и состояние видно честно.
 	_, err = b.railwayCall(
-		`mutation($id:String!){ deploymentStop(id:$id) }`,
+		`mutation($id:String!){ deploymentRemove(id:$id) }`,
 		map[string]any{"id": node.ID},
 	)
 	return err
@@ -216,7 +217,7 @@ func (b *Bot) standServices() ([]MiniappStandService, error) {
 	out := make([]MiniappStandService, 0, len(b.config.LabServiceIDs()))
 	for _, serviceID := range b.config.LabServiceIDs() {
 		raw, err := b.railwayCall(
-			`query($sid:String!,$eid:String!){ service(id:$sid){ name } deployments(first:1, input:{serviceId:$sid, environmentId:$eid}){ edges{ node{ status } } } }`,
+			`query($sid:String!,$eid:String!){ service(id:$sid){ name } deployments(first:5, input:{serviceId:$sid, environmentId:$eid}){ edges{ node{ status } } } }`,
 			map[string]any{"sid": serviceID, "eid": strings.TrimSpace(b.config.LabEnvironmentID)},
 		)
 		if err != nil {
@@ -237,9 +238,15 @@ func (b *Bot) standServices() ([]MiniappStandService, error) {
 		if err := json.Unmarshal(raw, &parsed); err != nil {
 			return nil, err
 		}
+		// Берём свежий значимый выкат: SKIPPED — это пуш, который сервиса не
+		// касался, и о состоянии контейнера он ничего не говорит.
 		status := "нет деплоя"
-		if len(parsed.Deployments.Edges) > 0 {
-			status = parsed.Deployments.Edges[0].Node.Status
+		for _, e := range parsed.Deployments.Edges {
+			if e.Node.Status == "SKIPPED" {
+				continue
+			}
+			status = e.Node.Status
+			break
 		}
 		name := parsed.Service.Name
 		if name == "" {
