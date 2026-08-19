@@ -377,6 +377,18 @@ export function runAdminDbQuery(initData: string, sql: string) {
   return post<{ result: AdminQueryResult }>("/api/miniapp/admin/db/query", initData, { sql });
 }
 
+export type AdminStand = {
+  configured: boolean;
+  running: boolean;
+  miniapp_url: string;
+  services: { id: string; name: string; status: string }[];
+};
+
+/** Тестовый стенд: посмотреть состояние, поднять или погасить приложения. */
+export function adminStand(initData: string, action: "status" | "start" | "stop" = "status") {
+  return post<{ stand: AdminStand }>("/api/miniapp/admin/stand", initData, { action });
+}
+
 export function fetchAdminResources(initData: string) {
   return post<{ resources: AdminResources }>("/api/miniapp/admin/resources", initData);
 }

@@ -849,6 +849,29 @@ func (s *Server) handlePostAdminLeoLab(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+// handlePostAdminStand — включить, выключить или посмотреть тестовый стенд.
+func (s *Server) handlePostAdminStand(w http.ResponseWriter, r *http.Request) {
+	var body struct {
+		InitData string `json:"init_data"`
+		Action   string `json:"action"`
+	}
+	corsWriteHeaders(w, r)
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		s.jsonErr(w, http.StatusBadRequest, "invalid_json")
+		return
+	}
+	parsed, ok := s.authMiniapp(w, body.InitData)
+	if !ok {
+		return
+	}
+	state, err := s.bot.MiniappLabStand(parsed.User.ID, parsed, body.Action)
+	if err != nil {
+		s.writeAdminErr(w, err)
+		return
+	}
+	s.writeAdminOK(w, map[string]any{"stand": state})
+}
+
 // handlePostAdminTrackerAttachment — посмотреть или снять фото задачи.
 // action: get — вернуть картинку base64 (мини-апп рисует её в карточке);
 // delete — убрать вложение, на этом строится «заменить фото».

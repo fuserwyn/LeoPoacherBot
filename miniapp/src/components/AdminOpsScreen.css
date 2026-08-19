@@ -314,3 +314,33 @@
     max-width: 100%;
   }
 }
+
+/* Управление тестовым стендом на вкладке «Ресурсы». */
+.ops-stand {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 8px 0;
+}
+
+.ops-stand__svc {
+  font-size: 0.74rem;
+  color: var(--muted);
+  border: 1px solid var(--border-subtle);
+  border-radius: 999px;
+  padding: 3px 10px;
+}
+
+.ops-stand__row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+
+.ops-stand__link {
+  font-size: 0.82rem;
+  color: var(--accent);
+  text-decoration: none;
+  padding: 6px 2px;
+}

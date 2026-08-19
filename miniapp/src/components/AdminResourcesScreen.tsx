@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { fetchAdminResources, type AdminResources } from "../lib/adminApi";
+import { adminStand, fetchAdminResources, type AdminResources, type AdminStand } from "../lib/adminApi";
 import "./AdminOpsScreen.css";
 
 type Props = {
@@ -13,6 +13,9 @@ const money = (usd: number) => `${usd < 0 ? "−" : ""}$${Math.abs(usd).toFixed(
 export function AdminResourcesScreen({ initData, showAlert }: Props) {
   const [data, setData] = useState<AdminResources | null>(null);
   const [loading, setLoading] = useState(true);
+  /** Тестовый стенд: он тратит деньги, пока крутится, и гасить его удобнее отсюда. */
+  const [stand, setStand] = useState<AdminStand | null>(null);
+  const [standBusy, setStandBusy] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -29,6 +32,30 @@ export function AdminResourcesScreen({ initData, showAlert }: Props) {
   useEffect(() => {
     void load();
   }, [load]);
+
+  useEffect(() => {
+    void (async () => {
+      try {
+        setStand((await adminStand(initData)).stand);
+      } catch {
+        // Стенда может не быть — тогда блок просто не показываем.
+        setStand(null);
+      }
+    })();
+  }, [initData]);
+
+  const switchStand = async (action: "start" | "stop") => {
+    setStandBusy(true);
+    try {
+      const j = await adminStand(initData, action);
+      setStand(j.stand);
+      showAlert(action === "start" ? "Стенд поднимается." : "Стенд погашен.");
+    } catch (e) {
+      showAlert(e instanceof Error ? e.message : "Не получилось");
+    } finally {
+      setStandBusy(false);
+    }
+  };
 
   if (loading) return <p className="ops-muted">Считаю…</p>;
   if (!data) return <p className="ops-muted">Нет данных</p>;
@@ -50,6 +77,39 @@ export function AdminResourcesScreen({ initData, showAlert }: Props) {
         </div>
       </div>
       <p className="ops-muted">Месяц {data.month}. Всё в долларах, по текущую дату.</p>
+
+      {stand?.configured ? (
+        <section className="ops-table">
+          <h3 className="ops-table__title">🧪 Тестовый стенд</h3>
+          <p className="ops-table__subtitle">
+            {stand.running
+              ? "Работает и тратит ресурсы. Базы при выключении остаются — данные не пропадут."
+              : "Погашен. При включении поднимется с теми же данными."}
+          </p>
+          <div className="ops-stand">
+            {stand.services.map((svc) => (
+              <span key={svc.id} className="ops-stand__svc">
+                {svc.name}: {svc.status}
+              </span>
+            ))}
+          </div>
+          <div className="ops-stand__row">
+            <button
+              type="button"
+              className={stand.running ? "ops-danger" : "ops-primary"}
+              disabled={standBusy}
+              onClick={() => void switchStand(stand.running ? "stop" : "start")}
+            >
+              {stand.running ? "Выключить стенд" : "Включить стенд"}
+            </button>
+            {stand.miniapp_url ? (
+              <a className="ops-stand__link" href={stand.miniapp_url} target="_blank" rel="noreferrer">
+                Открыть стенд
+              </a>
+            ) : null}
+          </div>
+        </section>
+      ) : null}
 
       <section className="ops-table">
         <h3 className="ops-table__title">🖥 Ресурсы Railway</h3>

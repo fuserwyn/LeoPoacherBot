@@ -183,6 +183,8 @@ func (s *Server) serve(w http.ResponseWriter, r *http.Request) {
 		s.handlePostAdminLeoAutonomy(w, r)
 	case path == "/api/miniapp/admin/tracker/attachment" && r.Method == http.MethodPost:
 		s.handlePostAdminTrackerAttachment(w, r)
+	case path == "/api/miniapp/admin/stand" && r.Method == http.MethodPost:
+		s.handlePostAdminStand(w, r)
 	case path == "/api/miniapp/board/notify" && r.Method == http.MethodPost:
 		s.handleBoardNotify(w, r)
 	case path == "/api/miniapp/auth/desktop/poll" && (r.Method == http.MethodGet || r.Method == http.MethodPost):

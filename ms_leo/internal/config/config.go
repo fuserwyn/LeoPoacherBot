@@ -102,11 +102,20 @@ type Config struct {
 	// (прод). В экспериментальном окружении здесь leo-lab, чтобы автономные
 	// задачи Лео не уезжали в прод.
 	BoardBranch string
+	// Модель, которой трекер гонит задачи этой доски. Пусто — как настроено у
+	// владельца доски. На тестовом стенде это cursor-auto: эксперименты Лео
+	// незачем гонять дорогой моделью.
+	BoardModel string
 
 	// Раздел «Ресурсы» в админке: расход Railway за месяц и пересчёт оплат в
 	// доллары. Ставки — из тарифов Railway, курс — руками, чтобы не тянуть
 	// внешний сервис ради одной цифры.
-	RailwayToken          string
+	RailwayToken string
+	// Тестовый стенд, которым админ управляет из мини-аппа прода: окружение,
+	// сервисы приложений (без баз — их не гасим) и адрес мини-аппа стенда.
+	LabEnvironmentID      string
+	LabServices           string
+	LabMiniappURL         string
 	RailwayProjectID      string
 	UsagePriceRAMGBMonth  float64
 	UsagePriceCPUMonth    float64
@@ -182,7 +191,11 @@ func Load() (*Config, error) {
 		BoardURL:              getEnv("MYVIBELAB_URL", "https://myvibelab-production.up.railway.app"),
 		BoardRepo:             getEnv("BOARD_REPO", "fuserwyn/Fat-Leopard"),
 		BoardBranch:           getEnv("BOARD_BRANCH", ""),
+		BoardModel:            getEnv("BOARD_MODEL", ""),
 		RailwayToken:          getEnv("RAILWAY_API_TOKEN", ""),
+		LabEnvironmentID:      getEnv("LAB_ENVIRONMENT_ID", ""),
+		LabServices:           getEnv("LAB_SERVICE_IDS", ""),
+		LabMiniappURL:         getEnv("LAB_MINIAPP_URL", ""),
 		RailwayProjectID:      getEnv("RAILWAY_PROJECT_ID", ""),
 		UsagePriceRAMGBMonth:  parseFloatEnv("USAGE_PRICE_RAM_GB_MONTH", 10),
 		UsagePriceCPUMonth:    parseFloatEnv("USAGE_PRICE_CPU_MONTH", 20),
@@ -240,6 +253,20 @@ func Load() (*Config, error) {
 		QdrantCollection:  strings.TrimSpace(getEnv("QDRANT_COLLECTION", "leo_chat_rag")),
 		RAGEmbeddingModel: strings.TrimSpace(getEnv("RAG_EMBEDDING_MODEL", "openai/text-embedding-3-small")),
 	}, nil
+}
+
+// LabServiceIDs — сервисы тестового стенда, которые гасим и поднимаем.
+func (c *Config) LabServiceIDs() []string {
+	if c == nil {
+		return nil
+	}
+	var out []string
+	for _, part := range strings.Split(c.LabServices, ",") {
+		if id := strings.TrimSpace(part); id != "" {
+			out = append(out, id)
+		}
+	}
+	return out
 }
 
 // IsAdminTelegramUser — владелец или любой id из ADMIN_IDS.

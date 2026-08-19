@@ -342,6 +342,16 @@ func (b *Bot) trackerRequest(
 		path = strings.ReplaceAll(path, "{id}", fmt.Sprintf("%d", taskID))
 	}
 
+	// Модель доски задаёт окружение, а не мини-апп: на тестовом стенде задачи
+	// гоняются на Cursor auto, а мини-апп об этом знать не обязан.
+	if op == "create" && payload != nil {
+		if model := strings.TrimSpace(b.config.BoardModel); model != "" {
+			if _, set := payload["model"]; !set {
+				payload["model"] = model
+			}
+		}
+	}
+
 	var body io.Reader
 	if spec.method != http.MethodGet && payload != nil {
 		raw, err := json.Marshal(payload)
