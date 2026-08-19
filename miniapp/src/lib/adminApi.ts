@@ -382,6 +382,11 @@ export type AdminStand = {
   running: boolean;
   miniapp_url: string;
   services: { id: string; name: string; status: string }[];
+  /** Сколько всего сервисов у стенда и сколько из них уже подняты. */
+  total: number;
+  up: number;
+  /** Хотя бы один сервис в переходном состоянии — переключение ещё идёт. */
+  busy: boolean;
 };
 
 /** Тестовый стенд: посмотреть состояние, поднять или погасить приложения. */

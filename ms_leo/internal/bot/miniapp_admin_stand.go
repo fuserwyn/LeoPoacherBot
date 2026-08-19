@@ -41,6 +41,12 @@ type MiniappStandState struct {
 	Running    bool                  `json:"running"`
 	MiniappURL string                `json:"miniapp_url"`
 	Services   []MiniappStandService `json:"services"`
+	// Для прогресса: сколько сервисов уже в нужном состоянии. Переключение не
+	// мгновенное — контейнеры гаснут и поднимаются по одному, и без этих чисел
+	// админ видит зависшую кнопку и жмёт её повторно.
+	Total int  `json:"total"`
+	Up    int  `json:"up"`
+	Busy  bool `json:"busy"`
 }
 
 // MiniappLabStand — статус и управление тестовым стендом.
@@ -86,12 +92,17 @@ func (b *Bot) MiniappLabStand(
 		return out, err
 	}
 	out.Services = services
-	for _, s := range services {
-		if s.Status == "SUCCESS" || s.Status == "DEPLOYING" || s.Status == "BUILDING" {
-			out.Running = true
-			break
+	out.Total = len(services)
+	for _, svc := range services {
+		switch svc.Status {
+		case "SUCCESS":
+			out.Up++
+		case "DEPLOYING", "BUILDING", "INITIALIZING", "QUEUED", "WAITING", "REMOVING":
+			// Переходное состояние: прогресс ещё идёт, кнопку держим занятой.
+			out.Busy = true
 		}
 	}
+	out.Running = out.Up > 0
 	return out, nil
 }
 
@@ -122,11 +133,19 @@ func (b *Bot) standSwitch(on bool) error {
 	for _, serviceID := range b.config.LabServiceIDs() {
 		var err error
 		if on {
+			if e := b.standAutoDeploy(serviceID, true); e != nil && firstErr == nil {
+				firstErr = e
+			}
 			_, err = b.railwayCall(
 				`mutation($s:String!,$e:String!){ serviceInstanceDeployV2(serviceId:$s, environmentId:$e) }`,
 				map[string]any{"s": serviceID, "e": strings.TrimSpace(b.config.LabEnvironmentID)},
 			)
 		} else {
+			// Сначала снимаем автосборку, потом гасим: иначе сборка, запущенная
+			// в этот момент, поднимет сервис сразу после остановки.
+			if e := b.standAutoDeploy(serviceID, false); e != nil && firstErr == nil {
+				firstErr = e
+			}
 			err = b.standStopService(serviceID)
 		}
 		if err != nil && firstErr == nil {
@@ -134,6 +153,24 @@ func (b *Bot) standSwitch(on bool) error {
 		}
 	}
 	return firstErr
+}
+
+// standAutoDeploy — включить или выключить автосборку сервиса.
+//
+// Без этого выключенный стенд оживал сам: любой пуш в его ветку запускал
+// сборку, и мини-апп снова оказывался онлайн — со стороны это выглядело как
+// «выключение не сработало».
+func (b *Bot) standAutoDeploy(serviceID string, enabled bool) error {
+	_, err := b.railwayCall(
+		`mutation($in:ServiceInstanceAutoDeployUpdateInput!){ serviceInstanceAutoDeployUpdate(input:$in) }`,
+		map[string]any{"in": map[string]any{
+			"serviceId":     serviceID,
+			"environmentId": strings.TrimSpace(b.config.LabEnvironmentID),
+			"projectId":     strings.TrimSpace(b.config.RailwayProjectID),
+			"enabled":       enabled,
+		}},
+	)
+	return err
 }
 
 // standStopService — остановить текущий деплой сервиса стенда.
@@ -165,8 +202,10 @@ func (b *Bot) standStopService(serviceID string) error {
 	if node.Status == "REMOVED" || node.Status == "CRASHED" || node.Status == "FAILED" {
 		return nil
 	}
+	// deploymentStop, а не deploymentRemove: нам нужно погасить контейнер, а не
+	// стереть запись о выкате — иначе история деплоев стенда рассыпается.
 	_, err = b.railwayCall(
-		`mutation($id:String!){ deploymentRemove(id:$id) }`,
+		`mutation($id:String!){ deploymentStop(id:$id) }`,
 		map[string]any{"id": node.ID},
 	)
 	return err

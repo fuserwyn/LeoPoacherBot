@@ -314,3 +314,31 @@
     max-width: 100%;
   }
 }
+
+/* Переключатель стенда: кнопка и рядом прогресс поднятых сервисов. */
+.ops-stand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.ops-stand__meter {
+  flex: 1 1 auto;
+  height: 6px;
+  min-width: 60px;
+  border-radius: 999px;
+  background: var(--border-subtle);
+  overflow: hidden;
+}
+
+.ops-stand__meter-fill {
+  height: 100%;
+  background: var(--accent);
+  transition: width 300ms ease;
+}
+
+.ops-stand__count {
+  font-size: 0.76rem;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}

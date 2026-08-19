@@ -44,12 +44,21 @@ export function AdminResourcesScreen({ initData, showAlert }: Props) {
     })();
   }, [initData]);
 
+  // Переключение не мгновенное: контейнеры гаснут и поднимаются по одному.
+  // Поэтому после команды опрашиваем состояние, пока стенд не придёт к цели, —
+  // иначе кнопка «готово» врёт, а админ жмёт её повторно.
   const switchStand = async (action: "start" | "stop") => {
     setStandBusy(true);
     try {
-      const j = await adminStand(initData, action);
-      setStand(j.stand);
-      showAlert(action === "start" ? "Стенд поднимается." : "Стенд погашен.");
+      setStand((await adminStand(initData, action)).stand);
+      const target = action === "start";
+      for (let i = 0; i < 40; i++) {
+        await new Promise((r) => setTimeout(r, 3000));
+        const next = (await adminStand(initData)).stand;
+        setStand(next);
+        const done = target ? next.up === next.total && !next.busy : next.up === 0 && !next.busy;
+        if (done) break;
+      }
     } catch (e) {
       showAlert(e instanceof Error ? e.message : "Не получилось");
     } finally {
@@ -81,16 +90,27 @@ export function AdminResourcesScreen({ initData, showAlert }: Props) {
       {stand?.configured ? (
         <section className="ops-table">
           <h3 className="ops-table__title">🧪 Тестовый стенд</h3>
-          {/* Только переключатель: состояние сервисов и ссылку убрали — админу
-              здесь нужно одно решение, включён стенд или нет. */}
-          <button
-            type="button"
-            className={stand.running ? "ops-danger" : "ops-primary"}
-            disabled={standBusy}
-            onClick={() => void switchStand(stand.running ? "stop" : "start")}
-          >
-            {stand.running ? "Выключить стенд" : "Включить стенд"}
-          </button>
+          {/* Кнопка и прогресс рядом: пока сервисы гаснут или поднимаются,
+              видно, сколько из них уже дошло. */}
+          <div className="ops-stand">
+            <button
+              type="button"
+              className={stand.running ? "ops-danger" : "ops-primary"}
+              disabled={standBusy}
+              onClick={() => void switchStand(stand.running ? "stop" : "start")}
+            >
+              {standBusy ? "Переключаю…" : stand.running ? "Выключить стенд" : "Включить стенд"}
+            </button>
+            <div className="ops-stand__meter" aria-hidden>
+              <div
+                className="ops-stand__meter-fill"
+                style={{ width: `${stand.total > 0 ? Math.round((stand.up / stand.total) * 100) : 0}%` }}
+              />
+            </div>
+            <span className="ops-stand__count">
+              {stand.up}/{stand.total}
+            </span>
+          </div>
         </section>
       ) : null}
 
