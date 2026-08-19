@@ -29,6 +29,7 @@ import {
 } from "../lib/trackerApi";
 import { TaskImageEditor, type TaskImage } from "./TaskImageEditor";
 import { LEO_AVATAR_URL } from "../lib/leoAvatar";
+import { tgConfirm } from "../lib/tgConfirm";
 import "./TrackerScreen.css";
 
 type Props = {
@@ -341,6 +342,56 @@ export function TrackerScreen({ initData, showAlert }: Props) {
     setPrompt(proposal.task);
     setProposal(null);
     await createTaskWith(proposal.task, { leo: true });
+  };
+
+  /** Конфликт при переносе/откате — тупик только для git, но не для работы:
+      предлагаем поставить задачу, которую агент доведёт руками. */
+  const offerFixTask = async (task: TrackerTask, what: "Перенос" | "Откат", reason: string) => {
+    const ok = await tgConfirm(
+      `${what} не встал автоматически: ${reason}\n\nПоставить задачу, чтобы это сделали руками?`,
+    );
+    if (!ok) return;
+    const text =
+      `${what === "Откат" ? "Откатить" : "Перенести"} задачу #${task.id} вручную: ` +
+      `«${parsePrompt(task.prompt).text.slice(0, 200)}». ` +
+      "Автоматически не вышло — с тех пор те же места правили, git не смог применить изменение сам. " +
+      "Разберись в коде и приведи поведение к нужному состоянию.";
+    try {
+      const res = await trackerCreate(initData, { when: "через 5 мин", prompt: text });
+      showAlert(`Задача-исправление поставлена на ${res.when || "ближайший запуск"}.`);
+      await load(true);
+    } catch (e) {
+      showAlert(e instanceof Error ? e.message : "Не удалось поставить задачу");
+    }
+  };
+
+  /** Перенос и откат: успех — обычный путь, конфликт — предложение поправить задачей. */
+  const applyResult = async (task: TrackerTask, what: "Перенос" | "Откат") => {
+    setBusy(true);
+    try {
+      const res =
+        what === "Откат"
+          ? await trackerRevert(initData, task.id)
+          : await trackerPromote(initData, task.id);
+      showAlert(
+        what === "Откат"
+          ? `Задача откачена, коммит ${res.commit || ""}`.trim()
+          : `Забрал на основной стенд, коммит ${res.commit || ""}`.trim(),
+      );
+      const j = await trackerTask(initData, task.id);
+      if (j.task) setDetail(j.task);
+      await load(true);
+    } catch (e) {
+      const reason = e instanceof Error ? e.message : "не получилось";
+      // Конфликт узнаём по тексту трекера: он единственный, кто может его отдать.
+      if (/не встал|конфликт|разош/i.test(reason)) {
+        await offerFixTask(task, what, reason);
+      } else {
+        showAlert(reason);
+      }
+    } finally {
+      setBusy(false);
+    }
   };
 
   const openTask = async (task: TrackerTask) => {
@@ -1038,12 +1089,7 @@ export function TrackerScreen({ initData, showAlert }: Props) {
                       type="button"
                       className="tracker__primary"
                       disabled={busy}
-                      onClick={() =>
-                        void actOnDetail(
-                          () => trackerPromote(initData, detail.id),
-                          "Забрал на основной стенд.",
-                        )
-                      }
+                      onClick={() => void applyResult(detail, "Перенос")}
                     >
                       Забрать на основной стенд
                     </button>
@@ -1053,8 +1099,10 @@ export function TrackerScreen({ initData, showAlert }: Props) {
                     className="tracker__attach"
                     disabled={busy}
                     onClick={() => {
-                      if (!window.confirm("Откатить результат этой задачи обратным коммитом?")) return;
-                      void actOnDetail(() => trackerRevert(initData, detail.id), "Задача откачена.");
+                      void (async () => {
+                        if (!(await tgConfirm("Откатить результат этой задачи обратным коммитом?"))) return;
+                        await applyResult(detail, "Откат");
+                      })();
                     }}
                   >
                     Откатить
