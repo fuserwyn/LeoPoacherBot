@@ -127,6 +127,8 @@ func (s *Server) serve(w http.ResponseWriter, r *http.Request) {
 		s.handlePostDonateStatus(w, r)
 	case path == "/api/miniapp/profile/load" && r.Method == http.MethodPost:
 		s.handlePostProfileLoad(w, r)
+	case path == "/api/miniapp/training-map" && r.Method == http.MethodPost:
+		s.handlePostTrainingMap(w, r)
 	case path == "/api/miniapp/profile/save" && r.Method == http.MethodPost:
 		s.handlePostProfileSave(w, r)
 	case path == "/api/miniapp/reminders/load" && r.Method == http.MethodPost:
