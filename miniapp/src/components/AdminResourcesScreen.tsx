@@ -81,33 +81,16 @@ export function AdminResourcesScreen({ initData, showAlert }: Props) {
       {stand?.configured ? (
         <section className="ops-table">
           <h3 className="ops-table__title">🧪 Тестовый стенд</h3>
-          <p className="ops-table__subtitle">
-            {stand.running
-              ? "Работает и тратит ресурсы. Базы при выключении остаются — данные не пропадут."
-              : "Погашен. При включении поднимется с теми же данными."}
-          </p>
-          <div className="ops-stand">
-            {stand.services.map((svc) => (
-              <span key={svc.id} className="ops-stand__svc">
-                {svc.name}: {svc.status}
-              </span>
-            ))}
-          </div>
-          <div className="ops-stand__row">
-            <button
-              type="button"
-              className={stand.running ? "ops-danger" : "ops-primary"}
-              disabled={standBusy}
-              onClick={() => void switchStand(stand.running ? "stop" : "start")}
-            >
-              {stand.running ? "Выключить стенд" : "Включить стенд"}
-            </button>
-            {stand.miniapp_url ? (
-              <a className="ops-stand__link" href={stand.miniapp_url} target="_blank" rel="noreferrer">
-                Открыть стенд
-              </a>
-            ) : null}
-          </div>
+          {/* Только переключатель: состояние сервисов и ссылку убрали — админу
+              здесь нужно одно решение, включён стенд или нет. */}
+          <button
+            type="button"
+            className={stand.running ? "ops-danger" : "ops-primary"}
+            disabled={standBusy}
+            onClick={() => void switchStand(stand.running ? "stop" : "start")}
+          >
+            {stand.running ? "Выключить стенд" : "Включить стенд"}
+          </button>
         </section>
       ) : null}
 
