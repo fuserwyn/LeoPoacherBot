@@ -1,7 +1,7 @@
 .act-card {
   background: var(--card);
   border-radius: var(--radius-lg);
-  padding: 12px 14px 14px;
+  padding: 8px 10px 10px;
   border: 1px solid var(--border-subtle);
   margin-bottom: 14px;
   /* Карточка растёт под контент: скроллится лента, не внутреннее окно.
@@ -41,7 +41,7 @@
 .act-card__head {
   display: flex;
   align-items: flex-start;
-  gap: 10px;
+  gap: 8px;
   margin-bottom: 8px;
   flex-shrink: 0;
   position: relative;
@@ -67,12 +67,10 @@
   font-size: 20px;
   line-height: 1;
   letter-spacing: 1px;
-  width: 44px;
-  height: 44px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  padding: 0;
+  padding: 2px 6px;
   margin: -6px -8px 0 0;
   cursor: pointer;
   color: var(--muted, #8b8b9a);
@@ -118,13 +116,12 @@
 .act-card__menu-item {
   display: block;
   width: 100%;
-  min-height: 44px;
-  padding: 12px 14px;
+  padding: 10px 12px;
   border: none;
   border-radius: 8px;
   background: transparent;
   font: inherit;
-  font-size: 15px;
+  font-size: 14px;
   line-height: 1.35;
   text-align: left;
   color: var(--text, #e8e8f0);
@@ -141,8 +138,8 @@
 }
 
 .act-card__avatar {
-  width: 40px;
-  height: 40px;
+  width: 34px;
+  height: 34px;
   border-radius: 50%;
   background: var(--card-inner);
   display: flex;
@@ -227,7 +224,7 @@
 
 .act-card__name {
   font-weight: 650;
-  font-size: 15px;
+  font-size: 14px;
   letter-spacing: -0.01em;
   min-width: 0;
   overflow: hidden;
@@ -236,7 +233,7 @@
 }
 
 .act-card__time {
-  font-size: 12px;
+  font-size: 11px;
   color: var(--text-muted);
   margin: 0;
   /* Сжимаемся с многоточием, чтобы пилюля стрика (в т.ч. 3-значного) оставалась
@@ -264,7 +261,7 @@
 
 .act-card__type {
   font-weight: 650;
-  font-size: 15px;
+  font-size: 13px;
   letter-spacing: -0.01em;
   margin-bottom: 2px;
   min-width: 0;
@@ -332,8 +329,8 @@
 }
 
 .act-card__details {
-  font-size: 13px;
-  line-height: 1.45;
+  font-size: 12px;
+  line-height: 1.35;
   margin-bottom: 6px;
   color: var(--text-muted);
   overflow-wrap: break-word;
@@ -342,8 +339,8 @@
 }
 
 .act-card__comment {
-  font-size: 15px;
-  line-height: 1.45;
+  font-size: 12px;
+  line-height: 1.35;
   margin-bottom: 8px;
   color: var(--text);
   overflow-wrap: break-word;
@@ -393,9 +390,8 @@
 .act-card__comment-toggle {
   border: none;
   background: transparent;
-  min-height: 36px;
-  padding: 6px 0;
-  font-size: 14px;
+  padding: 0;
+  font-size: 12px;
   font-weight: 600;
   color: var(--accent, #2ea76e);
   cursor: pointer;
@@ -415,8 +411,7 @@
   justify-content: space-between;
   gap: 8px;
   width: 100%;
-  min-height: 44px;
-  padding: 10px 14px;
+  padding: 8px 12px;
   border-radius: 10px;
   border: 1px solid var(--border-subtle);
   background: var(--fill-subtle);
@@ -433,7 +428,7 @@
 }
 
 .act-card__poll-label {
-  font-size: 0.9rem;
+  font-size: 0.82rem;
   font-weight: 600;
   line-height: 1.25;
 }
@@ -479,8 +474,8 @@
 }
 
 .act-card__ai-text {
-  font-size: 13px;
-  line-height: 1.4;
+  font-size: 11px;
+  line-height: 1.35;
   color: var(--text-muted);
   margin: 0;
 }
@@ -491,7 +486,7 @@
   z-index: 2;
   width: 100%;
   min-width: 0;
-  padding: 8px 0 4px;
+  padding: 6px 0 8px;
   margin: 0;
   /* Прозрачный фон и без верхней линии — полоса реакций сливается с телом поста
      (раньше собственный непрозрачный var(--card) + border-top читались отдельной
@@ -615,9 +610,8 @@
   align-items: center;
   justify-content: center;
   min-width: 44px;
-  min-height: 36px;
-  height: 36px;
-  padding: 0 10px;
+  height: 30px;
+  padding: 0 8px;
   border-radius: 999px;
   font-size: 18px;
   line-height: 1;
@@ -658,10 +652,9 @@
 .act-card__react-btn {
   display: inline-flex;
   align-items: center;
-  gap: 3px;
-  min-height: 36px;
-  font-size: 16px;
-  padding: 6px 10px;
+  gap: 2px;
+  font-size: 14px;
+  padding: 4px 6px;
   border-radius: 999px;
   /* Единый цвет для всех пилюль реакций (раньше var(--fill-soft) давал белесый
      фон у чужих реакций, а «своя» была фиолетовой — выглядело разнородно). */
@@ -687,7 +680,7 @@
 }
 
 .act-card__react-cnt {
-  font-size: 13px;
+  font-size: 12px;
   color: var(--text-muted);
 }
 
@@ -714,8 +707,8 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 44px;
-  height: 44px;
+  width: 40px;
+  height: 40px;
   padding: 0;
   font-size: 24px;
   line-height: 1;
@@ -769,15 +762,15 @@
   width: 100%;
   gap: 8px;
   box-sizing: border-box;
-  min-height: 44px;
-  padding: 10px 12px;
+  min-height: 32px;
+  padding: 6px 8px;
   margin: 4px 0 0;
   border: 1px solid var(--border-subtle);
   border-radius: var(--radius-sm);
   background: var(--card-inner);
   color: var(--text);
   font: inherit;
-  font-size: 14px;
+  font-size: 12px;
   font-weight: 600;
   line-height: 1.35;
   flex-shrink: 0;
@@ -902,9 +895,8 @@
 
 .act-card__thread-del {
   flex-shrink: 0;
-  min-height: 36px;
-  padding: 8px 10px;
-  font-size: 13px;
+  padding: 2px 8px;
+  font-size: 12px;
   border: none;
   border-radius: 6px;
   background: transparent;
@@ -929,9 +921,8 @@
 
 .act-card__thread-edit {
   flex-shrink: 0;
-  min-height: 36px;
-  padding: 8px 10px;
-  font-size: 13px;
+  padding: 2px 8px;
+  font-size: 12px;
   border: none;
   border-radius: 6px;
   background: transparent;
@@ -1113,12 +1104,11 @@
 
 .act-card__thread-answer {
   margin-top: 8px;
-  min-height: 36px;
-  padding: 8px 4px;
+  padding: 4px 0;
   border: none;
   background: none;
   font: inherit;
-  font-size: 14px;
+  font-size: 13px;
   font-weight: 600;
   color: rgba(90, 140, 255, 0.95);
   cursor: pointer;
@@ -1145,9 +1135,8 @@
   border: none;
   background: transparent;
   color: #6b7280;
-  font-size: 14px;
-  min-height: 36px;
-  padding: 8px 6px;
+  font-size: 13px;
+  padding: 0;
   cursor: pointer;
 }
 
@@ -1183,8 +1172,8 @@
 
 .act-card__reply-intent-cancel {
   flex-shrink: 0;
-  width: 36px;
-  height: 36px;
+  width: 28px;
+  height: 28px;
   border: none;
   border-radius: 8px;
   background: var(--fill-strong);
@@ -1260,8 +1249,7 @@
 
 .act-card__thread-send {
   align-self: flex-end;
-  min-height: 44px;
-  padding: 10px 18px;
+  padding: 8px 16px;
   border-radius: 999px;
   border: none;
   background: var(--accent);
@@ -1284,8 +1272,8 @@
 
 .act-card__thread-attach {
   flex: 0 0 auto;
-  width: 44px;
-  height: 44px;
+  width: 38px;
+  height: 38px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -1489,12 +1477,6 @@
 @media (hover: hover) and (pointer: fine) {
   .act-card--reactable {
     cursor: pointer;
-  }
-}
-
-@media (min-width: 600px) {
-  .act-card {
-    padding: 14px 16px 16px;
   }
 }
 

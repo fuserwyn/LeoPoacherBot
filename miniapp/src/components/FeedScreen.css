@@ -5,7 +5,7 @@
 .feed {
   /* Боковой отступ ленты одной переменной: на телефоне 12px, на планшете 16px,
      и карточка внутри него — с обеих сторон, чтобы рамка не обрезалась. */
-  --feed-side: 12px;
+  --feed-side: 8px;
   padding: 0 var(--feed-side) 0;
   max-width: 520px;
   width: 100%;
@@ -46,7 +46,7 @@
   z-index: 1;
   max-width: 520px;
   margin: 0 auto;
-  padding: 4px 12px 6px;
+  padding: 4px 8px 3px;
   box-sizing: border-box;
   background: var(--bg);
   pointer-events: auto;
@@ -186,7 +186,7 @@
   display: flex;
   flex-wrap: nowrap;
   align-items: center;
-  gap: 6px;
+  gap: 4px;
   margin-bottom: 8px;
   overflow-x: auto;
   padding-bottom: 2px;
@@ -200,16 +200,16 @@
   /* Ни растягивать, ни сжимать: растяжение и делало из «Сообщений» полосу. */
   flex: 0 0 auto;
   justify-content: center;
-  padding: 8px 14px;
+  padding: 5px 11px;
   border-radius: 999px;
   border: 1px solid var(--border-subtle);
   background: var(--card-inner);
   color: var(--muted);
-  font-size: 0.82rem;
+  font-size: 0.72rem;
   font-weight: 600;
   line-height: 1.25;
   cursor: pointer;
-  min-height: 40px;
+  min-height: 32px;
   white-space: nowrap;
   display: inline-flex;
   align-items: center;
@@ -237,20 +237,6 @@
   background: color-mix(in srgb, var(--accent-2) 20%, transparent);
   border-color: color-mix(in srgb, var(--accent-2) 55%, transparent);
   color: var(--accent-2);
-}
-
-/* Телефон: пять фильтров в одну строку помещаются только с более узкими
-   полями и чуть мельче текстом. */
-@media (max-width: 430px) {
-  .feed__filter-scope {
-    gap: 5px;
-  }
-
-  .feed__filter-pill {
-    padding-left: 10px;
-    padding-right: 10px;
-    font-size: 0.78rem;
-  }
 }
 
 .feed__filter-cats-wrap {
@@ -291,10 +277,9 @@
 .feed__filter-cats {
   display: flex;
   flex-wrap: nowrap;
-  gap: 8px;
+  gap: 6px;
   overflow-x: auto;
   margin-bottom: 0;
-  padding: 0 2px 2px;
   scroll-padding-inline: 8px;
   -webkit-overflow-scrolling: touch;
   scrollbar-width: none;
@@ -306,19 +291,19 @@
 .feed__filter-chip {
   display: inline-flex;
   align-items: center;
-  gap: 4px;
+  gap: 3px;
   flex-shrink: 0;
-  padding: 8px 14px;
+  padding: 5px 12px;
   border-radius: 999px;
   border: 1px solid var(--border-subtle);
   background: var(--card-inner);
   color: var(--text);
-  font-size: 0.8rem;
+  font-size: 0.7rem;
   font-weight: 600;
   line-height: 1.2;
   cursor: pointer;
   white-space: nowrap;
-  min-height: 40px;
+  min-height: 32px;
   touch-action: manipulation;
   -webkit-tap-highlight-color: transparent;
   transition:
@@ -396,8 +381,7 @@
   align-items: center;
   gap: 10px;
   width: 100%;
-  min-height: 44px;
-  padding: 10px 12px;
+  padding: 9px 12px;
   border: 1px solid transparent;
   border-radius: 8px;
   background: transparent;
@@ -485,7 +469,7 @@
 .feed__list {
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 5px;
   min-width: 0;
   max-width: 100%;
   overflow-x: clip;
@@ -664,8 +648,7 @@
   background: var(--card-bg, rgba(255, 255, 255, 0.04));
   color: var(--text, #e8e8f0);
   font: 600 0.9rem / 1.2 var(--font);
-  min-height: 44px;
-  padding: 10px 22px;
+  padding: 8px 20px;
   border-radius: 999px;
   cursor: pointer;
 }
@@ -690,13 +673,12 @@
 .feed__section-title {
   text-transform: none;
   letter-spacing: 0.02em;
-  font-size: 13px;
 }
 
 .feed__refresh-btn {
   flex-shrink: 0;
   width: 44px;
-  height: 44px;
+  height: 32px;
   display: flex;
   align-items: center;
   justify-content: center;
