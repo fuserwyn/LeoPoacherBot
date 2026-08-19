@@ -103,7 +103,7 @@ const INTENSITIES: { v: 1 | 2 | 3 | 4 | 5; label: string }[] = [
 ];
 
 /** Пресеты минут (до 120); произвольное значение — поле «Своё», лимит как в формуле кубков на бэке. */
-const PRESET_MIN = [5, 15, 30, 45, 60, 75, 90, 105, 120] as const;
+const PRESET_MIN = [5, 15, 30, 45, 60, 75, 90, 120] as const;
 const WORKOUT_MIN_MIN = 1;
 const WORKOUT_MIN_MAX = 480;
 
@@ -454,37 +454,39 @@ export function NewWorkoutScreen({ onClose, onSave, showAlert, onNonSportInteres
           </div>
           {PHOTO_ENABLED && (
             <div className="nwo__photo-row">
-              <label className="nwo__photo-add">
-                <input
-                  className="nwo__file-hidden"
-                  type="file"
-                  accept="image/*"
-                  title="Необязательно — стая увидит снимок в ленте"
+              <div className="nwo__photo-picks">
+                <label className="nwo__photo-add">
+                  <input
+                    className="nwo__file-hidden"
+                    type="file"
+                    accept="image/*"
+                    title="Необязательно — стая увидит снимок в ленте"
+                    onChange={(e) => {
+                      const f = e.target.files?.[0] ?? null;
+                      if (f) setPendingCrop(f);
+                      e.target.value = "";
+                    }}
+                  />
+                  <span className="nwo__photo-add-ico" aria-hidden>
+                    🖼
+                  </span>
+                  {photo ? "Заменить" : "Из галереи"}
+                </label>
+                <CameraButton
+                  className="nwo__photo-add"
+                  ariaLabel="Сделать фото"
+                  title="Снять фото камерой прямо сейчас"
                   onChange={(e) => {
                     const f = e.target.files?.[0] ?? null;
                     if (f) setPendingCrop(f);
-                    e.target.value = "";
                   }}
-                />
-                <span className="nwo__photo-add-ico" aria-hidden>
-                  🖼
-                </span>
-                {photo ? "Заменить" : "Из галереи"}
-              </label>
-              <CameraButton
-                className="nwo__photo-add"
-                ariaLabel="Сделать фото"
-                title="Снять фото камерой прямо сейчас"
-                onChange={(e) => {
-                  const f = e.target.files?.[0] ?? null;
-                  if (f) setPendingCrop(f);
-                }}
-              >
-                <span className="nwo__photo-add-ico" aria-hidden>
-                  📷
-                </span>
-                Камера
-              </CameraButton>
+                >
+                  <span className="nwo__photo-add-ico" aria-hidden>
+                    📷
+                  </span>
+                  Камера
+                </CameraButton>
+              </div>
               {photo ? (
                 <>
                   <span className="nwo__photo-name" aria-live="polite">

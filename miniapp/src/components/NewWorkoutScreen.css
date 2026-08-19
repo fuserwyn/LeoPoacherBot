@@ -383,6 +383,21 @@
   padding: 0;
 }
 
+/* Две кнопки одного размера: «Из галереи» задаёт габарит, «Камера» занимает ту же ячейку.
+   CameraButton рендерит фрагмент (style + hidden input + button) — лишнее не кладём в сетку. */
+.nwo__photo-picks {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.nwo__photo-picks > style,
+.nwo__photo-picks > input {
+  display: none;
+}
+
 /* Нативный input прячем, но оставляем кликабельным внутри label (sr-only). */
 .nwo__file-hidden {
   position: absolute;
@@ -399,7 +414,11 @@
 .nwo__photo-add {
   display: inline-flex;
   align-items: center;
+  justify-content: center;
   gap: 6px;
+  box-sizing: border-box;
+  width: 100%;
+  min-width: 0;
   font: var(--nwo-mi-font);
   padding: 5px 12px;
   border-radius: 8px;
@@ -409,6 +428,21 @@
   cursor: pointer;
   flex: 0 0 auto;
   -webkit-tap-highlight-color: transparent;
+}
+
+/* CameraButton на телефоне форсит 44×44 и 16px — сбрасываем, чтобы совпасть с «Из галереи». */
+button.nwo__photo-add.fl-cam-btn {
+  appearance: none;
+  -webkit-appearance: none;
+  margin: 0;
+  min-width: 0 !important;
+  min-height: 0 !important;
+  height: auto;
+  font: var(--nwo-mi-font) !important;
+  font-size: var(--nwo-chip-fs) !important;
+  line-height: var(--nwo-chip-lh);
+  padding: 5px 12px;
+  gap: 6px;
 }
 
 .nwo__photo-add:active {
