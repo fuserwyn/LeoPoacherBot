@@ -6,12 +6,11 @@ import { RulesScreen } from "./RulesScreen";
 afterEach(cleanup);
 
 describe("RulesScreen", () => {
-  it("starts with the accordion list and has no top header", () => {
+  it("starts with the page title and accordion list", () => {
     const { container } = render(<RulesScreen />);
+    expect(screen.getByRole("heading", { level: 1, name: "Правила Стаи" })).toBeTruthy();
     expect(container.querySelector(".rules__accordion-list")).toBeTruthy();
-    expect(screen.queryByText("Правила Стаи")).toBeNull();
-    expect(container.querySelector("h1")).toBeNull();
-    expect(container.firstElementChild?.firstElementChild?.className).toBe("rules__accordion-list");
+    expect(container.firstElementChild?.firstElementChild?.className).toBe("rules__title");
   });
 
   it("uses a decorative CSS chevron instead of plus/minus", () => {

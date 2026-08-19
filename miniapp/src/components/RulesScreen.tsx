@@ -381,6 +381,7 @@ export function RulesScreen({ accessPriceRub = 99 }: { accessPriceRub?: number }
 
   return (
     <div className="rules">
+      <h1 className="rules__title">Правила Стаи</h1>
       <div className="rules__accordion-list">
         {sections.map((section) => (
           <RuleAccordionItem

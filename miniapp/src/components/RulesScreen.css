@@ -4,6 +4,15 @@
   margin: 0 auto;
 }
 
+.rules__title {
+  margin: 8px 0 16px;
+  font-size: 22px;
+  font-weight: 700;
+  line-height: 1.2;
+  letter-spacing: -0.02em;
+  color: var(--text);
+}
+
 /* Шире мобилки — правила тоже на всю ширину окна. */
 @media (min-width: 600px) {
   .rules {
