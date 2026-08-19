@@ -849,6 +849,46 @@ func (s *Server) handlePostAdminLeoLab(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+// handlePostAdminTrackerAttachment — посмотреть или снять фото задачи.
+// action: get — вернуть картинку base64 (мини-апп рисует её в карточке);
+// delete — убрать вложение, на этом строится «заменить фото».
+func (s *Server) handlePostAdminTrackerAttachment(w http.ResponseWriter, r *http.Request) {
+	var body struct {
+		InitData string `json:"init_data"`
+		Action   string `json:"action"`
+		TaskID   int64  `json:"task_id"`
+		AttID    string `json:"att_id"`
+	}
+	corsWriteHeaders(w, r)
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		s.jsonErr(w, http.StatusBadRequest, "invalid_json")
+		return
+	}
+	parsed, ok := s.authMiniapp(w, body.InitData)
+	if !ok {
+		return
+	}
+	switch body.Action {
+	case "delete":
+		if err := s.bot.MiniappTrackerAttachmentDelete(
+			parsed.User.ID, parsed, body.TaskID, body.AttID,
+		); err != nil {
+			s.writeAdminErr(w, err)
+			return
+		}
+		s.writeAdminOK(w, map[string]any{})
+	default:
+		mime, data, err := s.bot.MiniappTrackerAttachmentGet(
+			parsed.User.ID, parsed, body.TaskID, body.AttID,
+		)
+		if err != nil {
+			s.writeAdminErr(w, err)
+			return
+		}
+		s.writeAdminOK(w, map[string]any{"mime": mime, "data": data})
+	}
+}
+
 // handlePostAdminLeoAutonomy — включить/выключить режим, когда Лео сам ставит
 // задачи, и посмотреть, когда он возьмётся за следующий спринт.
 func (s *Server) handlePostAdminLeoAutonomy(w http.ResponseWriter, r *http.Request) {

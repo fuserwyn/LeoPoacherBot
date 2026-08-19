@@ -7,6 +7,14 @@
  */
 const api = (import.meta.env.VITE_MINIAPP_API_URL as string | undefined)?.replace(/\/$/, "") ?? "";
 
+export type TrackerAttachment = {
+  id: string;
+  name: string;
+  mime: string;
+  size: number;
+  url: string;
+};
+
 export type TrackerTask = {
   id: number;
   prompt: string;
@@ -35,6 +43,8 @@ export type TrackerTask = {
   handed_to_qa: boolean;
   attachments_count: number;
   has_attachments: boolean;
+  /** Приходит только в детали задачи: что именно приложено. */
+  attachments?: TrackerAttachment[];
   author_id: number | null;
   steps?: string[];
   steps_running?: boolean;
@@ -207,6 +217,49 @@ export async function leoProposeTask(
     throw new Error(j.message || trackerErrorLabel(j.error) || `Ошибка ${res.status}`);
   }
   return { reply: j.reply ?? "", title: j.title ?? "", task: j.task ?? "" };
+}
+
+/** Байты приложенного фото: MyVibeLab отдаёт их по гостевой куке, поэтому идём через свой бэкенд. */
+export async function trackerAttachmentGet(
+  initData: string,
+  taskId: number,
+  attId: string,
+): Promise<string> {
+  if (!api) throw new Error("API не настроен");
+  const res = await fetch(`${api}/api/miniapp/admin/tracker/attachment`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ init_data: initData, action: "get", task_id: taskId, att_id: attId }),
+  });
+  const j = (await res.json().catch(() => ({}))) as {
+    ok?: boolean;
+    mime?: string;
+    data?: string;
+    error?: string;
+    message?: string;
+  };
+  if (!res.ok || j.ok === false || !j.data) {
+    throw new Error(j.message || trackerErrorLabel(j.error) || `Ошибка ${res.status}`);
+  }
+  return `data:${j.mime || "image/jpeg"};base64,${j.data}`;
+}
+
+/** Снять фото с задачи. «Заменить» — это снять старое и приложить новое. */
+export async function trackerAttachmentDelete(
+  initData: string,
+  taskId: number,
+  attId: string,
+): Promise<void> {
+  if (!api) throw new Error("API не настроен");
+  const res = await fetch(`${api}/api/miniapp/admin/tracker/attachment`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ init_data: initData, action: "delete", task_id: taskId, att_id: attId }),
+  });
+  const j = (await res.json().catch(() => ({}))) as { ok?: boolean; error?: string; message?: string };
+  if (!res.ok || j.ok === false) {
+    throw new Error(j.message || trackerErrorLabel(j.error) || `Ошибка ${res.status}`);
+  }
 }
 
 /** Автономный режим: Лео сам придумывает спринты, пока админ его не выключит. */

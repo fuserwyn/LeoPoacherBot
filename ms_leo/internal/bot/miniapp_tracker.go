@@ -151,6 +151,103 @@ func (b *Bot) MiniappTrackerAttach(
 	return json.RawMessage(out), nil
 }
 
+// MiniappTrackerAttachmentGet — байты приложенного к задаче фото.
+//
+// Мини-апп не может забрать картинку у MyVibeLab сам: она отдаётся по гостевой
+// куке, а куку нельзя показывать браузеру. Поэтому качаем здесь и отдаём
+// base64 — картинки к задаче маленькие, ради них не заводим отдельный CDN.
+func (b *Bot) MiniappTrackerAttachmentGet(
+	viewerUserID int64, initD initdata.InitData, taskID int64, attID string,
+) (mime string, data string, err error) {
+	if _, err := b.requireMiniappAdmin(viewerUserID, initD); err != nil {
+		return "", "", err
+	}
+	res, err := b.trackerAttachmentRequest(
+		http.MethodGet, taskID, attID, viewerUserID, trackerViewerName(initD),
+	)
+	if err != nil {
+		return "", "", err
+	}
+	defer res.Body.Close()
+	const maxBytes = 8 << 20
+	raw, err := io.ReadAll(io.LimitReader(res.Body, maxBytes))
+	if err != nil {
+		return "", "", err
+	}
+	if res.StatusCode >= 400 {
+		return "", "", trackerHTTPError(raw, res.StatusCode)
+	}
+	mime = res.Header.Get("Content-Type")
+	if mime == "" {
+		mime = "image/jpeg"
+	}
+	return mime, base64.StdEncoding.EncodeToString(raw), nil
+}
+
+// MiniappTrackerAttachmentDelete — снять фото с задачи: так работает «заменить».
+func (b *Bot) MiniappTrackerAttachmentDelete(
+	viewerUserID int64, initD initdata.InitData, taskID int64, attID string,
+) error {
+	if _, err := b.requireMiniappAdmin(viewerUserID, initD); err != nil {
+		return err
+	}
+	res, err := b.trackerAttachmentRequest(
+		http.MethodDelete, taskID, attID, viewerUserID, trackerViewerName(initD),
+	)
+	if err != nil {
+		return err
+	}
+	defer res.Body.Close()
+	raw, err := io.ReadAll(io.LimitReader(res.Body, 1<<20))
+	if err != nil {
+		return err
+	}
+	if res.StatusCode >= 400 {
+		return trackerHTTPError(raw, res.StatusCode)
+	}
+	return nil
+}
+
+// trackerAttachmentRequest — запрос к одному вложению задачи под гостевой сессией.
+func (b *Bot) trackerAttachmentRequest(
+	method string, taskID int64, attID string, userID int64, name string,
+) (*http.Response, error) {
+	attID = strings.TrimSpace(attID)
+	if taskID <= 0 || attID == "" || len(attID) > 32 {
+		return nil, ErrAdminActionInvalid
+	}
+	session, err := b.trackerSession(userID, name)
+	if err != nil {
+		return nil, err
+	}
+	url := fmt.Sprintf(
+		"%s/api/scheduled/%d/attachments/%s",
+		strings.TrimRight(b.config.BoardURL, "/"), taskID, attID,
+	)
+	req, err := http.NewRequest(method, url, nil)
+	if err != nil {
+		return nil, err
+	}
+	req.Header.Set("Cookie", "mvl_board="+session)
+	res, err := (&http.Client{Timeout: trackerTimeout}).Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("трекер недоступен: %w", err)
+	}
+	return res, nil
+}
+
+// trackerHTTPError — человеческий текст ошибки трекера, если он его прислал.
+func trackerHTTPError(raw []byte, status int) error {
+	var errBody struct {
+		Error string `json:"error"`
+	}
+	_ = json.Unmarshal(raw, &errBody)
+	if strings.TrimSpace(errBody.Error) != "" {
+		return fmt.Errorf("%s", errBody.Error)
+	}
+	return fmt.Errorf("трекер ответил %d", status)
+}
+
 // MiniappTrackerAuthors — кто ставил задачи: ник и имя по telegram_id.
 // В трекере у задачи есть только author_id, а на доске нужен человек.
 func (b *Bot) MiniappTrackerAuthors(

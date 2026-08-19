@@ -7,6 +7,8 @@ import {
   sprintGenerate,
   sprintIdeas,
   trackerAttachImage,
+  trackerAttachmentDelete,
+  trackerAttachmentGet,
   trackerAuthors,
   trackerAutoQa,
   trackerAvatarUrl,
@@ -155,6 +157,14 @@ export function TrackerScreen({ initData, showAlert }: Props) {
   const [rejected, setRejected] = useState<string[]>([]);
   const [proposeBusy, setProposeBusy] = useState(false);
   const [editorFor, setEditorFor] = useState<"new" | number | null>(null);
+  /** Картинка из буфера обмена: с ней редактор открывается сразу, минуя выбор файла. */
+  const [pasted, setPasted] = useState<Blob | null>(null);
+  /** Что заменяем: после того как новая картинка приложена, старую снимаем. */
+  const [replacing, setReplacing] = useState<string | null>(null);
+  /** id вложения → data-URL. Байты идут через наш бэкенд, ссылкой их не показать. */
+  const [attPreviews, setAttPreviews] = useState<Record<string, string>>({});
+  /** Открытая на весь экран картинка. */
+  const [zoomed, setZoomed] = useState<string | null>(null);
   const [detail, setDetail] = useState<TrackerTask | null>(null);
   const [moveAt, setMoveAt] = useState("");
 
@@ -339,6 +349,67 @@ export function TrackerScreen({ initData, showAlert }: Props) {
       if (j.task) setDetail(j.task);
     } catch (e) {
       showAlert(e instanceof Error ? e.message : "Не удалось открыть задачу");
+    }
+  };
+
+  // Превью вложений: MyVibeLab отдаёт байты только по гостевой куке, поэтому
+  // тянем их через свой бэкенд и держим как data-URL.
+  useEffect(() => {
+    const list = detail?.attachments;
+    if (!detail || !list || list.length === 0) return;
+    let alive = true;
+    void (async () => {
+      for (const att of list) {
+        if (attPreviews[att.id]) continue;
+        try {
+          const url = await trackerAttachmentGet(initData, detail.id, att.id);
+          if (!alive) return;
+          setAttPreviews((prev) => ({ ...prev, [att.id]: url }));
+        } catch {
+          // Не показать картинку — не повод ломать карточку задачи.
+        }
+      }
+    })();
+    return () => {
+      alive = false;
+    };
+  }, [detail, initData, attPreviews]);
+
+  // Вставка из буфера (на компьютере — Cmd/Ctrl+V): картинка сразу попадает в
+  // редактор — к новой задаче на вкладке «Задача» или к открытой карточке.
+  useEffect(() => {
+    const onPaste = (e: ClipboardEvent) => {
+      const item = Array.from(e.clipboardData?.items ?? []).find((i) =>
+        i.type.startsWith("image/"),
+      );
+      if (!item) return;
+      const file = item.getAsFile();
+      if (!file) return;
+      const target: "new" | number | null = detail ? detail.id : tab === "task" ? "new" : null;
+      if (target === null) return;
+      e.preventDefault();
+      setPasted(file);
+      setEditorFor(target);
+    };
+    window.addEventListener("paste", onPaste);
+    return () => window.removeEventListener("paste", onPaste);
+  }, [detail, tab]);
+
+  // Действия с фото не должны закрывать карточку: человек смотрит на картинку,
+  // а обычный act() возвращает его на доску. Здесь просто перечитываем задачу.
+  const actOnDetail = async (fn: () => Promise<unknown>, done: string) => {
+    if (!detail) return;
+    setBusy(true);
+    try {
+      await fn();
+      showAlert(done);
+      const j = await trackerTask(initData, detail.id);
+      if (j.task) setDetail(j.task);
+      await load(true);
+    } catch (e) {
+      showAlert(e instanceof Error ? e.message : "Не получилось");
+    } finally {
+      setBusy(false);
     }
   };
 
@@ -882,6 +953,64 @@ export function TrackerScreen({ initData, showAlert }: Props) {
               <span>Поставил: {authorLabel(detail, authors)}</span>
             </div>
             <p className="tracker-modal__prompt">{parsePrompt(detail.prompt).text}</p>
+            {/* Приложенные фото: агент их видит (они уходят к нему вместе с
+                задачей), а здесь их можно рассмотреть и заменить. */}
+            <div className="tracker-modal__atts">
+              {(detail.attachments ?? []).map((att) => (
+                <div key={att.id} className="tracker-att">
+                  {attPreviews[att.id] ? (
+                    <button
+                      type="button"
+                      className="tracker-att__shot"
+                      onClick={() => setZoomed(attPreviews[att.id])}
+                      title="Открыть во весь экран"
+                    >
+                      <img src={attPreviews[att.id]} alt={att.name} />
+                    </button>
+                  ) : (
+                    <div className="tracker-att__shot tracker-att__shot--wait">загрузка…</div>
+                  )}
+                  <div className="tracker-att__row">
+                    <button
+                      type="button"
+                      disabled={busy}
+                      onClick={() => {
+                        setReplacing(att.id);
+                        setPasted(null);
+                        setEditorFor(detail.id);
+                      }}
+                    >
+                      Заменить
+                    </button>
+                    <button
+                      type="button"
+                      disabled={busy}
+                      onClick={() =>
+                        void actOnDetail(
+                          () => trackerAttachmentDelete(initData, detail.id, att.id),
+                          "Фото убрано.",
+                        )
+                      }
+                    >
+                      Убрать
+                    </button>
+                  </div>
+                </div>
+              ))}
+              <button
+                type="button"
+                className="tracker-att__add"
+                disabled={busy}
+                onClick={() => {
+                  setReplacing(null);
+                  setPasted(null);
+                  setEditorFor(detail.id);
+                }}
+              >
+                {(detail.attachments ?? []).length > 0 ? "Ещё фото" : "Приложить фото"}
+                <span className="tracker-att__hint"> · или вставь из буфера</span>
+              </button>
+            </div>
             <div className="tracker-card__meta">
               {metaParts(detail, isQa).map((p) => (
                 <span key={p}>{p}</span>
@@ -988,22 +1117,42 @@ export function TrackerScreen({ initData, showAlert }: Props) {
 
       {editorFor !== null ? (
         <TaskImageEditor
-          onCancel={() => setEditorFor(null)}
+          initialFile={pasted}
+          onCancel={() => {
+            setEditorFor(null);
+            setPasted(null);
+            setReplacing(null);
+          }}
           onDone={(img) => {
             const target = editorFor;
+            const oldAtt = replacing;
             setEditorFor(null);
+            setPasted(null);
+            setReplacing(null);
             if (target === "new") {
               setImage(img);
               return;
             }
             if (typeof target === "number") {
-              void act(
-                () => trackerAttachImage(initData, target, { data: img.data, filename: img.filename, mime: img.mime }),
-                "Картинка приложена.",
-              );
+              void actOnDetail(async () => {
+                await trackerAttachImage(initData, target, {
+                  data: img.data,
+                  filename: img.filename,
+                  mime: img.mime,
+                });
+                // Замена — это «приложить новое, снять старое» именно в таком
+                // порядке: если приложить не вышло, задача не останется без фото.
+                if (oldAtt) await trackerAttachmentDelete(initData, target, oldAtt);
+              }, oldAtt ? "Фото заменено." : "Картинка приложена.");
             }
           }}
         />
+      ) : null}
+
+      {zoomed ? (
+        <button type="button" className="tracker-zoom" onClick={() => setZoomed(null)} aria-label="Закрыть">
+          <img src={zoomed} alt="" />
+        </button>
       ) : null}
     </div>
   );

@@ -13,6 +13,8 @@ export type TaskImage = {
 type Props = {
   onDone: (image: TaskImage) => void;
   onCancel: () => void;
+  /** Картинка, с которой сразу открыться: вставка из буфера на компьютере. */
+  initialFile?: File | Blob | null;
 };
 
 const COLORS = ["#ff3b30", "#ffcc00", "#34c759", "#0a84ff", "#ffffff", "#000000"];
@@ -26,7 +28,7 @@ type Stroke = { color: string; width: number; points: { x: number; y: number }[]
  * готовое изображение. Кроп и рисование делаются в браузере: на сервер уходит
  * уже готовый кадр, чтобы трекер не хранил лишнего.
  */
-export function TaskImageEditor({ onDone, onCancel }: Props) {
+export function TaskImageEditor({ onDone, onCancel, initialFile }: Props) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const imgRef = useRef<HTMLImageElement | null>(null);
   const [ready, setReady] = useState(false);
@@ -39,7 +41,7 @@ export function TaskImageEditor({ onDone, onCancel }: Props) {
   const dragRef = useRef<{ x: number; y: number } | null>(null);
   const drawingRef = useRef<Stroke | null>(null);
 
-  const pickFile = (file: File) => {
+  const pickFile = useCallback((file: File | Blob) => {
     const reader = new FileReader();
     reader.onload = () => {
       const img = new Image();
@@ -55,7 +57,12 @@ export function TaskImageEditor({ onDone, onCancel }: Props) {
       img.src = String(reader.result);
     };
     reader.readAsDataURL(file);
-  };
+  }, []);
+
+  // Вставили картинку из буфера — открываемся сразу с ней, без выбора файла.
+  useEffect(() => {
+    if (initialFile) pickFile(initialFile);
+  }, [initialFile, pickFile]);
 
   const redraw = useCallback(() => {
     const canvas = canvasRef.current;
