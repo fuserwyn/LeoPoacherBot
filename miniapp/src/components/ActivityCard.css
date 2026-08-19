@@ -387,6 +387,12 @@
   margin-bottom: 2px;
 }
 
+/* Лео пишет длинно, а в ленте его карточка должна быть ростом с отчёт
+   участника: сворачиваем до двух строк, остальное — по «Показать полностью». */
+.act-card--leo .act-card__comment--clamped-soft {
+  -webkit-line-clamp: 2;
+}
+
 .act-card__comment-toggle {
   border: none;
   background: transparent;

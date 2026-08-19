@@ -503,9 +503,14 @@ export function ActivityCard({
   const isAdminCollapse =
     commentCollapsible &&
     (commentText.includes("\n") || commentText.trim().length > COMMENT_COLLAPSE_THRESHOLD);
+  // Карточка Лео («Мудрость дня» и его реплики) должна занимать в ленте столько
+  // же, сколько отчёт участника: там одна строка описания. Поэтому у Лео порог
+  // сворачивания ниже, а свёрнутый текст — две строки вместо пяти.
+  const isLeoCard = hideStreak;
   const isLongComment =
     !commentCollapsible &&
-    (commentText.split("\n").length > 5 || commentText.trim().length > LONG_COMMENT_THRESHOLD);
+    (commentText.split("\n").length > (isLeoCard ? 2 : 5) ||
+      commentText.trim().length > (isLeoCard ? 110 : LONG_COMMENT_THRESHOLD));
   const canCollapseComment = isAdminCollapse || isLongComment;
   const commentClampClass = isAdminCollapse ? "act-card__comment--clamped" : "act-card__comment--clamped-soft";
   const [lightboxOpen, setLightboxOpen] = useState(false);
