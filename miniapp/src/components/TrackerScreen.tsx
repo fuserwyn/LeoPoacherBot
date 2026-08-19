@@ -73,6 +73,11 @@ function parsePrompt(prompt: string): { sprint: number | null; text: string } {
   return { sprint: null, text: raw };
 }
 
+/** Номер задачи на доске. У старых задач его нет — показываем id, чтобы не пустовало. */
+function taskNo(task: TrackerTask): number {
+  return Number(task.num) || Number(task.id);
+}
+
 /** RFC3339 с сервера → «19.08 14:30» в часовом поясе читателя. Пусто — прочерк. */
 function formatWhen(iso: string): string {
   const t = Date.parse(iso || "");
@@ -352,7 +357,7 @@ export function TrackerScreen({ initData, showAlert }: Props) {
     );
     if (!ok) return;
     const text =
-      `${what === "Откат" ? "Откатить" : "Перенести"} задачу #${task.id} вручную: ` +
+      `${what === "Откат" ? "Откатить" : "Перенести"} задачу #${taskNo(task)} вручную: ` +
       `«${parsePrompt(task.prompt).text.slice(0, 200)}». ` +
       "Автоматически не вышло — с тех пор те же места правили, git не смог применить изменение сам. " +
       "Разберись в коде и приведи поведение к нужному состоянию.";
@@ -989,7 +994,7 @@ export function TrackerScreen({ initData, showAlert }: Props) {
         <div className="tracker-modal" role="dialog" aria-modal="true">
           <div className="tracker-modal__box">
             <div className="tracker-modal__head">
-              <span className="tracker-card__id">#{detail.id}</span>
+              <span className="tracker-card__id">#{taskNo(detail)}</span>
               <span className="tracker-modal__status">
                 {detail.status_icon} {detail.status_label}
               </span>
@@ -1272,7 +1277,7 @@ function TaskCard({
   return (
     <div className={cardClasses(task, isQa)} role="button" tabIndex={0} onClick={onOpen}>
       <div className="tracker-card__head">
-        <span className="tracker-card__id">#{task.id}</span>
+        <span className="tracker-card__id">#{taskNo(task)}</span>
         <span className="tracker-card__status">{statusText}</span>
       </div>
       <div className="tracker-card__author">

@@ -17,6 +17,8 @@ export type TrackerAttachment = {
 
 export type TrackerTask = {
   id: number;
+  /** Номер внутри доски: id общий на всю базу MyVibeLab и участнику ничего не говорит. */
+  num?: number;
   prompt: string;
   repo: string;
   when: string;
