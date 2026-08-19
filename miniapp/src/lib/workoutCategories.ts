@@ -18,6 +18,8 @@ export type WorkoutCategoryId =
   | "pole"
   | "rollerblade"
   | "basketball"
+  | "tennis"
+  | "padel"
   | "other";
 
 export type WorkoutCategoryOption = { id: WorkoutCategoryId; label: string; emoji: string };
@@ -42,6 +44,8 @@ export const WORKOUT_CATEGORY_OPTIONS: WorkoutCategoryOption[] = [
   { id: "pole", label: "Пилон", emoji: "🤸" },
   { id: "rollerblade", label: "Ролики", emoji: "🛼" },
   { id: "basketball", label: "Баскетбол", emoji: "🏀" },
+  { id: "tennis", label: "Теннис", emoji: "🎾" },
+  { id: "padel", label: "Падел", emoji: "🟢" },
   { id: "other", label: "Другое", emoji: "✨" },
 ];
 

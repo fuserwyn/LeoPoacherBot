@@ -72,6 +72,10 @@ func trainingCategoryLabelRu(categoryID string) string {
 		return "ролики"
 	case "basketball":
 		return "баскетбол"
+	case "tennis":
+		return "теннис"
+	case "padel":
+		return "падел"
 	default:
 		return "другое"
 	}

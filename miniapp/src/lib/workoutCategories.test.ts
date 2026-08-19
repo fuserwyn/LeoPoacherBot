@@ -27,6 +27,12 @@ describe("parseTrainingDoneCategories — мультивыбор", () => {
     expect(parseTrainingDoneCategories("пилатес, 30 мин, инт. 2/5")).toEqual(["other"]);
   });
 
+  it("разбирает теннис и падел как отдельные виды", () => {
+    expect(parseTrainingDoneCategories("теннис, 60 мин, инт. 3/5")).toEqual(["tennis"]);
+    expect(parseTrainingDoneCategories("падел, 45 мин, инт. 4/5")).toEqual(["padel"]);
+    expect(parseTrainingDoneCategories("теннис + падел, 90 мин, инт. 3/5")).toEqual(["tennis", "padel"]);
+  });
+
   it("нераспознанный формат → пустой массив", () => {
     expect(parseTrainingDoneCategories("просто текст")).toEqual([]);
   });
@@ -55,5 +61,10 @@ describe("фильтр ленты по нескольким видам", () => {
 describe("заголовок карточки", () => {
   it("показывает оба вида как ввёл пользователь", () => {
     expect(trainingDoneCategoryDisplayLabel("бег + плавание, 30 мин, инт. 3/5")).toBe("бег + плавание");
+  });
+
+  it("показывает теннис и падел как отдельные подписи", () => {
+    expect(trainingDoneCategoryDisplayLabel("теннис, 60 мин, инт. 3/5")).toBe("Теннис");
+    expect(trainingDoneCategoryDisplayLabel("падел, 45 мин, инт. 4/5")).toBe("Падел");
   });
 });
