@@ -1474,6 +1474,28 @@ var Migrations = []Migration{
 			DROP TABLE IF EXISTS desktop_logins;
 		`,
 	},
+	{
+		Version:     76,
+		Description: "Автономный режим Лео: он сам придумывает задачи трекера",
+		UpSQL: `
+			-- Лео сам ставит задачи раз в несколько часов, пока включён режим.
+			-- Одна строка на окружение: включение — это не событие, а состояние,
+			-- и админам важно видеть, до какого числа он ещё «сам себе продукт».
+			CREATE TABLE IF NOT EXISTS leo_autonomy (
+				id            BOOLEAN PRIMARY KEY DEFAULT TRUE CHECK (id),
+				active_until  TIMESTAMP WITH TIME ZONE,
+				every_hours   INT NOT NULL DEFAULT 4,
+				tasks_per_run INT NOT NULL DEFAULT 3,
+				last_run_at   TIMESTAMP WITH TIME ZONE,
+				last_note     TEXT,
+				updated_by    BIGINT,
+				updated_at    TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW()
+			);
+		`,
+		DownSQL: `
+			DROP TABLE IF EXISTS leo_autonomy;
+		`,
+	},
 }
 
 // MigrationRecord представляет запись о выполненной миграции

@@ -849,6 +849,35 @@ func (s *Server) handlePostAdminLeoLab(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+// handlePostAdminLeoAutonomy — включить/выключить режим, когда Лео сам ставит
+// задачи, и посмотреть, когда он возьмётся за следующий спринт.
+func (s *Server) handlePostAdminLeoAutonomy(w http.ResponseWriter, r *http.Request) {
+	var body struct {
+		InitData    string `json:"init_data"`
+		Action      string `json:"action"`
+		Days        int    `json:"days"`
+		EveryHours  int    `json:"every_hours"`
+		TasksPerRun int    `json:"tasks_per_run"`
+	}
+	corsWriteHeaders(w, r)
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		s.jsonErr(w, http.StatusBadRequest, "invalid_json")
+		return
+	}
+	parsed, ok := s.authMiniapp(w, body.InitData)
+	if !ok {
+		return
+	}
+	state, err := s.bot.MiniappLeoAutonomy(
+		parsed.User.ID, parsed, body.Action, body.Days, body.EveryHours, body.TasksPerRun,
+	)
+	if err != nil {
+		s.writeAdminErr(w, err)
+		return
+	}
+	s.writeAdminOK(w, map[string]any{"autonomy": state})
+}
+
 func (s *Server) handlePostAdminLeoPropose(w http.ResponseWriter, r *http.Request) {
 	var body struct {
 		InitData string   `json:"init_data"`

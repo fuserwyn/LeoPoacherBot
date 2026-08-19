@@ -212,6 +212,9 @@ func (b *Bot) Start(ctx context.Context) error {
 	go b.startOutboxWorker(ctx)
 	// Publish отложенных админских постов ленты (см. startScheduledAdminPostsWorker).
 	go b.startScheduledAdminPostsWorker(ctx)
+	// Автономный Лео: сам придумывает спринты, пока админ держит режим
+	// включённым (см. leo_autonomy.go).
+	go b.startLeoAutonomyScheduler(ctx)
 	// Periodic-страховка от пропущенных киков (см. startInactivityKickWatchdog).
 	go b.startInactivityKickWatchdog(ctx)
 	// Напоминания «внеси тренировку» в локальный час пользователя (см. startWorkoutReminderScheduler).

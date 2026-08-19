@@ -859,3 +859,28 @@
     max-width: none;
   }
 }
+
+/* Автономный режим: блок управления заметно отличается от обычной постановки
+   задачи — это переключатель, после которого Лео работает без человека. */
+.tracker__auto {
+  border-color: color-mix(in srgb, var(--accent-2) 45%, transparent);
+}
+
+.tracker__auto-state {
+  margin-left: auto;
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--muted);
+}
+
+.tracker__auto-state.is-on {
+  color: var(--accent-2);
+}
+
+.tracker__auto-facts {
+  margin: 6px 0 0;
+  font-size: 0.8rem;
+  color: var(--muted);
+}

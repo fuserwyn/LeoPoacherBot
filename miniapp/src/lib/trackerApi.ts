@@ -209,6 +209,41 @@ export async function leoProposeTask(
   return { reply: j.reply ?? "", title: j.title ?? "", task: j.task ?? "" };
 }
 
+/** Автономный режим: Лео сам придумывает спринты, пока админ его не выключит. */
+export type LeoAutonomy = {
+  active: boolean;
+  active_until: string;
+  next_run_at: string;
+  every_hours: number;
+  tasks_per_run: number;
+  last_run_at: string;
+  last_note: string;
+  max_days: number;
+};
+
+/** action: status — только посмотреть; start — включить на days дней; stop — выключить. */
+export async function leoAutonomy(
+  initData: string,
+  payload: { action: "status" | "start" | "stop"; days?: number; every_hours?: number; tasks_per_run?: number },
+): Promise<LeoAutonomy> {
+  if (!api) throw new Error("API не настроен");
+  const res = await fetch(`${api}/api/miniapp/admin/tracker/leo-autonomy`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ init_data: initData, ...payload }),
+  });
+  const j = (await res.json().catch(() => ({}))) as {
+    ok?: boolean;
+    autonomy?: LeoAutonomy;
+    error?: string;
+    message?: string;
+  };
+  if (!res.ok || j.ok === false || !j.autonomy) {
+    throw new Error(j.message || trackerErrorLabel(j.error) || `Ошибка ${res.status}`);
+  }
+  return j.autonomy;
+}
+
 /** Спринт глазами Лео: реплика, тема и набор задач. */
 export async function leoSprint(
   initData: string,

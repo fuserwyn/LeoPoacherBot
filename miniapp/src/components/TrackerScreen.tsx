@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
+  leoAutonomy,
   leoProposeTask,
   leoSprint,
   sprintApply,
@@ -17,6 +18,7 @@ import {
   trackerReschedule,
   trackerRunNow,
   trackerTask,
+  type LeoAutonomy,
   type SprintFeature,
   type SprintIdea,
   type TrackerTask,
@@ -64,6 +66,18 @@ function parsePrompt(prompt: string): { sprint: number | null; text: string } {
   const m = raw.match(/^\[Спринт\s+(\d+)\]\s*/i);
   if (m) return { sprint: Number(m[1]), text: raw.slice(m[0].length).trim() || raw };
   return { sprint: null, text: raw };
+}
+
+/** RFC3339 с сервера → «19.08 14:30» в часовом поясе читателя. Пусто — прочерк. */
+function formatWhen(iso: string): string {
+  const t = Date.parse(iso || "");
+  if (!t) return "—";
+  return new Date(t).toLocaleString("ru-RU", {
+    day: "2-digit",
+    month: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
 }
 
 /** Задачу придумал Лео, а админ одобрил. Тот же id пишет MyVibeLab (board_share.LEO_AUTHOR_ID). */
@@ -132,6 +146,10 @@ export function TrackerScreen({ initData, showAlert }: Props) {
   const [image, setImage] = useState<TaskImage | null>(null);
   /** Тема для Лео; пусто — придумывает сам. */
   const [leoTopic, setLeoTopic] = useState("");
+  /** Автономный режим: Лео сам придумывает спринты, пока админ не выключит. */
+  const [autonomy, setAutonomy] = useState<LeoAutonomy | null>(null);
+  const [autonomyDays, setAutonomyDays] = useState(1);
+  const [autonomyBusy, setAutonomyBusy] = useState(false);
   /** Задача от Лео на утверждении: он предлагает — админ решает. */
   const [proposal, setProposal] = useState<{ reply: string; title: string; task: string } | null>(null);
   const [rejected, setRejected] = useState<string[]>([]);
@@ -266,6 +284,43 @@ export function TrackerScreen({ initData, showAlert }: Props) {
       showAlert(e instanceof Error ? e.message : "Лео промолчал");
     } finally {
       setProposeBusy(false);
+    }
+  };
+
+  // Статус автономного режима читаем при открытии вкладки: он живёт на сервере
+  // и меняется сам (Лео отработал очередной спринт), а не только по нажатию.
+  const loadAutonomy = useCallback(async () => {
+    try {
+      setAutonomy(await leoAutonomy(initData, { action: "status" }));
+    } catch {
+      // Режим доступен только настоящим админам — остальным просто не показываем блок.
+      setAutonomy(null);
+    }
+  }, [initData]);
+
+  useEffect(() => {
+    if (tab === "task") void loadAutonomy();
+  }, [tab, loadAutonomy]);
+
+  const switchAutonomy = async (action: "start" | "stop") => {
+    setAutonomyBusy(true);
+    try {
+      const next = await leoAutonomy(initData, {
+        action,
+        days: autonomyDays,
+        every_hours: 4,
+        tasks_per_run: 3,
+      });
+      setAutonomy(next);
+      showAlert(
+        action === "start"
+          ? `Лео работает сам до ${formatWhen(next.active_until)}.`
+          : "Лео больше не ставит задачи сам.",
+      );
+    } catch (e) {
+      showAlert(e instanceof Error ? e.message : "Не получилось");
+    } finally {
+      setAutonomyBusy(false);
     }
   };
 
@@ -517,6 +572,67 @@ export function TrackerScreen({ initData, showAlert }: Props) {
           <p className="tracker__hint">
             Опиши, что сделать, когда запускать и приложи картинку, если так понятнее.
           </p>
+
+          {autonomy ? (
+            <div className="tracker__leo tracker__auto">
+              <div className="tracker__leo-head">
+                <span aria-hidden>🤖</span>
+                <b>Лео ведёт продукт сам</b>
+                <span className={`tracker__auto-state${autonomy.active ? " is-on" : ""}`}>
+                  {autonomy.active ? "включено" : "выключено"}
+                </span>
+              </div>
+              <p className="tracker__hint">
+                Раз в {autonomy.every_hours} ч Лео придумывает спринт своим голосом и сам ставит
+                задачи — по {autonomy.tasks_per_run} за прогон. Выполняет их тот же агент, на доске
+                у них его аватарка.
+              </p>
+              {autonomy.active ? (
+                <p className="tracker__auto-facts">
+                  До {formatWhen(autonomy.active_until)} · следующий спринт{" "}
+                  {formatWhen(autonomy.next_run_at)}
+                </p>
+              ) : null}
+              {autonomy.last_note ? (
+                <p className="tracker__auto-facts">
+                  Прошлый раз ({formatWhen(autonomy.last_run_at)}): {autonomy.last_note}
+                </p>
+              ) : null}
+              <div className="tracker__new-row">
+                <select
+                  value={autonomyDays}
+                  onChange={(e) => setAutonomyDays(Number(e.target.value))}
+                  aria-label="Сколько дней Лео работает сам"
+                >
+                  {[1, 2, 3, 5, 7, 14]
+                    .filter((d) => d <= (autonomy.max_days || 14))
+                    .map((d) => (
+                      <option key={d} value={d}>
+                        {d} {plural(d, "день", "дня", "дней")}
+                      </option>
+                    ))}
+                </select>
+                <button
+                  type="button"
+                  className="tracker__primary"
+                  disabled={autonomyBusy}
+                  onClick={() => void switchAutonomy("start")}
+                >
+                  {autonomy.active ? "Продлить" : "Пусть работает сам"}
+                </button>
+                {autonomy.active ? (
+                  <button
+                    type="button"
+                    className="tracker__attach"
+                    disabled={autonomyBusy}
+                    onClick={() => void switchAutonomy("stop")}
+                  >
+                    Остановить
+                  </button>
+                ) : null}
+              </div>
+            </div>
+          ) : null}
 
           <div className="tracker__leo">
             <div className="tracker__leo-head">

@@ -12,7 +12,6 @@ import (
 	"leo-bot/internal/bot"
 	"leo-bot/internal/database"
 	"leo-bot/internal/logger"
-
 )
 
 const maxTextRunes = 4000
@@ -180,6 +179,8 @@ func (s *Server) serve(w http.ResponseWriter, r *http.Request) {
 		s.handlePostAdminLeoPropose(w, r)
 	case path == "/api/miniapp/admin/leo-lab" && r.Method == http.MethodPost:
 		s.handlePostAdminLeoLab(w, r)
+	case path == "/api/miniapp/admin/tracker/leo-autonomy" && r.Method == http.MethodPost:
+		s.handlePostAdminLeoAutonomy(w, r)
 	case path == "/api/miniapp/board/notify" && r.Method == http.MethodPost:
 		s.handleBoardNotify(w, r)
 	case path == "/api/miniapp/auth/desktop/poll" && (r.Method == http.MethodGet || r.Method == http.MethodPost):
@@ -720,9 +721,9 @@ func (s *Server) handlePostFeedPollVote(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 	var body struct {
-		InitData     string `json:"init_data"`
-		UserMessageID int64 `json:"user_message_id"`
-		OptionIndex  int    `json:"option_index"`
+		InitData      string `json:"init_data"`
+		UserMessageID int64  `json:"user_message_id"`
+		OptionIndex   int    `json:"option_index"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
 		s.jsonErr(w, http.StatusBadRequest, "invalid_json")
@@ -1382,9 +1383,9 @@ func (s *Server) handlePostFeedReport(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	var body struct {
-		InitData        string `json:"init_data"`
-		UserMessageID   int64  `json:"user_message_id"`
-		ThreadReplyID   int64  `json:"thread_reply_id"`
+		InitData      string `json:"init_data"`
+		UserMessageID int64  `json:"user_message_id"`
+		ThreadReplyID int64  `json:"thread_reply_id"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
 		s.jsonErr(w, http.StatusBadRequest, "invalid_json")
@@ -2352,26 +2353,26 @@ func (s *Server) handlePostProfileLoad(w http.ResponseWriter, r *http.Request) {
 	kickAt := s.bot.GetMiniappInactivityRemovalDeadlineRFC3339(parsed.User.ID, packID)
 	w.Header().Set("Content-Type", "application/json; charset=utf-8")
 	out := map[string]any{
-		"ok":                          true,
-		"gender":                      g,
-		"display_name":                d,
-		"timezone_offset":             tz,
-		"xp":                          stats.XP,
-		"level":                       stats.Level,
-		"level_name":                  stats.LevelName,
-		"streak_days":                 stats.StreakDays,
-		"max_streak_days":             stats.MaxStreakDays,
-		"achievement_count":           stats.AchievementCount,
-		"achievements_max":            stats.AchievementsMax,
-		"workouts_total":              stats.WorkoutsTotal,
-		"workouts_week":               stats.WorkoutsWeek,
-		"days_since_last_training":    stats.DaysSinceLastTraining,
-		"last_training_date":          stats.LastTrainingDate,
-		"streak_save_attempts_used":   stats.StreakSaveAttemptsUsed,
-		"streak_save_attempts_max":    stats.StreakSaveAttemptsMax,
-		"streak_save_attempts_avail":  stats.StreakSaveAttemptsAvail,
-		"is_admin":                    s.bot.IsMiniappViewerAdmin(parsed.User.ID),
-		"access_price_rub":            s.bot.AccessPriceRub(),
+		"ok":                         true,
+		"gender":                     g,
+		"display_name":               d,
+		"timezone_offset":            tz,
+		"xp":                         stats.XP,
+		"level":                      stats.Level,
+		"level_name":                 stats.LevelName,
+		"streak_days":                stats.StreakDays,
+		"max_streak_days":            stats.MaxStreakDays,
+		"achievement_count":          stats.AchievementCount,
+		"achievements_max":           stats.AchievementsMax,
+		"workouts_total":             stats.WorkoutsTotal,
+		"workouts_week":              stats.WorkoutsWeek,
+		"days_since_last_training":   stats.DaysSinceLastTraining,
+		"last_training_date":         stats.LastTrainingDate,
+		"streak_save_attempts_used":  stats.StreakSaveAttemptsUsed,
+		"streak_save_attempts_max":   stats.StreakSaveAttemptsMax,
+		"streak_save_attempts_avail": stats.StreakSaveAttemptsAvail,
+		"is_admin":                   s.bot.IsMiniappViewerAdmin(parsed.User.ID),
+		"access_price_rub":           s.bot.AccessPriceRub(),
 	}
 	if kickAt != "" {
 		out["inactivity_removal_at"] = kickAt
@@ -2457,24 +2458,24 @@ func (s *Server) handlePostProfileSave(w http.ResponseWriter, r *http.Request) {
 	kickAt := s.bot.GetMiniappInactivityRemovalDeadlineRFC3339(parsed.User.ID, packID)
 	w.Header().Set("Content-Type", "application/json; charset=utf-8")
 	out := map[string]any{
-		"ok":                          true,
-		"gender":                      g,
-		"display_name":                d,
-		"timezone_offset":             tz,
-		"xp":                          stats.XP,
-		"level":                       stats.Level,
-		"level_name":                  stats.LevelName,
-		"streak_days":                 stats.StreakDays,
-		"max_streak_days":             stats.MaxStreakDays,
-		"achievement_count":           stats.AchievementCount,
-		"achievements_max":            stats.AchievementsMax,
-		"workouts_total":              stats.WorkoutsTotal,
-		"workouts_week":               stats.WorkoutsWeek,
-		"days_since_last_training":    stats.DaysSinceLastTraining,
-		"last_training_date":          stats.LastTrainingDate,
-		"streak_save_attempts_used":   stats.StreakSaveAttemptsUsed,
-		"streak_save_attempts_max":    stats.StreakSaveAttemptsMax,
-		"streak_save_attempts_avail":  stats.StreakSaveAttemptsAvail,
+		"ok":                         true,
+		"gender":                     g,
+		"display_name":               d,
+		"timezone_offset":            tz,
+		"xp":                         stats.XP,
+		"level":                      stats.Level,
+		"level_name":                 stats.LevelName,
+		"streak_days":                stats.StreakDays,
+		"max_streak_days":            stats.MaxStreakDays,
+		"achievement_count":          stats.AchievementCount,
+		"achievements_max":           stats.AchievementsMax,
+		"workouts_total":             stats.WorkoutsTotal,
+		"workouts_week":              stats.WorkoutsWeek,
+		"days_since_last_training":   stats.DaysSinceLastTraining,
+		"last_training_date":         stats.LastTrainingDate,
+		"streak_save_attempts_used":  stats.StreakSaveAttemptsUsed,
+		"streak_save_attempts_max":   stats.StreakSaveAttemptsMax,
+		"streak_save_attempts_avail": stats.StreakSaveAttemptsAvail,
 	}
 	if kickAt != "" {
 		out["inactivity_removal_at"] = kickAt
@@ -2537,11 +2538,11 @@ func (s *Server) handlePostStreakSaveUse(w http.ResponseWriter, r *http.Request)
 			w.Header().Set("Content-Type", "application/json; charset=utf-8")
 			w.WriteHeader(http.StatusConflict)
 			_ = json.NewEncoder(w).Encode(map[string]any{
-				"error":                       err.Error(),
-				"streak_days":                 restoredStreak,
-				"streak_save_attempts_used":   used,
-				"streak_save_attempts_max":    max,
-				"streak_save_attempts_avail":  avail,
+				"error":                      err.Error(),
+				"streak_days":                restoredStreak,
+				"streak_save_attempts_used":  used,
+				"streak_save_attempts_max":   max,
+				"streak_save_attempts_avail": avail,
 			})
 			return
 		}
@@ -2551,11 +2552,11 @@ func (s *Server) handlePostStreakSaveUse(w http.ResponseWriter, r *http.Request)
 	}
 	w.Header().Set("Content-Type", "application/json; charset=utf-8")
 	_ = json.NewEncoder(w).Encode(map[string]any{
-		"ok":                          true,
-		"streak_days":                 restoredStreak,
-		"streak_save_attempts_used":   used,
-		"streak_save_attempts_max":    max,
-		"streak_save_attempts_avail":  avail,
+		"ok":                         true,
+		"streak_days":                restoredStreak,
+		"streak_save_attempts_used":  used,
+		"streak_save_attempts_max":   max,
+		"streak_save_attempts_avail": avail,
 	})
 }
 

@@ -98,6 +98,10 @@ type Config struct {
 	BoardSecret string
 	BoardURL    string
 	BoardRepo   string
+	// Ветка, в которой работают задачи доски. Пусто — ветка по умолчанию
+	// (прод). В экспериментальном окружении здесь leo-lab, чтобы автономные
+	// задачи Лео не уезжали в прод.
+	BoardBranch string
 
 	// Раздел «Ресурсы» в админке: расход Railway за месяц и пересчёт оплат в
 	// доллары. Ставки — из тарифов Railway, курс — руками, чтобы не тянуть
@@ -177,6 +181,7 @@ func Load() (*Config, error) {
 		BoardSecret:           getEnv("BOARD_SSO_SECRET", ""),
 		BoardURL:              getEnv("MYVIBELAB_URL", "https://myvibelab-production.up.railway.app"),
 		BoardRepo:             getEnv("BOARD_REPO", "fuserwyn/Fat-Leopard"),
+		BoardBranch:           getEnv("BOARD_BRANCH", ""),
 		RailwayToken:          getEnv("RAILWAY_API_TOKEN", ""),
 		RailwayProjectID:      getEnv("RAILWAY_PROJECT_ID", ""),
 		UsagePriceRAMGBMonth:  parseFloatEnv("USAGE_PRICE_RAM_GB_MONTH", 10),

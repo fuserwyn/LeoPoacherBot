@@ -181,6 +181,8 @@ func (b *Bot) trackerSession(userID int64, name string) (string, error) {
 		"r": repo,
 		"u": userID,
 		"n": name,
+		// Ветка внутри подписи: MyVibeLab выполнит задачу именно в ней.
+		"b": strings.TrimSpace(b.config.BoardBranch),
 		"e": time.Now().Add(trackerSessionTTL).Unix(),
 	})
 	if err != nil {
@@ -213,11 +215,22 @@ func (b *Bot) MiniappTrackerCall(
 	if _, err := b.requireMiniappAdmin(viewerUserID, initD); err != nil {
 		return nil, err
 	}
+	return b.trackerRequest(op, taskID, payload, viewerUserID, trackerViewerName(initD))
+}
+
+// trackerRequest — сам поход к доске MyVibeLab от имени userID.
+//
+// Отдельно от MiniappTrackerCall, потому что ходить к доске нужно не только по
+// нажатию админа: автономный Лео (leo_autonomy.go) ставит задачи сам, и права
+// проверять не у кого — там решает состояние в базе, а не initData.
+func (b *Bot) trackerRequest(
+	op string, taskID int64, payload map[string]any, userID int64, name string,
+) (json.RawMessage, error) {
 	spec, ok := trackerOps[op]
 	if !ok {
 		return nil, ErrAdminActionInvalid
 	}
-	session, err := b.trackerSession(viewerUserID, trackerViewerName(initD))
+	session, err := b.trackerSession(userID, name)
 	if err != nil {
 		return nil, err
 	}
