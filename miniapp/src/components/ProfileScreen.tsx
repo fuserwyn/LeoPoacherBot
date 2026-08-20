@@ -1545,7 +1545,7 @@ export function ProfileScreen({
               </div>
               <button
                 type="button"
-                className="profile__save profile__donate-btn profile__donate-btn--card"
+                className="profile__save profile__donate-btn"
                 onClick={() => void donateWithCard()}
                 disabled={donateBusy || donateRub === null}
               >
