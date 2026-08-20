@@ -94,7 +94,7 @@ func trackerTaskIfFound(t database.TrackerTask, err error) (database.TrackerTask
 }
 
 // TrackerNotifyIsFullyShipped — в личку пишем только финал: задача уже
-// на Railway в ветке main. Промежуточные статусы крутятся на доске молча.
+// на проде в ветке main. Промежуточные статусы крутятся на доске молча.
 func TrackerNotifyIsFullyShipped(text string) bool {
 	low := strings.ToLower(strings.TrimSpace(text))
 	if low == "" {
@@ -107,17 +107,18 @@ func TrackerNotifyIsFullyShipped(text string) bool {
 		strings.Contains(low, "не попал в github") {
 		return false
 	}
-	hasRailway := strings.Contains(low, "railway")
+	hasProd := strings.Contains(low, "railway") || strings.Contains(low, "на прод")
 	hasMain := strings.Contains(low, "ветке main") || strings.Contains(low, "ветки main") ||
 		strings.Contains(low, "ветка main") || strings.Contains(low, "в main") ||
 		strings.Contains(low, "(main)") || strings.Contains(low, "railway main")
 	hasDeployed := strings.Contains(low, "задепло") || strings.Contains(low, "выехал") ||
-		strings.Contains(low, "на railway") && (strings.Contains(low, "выполнен") || strings.Contains(low, "готово"))
-	return hasRailway && hasMain && hasDeployed
+		(strings.Contains(low, "на railway") || strings.Contains(low, "на прод")) &&
+			(strings.Contains(low, "выполнен") || strings.Contains(low, "готово"))
+	return hasProd && hasMain && hasDeployed
 }
 
 func trackerFullyDoneNote(t database.TrackerTask) string {
-	return fmt.Sprintf("✅ Задача #%d выполнена.\nВыехала на Railway (ветка main).", trackerDueNum(t))
+	return fmt.Sprintf("✅ Задача #%d выполнена.\nВыехала на прод (ветка main).", trackerDueNum(t))
 }
 
 const trackerShipNotifiedStep = "уведомили о выкате"
