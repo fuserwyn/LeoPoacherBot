@@ -33,6 +33,7 @@ import { AdminDataScreen } from "./AdminDataScreen";
 import { AdminOpsScreen, type AdminOpsSection } from "./AdminOpsScreen";
 import { AdminResourcesScreen } from "./AdminResourcesScreen";
 import { LeoLabScreen } from "./LeoLabScreen";
+import { LeoPromptsScreen } from "./LeoPromptsScreen";
 import { TrackerScreen } from "./TrackerScreen";
 import "./AdminScreen.css";
 
@@ -47,6 +48,7 @@ type Page =
   | "announce"
   | "price"
   | "leolab"
+  | "prompts"
   | AdminOpsSection;
 
 /** Вкладки админского таббара: у админа свои разделы, пользовательские тут ни к чему. */
@@ -616,6 +618,8 @@ export function AdminScreen({ initData, inTelegram, showAlert, onClose }: Props)
                                   ? "Опрос в ленту"
                                   : page === "leolab"
                                     ? "Тест Лео"
+                                    : page === "prompts"
+                                    ? "Промпты Леопарда"
                                     : page === "wipe"
                                     ? "Очистить ленту и чат"
                                     : "Объявление";
@@ -769,6 +773,13 @@ export function AdminScreen({ initData, inTelegram, showAlert, onClose }: Props)
                     <small>спросить, сменить промпт, научить</small>
                   </span>
                 </button>
+                <button type="button" className="admin__tile" onClick={() => setPage("prompts")}>
+                  <span className="admin__tile-ico">📜</span>
+                  <span className="admin__tile-text">
+                    <b>Промпты Леопарда</b>
+                    <small>обучать: поля и замена файлом</small>
+                  </span>
+                </button>
                 <button type="button" className="admin__tile" onClick={() => setPage("wipe")}>
                   <span className="admin__tile-ico">🗑</span>
                   <span className="admin__tile-text">
@@ -804,6 +815,12 @@ export function AdminScreen({ initData, inTelegram, showAlert, onClose }: Props)
       {page === "leolab" && (
         <div className="admin__body">
           <LeoLabScreen initData={initData} showAlert={showAlert} />
+        </div>
+      )}
+
+      {page === "prompts" && (
+        <div className="admin__body">
+          <LeoPromptsScreen initData={initData} showAlert={showAlert} />
         </div>
       )}
 

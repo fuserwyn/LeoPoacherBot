@@ -45,13 +45,13 @@ func (s LeoAutonomy) DueAt() time.Time {
 // GetLeoAutonomy — текущее состояние. Нет строки — режим выключен.
 func (d *Database) GetLeoAutonomy() (LeoAutonomy, error) {
 	var s LeoAutonomy
-	if d == nil || d.db == nil {
+	if d == nil || d.trackerDB() == nil {
 		return s, fmt.Errorf("база недоступна")
 	}
 	var until, lastRun sql.NullTime
 	var note sql.NullString
 	var by sql.NullInt64
-	err := d.db.QueryRow(`
+	err := d.trackerDB().QueryRow(`
 		SELECT active_until, every_hours, tasks_per_run, last_run_at, last_note,
 		       updated_by, updated_at
 		FROM leo_autonomy WHERE id = TRUE
@@ -75,7 +75,7 @@ func (d *Database) GetLeoAutonomy() (LeoAutonomy, error) {
 
 // SetLeoAutonomy — включить до указанного момента (нулевое время — выключить).
 func (d *Database) SetLeoAutonomy(until time.Time, everyHours, tasksPerRun int, by int64) error {
-	if d == nil || d.db == nil {
+	if d == nil || d.trackerDB() == nil {
 		return fmt.Errorf("база недоступна")
 	}
 	if everyHours <= 0 {
@@ -88,7 +88,7 @@ func (d *Database) SetLeoAutonomy(until time.Time, everyHours, tasksPerRun int, 
 	if !until.IsZero() {
 		until_ = until
 	}
-	_, err := d.db.Exec(`
+	_, err := d.trackerDB().Exec(`
 		INSERT INTO leo_autonomy (id, active_until, every_hours, tasks_per_run, updated_by, updated_at)
 		VALUES (TRUE, $1, $2, $3, $4, NOW())
 		ON CONFLICT (id) DO UPDATE SET
@@ -103,14 +103,14 @@ func (d *Database) SetLeoAutonomy(until time.Time, everyHours, tasksPerRun int, 
 
 // MarkLeoAutonomyRun — отметить прогон: время и что именно он придумал.
 func (d *Database) MarkLeoAutonomyRun(note string) error {
-	if d == nil || d.db == nil {
+	if d == nil || d.trackerDB() == nil {
 		return fmt.Errorf("база недоступна")
 	}
 	note = strings.TrimSpace(note)
 	if len([]rune(note)) > 1000 {
 		note = string([]rune(note)[:1000])
 	}
-	_, err := d.db.Exec(`
+	_, err := d.trackerDB().Exec(`
 		INSERT INTO leo_autonomy (id, last_run_at, last_note, updated_at)
 		VALUES (TRUE, NOW(), $1, NOW())
 		ON CONFLICT (id) DO UPDATE SET last_run_at = NOW(), last_note = $1, updated_at = NOW()

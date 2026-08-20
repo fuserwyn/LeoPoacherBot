@@ -179,6 +179,8 @@ func (s *Server) serve(w http.ResponseWriter, r *http.Request) {
 		s.handlePostAdminLeoPropose(w, r)
 	case path == "/api/miniapp/admin/leo-lab" && r.Method == http.MethodPost:
 		s.handlePostAdminLeoLab(w, r)
+	case path == "/api/miniapp/admin/leo-prompts" && r.Method == http.MethodPost:
+		s.handlePostAdminLeoPrompts(w, r)
 	case path == "/api/miniapp/admin/tracker/leo-autonomy" && r.Method == http.MethodPost:
 		s.handlePostAdminLeoAutonomy(w, r)
 	case path == "/api/miniapp/admin/tracker/attachment" && r.Method == http.MethodPost:

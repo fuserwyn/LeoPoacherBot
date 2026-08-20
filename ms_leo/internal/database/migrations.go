@@ -1549,6 +1549,22 @@ var Migrations = []Migration{
 			DROP TABLE IF EXISTS pack_tracker_tasks;
 		`,
 	},
+	{
+		Version:     78,
+		Description: "Переопределения промптов Леопарда из админки",
+		UpSQL: `
+			CREATE TABLE IF NOT EXISTS leo_prompt_overrides (
+				key        TEXT PRIMARY KEY,
+				body       TEXT NOT NULL,
+				filename   TEXT NOT NULL DEFAULT '',
+				updated_by BIGINT,
+				updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW()
+			);
+		`,
+		DownSQL: `
+			DROP TABLE IF EXISTS leo_prompt_overrides;
+		`,
+	},
 }
 
 // MigrationRecord представляет запись о выполненной миграции

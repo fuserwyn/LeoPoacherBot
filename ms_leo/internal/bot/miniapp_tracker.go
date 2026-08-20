@@ -16,8 +16,8 @@ import (
 	initdata "github.com/telegram-mini-apps/init-data-golang"
 )
 
-// Трекер задач Леопарда живёт у нас: карточки в pack_tracker_tasks, фото в
-// pack_tracker_attachments. Доску рисует TrackerScreen в админке.
+// Трекер задач Леопарда: карточки в отдельной БД (TRACKER_DATABASE_URL),
+// не в Postgres стаи. Доску рисует TrackerScreen в админке.
 //
 // Раньше ходили на чужую доску по гостевой сессии. Своя доска не зависит от
 // чужого секрета, а выкатить код на сервер человек делает сам («запушь»).

@@ -14,11 +14,14 @@ import (
 )
 
 type Config struct {
-	APIToken              string
-	OwnerID               int64
-	AdminIDs              []int64
-	AlphaTesterIDs        []int64 // §10: тестеры альфы — события тегируются is_alpha
-	DatabaseURL           string
+	APIToken       string
+	OwnerID        int64
+	AdminIDs       []int64
+	AlphaTesterIDs []int64 // §10: тестеры альфы — события тегируются is_alpha
+	DatabaseURL    string
+	// TrackerDatabaseURL — Postgres только трекера (карточки, вложения, автономия, jobs).
+	// Пусто — доска остаётся в DatabaseURL (тесты и локалка).
+	TrackerDatabaseURL    string
 	LogLevel              string
 	OpenRouterAPIKey      string
 	OpenRouterModel       string        // Модель OpenRouter (по умолчанию deepseek/deepseek-chat)
@@ -210,6 +213,7 @@ func Load() (*Config, error) {
 		AdminIDs:              adminIDs,
 		AlphaTesterIDs:        alphaTesterIDs,
 		DatabaseURL:           getEnv("DATABASE_URL", "postgresql://postgres:password@localhost:5432/leo_bot_db?sslmode=disable"),
+		TrackerDatabaseURL:    strings.TrimSpace(getEnv("TRACKER_DATABASE_URL", "")),
 		LogLevel:              getEnv("LOG_LEVEL", "info"),
 		OpenRouterAPIKey:      getEnv("OPENROUTER_API_KEY", ""),
 		OpenRouterModel:       getEnv("OPENROUTER_MODEL", "deepseek/deepseek-chat"),

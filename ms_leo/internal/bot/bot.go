@@ -103,6 +103,9 @@ func New(cfg *config.Config, db *database.Database, log logger.Logger) (*Bot, er
 	if err := db.CreateTables(); err != nil {
 		return nil, fmt.Errorf("failed to create tables: %w", err)
 	}
+	if err := db.AttachTrackerDatabase(cfg.TrackerDatabaseURL); err != nil {
+		return nil, fmt.Errorf("tracker database: %w", err)
+	}
 
 	// §10: множество альфа-тестеров — события этих юзеров помечаются is_alpha.
 	db.SetAlphaTesterIDs(cfg.AlphaTesterIDs)
@@ -146,6 +149,9 @@ func New(cfg *config.Config, db *database.Database, log logger.Logger) (*Bot, er
 		ugcModerationLimiter: limiter,
 		ugcModerationGate:    moderation.NewGate(limiter),
 		dynamicAdmins:        make(map[int64]struct{}),
+	}
+	if aiClient != nil {
+		aiClient.SetLivePrompts(b.livePrompts)
 	}
 	b.reloadDynamicAdmins()
 	return b, nil
@@ -2348,7 +2354,7 @@ func (b *Bot) handleAIQuestion(msg *tgbotapi.Message, questionText string, perso
 		)
 	}
 
-	finalQuestion += b.config.Prompts.CombinedChatInstructionSuffix()
+	finalQuestion += b.livePrompts().CombinedChatInstructionSuffix()
 
 	userPrompt := prompts.FormatAIQuestionUserMessage(prompts.AIQuestionUserPayload{
 		InterlocutorName: interlocutorName,

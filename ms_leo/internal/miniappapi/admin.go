@@ -834,6 +834,48 @@ func (s *Server) handleDesktopLogout(w http.ResponseWriter, r *http.Request) {
 	s.writeAdminOK(w, map[string]any{})
 }
 
+func (s *Server) handlePostAdminLeoPrompts(w http.ResponseWriter, r *http.Request) {
+	var body struct {
+		InitData string `json:"init_data"`
+		Action   string `json:"action"`
+		Key      string `json:"key"`
+		Body     string `json:"body"`
+		Filename string `json:"filename"`
+	}
+	corsWriteHeaders(w, r)
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		s.jsonErr(w, http.StatusBadRequest, "invalid_json")
+		return
+	}
+	parsed, ok := s.authMiniapp(w, body.InitData)
+	if !ok {
+		return
+	}
+	switch strings.ToLower(strings.TrimSpace(body.Action)) {
+	case "", "list":
+		list, err := s.bot.MiniappListLeoPrompts(parsed.User.ID, parsed)
+		if err != nil {
+			s.writeAdminErr(w, err)
+			return
+		}
+		s.writeAdminOK(w, map[string]any{"prompts": list})
+	case "save":
+		if err := s.bot.MiniappSaveLeoPrompt(parsed.User.ID, parsed, body.Key, body.Body, body.Filename); err != nil {
+			s.writeAdminErr(w, err)
+			return
+		}
+		s.writeAdminOK(w, map[string]any{})
+	case "reset":
+		if err := s.bot.MiniappResetLeoPrompt(parsed.User.ID, parsed, body.Key); err != nil {
+			s.writeAdminErr(w, err)
+			return
+		}
+		s.writeAdminOK(w, map[string]any{})
+	default:
+		s.jsonErr(w, http.StatusBadRequest, "invalid_action")
+	}
+}
+
 func (s *Server) handlePostAdminLeoLab(w http.ResponseWriter, r *http.Request) {
 	var body struct {
 		InitData string `json:"init_data"`

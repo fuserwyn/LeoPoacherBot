@@ -22,33 +22,33 @@ const (
 
 // TrackerTask — строка доски. Вложения подгружаются отдельно.
 type TrackerTask struct {
-	ID                int64
-	Num               int
-	Prompt            string
-	WhenAt            time.Time
-	WhenLabel         string
-	Repeat            string
-	Kind              string
-	Status            string
-	DevColumn         string
-	QaColumn          string
-	QaStatus          string
-	HandedToQa        bool
-	AutoReview        bool
-	ManualQa          bool
-	FastTrack         bool
-	AutoPush          bool
-	Error             string
-	Result            string
-	Steps             []string
-	AuthorID          int64
-	HasAuthor         bool
-	CreatedAt         time.Time
-	LastRunAt         time.Time
-	HasLastRun        bool
-	UpdatedAt         time.Time
-	AttachmentsCount  int
-	Attachments       []TrackerAttachment
+	ID               int64
+	Num              int
+	Prompt           string
+	WhenAt           time.Time
+	WhenLabel        string
+	Repeat           string
+	Kind             string
+	Status           string
+	DevColumn        string
+	QaColumn         string
+	QaStatus         string
+	HandedToQa       bool
+	AutoReview       bool
+	ManualQa         bool
+	FastTrack        bool
+	AutoPush         bool
+	Error            string
+	Result           string
+	Steps            []string
+	AuthorID         int64
+	HasAuthor        bool
+	CreatedAt        time.Time
+	LastRunAt        time.Time
+	HasLastRun       bool
+	UpdatedAt        time.Time
+	AttachmentsCount int
+	Attachments      []TrackerAttachment
 }
 
 // TrackerAttachment — метаданные фото. Байты только в Get.
@@ -72,10 +72,10 @@ const trackerTaskSelect = `
 
 // ListTrackerTasks — вся доска, свежие сверху. Лимит, чтобы админка не тянула архив.
 func (d *Database) ListTrackerTasks() ([]TrackerTask, error) {
-	if d == nil || d.db == nil {
+	if d == nil || d.trackerDB() == nil {
 		return nil, fmt.Errorf("база недоступна")
 	}
-	rows, err := d.db.Query(trackerTaskSelect + `
+	rows, err := d.trackerDB().Query(trackerTaskSelect + `
 		ORDER BY t.id DESC
 		LIMIT 300
 	`)
@@ -97,10 +97,10 @@ func (d *Database) ListTrackerTasks() ([]TrackerTask, error) {
 // GetTrackerTask — карточка с метаданными вложений, без байтов.
 func (d *Database) GetTrackerTask(id int64) (TrackerTask, error) {
 	var empty TrackerTask
-	if d == nil || d.db == nil || id <= 0 {
+	if d == nil || d.trackerDB() == nil || id <= 0 {
 		return empty, fmt.Errorf("задача не найдена")
 	}
-	row := d.db.QueryRow(trackerTaskSelect+`WHERE t.id = $1`, id)
+	row := d.trackerDB().QueryRow(trackerTaskSelect+`WHERE t.id = $1`, id)
 	t, err := scanTrackerTask(row)
 	if err == sql.ErrNoRows {
 		return empty, fmt.Errorf("задача не найдена")
@@ -121,10 +121,10 @@ func (d *Database) GetTrackerTask(id int64) (TrackerTask, error) {
 // Уведомление часто шлёт номер, а не внутренний id.
 func (d *Database) GetTrackerTaskByNum(num int) (TrackerTask, error) {
 	var empty TrackerTask
-	if d == nil || d.db == nil || num <= 0 {
+	if d == nil || d.trackerDB() == nil || num <= 0 {
 		return empty, fmt.Errorf("задача не найдена")
 	}
-	row := d.db.QueryRow(trackerTaskSelect+`WHERE t.num = $1`, num)
+	row := d.trackerDB().QueryRow(trackerTaskSelect+`WHERE t.num = $1`, num)
 	t, err := scanTrackerTask(row)
 	if err == sql.ErrNoRows {
 		return empty, fmt.Errorf("задача не найдена")
@@ -136,10 +136,10 @@ func (d *Database) GetTrackerTaskByNum(num int) (TrackerTask, error) {
 // Если id в уведомлении чужой (внешняя доска), двигаем то, что сейчас открыто.
 func (d *Database) FindOpenTrackerTask() (TrackerTask, error) {
 	var empty TrackerTask
-	if d == nil || d.db == nil {
+	if d == nil || d.trackerDB() == nil {
 		return empty, fmt.Errorf("база недоступна")
 	}
-	row := d.db.QueryRow(trackerTaskSelect+`
+	row := d.trackerDB().QueryRow(trackerTaskSelect + `
 		WHERE t.status NOT IN ('done', 'canceled', 'cancelled')
 		ORDER BY
 		  CASE
@@ -159,7 +159,7 @@ func (d *Database) FindOpenTrackerTask() (TrackerTask, error) {
 
 // CreateTrackerTask — новая карточка. Номер — следующий на доске.
 func (d *Database) CreateTrackerTask(t TrackerTask) (TrackerTask, error) {
-	if d == nil || d.db == nil {
+	if d == nil || d.trackerDB() == nil {
 		return t, fmt.Errorf("база недоступна")
 	}
 	t.Prompt = clipTrackerText(t.Prompt, trackerMaxPrompt)
@@ -192,7 +192,7 @@ func (d *Database) CreateTrackerTask(t TrackerTask) (TrackerTask, error) {
 	if t.HasAuthor {
 		author = t.AuthorID
 	}
-	err = d.db.QueryRow(`
+	err = d.trackerDB().QueryRow(`
 		INSERT INTO pack_tracker_tasks (
 			num, prompt, when_at, when_label, repeat, kind, status, dev_column,
 			qa_column, qa_status, handed_to_qa, auto_review, manual_qa, fast_track,
@@ -213,7 +213,7 @@ func (d *Database) CreateTrackerTask(t TrackerTask) (TrackerTask, error) {
 
 // SaveTrackerTask — обновить карточку целиком.
 func (d *Database) SaveTrackerTask(t TrackerTask) error {
-	if d == nil || d.db == nil || t.ID <= 0 {
+	if d == nil || d.trackerDB() == nil || t.ID <= 0 {
 		return fmt.Errorf("задача не найдена")
 	}
 	t.Prompt = clipTrackerText(t.Prompt, trackerMaxPrompt)
@@ -235,7 +235,7 @@ func (d *Database) SaveTrackerTask(t TrackerTask) error {
 	if t.HasLastRun {
 		lastRun = t.LastRunAt
 	}
-	res, err := d.db.Exec(`
+	res, err := d.trackerDB().Exec(`
 		UPDATE pack_tracker_tasks SET
 			prompt = $2, when_at = $3, when_label = $4, repeat = $5, kind = $6,
 			status = $7, dev_column = $8, qa_column = NULLIF($9, ''),
@@ -264,11 +264,11 @@ func (d *Database) SaveTrackerTask(t TrackerTask) error {
 // ещё три часа, как #1 на доске: срок 10:10, а колонка всё ещё «Ожидает».
 // FOR UPDATE SKIP LOCKED — если крутятся две реплики, одну карточку возьмёт одна.
 func (d *Database) ClaimDueTrackerTasks(now time.Time) ([]TrackerTask, error) {
-	if d == nil || d.db == nil {
+	if d == nil || d.trackerDB() == nil {
 		return nil, fmt.Errorf("база недоступна")
 	}
 	_ = now
-	rows, err := d.db.Query(`
+	rows, err := d.trackerDB().Query(`
 		UPDATE pack_tracker_tasks
 		SET status = 'running',
 		    dev_column = 'doing',
@@ -316,10 +316,10 @@ func (d *Database) ClaimDueTrackerTasks(now time.Time) ([]TrackerTask, error) {
 
 // DeleteTrackerTask — снять карточку. Фото уйдут каскадом.
 func (d *Database) DeleteTrackerTask(id int64) error {
-	if d == nil || d.db == nil || id <= 0 {
+	if d == nil || d.trackerDB() == nil || id <= 0 {
 		return fmt.Errorf("задача не найдена")
 	}
-	res, err := d.db.Exec(`DELETE FROM pack_tracker_tasks WHERE id = $1`, id)
+	res, err := d.trackerDB().Exec(`DELETE FROM pack_tracker_tasks WHERE id = $1`, id)
 	if err != nil {
 		return err
 	}
@@ -333,7 +333,7 @@ func (d *Database) DeleteTrackerTask(id int64) error {
 // AddTrackerAttachment — приложить фото к задаче.
 func (d *Database) AddTrackerAttachment(taskID int64, name, mime string, data []byte) (TrackerAttachment, error) {
 	var att TrackerAttachment
-	if d == nil || d.db == nil || taskID <= 0 {
+	if d == nil || d.trackerDB() == nil || taskID <= 0 {
 		return att, fmt.Errorf("задача не найдена")
 	}
 	if len(data) == 0 || len(data) > trackerMaxAttBytes {
@@ -348,7 +348,7 @@ func (d *Database) AddTrackerAttachment(taskID int64, name, mime string, data []
 		mime = "image/jpeg"
 	}
 	var n int
-	if err := d.db.QueryRow(`
+	if err := d.trackerDB().QueryRow(`
 		SELECT COUNT(*) FROM pack_tracker_attachments WHERE task_id = $1
 	`, taskID).Scan(&n); err != nil {
 		return att, err
@@ -363,7 +363,7 @@ func (d *Database) AddTrackerAttachment(taskID int64, name, mime string, data []
 		Size: len(data),
 		Data: data,
 	}
-	_, err := d.db.Exec(`
+	_, err := d.trackerDB().Exec(`
 		INSERT INTO pack_tracker_attachments (id, task_id, name, mime, size, data)
 		VALUES ($1, $2, $3, $4, $5, $6)
 	`, att.ID, taskID, att.Name, att.Mime, att.Size, att.Data)
@@ -377,10 +377,10 @@ func (d *Database) AddTrackerAttachment(taskID int64, name, mime string, data []
 func (d *Database) GetTrackerAttachment(taskID int64, attID string) (TrackerAttachment, error) {
 	var att TrackerAttachment
 	attID = strings.TrimSpace(attID)
-	if d == nil || d.db == nil || taskID <= 0 || attID == "" {
+	if d == nil || d.trackerDB() == nil || taskID <= 0 || attID == "" {
 		return att, fmt.Errorf("фото не найдено")
 	}
-	err := d.db.QueryRow(`
+	err := d.trackerDB().QueryRow(`
 		SELECT id, name, mime, size, data
 		FROM pack_tracker_attachments
 		WHERE task_id = $1 AND id = $2
@@ -394,10 +394,10 @@ func (d *Database) GetTrackerAttachment(taskID int64, attID string) (TrackerAtta
 // DeleteTrackerAttachment — снять фото. Так работает «заменить».
 func (d *Database) DeleteTrackerAttachment(taskID int64, attID string) error {
 	attID = strings.TrimSpace(attID)
-	if d == nil || d.db == nil || taskID <= 0 || attID == "" {
+	if d == nil || d.trackerDB() == nil || taskID <= 0 || attID == "" {
 		return fmt.Errorf("фото не найдено")
 	}
-	res, err := d.db.Exec(`
+	res, err := d.trackerDB().Exec(`
 		DELETE FROM pack_tracker_attachments WHERE task_id = $1 AND id = $2
 	`, taskID, attID)
 	if err != nil {
@@ -411,7 +411,7 @@ func (d *Database) DeleteTrackerAttachment(taskID int64, attID string) error {
 }
 
 func (d *Database) listTrackerAttachmentMeta(taskID int64) ([]TrackerAttachment, error) {
-	rows, err := d.db.Query(`
+	rows, err := d.trackerDB().Query(`
 		SELECT id, name, mime, size
 		FROM pack_tracker_attachments
 		WHERE task_id = $1
