@@ -7,7 +7,7 @@ const STORAGE_KEY = "leo-theme";
 const THEME_COLOR: Record<ThemeMode, string> = {
   light: "#f5f1f5",
   dark: "#0d0d12",
-  leopard: "#e8c48a",
+  leopard: "#e9dcc5",
 };
 
 export function parseTheme(raw: string | null | undefined): ThemeMode {
