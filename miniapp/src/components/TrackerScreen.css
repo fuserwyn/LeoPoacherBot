@@ -6,6 +6,10 @@
   padding: 0 0 24px;
 }
 
+html.app-keyboard-open .tracker {
+  padding-bottom: calc(24px + var(--app-keyboard-bottom, 0px));
+}
+
 .tracker__tabs {
   display: flex;
   gap: 6px;

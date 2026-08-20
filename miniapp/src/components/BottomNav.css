@@ -17,11 +17,12 @@
   max-width: 100vw;
 }
 
-/* Строка вкладок под компоуз-полем. */
+/* Пять колонок: «+» всегда в геометрическом центре, подписи не сдвигают его. */
 .bottom-nav__tabs {
-  display: flex;
-  align-items: flex-end;
-  justify-content: space-around;
+  display: grid;
+  grid-template-columns: 1fr 1fr 54px 1fr 1fr;
+  align-items: end;
+  justify-items: center;
 }
 
 /* Отдельная строка компоуз-поля над таббаром. Схлопываем без размонтирования,
@@ -253,10 +254,16 @@
 }
 
 .bottom-nav__add-plus {
+  display: grid;
+  place-items: center;
+  width: 100%;
+  height: 100%;
+  font-family: ui-sans-serif, -apple-system, "SF Pro Text", system-ui, sans-serif;
   font-size: 30px;
-  font-weight: 500;
+  font-weight: 400;
   line-height: 1;
-  margin-top: -2px;
+  /* Системный плюс оптически чуть выше центра круга. */
+  transform: translateY(0.5px);
 }
 
 .bottom-nav__item.is-active {

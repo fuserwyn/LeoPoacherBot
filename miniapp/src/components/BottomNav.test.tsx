@@ -20,6 +20,16 @@ const handlers = {
   onProfile: () => {},
 };
 
+describe("BottomNav tab row", () => {
+  it("keeps the workout plus as the middle of five tabs", () => {
+    const { container } = render(<BottomNav active="chat" showCompose={false} {...handlers} />);
+    const tabs = [...container.querySelectorAll(".bottom-nav__tabs > *")];
+    expect(tabs).toHaveLength(5);
+    expect(tabs[2]?.classList.contains("bottom-nav__add")).toBe(true);
+    expect(tabs[2]?.textContent?.trim()).toBe("+");
+  });
+});
+
 describe("BottomNav compose collapse", () => {
   it("keeps the compose row mounted and collapsed when hidden", () => {
     const { container, rerender } = render(<BottomNav active="feed" showCompose {...handlers} />);

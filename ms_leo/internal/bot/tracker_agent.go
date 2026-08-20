@@ -57,6 +57,38 @@ func trackerAgentName(phase string) string {
 	}
 }
 
+const trackerAgentKickCooldown = 90 * time.Second
+
+func trackerNeedsAgentKick(t database.TrackerTask, now time.Time, force bool) bool {
+	status := strings.ToLower(strings.TrimSpace(t.Status))
+	col := strings.ToLower(strings.TrimSpace(t.DevColumn))
+	if status != "running" && col != "doing" {
+		return false
+	}
+	if trackerStepRemoteID(t.Steps) > 0 {
+		return false
+	}
+	err := strings.ToLower(t.Error)
+	last := ""
+	if n := len(t.Steps); n > 0 {
+		last = strings.ToLower(strings.TrimSpace(t.Steps[n-1]))
+	}
+	failed := strings.Contains(err, "агент не стартовал") || last == "агент не стартовал"
+	if failed {
+		if force {
+			return true
+		}
+		return !t.HasLastRun || now.Sub(t.LastRunAt) >= trackerAgentKickCooldown
+	}
+	if !strings.Contains(last, "взяли в работу") {
+		return false
+	}
+	if !t.HasLastRun {
+		return true
+	}
+	return now.Sub(t.LastRunAt) >= 45*time.Second
+}
+
 func trackerStepRemoteID(steps []string) int64 {
 	for i := len(steps) - 1; i >= 0; i-- {
 		s := strings.TrimSpace(steps[i])
@@ -206,17 +238,17 @@ func (b *Bot) runTrackerAgent(taskID int64, phase string) error {
 
 func (b *Bot) remoteTrackerCreate(t database.TrackerTask, phase, model string) (remoteID int64, note string, err error) {
 	payload := map[string]any{
-		"when":        "сейчас",
-		"prompt":      trackerAgentPrompt(t, phase),
-		"auto_review": false,
-		"auto_push":   t.AutoPush,
+		"when":           "сейчас",
+		"prompt":         trackerAgentPrompt(t, phase),
+		"auto_review":    false,
+		"auto_push":      t.AutoPush,
+		"phase":          phase,
+		"source_task_id": t.ID,
+		"source_num":     trackerDueNum(t),
 	}
 	if model != "" {
 		payload["model_key"] = model
 	}
-	// Сессию доски открываем от владельца: MyVibeLab знает гостей по его
-	// telegram_id. Автор карточки (LoFi и т.п.) там часто не зарегистрирован —
-	// тогда create отвечает unauthorized и агент не стартует.
 	userID := b.trackerAgentBoardUserID()
 	raw, err := b.remoteTrackerRequest("create", 0, payload, userID, trackerAgentName(phase))
 	if err != nil {
@@ -250,28 +282,29 @@ func (b *Bot) remoteTrackerRequest(op string, taskID int64, payload map[string]a
 	if b == nil || b.config == nil {
 		return nil, ErrTrackerNotConfigured
 	}
-	sess, err := b.trackerSession(userID, name)
-	if err != nil {
-		return nil, err
+	_ = op
+	_ = taskID
+	_ = userID
+	_ = name
+	secret := strings.TrimSpace(b.config.BoardSecret)
+	if secret == "" || strings.TrimSpace(b.config.BoardURL) == "" {
+		return nil, ErrTrackerNotConfigured
 	}
 	if payload == nil {
 		payload = map[string]any{}
 	}
-	body, err := json.Marshal(map[string]any{
-		"session": sess,
-		"op":      op,
-		"task_id": taskID,
-		"payload": payload,
-	})
+	body, err := json.Marshal(payload)
 	if err != nil {
 		return nil, err
 	}
-	url := strings.TrimRight(b.config.BoardURL, "/") + "/api/tracker"
+	url := strings.TrimRight(strings.TrimSpace(b.config.BoardURL), "/") + "/api/scheduled"
 	req, err := http.NewRequest(http.MethodPost, url, bytes.NewReader(body))
 	if err != nil {
 		return nil, err
 	}
 	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("X-Tracker-Secret", secret)
+	req.Header.Set("Authorization", "Bearer "+secret)
 	client := &http.Client{Timeout: trackerAgentHTTPTimeout}
 	resp, err := client.Do(req)
 	if err != nil {
@@ -307,7 +340,7 @@ func (b *Bot) remoteTrackerRequest(op string, taskID int64, payload map[string]a
 		}
 	}
 	if resp.StatusCode >= 300 {
-		return nil, fmt.Errorf("доска агента: HTTP %d", resp.StatusCode)
+		return nil, fmt.Errorf("доска агента: HTTP %d %s", resp.StatusCode, req.URL.Path)
 	}
 	return json.RawMessage(raw), nil
 }

@@ -83,6 +83,13 @@ export function useAppKeyboardInset() {
       window.setTimeout(readKeyboard, 0);
       window.setTimeout(readKeyboard, 100);
       window.setTimeout(readKeyboard, 280);
+      const target = e.target;
+      const reveal = () => {
+        if (!(target instanceof HTMLElement) || document.activeElement !== target) return;
+        target.scrollIntoView({ block: "center", inline: "nearest", behavior: "smooth" });
+      };
+      window.setTimeout(reveal, 120);
+      window.setTimeout(reveal, 320);
     };
 
     const onFocusOut = () => {

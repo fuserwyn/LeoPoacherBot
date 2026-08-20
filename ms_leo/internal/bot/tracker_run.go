@@ -102,7 +102,56 @@ func (b *Bot) claimAndNotifyDueTrackerTasks() (int, error) {
 		// статус есть, а в репозитории ничего не происходит.
 		b.dispatchTrackerAgent(t, "doing")
 	}
-	return len(due) + healed, nil
+	kicked := b.kickStuckTrackerAgents(false)
+	return len(due) + healed + kicked, nil
+}
+
+func (b *Bot) claimAndKickTrackerTasks(forceStuck bool) (int, error) {
+	started, err := b.claimAndNotifyDueTrackerTasks()
+	if err != nil {
+		return started, err
+	}
+	if !forceStuck {
+		return started, nil
+	}
+	// claimAndNotify already kicked with force=false. Обновить — ещё раз
+	// принудительно, чтобы HTTP 405 и прочие фейлы не висели до кулдауна.
+	extra := b.kickStuckTrackerAgents(true)
+	return started + extra, nil
+}
+
+func (b *Bot) kickStuckTrackerAgents(force bool) int {
+	if b == nil || b.db == nil {
+		return 0
+	}
+	list, err := b.db.ListTrackerTasks()
+	if err != nil {
+		if b.logger != nil {
+			b.logger.Warnf("трекер: не прочитать зависшие задачи: %v", err)
+		}
+		return 0
+	}
+	now := time.Now()
+	n := 0
+	for _, t := range list {
+		if !trackerNeedsAgentKick(t, now, force) {
+			continue
+		}
+		t.Error = ""
+		appendTrackerStep(&t, "Снова запускаем агента")
+		if err := b.db.SaveTrackerTask(t); err != nil {
+			if b.logger != nil {
+				b.logger.Warnf("трекер: не перезапустить #%d: %v", trackerDueNum(t), err)
+			}
+			continue
+		}
+		if b.logger != nil {
+			b.logger.Infof("трекер: снова запускаем агента #%d", trackerDueNum(t))
+		}
+		b.dispatchTrackerAgent(t, "doing")
+		n++
+	}
+	return n
 }
 
 func trackerDueNum(t database.TrackerTask) int {

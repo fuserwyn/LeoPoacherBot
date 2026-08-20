@@ -265,7 +265,7 @@ func (b *Bot) localTrackerList() (json.RawMessage, error) {
 // localTrackerRefresh — кнопка «Обновить»: если созревшие не снялись,
 // админ видит ошибку, а не ту же очередь.
 func (b *Bot) localTrackerRefresh() (json.RawMessage, error) {
-	started, err := b.claimAndNotifyDueTrackerTasks()
+	started, err := b.claimAndKickTrackerTasks(true)
 	if err != nil {
 		return nil, err
 	}

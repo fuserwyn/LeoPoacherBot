@@ -370,6 +370,10 @@ html[data-theme="leopard"] .bottom-nav__compose {
   box-shadow: 0 1px 0 rgba(255, 255, 255, 0.8) inset;
 }
 
+html[data-theme="leopard"] .bottom-nav__add {
+  animation: leopard-plus-breathe 4.2s ease-in-out infinite;
+}
+
 html[data-theme="leopard"] .chip,
 html[data-theme="leopard"] .feed__filter-pill,
 html[data-theme="leopard"] .feed__filter-chip {
@@ -423,7 +427,6 @@ html[data-theme="leopard"] textarea {
 }
 
 html[data-theme="leopard"] .profile__name,
-html[data-theme="leopard"] .chat__title,
 html[data-theme="leopard"] .stat-card__val {
   font-family: var(--font-display);
   letter-spacing: -0.042em;
@@ -437,13 +440,16 @@ html[data-theme="leopard"] .profile__name {
 }
 
 html[data-theme="leopard"] .chat__title {
-  font-size: 20px;
+  font-size: 1.05rem;
+  font-weight: 600;
+  letter-spacing: -0.02em;
 }
 
 html[data-theme="leopard"] .chat:not(.support-chat) .chat__bubble {
-  font-size: 17px;
-  line-height: 1.32;
-  letter-spacing: -0.022em;
+  font-size: 0.95rem;
+  line-height: 1.45;
+  letter-spacing: -0.01em;
+  font-weight: 400;
 }
 
 html[data-theme="leopard"] .bottom-nav__label {
@@ -742,6 +748,9 @@ html[data-theme="leopard"] .chat:not(.support-chat) .chat__bubble--sys {
 
 html[data-theme="leopard"] .chat:not(.support-chat) .chat__bubble--user {
   border-radius: 20px 20px 6px 20px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
 }
 
 
@@ -756,13 +765,27 @@ html[data-theme="leopard"] .chat:not(.support-chat) .chat__bubble--user {
 
 @keyframes leopard-tab-pop {
   0% {
-    transform: scale(0.82);
+    transform: scale(0.92);
   }
-  55% {
-    transform: scale(1.16);
+  60% {
+    transform: scale(1.06);
   }
   100% {
     transform: scale(1);
+  }
+}
+
+@keyframes leopard-plus-breathe {
+  0%,
+  100% {
+    box-shadow:
+      0 8px 18px color-mix(in srgb, var(--accent) 30%, transparent),
+      0 0 0 1px rgba(255, 255, 255, 0.35) inset;
+  }
+  50% {
+    box-shadow:
+      0 10px 22px color-mix(in srgb, var(--accent) 42%, transparent),
+      0 0 0 1px rgba(255, 255, 255, 0.45) inset;
   }
 }
 
@@ -863,6 +886,7 @@ html[data-theme="leopard"] .chat:not(.support-chat) .chat__bubble--user {
   html[data-theme="leopard"] .chat:not(.support-chat) .chat__log-wrap,
   html[data-theme="leopard"] .chat:not(.support-chat).chat--ready .chat__log,
   html[data-theme="leopard"] .chat:not(.support-chat).chat--ready .chat__bubble,
+  html[data-theme="leopard"] .bottom-nav__add,
   html[data-theme="leopard"] .bottom-nav__item.is-active .bottom-nav__icon,
   html[data-theme="leopard"] .profile__theme-opt.is-active,
   html[data-theme="leopard"] .profile__theme-opt.is-locked:active,

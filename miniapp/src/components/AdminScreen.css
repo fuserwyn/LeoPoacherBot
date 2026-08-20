@@ -64,6 +64,11 @@
   }
 }
 
+/* Поле постановки задачи / ответ в треде не должны уезжать под клавиатуру. */
+html.app-keyboard-open .admin {
+  bottom: var(--app-keyboard-bottom, 0px);
+}
+
 .admin__head {
   position: relative;
   display: flex;
