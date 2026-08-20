@@ -15,6 +15,7 @@ import { AchievementToast } from "./components/AchievementToast";
 import { LevelUpToast } from "./components/LevelUpToast";
 import { earnedAchievementKeys, freshAchievementKeys, type AchievementKey } from "./lib/achievements";
 import { miniappLevelFromCups } from "./lib/miniappLevel";
+import { enforceThemeForLevel } from "./lib/theme";
 import { buildOptimisticTrainingFeedItem, type PackFeedItemDTO } from "./lib/packFeed";
 import { sendMiniappPrivateText, sendMiniappTrainingWithPhoto } from "./lib/miniappPrivateSend";
 import { isModerationError, moderationUserMessage } from "./lib/moderationMessages";
@@ -231,7 +232,9 @@ export function App() {
       setRecordStreak(typeof j.max_streak_days === "number" ? j.max_streak_days : 0);
       const xpNow = typeof j.xp === "number" ? j.xp : 0;
       setXP(xpNow);
-      notifyLevelUp(userId, miniappLevelFromCups(xpNow));
+      const levelNow = miniappLevelFromCups(xpNow);
+      enforceThemeForLevel(levelNow);
+      notifyLevelUp(userId, levelNow);
       const achCount = typeof j.achievement_count === "number" ? j.achievement_count : 0;
       const workoutsTotal = typeof j.workouts_total === "number" ? j.workouts_total : 0;
       setAchievementCount(achCount);

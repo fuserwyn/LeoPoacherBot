@@ -17,7 +17,7 @@
           var t = q === "light" || q === "dark" || q === "leopard" ? q : stored === "light" || stored === "leopard" ? stored : "dark";
           document.documentElement.setAttribute("data-theme", t);
           var m = document.querySelector('meta[name="theme-color"]');
-          if (m) m.setAttribute("content", t === "light" ? "#f5f1f5" : t === "leopard" ? "#f4c4d2" : "#0d0d12");
+          if (m) m.setAttribute("content", t === "light" ? "#f5f1f5" : t === "leopard" ? "#f6d4de" : "#0d0d12");
         } catch (e) {}
       })();
     </script>

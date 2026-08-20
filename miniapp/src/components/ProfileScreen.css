@@ -1243,9 +1243,19 @@ html.app-keyboard-open .profile__health-actions--keyboard {
 }
 
 :root[data-theme="leopard"] .profile__theme-opt.is-active {
-  background: #fff5f8;
-  color: #c23a6e;
-  border-color: #c23a6e;
+  background: #fff;
+  color: #e11d62;
+  border-color: rgba(225, 29, 98, 0.35);
+}
+
+.profile__theme-opt.is-locked {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.profile__theme-lock {
+  margin: 8px 4px 0;
+  font-size: 12px;
 }
 
 /* Заголовок «Уведомления» — это кнопка: блок свёрнут по умолчанию.

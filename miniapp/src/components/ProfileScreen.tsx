@@ -8,7 +8,13 @@ import {
   effectiveStreakDays,
   streakBurnLabel,
 } from "../lib/streakLabel";
-import { getStoredTheme, setTheme, type ThemeMode } from "../lib/theme";
+import {
+  canUseLeopardTheme,
+  getStoredTheme,
+  setTheme,
+  themeAllowedForLevel,
+  type ThemeMode,
+} from "../lib/theme";
 import {
   createCardDonatePayment,
   createStarsDonateInvoice,
@@ -103,9 +109,10 @@ export function ProfileScreen({
   const [cups, setCups] = useState(xp);
   const [theme, setThemeState] = useState<ThemeMode>(() => getStoredTheme());
   const changeTheme = useCallback((mode: ThemeMode) => {
-    setTheme(mode);
-    setThemeState(mode);
-  }, []);
+    const next = themeAllowedForLevel(mode, miniappLevelFromCups(cups));
+    setTheme(next);
+    setThemeState(next);
+  }, [cups]);
   const [profile, setProfile] = useState<ProfileData>(EMPTY_PROFILE);
   const [savedProfile, setSavedProfile] = useState<ProfileData>(EMPTY_PROFILE);
   const [profileLoading, setProfileLoading] = useState(true);
@@ -219,6 +226,15 @@ export function ProfileScreen({
   const level = miniappLevelFromCups(cups);
   const levelTitle = miniappLevelName(level) || "—";
   const barPct = cupsLevelProgressBarPct(cupProgress);
+  const leopardUnlocked = canUseLeopardTheme(level);
+
+  useEffect(() => {
+    const next = themeAllowedForLevel(getStoredTheme(), level);
+    if (next !== theme) {
+      setTheme(next);
+      setThemeState(next);
+    }
+  }, [level, theme]);
 
   const load = useCallback(async () => {
     if (!api || !inTelegram || !initData?.trim()) {
@@ -1460,13 +1476,19 @@ export function ProfileScreen({
           </button>
           <button
             type="button"
-            className={`profile__theme-opt ${theme === "leopard" ? "is-active" : ""}`}
+            className={`profile__theme-opt ${theme === "leopard" ? "is-active" : ""} ${leopardUnlocked ? "" : "is-locked"}`}
             aria-pressed={theme === "leopard"}
+            aria-disabled={!leopardUnlocked}
+            disabled={!leopardUnlocked}
+            title={leopardUnlocked ? "Розовая леопардовая тема" : "С 5 уровня · Лев"}
             onClick={() => changeTheme("leopard")}
           >
             🐆 Розовый
           </button>
         </div>
+        {!leopardUnlocked ? (
+          <p className="profile__theme-lock muted">Розовая тема откроется на 5 уровне · Лев</p>
+        ) : null}
       </div>
 
       {(donateOptions.starsAvailable || donateOptions.cardAvailable) && (

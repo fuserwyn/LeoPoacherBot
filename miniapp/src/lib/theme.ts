@@ -3,12 +3,35 @@
  *  Раннее применение (без мигания) — инлайн-скриптом в index.html; здесь — рантайм-переключение. */
 export type ThemeMode = "light" | "dark" | "leopard";
 
+/** Розовая леопардовая тема — с 5 уровня (Лев). */
+export const LEOPARD_THEME_MIN_LEVEL = 5;
+
 const STORAGE_KEY = "leo-theme";
 const THEME_COLOR: Record<ThemeMode, string> = {
   light: "#f5f1f5",
   dark: "#0d0d12",
-  leopard: "#f4c4d2",
+  leopard: "#f6d4de",
 };
+
+export function canUseLeopardTheme(level: number): boolean {
+  return level >= LEOPARD_THEME_MIN_LEVEL;
+}
+
+export function themeAllowedForLevel(mode: ThemeMode, level: number): ThemeMode {
+  if (mode === "leopard" && !canUseLeopardTheme(level)) {
+    return "dark";
+  }
+  return mode;
+}
+
+export function enforceThemeForLevel(level: number): ThemeMode {
+  const stored = getStoredTheme();
+  const next = themeAllowedForLevel(stored, level);
+  if (next !== stored) {
+    setTheme(next);
+  }
+  return next;
+}
 
 export function parseTheme(raw: string | null | undefined): ThemeMode {
   if (raw === "light" || raw === "leopard") {
