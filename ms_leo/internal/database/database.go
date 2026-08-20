@@ -55,7 +55,11 @@ func init() {
 
 type Database struct {
 	db     *sql.DB
-	logger logger.Logger
+	dsn    string
+	// tracker — отдельная БД доски (TRACKER_DATABASE_URL). Пусто — пишем в db,
+	// как в тестах и локально без второй базы.
+	tracker *sql.DB
+	logger  logger.Logger
 	// alphaTesterIDs — telegram_id альфа-тестеров (§10). Задаётся на старте через
 	// SetAlphaTesterIDs; используется в insertEvent для пометки is_alpha.
 	alphaTesterIDs map[int64]bool
@@ -90,7 +94,8 @@ func New(databaseURL string) (*Database, error) {
 	}
 
 	return &Database{
-		db: db,
+		db:  db,
+		dsn: databaseURL,
 	}, nil
 }
 
@@ -100,7 +105,19 @@ func NewForTest(db *sql.DB) *Database {
 }
 
 func (d *Database) Close() error {
-	return d.db.Close()
+	if d == nil {
+		return nil
+	}
+	var first error
+	if d.tracker != nil && d.tracker != d.db {
+		first = d.tracker.Close()
+	}
+	if d.db != nil {
+		if err := d.db.Close(); err != nil && first == nil {
+			first = err
+		}
+	}
+	return first
 }
 
 // renameMessageLogToTrainingStateIfExists — для БД, созданных до переименования: не создавать вторую пустую таблицу рядом с legacy message_log.

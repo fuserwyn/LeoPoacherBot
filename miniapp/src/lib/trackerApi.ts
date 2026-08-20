@@ -101,7 +101,7 @@ export type TrackerOp =
   | "sprint_generate"
   | "sprint_apply";
 
-type Envelope<T> = { ok?: boolean; data?: T; error?: string; message?: string };
+type Envelope<T> = { ok?: boolean; data?: T | string; error?: string; message?: string };
 
 async function call<T>(
   initData: string,
@@ -118,7 +118,19 @@ async function call<T>(
   if (!res.ok || j.ok === false) {
     throw new Error(j.message || trackerErrorLabel(j.error) || `Ошибка ${res.status}`);
   }
-  return (j.data ?? ({} as T)) as T;
+  return unwrapTrackerData<T>(j.data);
+}
+
+function unwrapTrackerData<T>(raw: T | string | undefined): T {
+  if (raw && typeof raw === "object") return raw;
+  if (typeof raw === "string") {
+    try {
+      return JSON.parse(raw) as T;
+    } catch {
+      /* строка не JSON */
+    }
+  }
+  return {} as T;
 }
 
 function trackerErrorLabel(code?: string): string {
@@ -132,6 +144,8 @@ function trackerErrorLabel(code?: string): string {
       return "Доска недоступна";
     case "invalid_action":
       return "Такое действие доске недоступно";
+    case "admin_error":
+      return "Доска не приняла задачу";
     default:
       return code ?? "";
   }

@@ -103,6 +103,9 @@ func New(cfg *config.Config, db *database.Database, log logger.Logger) (*Bot, er
 	if err := db.CreateTables(); err != nil {
 		return nil, fmt.Errorf("failed to create tables: %w", err)
 	}
+	if err := db.AttachTrackerDatabase(cfg.TrackerDatabaseURL); err != nil {
+		return nil, fmt.Errorf("tracker database: %w", err)
+	}
 
 	// §10: множество альфа-тестеров — события этих юзеров помечаются is_alpha.
 	db.SetAlphaTesterIDs(cfg.AlphaTesterIDs)
