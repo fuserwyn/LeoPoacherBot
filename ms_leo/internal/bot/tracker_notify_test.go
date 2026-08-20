@@ -11,6 +11,34 @@ import (
 	"github.com/DATA-DOG/go-sqlmock"
 )
 
+func TestTrackerNotifyIsFullyShipped(t *testing.T) {
+	if TrackerNotifyIsFullyShipped("🔧 Задача #1 началась.") {
+		t.Fatal("start must stay silent")
+	}
+	if TrackerNotifyIsFullyShipped("Задача #4: код в ветке tracker/4-1.\nАвтопуш: ветка ушла в GitHub. Сборку Railway смотри по деплою этой ветки.") {
+		t.Fatal("tracker branch must not look shipped to main")
+	}
+	if TrackerNotifyIsFullyShipped("можно на тест") || TrackerNotifyIsFullyShipped("ревью не принято") {
+		t.Fatal("pipeline steps must stay silent")
+	}
+	if TrackerNotifyIsFullyShipped("Чтобы выкатить на сервер, напиши «запушь».") {
+		t.Fatal("запушь is not done")
+	}
+	if TrackerNotifyIsFullyShipped("✅ Задача #6 выполнена.\n\nПрошла в работе, review, тест и сборку.\nЧтобы выкатить на сервер, напиши «запушь».") {
+		t.Fatal("pipeline summary must stay silent")
+	}
+	if !TrackerNotifyIsFullyShipped("✅ Задача #4 выполнена.\nВыехала на Railway (ветка main).") {
+		t.Fatal("real railway main ship must notify")
+	}
+	if !TrackerNotifyIsFullyShipped("Задача #4 задеплоена на Railway в ветке main.") {
+		t.Fatal("deployed on main must notify")
+	}
+	note := trackerFullyDoneNote(database.TrackerTask{Num: 4})
+	if !TrackerNotifyIsFullyShipped(note) || !strings.Contains(note, "main") {
+		t.Fatalf("done note: %q", note)
+	}
+}
+
 func TestTrackerNotifyKind(t *testing.T) {
 	if got := trackerNotifyKind("⏰ Задача #236 выполнена.\n\nГотово."); got != "done" {
 		t.Fatalf("done: %q", got)
@@ -33,6 +61,9 @@ func TestTrackerNotifyKind(t *testing.T) {
 	if got := trackerNotifyKind("ревью не принято: нет тестов"); got != "done" {
 		t.Fatalf("composer review fail is still a phase result: %q", got)
 	}
+	if got := trackerNotifyKind("Задача #4: агент сдал план\n\nTRACKER_NO_CODE"); got != "plan" {
+		t.Fatalf("no-code plan: %q", got)
+	}
 }
 
 func TestTrackerNotifyTaskNum(t *testing.T) {
@@ -44,6 +75,59 @@ func TestTrackerNotifyTaskNum(t *testing.T) {
 	}
 	if got := trackerNotifyTaskNum("без номера"); got != 0 {
 		t.Fatalf("empty: %d", got)
+	}
+}
+
+func TestApplyTrackerNotifyRecordsCommit(t *testing.T) {
+	task := database.TrackerTask{Status: "running", DevColumn: trackerColDoing}
+	applyTrackerNotify(&task, "done", "Задача #5: коммит выполнения abc1234 на ветке tracker/5-314.")
+	if task.DevColumn != trackerColReview {
+		t.Fatalf("doing → review: %s", task.DevColumn)
+	}
+	found := false
+	for _, s := range task.Steps {
+		if s == "коммит abc1234 выполнение" {
+			found = true
+		}
+	}
+	if !found {
+		t.Fatalf("steps: %#v", task.Steps)
+	}
+}
+
+func TestApplyBoardNotifyReviewFailStaysOnReview(t *testing.T) {
+	task := database.TrackerTask{Status: "reviewing", DevColumn: trackerColReview}
+	applyTrackerNotify(&task, "done", "ревью не принято: только план")
+	applyTrackerPhaseVerdict(&task, trackerColReview, "ревью не принято: только план")
+	if task.DevColumn != trackerColDoing || task.Status != "running" {
+		t.Fatalf("review fail must return to work: %+v", task)
+	}
+	if trackerShouldAdvanceFromResult(database.TrackerTask{
+		DevColumn: trackerColDoing,
+		Status:    "running",
+		Result:    "ревью не принято: только план",
+	}) {
+		t.Fatal("failed review must not heal back into the pipeline")
+	}
+	if got := trackerNotifyKind("⚠️ Задача #6: агент не стартовал.\nopenrouter HTTP 504"); got != "error" {
+		t.Fatalf("startup fail: %q", got)
+	}
+}
+
+func TestApplyTrackerNotifyTestCommitGoesToDeploy(t *testing.T) {
+	task := database.TrackerTask{Status: "holding", DevColumn: trackerColTest}
+	applyTrackerNotify(&task, "done", "Тест пройден.\n\nкоммит abc1234 тест")
+	if task.DevColumn != trackerColDeploy {
+		t.Fatalf("test → сборка: %s", task.DevColumn)
+	}
+	found := false
+	for _, s := range task.Steps {
+		if s == "коммит abc1234 тест" {
+			found = true
+		}
+	}
+	if !found {
+		t.Fatalf("steps: %#v", task.Steps)
 	}
 }
 
@@ -130,6 +214,50 @@ func TestApplyTrackerNotifyStartedOnlyFromTodo(t *testing.T) {
 	}
 }
 
+func TestApplyTrackerNotifyShippedGoesToDone(t *testing.T) {
+	note := trackerFullyDoneNote(database.TrackerTask{Num: 6})
+	task := database.TrackerTask{Status: "reviewing", DevColumn: trackerColReview, Num: 6}
+	applyTrackerNotify(&task, "done", note)
+	if task.DevColumn != trackerColDone || task.Status != "done" {
+		t.Fatalf("shipped notify must close the card: %+v", task)
+	}
+}
+
+func TestTrackerShouldKickAfterNotify(t *testing.T) {
+	note := trackerFullyDoneNote(database.TrackerTask{Num: 6})
+	if trackerShouldKickAfterNotify("done", trackerColReview, note) {
+		t.Fatal("already shipped must not restart review/test")
+	}
+	if !trackerShouldKickAfterNotify("done", trackerColReview, "можно на тест") {
+		t.Fatal("composer pass still kicks the next phase")
+	}
+	if !trackerShouldKickAfterNotify("done", trackerColReview, "ревью не принято") {
+		t.Fatal("failed review must kick the doing agent")
+	}
+	if trackerShouldKickAfterNotify("done", trackerColTest, "тест не прошёл") {
+		t.Fatal("failed test stays on test")
+	}
+	if trackerShouldKickAfterNotify("started", trackerColDoing, "🔧 Задача #6 началась.") {
+		t.Fatal("start must not kick")
+	}
+}
+
+func TestTrackerAlreadyNotifiedShip(t *testing.T) {
+	if trackerAlreadyNotifiedShip(database.TrackerTask{Num: 6}) {
+		t.Fatal("fresh card")
+	}
+	if !trackerAlreadyNotifiedShip(database.TrackerTask{
+		Steps: []string{trackerShipNotifiedStep},
+	}) {
+		t.Fatal("step marks notified")
+	}
+	if trackerAlreadyNotifiedShip(database.TrackerTask{
+		Result: trackerFullyDoneNote(database.TrackerTask{Num: 6}),
+	}) {
+		t.Fatal("result alone is not a send; apply stores it before the DM")
+	}
+}
+
 func TestTrackerNotifyDoneColumn(t *testing.T) {
 	if got := trackerNotifyDoneColumn(database.TrackerTask{DevColumn: trackerColDoing}); got != trackerColReview {
 		t.Fatalf("default: %s", got)
@@ -165,6 +293,11 @@ func TestTrackerShouldAdvanceFromResult(t *testing.T) {
 	review.DevColumn = trackerColReview
 	if trackerShouldAdvanceFromResult(review) {
 		t.Fatal("already on review must stay")
+	}
+	shipped := review
+	shipped.Result = trackerFullyDoneNote(database.TrackerTask{Num: 236})
+	if !trackerShouldAdvanceFromResult(shipped) {
+		t.Fatal("railway ship from review must close the card")
 	}
 	empty := database.TrackerTask{Status: "pending", DevColumn: trackerColTodo}
 	if trackerShouldAdvanceFromResult(empty) {

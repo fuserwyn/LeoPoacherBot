@@ -210,7 +210,7 @@ func TestAdminTrackerRequestFullCycle(t *testing.T) {
 		Deployed bool `json:"deployed"`
 		Skipped  bool `json:"skipped"`
 	}
-	if err := json.Unmarshal(raw, &ship); err != nil || !ship.OK || !ship.Deployed || ship.Skipped {
+	if err := json.Unmarshal(raw, &ship); err != nil || !ship.OK || ship.Deployed || ship.Skipped {
 		t.Fatalf("ship body: %s err=%v", raw, err)
 	}
 	if err := mock.ExpectationsWereMet(); err != nil {

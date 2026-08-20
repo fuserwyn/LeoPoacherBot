@@ -12,8 +12,9 @@ import (
 )
 
 // Своя доска: те же карточки, что рисует TrackerScreen, но данные из нашей базы.
-// Код пишется в этом проекте, на сервер он уезжает только когда человек
-// напишет «запушь» — сами мы git не трогаем.
+// Коммиты на ветке задачи: выполнение до review, ревью до теста.
+// Пуш в main и колонка «Сборка» — только после теста. Выполнено — когда
+// стенд собрался.
 
 const (
 	trackerColTodo     = "todo"
@@ -199,6 +200,8 @@ func trackerTaskView(t database.TrackerTask, withAtts bool) map[string]any {
 		"live_step":  live,
 		"result":     t.Result,
 		"created_at": t.CreatedAt.Format(time.RFC3339),
+		"commit":     trackerTaskCommit(t),
+		"branch":     trackerTaskBranch(t),
 	}
 	if t.HasLastRun {
 		out["last_run_at"] = t.LastRunAt.Format(time.RFC3339)
@@ -568,20 +571,17 @@ func (b *Bot) localTrackerShip(taskID int64, payload map[string]any) (json.RawMe
 	if !trackerTaskReadyToShip(snap) {
 		return trackerJSON(map[string]any{"ok": true, "skipped": true})
 	}
-	_ = applyTrackerColumn(&t, trackerColDone)
-	note := "Готово к публикации. Чтобы выкатить на сервер, напиши «запушь»."
-	if !strings.Contains(t.Result, "запушь") {
-		t.Result = strings.TrimSpace(t.Result + "\n\n" + note)
-	}
-	appendTrackerStep(&t, "Отметили к публикации")
+	_ = applyTrackerColumn(&t, trackerColDeploy)
+	appendTrackerStep(&t, "К сборке: пуш после теста")
 	if err := b.db.SaveTrackerTask(t); err != nil {
 		return nil, err
 	}
+	b.kickTrackerPipeline(t)
 	return trackerJSON(map[string]any{
 		"ok":       true,
 		"promoted": false,
-		"pushed":   false,
-		"deployed": true,
+		"pushed":   true,
+		"deployed": false,
 	})
 }
 

@@ -8,6 +8,7 @@ import (
 	"strconv"
 	"strings"
 
+	"leo-tracker/internal/agent"
 	"leo-tracker/internal/config"
 	"leo-tracker/internal/store"
 	"leo-tracker/internal/when"
@@ -30,6 +31,8 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("POST /api/scheduled", s.auth(s.create))
 	mux.HandleFunc("GET /api/scheduled/{id}", s.auth(s.get))
 	mux.HandleFunc("POST /api/scheduled/cancel", s.auth(s.cancel))
+	mux.HandleFunc("POST /api/ship", s.auth(s.ship))
+	mux.HandleFunc("POST /api/stamp", s.auth(s.stamp))
 	return mux
 }
 
@@ -114,6 +117,7 @@ func (s *Server) create(w http.ResponseWriter, r *http.Request) {
 		SourceTaskID: int64Val(body, "source_task_id"),
 		SourceNum:    int(int64Val(body, "source_num")),
 		AuthorID:     int64Val(body, "author_id"),
+		Branch:       str(body, "branch"),
 	}
 	created, err := s.st.Create(j)
 	if err != nil {
@@ -125,6 +129,79 @@ func (s *Server) create(w http.ResponseWriter, r *http.Request) {
 		"ok":   true,
 		"id":   created.ID,
 		"when": created.WhenLabel,
+	})
+}
+
+func (s *Server) stamp(w http.ResponseWriter, r *http.Request) {
+	var body map[string]any
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]any{"ok": false, "error": "непонятное тело"})
+		return
+	}
+	job := store.Job{
+		SourceTaskID: int64Val(body, "source_task_id"),
+		SourceNum:    int(int64Val(body, "source_num")),
+		Phase:        str(body, "phase"),
+		Branch:       str(body, "branch"),
+		Prompt:       str(body, "prompt"),
+	}
+	if job.Phase == "" {
+		job.Phase = "review"
+	}
+	if job.Branch == "" && job.SourceTaskID > 0 {
+		job.Branch = s.st.SourceBranch(job.SourceTaskID)
+	}
+	res, err := agent.Stamp(s.cfg, job, str(body, "note"))
+	if err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]any{"ok": false, "error": err.Error()})
+		return
+	}
+	if job.SourceTaskID > 0 && res.Committed {
+		if job.Prompt == "" {
+			job.Prompt = "коммит " + job.Phase
+		}
+		_, _ = s.st.Create(store.Job{
+			SourceTaskID: job.SourceTaskID,
+			SourceNum:    job.SourceNum,
+			Prompt:       job.Prompt,
+			Phase:        job.Phase,
+			Status:       "done",
+			Result:       res.Note,
+			Branch:       res.Branch,
+			Steps:        []string{"коммит " + res.Commit + " " + commitLabelRU(job.Phase)},
+		})
+	}
+	writeJSON(w, http.StatusOK, map[string]any{
+		"ok":        true,
+		"branch":    res.Branch,
+		"commit":    res.Commit,
+		"committed": res.Committed,
+	})
+}
+
+func (s *Server) ship(w http.ResponseWriter, r *http.Request) {
+	var body map[string]any
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil && err.Error() != "EOF" {
+		writeJSON(w, http.StatusBadRequest, map[string]any{"ok": false, "error": "непонятное тело"})
+		return
+	}
+	sourceID := int64Val(body, "source_task_id")
+	num := int(int64Val(body, "source_num"))
+	branch := str(body, "branch")
+	if branch == "" && sourceID > 0 {
+		branch = s.st.SourceBranch(sourceID)
+	}
+	base, err := agent.MergeToMain(s.cfg, branch, num)
+	if err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]any{"ok": false, "error": err.Error()})
+		return
+	}
+	log.Printf("трекер: влили %s в %s (source=%d)", branch, base, sourceID)
+	writeJSON(w, http.StatusOK, map[string]any{
+		"ok":     true,
+		"merged": true,
+		"base":   base,
+		"head":   branch,
 	})
 }
 
@@ -154,6 +231,17 @@ func jobView(j store.Job) map[string]any {
 		"result":         j.Result,
 		"steps":          j.Steps,
 		"branch":         j.Branch,
+	}
+}
+
+func commitLabelRU(phase string) string {
+	switch strings.ToLower(strings.TrimSpace(phase)) {
+	case "review":
+		return "ревью"
+	case "test":
+		return "тест"
+	default:
+		return "выполнение"
 	}
 }
 

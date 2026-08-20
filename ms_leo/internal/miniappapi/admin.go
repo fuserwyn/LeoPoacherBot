@@ -770,12 +770,10 @@ func (s *Server) handleBoardNotify(w http.ResponseWriter, r *http.Request) {
 	if ship || localID <= 0 {
 		s.bot.ShipTrackerTaskInBackground(shipID, notifyUser)
 	}
-	// Автора может не быть: задачу ставили из чата, а не из мини-аппа. Тогда
-	// результат уходит админам стаи — иначе о выполненной задаче никто не узнает.
-	if err := s.bot.NotifyTrackerResult(notifyUser, text); err != nil {
-		s.jsonErr(w, http.StatusBadGateway, "notify_failed")
-		return
-	}
+	// В личку — один раз и только финал на Railway main.
+	// Тот же текст ещё шлёт finishTrackerBuild; шаг «уведомили о выкате»
+	// не даёт второе «задача выполнена».
+	s.bot.NotifyTrackerShippedIfNeeded(shipID, text)
 	s.writeAdminOK(w, map[string]any{})
 }
 

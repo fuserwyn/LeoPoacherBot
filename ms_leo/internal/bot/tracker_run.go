@@ -70,8 +70,7 @@ func (b *Bot) runDueTrackerTasks() {
 }
 
 // claimAndNotifyDueTrackerTasks — то, что делает «Обновить» на доске:
-// снимает созревшие с «Ожидает» и пишет автору. Ошибка наружу — кнопка
-// не должна притворяться, что доска обновилась, если забрать не вышло.
+// снимает созревшие с «Ожидает». В личку не пишет.
 func (b *Bot) claimAndNotifyDueTrackerTasks() (int, error) {
 	return b.claimAndKickTrackerTasks(false)
 }
@@ -95,15 +94,8 @@ func (b *Bot) claimAndKickTrackerTasks(forceStuck bool) (int, error) {
 		if b.logger != nil {
 			b.logger.Infof("трекер: задача #%d началась по расписанию", trackerDueNum(t))
 		}
-		author := int64(0)
-		if t.HasAuthor {
-			author = t.AuthorID
-		}
-		if err := b.NotifyTrackerResult(author, trackerDueStartedNote(t)); err != nil && b.logger != nil {
-			b.logger.Warnf("трекер: не сообщить о старте #%d: %v", trackerDueNum(t), err)
-		}
-		// Карточка в «В работе» — агент пишет код. Без этого вызова
-		// статус есть, а в репозитории ничего не происходит.
+		// В личку не пишем: старт — промежуточный статус. Уведомление
+		// будет только когда задача выедет на Railway в main.
 		b.dispatchTrackerAgent(t, "doing")
 	}
 	kicked := b.kickStuckTrackerAgents(forceStuck)

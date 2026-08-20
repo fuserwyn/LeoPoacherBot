@@ -205,6 +205,45 @@ func (s *Store) ClaimDue(now time.Time, limit int) ([]Job, error) {
 	return out, rows.Err()
 }
 
+func (s *Store) SourceHasBranch(sourceTaskID int64) bool {
+	if s == nil || s.db == nil || sourceTaskID <= 0 {
+		return false
+	}
+	var n int
+	if err := s.db.QueryRow(`
+		SELECT COUNT(*) FROM ms_tracker_jobs
+		WHERE source_task_id = $1
+		  AND COALESCE(branch, '') <> ''
+		  AND COALESCE(result, '') NOT ILIKE '%authentication failed%'
+		  AND COALESCE(result, '') NOT ILIKE '%invalid username or token%'
+		  AND COALESCE(result, '') NOT ILIKE '%git: push:%'
+	`, sourceTaskID).Scan(&n); err != nil {
+		return false
+	}
+	return n > 0
+}
+
+func (s *Store) SourceBranch(sourceTaskID int64) string {
+	if s == nil || s.db == nil || sourceTaskID <= 0 {
+		return ""
+	}
+	var branch string
+	err := s.db.QueryRow(`
+		SELECT branch FROM ms_tracker_jobs
+		WHERE source_task_id = $1
+		  AND COALESCE(branch, '') <> ''
+		  AND COALESCE(result, '') NOT ILIKE '%authentication failed%'
+		  AND COALESCE(result, '') NOT ILIKE '%invalid username or token%'
+		  AND COALESCE(result, '') NOT ILIKE '%git: push:%'
+		ORDER BY id DESC
+		LIMIT 1
+	`, sourceTaskID).Scan(&branch)
+	if err != nil {
+		return ""
+	}
+	return strings.TrimSpace(branch)
+}
+
 func (s *Store) Cancel(id int64) error {
 	res, err := s.db.Exec(`
 		UPDATE ms_tracker_jobs

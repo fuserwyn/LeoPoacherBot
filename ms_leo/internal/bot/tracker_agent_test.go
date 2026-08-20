@@ -16,11 +16,12 @@ import (
 func TestTrackerAgentPromptPhases(t *testing.T) {
 	task := database.TrackerTask{Num: 7, Prompt: "починить стрик", Result: "подпись короче"}
 	doing := trackerAgentPrompt(task, "doing")
-	if !strings.Contains(doing, "#7") || !strings.Contains(doing, "починить стрик") {
+	if !strings.Contains(doing, "#7") || !strings.Contains(doing, "починить стрик") ||
+		!strings.Contains(doing, "замечания ревью") || !strings.Contains(doing, "подпись короче") {
 		t.Fatalf("doing: %q", doing)
 	}
 	review := trackerAgentPrompt(task, "review")
-	if !strings.Contains(review, "Cursor Composer") || !strings.Contains(review, "можно на тест") {
+	if !strings.Contains(review, "Посредственное") || !strings.Contains(review, "можно на тест") {
 		t.Fatalf("review: %q", review)
 	}
 	test := trackerAgentPrompt(task, "test")
@@ -41,6 +42,9 @@ func TestTrackerComposerPassed(t *testing.T) {
 	}
 	if trackerComposerPassed("test", "Тест не прошёл: кнопка не жмётся.") {
 		t.Fatal("test fail")
+	}
+	if !trackerComposerPassed("review", "глянул поверхностно, в целом ок") {
+		t.Fatal("lenient review must pass")
 	}
 	if !trackerComposerPassed("doing", "⏰ Задача #1 выполнена.\n\nГотово.") {
 		t.Fatal("impl done is pass")
@@ -76,13 +80,71 @@ func TestTrackerAgentBoardUserIDUsesOwnerNotAuthor(t *testing.T) {
 	}
 }
 
+func TestTrackerTaskCommitAndHasCode(t *testing.T) {
+	task := database.TrackerTask{
+		Steps:  []string{"Агент сдал", "коммит abc1234 выполнение", "ветка tracker/5-314"},
+		Result: "Задача #5: коммит выполнения abc1234 на ветке tracker/5-314.",
+	}
+	if got := trackerTaskCommit(task); got != "abc1234" {
+		t.Fatalf("commit: %q", got)
+	}
+	if !trackerTaskHasCode(task) {
+		t.Fatal("commit step is code")
+	}
+	if trackerTaskHasCode(database.TrackerTask{Result: "план без правок"}) {
+		t.Fatal("plan is not code")
+	}
+}
+
+func TestTrackerTaskBranch(t *testing.T) {
+	if got := trackerTaskBranch(database.TrackerTask{Result: "код в ветке tracker/4-43.\nещё текст"}); got != "tracker/4-43" {
+		t.Fatalf("result: %q", got)
+	}
+	if got := trackerTaskBranch(database.TrackerTask{Steps: []string{"Агент сдал", "ветка tracker/8-12 на GitHub"}}); got != "tracker/8-12" {
+		t.Fatalf("steps: %q", got)
+	}
+	if got := trackerTaskBranch(database.TrackerTask{Result: "можно на тест"}); got != "" {
+		t.Fatalf("empty: %q", got)
+	}
+}
+
+func TestShipTrackerToMain(t *testing.T) {
+	var got map[string]any
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/api/ship" {
+			t.Fatalf("path %s", r.URL.Path)
+		}
+		if r.Header.Get("X-Tracker-Secret") != "sec" {
+			t.Fatal("secret")
+		}
+		_ = json.NewDecoder(r.Body).Decode(&got)
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"ok":true,"merged":true,"base":"main","head":"tracker/4-43"}`))
+	}))
+	defer srv.Close()
+	b := &Bot{config: &config.Config{BoardURL: srv.URL, BoardSecret: "sec"}}
+	base, err := b.shipTrackerToMain(database.TrackerTask{
+		ID: 11, Num: 4, Result: "код в ветке tracker/4-43",
+	})
+	if err != nil || base != "main" {
+		t.Fatalf("ship: %s %v", base, err)
+	}
+	if int(got["source_task_id"].(float64)) != 11 || got["branch"] != "tracker/4-43" {
+		t.Fatalf("payload %#v", got)
+	}
+}
+
 func TestTrackerPipelineNotify(t *testing.T) {
 	note := trackerPipelineNotify(database.TrackerTask{Num: 3})
-	if !strings.Contains(note, "#3") || !strings.Contains(note, "выполнена") {
-		t.Fatalf("note: %q", note)
+	if !strings.Contains(note, "#3") || strings.Contains(note, "тест и сборку") {
+		t.Fatalf("must not fake a build: %q", note)
 	}
-	if !strings.Contains(note, "запушь") {
-		t.Fatalf("must mention push: %q", note)
+	if !strings.Contains(note, "не выехала") {
+		t.Fatalf("no-code note: %q", note)
+	}
+	withCode := trackerPipelineNotify(database.TrackerTask{Num: 3, Result: "код в ветке tracker/3-1"})
+	if !strings.Contains(withCode, "запушь") || strings.Contains(withCode, "не выехала") {
+		t.Fatalf("with code: %q", withCode)
 	}
 }
 
