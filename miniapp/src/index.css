@@ -106,47 +106,64 @@
   /* --me-bubble-* наследуются из :root (на базе var(--accent)) → фиолетовые в светлой. */
 }
 
-/* ЛЕОПАРД — тёплая шкура: эспрессо, золото, янтарный акцент. */
+/* ЛЕОПАРД — как на карточке: беж шкуры, тёмные розетки, охра. */
 :root[data-theme="leopard"] {
-  color-scheme: dark;
-  --bg: #1a120c;
-  --bg-elevated: #241810;
-  --card: #2c1c12;
-  --card-inner: #1f140e;
-  --surface-elevated: #322016;
-  --popover: #322016;
-  --text: #f6e6c8;
-  --text-muted: #c4a57a;
-  --muted: #b08960;
-  --text-label: #8a6a45;
-  --accent: #e8a317;
-  --accent-2: #c45a24;
-  --accent-dim: rgba(232, 163, 23, 0.2);
-  --border-subtle: rgba(246, 230, 200, 0.12);
-  --nav-bg: rgba(20, 12, 8, 0.92);
-  --fill-subtle: rgba(246, 230, 200, 0.05);
-  --fill-soft: rgba(246, 230, 200, 0.08);
-  --fill-strong: rgba(246, 230, 200, 0.12);
-  --shadow-card: 0 4px 16px rgba(8, 4, 0, 0.45);
-  --shadow-pop: 0 10px 28px rgba(8, 4, 0, 0.55);
-  --scrim: rgba(12, 6, 2, 0.88);
-  --pastel-pink: #3a2218;
-  --pastel-peach: #3a2814;
-  --pastel-lilac: #2e2214;
-  --pastel-blue: #241c14;
-  --warn-bg: #3a2814;
-  --warn-fg: #f2d9a0;
-  --warn-border: rgba(232, 163, 23, 0.4);
-  --tab-active-bg: #3a2814;
-  --tab-active-fg: #f6e6c8;
-  --tab-active-border: #e8a317;
-  --ai-bg: #1f140e;
-  --pinned-bg: rgba(232, 163, 23, 0.18);
-  --pinned-fg: #f2d9a0;
-  --pinned-border: rgba(232, 163, 23, 0.4);
-  --leo-bubble-bg: #2a2210;
-  --leo-bubble-border: #6a4a18;
-  --leo-bubble-fg: #f2d9a0;
+  color-scheme: light;
+  --bg: #e8c48a;
+  --bg-elevated: #f0d4a0;
+  --card: #f6e2b4;
+  --card-inner: #edd4a0;
+  --surface-elevated: #f8e8c4;
+  --popover: #f8e8c4;
+  --text: #2a1810;
+  --text-muted: #6b4528;
+  --muted: #8a5a32;
+  --text-label: #9a6a3c;
+  --accent: #3d2112;
+  --accent-2: #8b4e22;
+  --accent-dim: rgba(61, 33, 18, 0.16);
+  --border-subtle: rgba(42, 24, 16, 0.18);
+  --nav-bg: rgba(246, 226, 180, 0.92);
+  --fill-subtle: rgba(42, 24, 16, 0.05);
+  --fill-soft: rgba(42, 24, 16, 0.08);
+  --fill-strong: rgba(42, 24, 16, 0.12);
+  --shadow-card: 0 4px 16px rgba(42, 24, 16, 0.16);
+  --shadow-pop: 0 10px 28px rgba(42, 24, 16, 0.22);
+  --scrim: rgba(42, 24, 16, 0.55);
+  --pastel-pink: #e8c4a0;
+  --pastel-peach: #f0d0a0;
+  --pastel-lilac: #e4d0a8;
+  --pastel-blue: #dcc8a0;
+  --warn-bg: #f0d4a0;
+  --warn-fg: #5c2e12;
+  --warn-border: rgba(61, 33, 18, 0.35);
+  --tab-active-bg: #edd4a0;
+  --tab-active-fg: #2a1810;
+  --tab-active-border: #3d2112;
+  --ai-bg: #edd4a0;
+  --pinned-bg: rgba(139, 78, 34, 0.18);
+  --pinned-fg: #3d2112;
+  --pinned-border: rgba(61, 33, 18, 0.35);
+  --leo-bubble-bg: #edd4a0;
+  --leo-bubble-border: rgba(61, 33, 18, 0.28);
+  --leo-bubble-fg: #2a1810;
+}
+
+html[data-theme="leopard"] body {
+  background-color: #e8c48a;
+  background-image:
+    radial-gradient(ellipse 26px 18px at 16% 22%, #2c160c 0 34%, transparent 36%),
+    radial-gradient(ellipse 12px 9px at 20% 26%, #8b4e22 0 42%, transparent 44%),
+    radial-gradient(ellipse 22px 16px at 48% 38%, #3d2112 0 32%, transparent 35%),
+    radial-gradient(ellipse 10px 8px at 52% 41%, #a05628 0 40%, transparent 43%),
+    radial-gradient(ellipse 20px 14px at 78% 18%, #2a160c 0 36%, transparent 38%),
+    radial-gradient(ellipse 9px 7px at 74% 28%, #3d2112 0 45%, transparent 48%),
+    radial-gradient(ellipse 24px 17px at 30% 68%, #3d2112 0 33%, transparent 36%),
+    radial-gradient(ellipse 11px 8px at 34% 72%, #8b4e22 0 40%, transparent 43%),
+    radial-gradient(ellipse 18px 13px at 68% 62%, #2c160c 0 34%, transparent 37%),
+    radial-gradient(ellipse 8px 6px at 88% 54%, #3d2112 0 48%, transparent 50%),
+    radial-gradient(ellipse 7px 6px at 10% 52%, #2a160c 0 50%, transparent 52%);
+  background-size: 200px 170px;
 }
 
 *,
