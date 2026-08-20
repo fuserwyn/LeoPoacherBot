@@ -254,6 +254,26 @@ func payloadBool(p map[string]any, key string) bool {
 }
 
 func (b *Bot) localTrackerList() (json.RawMessage, error) {
+	// Тихий опрос доски тоже снимает созревшие: иначе «Обновить» и автообновление
+	// показывали бы одну и ту же карточку в «Ожидает» после срока.
+	started, _ := b.claimAndNotifyDueTrackerTasks()
+	return b.localTrackerBoard(started)
+}
+
+// localTrackerRefresh — кнопка «Обновить»: если созревшие не снялись,
+// админ видит ошибку, а не ту же очередь.
+func (b *Bot) localTrackerRefresh() (json.RawMessage, error) {
+	started, err := b.claimAndNotifyDueTrackerTasks()
+	if err != nil {
+		return nil, err
+	}
+	return b.localTrackerBoard(started)
+}
+
+func (b *Bot) localTrackerBoard(started int) (json.RawMessage, error) {
+	if b == nil || b.db == nil {
+		return nil, fmt.Errorf("база недоступна")
+	}
 	list, err := b.db.ListTrackerTasks()
 	if err != nil {
 		return nil, err
@@ -262,7 +282,7 @@ func (b *Bot) localTrackerList() (json.RawMessage, error) {
 	for _, t := range list {
 		tasks = append(tasks, trackerTaskView(t, false))
 	}
-	return trackerJSON(map[string]any{"tasks": tasks, "repo": nil})
+	return trackerJSON(map[string]any{"tasks": tasks, "repo": nil, "started": started})
 }
 
 func (b *Bot) localTrackerTask(taskID int64, payload map[string]any) (json.RawMessage, error) {
@@ -305,6 +325,7 @@ func (b *Bot) localTrackerCreate(payload map[string]any, userID int64) (json.Raw
 	if err != nil {
 		return nil, err
 	}
+	b.kickTrackerDueIfReady(created.WhenAt)
 	return trackerJSON(map[string]any{"id": created.ID, "when": created.WhenLabel})
 }
 
@@ -360,6 +381,7 @@ func (b *Bot) localTrackerReschedule(taskID int64, payload map[string]any) (json
 	if err := b.db.SaveTrackerTask(t); err != nil {
 		return nil, err
 	}
+	b.kickTrackerDueIfReady(t.WhenAt)
 	return trackerJSON(map[string]any{"ok": true})
 }
 
@@ -387,42 +409,51 @@ func (b *Bot) localTrackerMove(taskID int64, payload map[string]any) (json.RawMe
 	return trackerJSON(map[string]any{"ok": true, "task": trackerTaskView(t, false)})
 }
 
-func (b *Bot) localTrackerQa(taskID int64, payload map[string]any) (json.RawMessage, error) {
-	t, err := b.localTrackerLoad(taskID, payload)
-	if err != nil {
-		return nil, err
+func applyTrackerQa(t *database.TrackerTask, action string) error {
+	if t == nil {
+		return fmt.Errorf("задача не найдена")
 	}
-	action := strings.ToLower(payloadString(payload, "action"))
-	switch action {
+	switch strings.ToLower(strings.TrimSpace(action)) {
 	case "start":
 		t.HandedToQa = true
 		t.QaColumn = trackerColDoing
 		t.QaStatus = "start"
 		if t.DevColumn == trackerColTodo || t.DevColumn == trackerColDoing || t.DevColumn == trackerColReview {
-			_ = applyTrackerColumn(&t, trackerColTest)
+			_ = applyTrackerColumn(t, trackerColTest)
 		}
-		appendTrackerStep(&t, "Взяли в тест")
+		appendTrackerStep(t, "Взяли в тест")
 	case "pass":
 		t.HandedToQa = true
 		t.QaColumn = trackerColDone
 		t.QaStatus = "pass"
 		t.Error = ""
-		_ = applyTrackerColumn(&t, trackerColDeploy)
-		appendTrackerStep(&t, "QA принял")
+		_ = applyTrackerColumn(t, trackerColDeploy)
+		appendTrackerStep(t, "QA принял")
 	case "fail":
 		t.QaColumn = trackerColTodo
 		t.QaStatus = "fail"
 		t.HandedToQa = false
-		_ = applyTrackerColumn(&t, trackerColDoing)
-		appendTrackerStep(&t, "QA вернул в работу")
+		_ = applyTrackerColumn(t, trackerColDoing)
+		appendTrackerStep(t, "QA вернул в работу")
 	case "reset":
 		t.HandedToQa = true
 		t.QaColumn = trackerColTodo
 		t.QaStatus = ""
-		_ = applyTrackerColumn(&t, trackerColTest)
-		appendTrackerStep(&t, "QA снова в очереди")
+		_ = applyTrackerColumn(t, trackerColTest)
+		appendTrackerStep(t, "QA снова в очереди")
 	default:
-		return nil, fmt.Errorf("такое действие доске недоступно")
+		return fmt.Errorf("такое действие доске недоступно")
+	}
+	return nil
+}
+
+func (b *Bot) localTrackerQa(taskID int64, payload map[string]any) (json.RawMessage, error) {
+	t, err := b.localTrackerLoad(taskID, payload)
+	if err != nil {
+		return nil, err
+	}
+	if err := applyTrackerQa(&t, payloadString(payload, "action")); err != nil {
+		return nil, err
 	}
 	if err := b.db.SaveTrackerTask(t); err != nil {
 		return nil, err

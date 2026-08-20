@@ -94,6 +94,11 @@ func New(databaseURL string) (*Database, error) {
 	}, nil
 }
 
+// NewForTest — уже открытый *sql.DB, для sqlmock в тестах доски.
+func NewForTest(db *sql.DB) *Database {
+	return &Database{db: db}
+}
+
 func (d *Database) Close() error {
 	return d.db.Close()
 }

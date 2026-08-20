@@ -81,6 +81,7 @@ export type SprintFeature = {
 
 export type TrackerOp =
   | "list"
+  | "refresh"
   | "create"
   | "task"
   | "status"
@@ -135,7 +136,12 @@ function trackerErrorLabel(code?: string): string {
 }
 
 export function trackerList(initData: string) {
-  return call<{ tasks: TrackerTask[]; repo: string | null }>(initData, "list");
+  return call<{ tasks: TrackerTask[]; repo: string | null; started?: number }>(initData, "list");
+}
+
+/** Кнопка «Обновить»: снимает созревшие с очереди и отдаёт свежую доску. */
+export function trackerRefresh(initData: string) {
+  return call<{ tasks: TrackerTask[]; repo: string | null; started?: number }>(initData, "refresh");
 }
 
 export function trackerCreate(

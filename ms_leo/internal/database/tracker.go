@@ -223,6 +223,62 @@ func (d *Database) SaveTrackerTask(t TrackerTask) error {
 	return nil
 }
 
+// ClaimDueTrackerTasks атомарно забирает карточки, срок которых наступил:
+// «Ожидает» + when_at <= now. Ставит «В работе», пишет шаг и last_run_at.
+// FOR UPDATE SKIP LOCKED — если крутятся две реплики, одну карточку возьмёт одна.
+func (d *Database) ClaimDueTrackerTasks(now time.Time) ([]TrackerTask, error) {
+	if d == nil || d.db == nil {
+		return nil, fmt.Errorf("база недоступна")
+	}
+	if now.IsZero() {
+		now = time.Now()
+	}
+	rows, err := d.db.Query(`
+		UPDATE pack_tracker_tasks
+		SET status = 'running',
+		    dev_column = 'doing',
+		    last_run_at = NOW(),
+		    updated_at = NOW(),
+		    steps = (
+		      CASE
+		        WHEN jsonb_typeof(steps) = 'array' THEN steps
+		        ELSE '[]'::jsonb
+		      END
+		    ) || jsonb_build_array('Взяли в работу по расписанию')
+		WHERE id IN (
+			SELECT id FROM pack_tracker_tasks
+			WHERE status IN ('pending', 'scheduled')
+			  AND COALESCE(NULLIF(dev_column, ''), 'todo') = 'todo'
+			  AND when_at <= $1
+			ORDER BY when_at, id
+			LIMIT 10
+			FOR UPDATE SKIP LOCKED
+		)
+		RETURNING id, num, prompt, author_id
+	`, now)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out := make([]TrackerTask, 0, 4)
+	for rows.Next() {
+		var t TrackerTask
+		var author sql.NullInt64
+		if err := rows.Scan(&t.ID, &t.Num, &t.Prompt, &author); err != nil {
+			return nil, err
+		}
+		t.Status = "running"
+		t.DevColumn = "doing"
+		t.HasLastRun = true
+		if author.Valid {
+			t.AuthorID = author.Int64
+			t.HasAuthor = true
+		}
+		out = append(out, t)
+	}
+	return out, rows.Err()
+}
+
 // DeleteTrackerTask — снять карточку. Фото уйдут каскадом.
 func (d *Database) DeleteTrackerTask(id int64) error {
 	if d == nil || d.db == nil || id <= 0 {

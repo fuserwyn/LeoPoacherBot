@@ -184,6 +184,8 @@ func (b *Bot) trackerRequest(
 	switch op {
 	case "list":
 		return b.localTrackerList()
+	case "refresh":
+		return b.localTrackerRefresh()
 	case "create":
 		return b.localTrackerCreate(payload, userID)
 	case "task", "status":

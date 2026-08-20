@@ -2,6 +2,7 @@ package bot
 
 import (
 	"testing"
+	"time"
 
 	"leo-bot/internal/database"
 )
@@ -98,6 +99,149 @@ func TestTrackerNextColumnMap(t *testing.T) {
 	}
 	if _, ok := trackerNextColumn["done"]; ok {
 		t.Fatal("done has no next")
+	}
+}
+
+func TestApplyTrackerQaFlow(t *testing.T) {
+	var task database.TrackerTask
+	if err := applyTrackerColumn(&task, trackerColReview); err != nil {
+		t.Fatal(err)
+	}
+	if err := applyTrackerQa(&task, "start"); err != nil {
+		t.Fatal(err)
+	}
+	if !task.HandedToQa || task.QaColumn != trackerColDoing || task.DevColumn != trackerColTest {
+		t.Fatalf("start: %+v", task)
+	}
+	if err := applyTrackerQa(&task, "pass"); err != nil {
+		t.Fatal(err)
+	}
+	if task.QaStatus != "pass" || task.DevColumn != trackerColDeploy || task.QaColumn != trackerColDone {
+		t.Fatalf("pass: %+v", task)
+	}
+	if err := applyTrackerQa(&task, "fail"); err != nil {
+		t.Fatal(err)
+	}
+	if task.HandedToQa || task.DevColumn != trackerColDoing || task.QaStatus != "fail" {
+		t.Fatalf("fail: %+v", task)
+	}
+	if err := applyTrackerQa(&task, "reset"); err != nil {
+		t.Fatal(err)
+	}
+	if !task.HandedToQa || task.QaColumn != trackerColTodo || task.DevColumn != trackerColTest {
+		t.Fatalf("reset: %+v", task)
+	}
+	if err := applyTrackerQa(&task, "nope"); err == nil {
+		t.Fatal("unknown qa action must fail")
+	}
+}
+
+// TestAdminBoardFullCycle — админ прогоняет карточку по всей доске:
+// поставить → «Обновить» снимает с очереди → в работе → review → тест →
+// тестировщик принимает → к публикации → выполнено. Без базы: те же
+// правила, что дергают кнопки мини-аппа.
+func TestAdminBoardFullCycle(t *testing.T) {
+	now := time.Date(2026, 8, 20, 9, 20, 0, 0, time.UTC)
+	adminID := int64(42)
+	task := database.TrackerTask{
+		ID:        11,
+		Num:       1,
+		Prompt:    "починить кнопку обновить на доске",
+		Status:    "pending",
+		DevColumn: trackerColTodo,
+		WhenAt:    now.Add(-time.Minute),
+		WhenLabel: "20.08 09:19",
+		HasAuthor: true,
+		AuthorID:  adminID,
+		Steps:     []string{"Поставлена на доску стаи"},
+	}
+
+	if !trackerTaskDueForStart(task, now) {
+		t.Fatal("просроченная задача админа должна стартовать по «Обновить»")
+	}
+	if err := applyTrackerColumn(&task, trackerColDoing); err != nil {
+		t.Fatal(err)
+	}
+	appendTrackerStep(&task, "Взяли в работу по расписанию")
+	view := trackerTaskView(task, false)
+	if view["status"] != "running" || view["dev_column"] != trackerColDoing || view["phase"] != "doing" {
+		t.Fatalf("после обновления: %#v", view)
+	}
+	if view["author_id"] != adminID || view["active"] != true || view["steps_running"] != true {
+		t.Fatalf("карточка админа в работе: %#v", view)
+	}
+	if view["live_step"] != "Взяли в работу по расписанию" {
+		t.Fatalf("live: %#v", view["live_step"])
+	}
+
+	for _, col := range []string{trackerColReview, trackerColTest} {
+		next, ok := trackerNextColumn[task.DevColumn]
+		if !ok || next != col {
+			t.Fatalf("next after %s: %s", task.DevColumn, next)
+		}
+		if err := applyTrackerColumn(&task, col); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if task.Status != "holding" || !task.HandedToQa || task.QaColumn != trackerColTodo {
+		t.Fatalf("на тесте: %+v", task)
+	}
+	view = trackerTaskView(task, false)
+	if view["phase"] != "test" || view["qa_label"] != "К тестированию" {
+		t.Fatalf("вид теста: %#v", view)
+	}
+
+	if err := applyTrackerQa(&task, "start"); err != nil {
+		t.Fatal(err)
+	}
+	qaLabel, _ := trackerQaMeta(task.QaStatus, task.QaColumn, task.HandedToQa)
+	if task.QaColumn != trackerColDoing || qaLabel != "В тестировании" {
+		t.Fatalf("тестировщик взял: %+v label=%q", task, qaLabel)
+	}
+
+	if err := applyTrackerQa(&task, "pass"); err != nil {
+		t.Fatal(err)
+	}
+	if task.DevColumn != trackerColDeploy || task.QaStatus != "pass" || task.QaColumn != trackerColDone {
+		t.Fatalf("после приёма: %+v", task)
+	}
+	view = trackerTaskView(task, false)
+	if view["phase"] != "deploy" || view["qa_label"] != "Принято" {
+		t.Fatalf("вид публикации: %#v", view)
+	}
+
+	snap := trackerTaskSnapshot{
+		Status:     task.Status,
+		DevColumn:  task.DevColumn,
+		QaColumn:   task.QaColumn,
+		QaStatus:   task.QaStatus,
+		HandedToQa: task.HandedToQa,
+	}
+	if !trackerTaskReadyToShip(snap) {
+		t.Fatal("после QA pass задача готова к публикации")
+	}
+	if err := applyTrackerColumn(&task, trackerColDone); err != nil {
+		t.Fatal(err)
+	}
+	appendTrackerStep(&task, "Отметили к публикации")
+	view = trackerTaskView(task, false)
+	if view["done"] != true || view["status"] != "done" || view["active"] != false {
+		t.Fatalf("выполнено: %#v", view)
+	}
+	if view["can_delete"] != true {
+		t.Fatal("готовую карточку админ может снять")
+	}
+}
+
+func TestTrackerRequestRefreshIsBoardOp(t *testing.T) {
+	b := &Bot{}
+	_, listErr := b.trackerRequest("list", 0, nil, 42, "Admin")
+	_, refreshErr := b.trackerRequest("refresh", 0, nil, 42, "Admin")
+	if listErr == nil || refreshErr == nil {
+		t.Fatal("без базы list и refresh должны упасть")
+	}
+	if listErr.Error() != refreshErr.Error() {
+		t.Fatalf("refresh — та же доска, что list: list=%v refresh=%v", listErr, refreshErr)
 	}
 }
 

@@ -215,6 +215,9 @@ func (b *Bot) Start(ctx context.Context) error {
 	// Автономный Лео: сам придумывает спринты, пока админ держит режим
 	// включённым (см. leo_autonomy.go).
 	go b.startLeoAutonomyScheduler(ctx)
+	// Созревшие карточки трекера: when_at наступил — сами в «В работе»
+	// (см. tracker_run.go). Без этого «Сейчас» / «через 1 мин» так и висели.
+	go b.startTrackerDueScheduler(ctx)
 	// Periodic-страховка от пропущенных киков (см. startInactivityKickWatchdog).
 	go b.startInactivityKickWatchdog(ctx)
 	// Напоминания «внеси тренировку» в локальный час пользователя (см. startWorkoutReminderScheduler).

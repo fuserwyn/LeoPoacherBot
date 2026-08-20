@@ -18,6 +18,7 @@ import {
   trackerList,
   trackerMove,
   trackerQa,
+  trackerRefresh,
   trackerReschedule,
   trackerRunNow,
   trackerShip,
@@ -177,6 +178,7 @@ export function TrackerScreen({ initData, showAlert }: Props) {
   const [role, setRole] = useState<"developer" | "tester">("developer");
   const [tasks, setTasks] = useState<TrackerTask[]>([]);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [busy, setBusy] = useState(false);
   const [prompt, setPrompt] = useState("");
   const [when, setWhen] = useState(WHEN_PRESETS[0].value);
@@ -218,9 +220,9 @@ export function TrackerScreen({ initData, showAlert }: Props) {
   detailRef.current = detail?.id ?? null;
 
   const load = useCallback(
-    async (silent = false) => {
+    async (silent = false, claim = false) => {
       try {
-        const j = await trackerList(initData);
+        const j = claim ? await trackerRefresh(initData) : await trackerList(initData);
         const list = j.tasks ?? [];
         setTasks(list);
         const ids = Array.from(
@@ -243,14 +245,30 @@ export function TrackerScreen({ initData, showAlert }: Props) {
           const fresh = (j.tasks ?? []).find((t) => t.id === openId);
           if (fresh) setDetail((prev) => (prev ? { ...prev, ...fresh } : prev));
         }
+        return j;
       } catch (e) {
         if (!silent) showAlert(e instanceof Error ? e.message : "Не удалось загрузить доску");
+        return null;
       } finally {
         setLoading(false);
       }
     },
     [initData, showAlert],
   );
+
+  const refreshBoard = async () => {
+    if (refreshing) return;
+    setRefreshing(true);
+    try {
+      const j = await load(false, true);
+      const n = Number(j?.started) || 0;
+      if (n > 0) {
+        showAlert(`Взяли ${n} ${plural(n, "задачу", "задачи", "задач")} в работу.`);
+      }
+    } finally {
+      setRefreshing(false);
+    }
+  };
 
   useEffect(() => {
     void load();
@@ -605,8 +623,14 @@ export function TrackerScreen({ initData, showAlert }: Props) {
                 Тестировщик
               </button>
             </div>
-            <button type="button" className="tracker__refresh" onClick={() => void load()}>
-              Обновить
+            <button
+              type="button"
+              className={`tracker__refresh${refreshing ? " is-refreshing" : ""}`}
+              disabled={refreshing}
+              aria-busy={refreshing}
+              onClick={() => void refreshBoard()}
+            >
+              {refreshing ? "Обновляю…" : "Обновить"}
             </button>
           </div>
 

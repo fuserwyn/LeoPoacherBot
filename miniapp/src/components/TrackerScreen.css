@@ -80,6 +80,12 @@
   cursor: pointer;
 }
 
+.tracker__refresh:disabled,
+.tracker__refresh.is-refreshing {
+  opacity: 0.65;
+  cursor: wait;
+}
+
 .tracker__summary {
   display: flex;
   flex-wrap: wrap;
