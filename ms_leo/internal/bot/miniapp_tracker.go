@@ -11,6 +11,7 @@ import (
 	"mime/multipart"
 	"net/http"
 	"net/textproto"
+	"strconv"
 	"strings"
 	"time"
 
@@ -329,7 +330,25 @@ func (b *Bot) MiniappTrackerCall(
 	if op == "ship" {
 		return b.shipCompletedTrackerTask(taskID, payload, viewerUserID, name)
 	}
-	return b.trackerRequest(op, taskID, payload, viewerUserID, name)
+	raw, err := b.trackerRequest(op, taskID, payload, viewerUserID, name)
+	if err != nil {
+		return raw, err
+	}
+	// QA «принять» = фича готова: пуш и сборку не ждём от агента —
+	// у него с сервера проекта git push часто закрыт.
+	if trackerOpShouldShip(op, payload) {
+		b.ShipTrackerTaskInBackground(trackerPayloadTaskID(taskID, payload), viewerUserID)
+	}
+	return raw, nil
+}
+
+// trackerOpShouldShip — после каких действий доски код должен уехать на сервер.
+func trackerOpShouldShip(op string, payload map[string]any) bool {
+	if op != "qa" || payload == nil {
+		return false
+	}
+	action, _ := payload["action"].(string)
+	return strings.EqualFold(strings.TrimSpace(action), "pass")
 }
 
 // trackerRequest — сам поход к доске MyVibeLab от имени userID.
@@ -429,10 +448,15 @@ func (b *Bot) trackerRequest(
 
 // trackerTaskSnapshot — поля задачи, нужные чтобы понять, надо ли собирать на сервере.
 type trackerTaskSnapshot struct {
-	Status string `json:"status"`
-	Branch string `json:"branch"`
-	Commit string `json:"commit"`
-	Error  string `json:"error"`
+	Status     string `json:"status"`
+	Branch     string `json:"branch"`
+	Commit     string `json:"commit"`
+	Error      string `json:"error"`
+	Done       bool   `json:"done"`
+	DevColumn  string `json:"dev_column"`
+	QaColumn   string `json:"qa_column"`
+	QaStatus   string `json:"qa_status"`
+	HandedToQa bool   `json:"handed_to_qa"`
 }
 
 func parseTrackerTaskSnapshot(raw json.RawMessage) (trackerTaskSnapshot, error) {
@@ -442,7 +466,7 @@ func parseTrackerTaskSnapshot(raw json.RawMessage) (trackerTaskSnapshot, error) 
 	if err := json.Unmarshal(raw, &wrap); err != nil {
 		return trackerTaskSnapshot{}, err
 	}
-	if wrap.Task.Status != "" || wrap.Task.Commit != "" {
+	if wrap.Task.Status != "" || wrap.Task.Commit != "" || wrap.Task.Done || wrap.Task.DevColumn != "" {
 		return wrap.Task, nil
 	}
 	var flat trackerTaskSnapshot
@@ -487,8 +511,53 @@ func trackerPayloadTaskID(taskID int64, payload map[string]any) int64 {
 	case json.Number:
 		n, _ := id.Int64()
 		return n
+	case string:
+		n, _ := strconv.ParseInt(strings.TrimSpace(id), 10, 64)
+		return n
 	}
 	return 0
+}
+
+// trackerTaskReadyToShip — агент закончил (или QA принял), можно пушить.
+// Коммит не обязателен: с сервера проекта git push часто закрыт, SHA тогда
+// пустой, а код уже есть у агента / на GitHub — его забирает /api/push.
+func trackerTaskReadyToShip(t trackerTaskSnapshot) bool {
+	status := strings.ToLower(strings.TrimSpace(t.Status))
+	if status == "running" || status == "reviewing" || status == "pending" || status == "scheduled" {
+		return false
+	}
+	if trackerErrorBlocksShip(t.Error) {
+		return false
+	}
+	if t.Done {
+		return true
+	}
+	if status == "done" || status == "completed" || status == "holding" {
+		return true
+	}
+	col := strings.ToLower(strings.TrimSpace(t.DevColumn))
+	if col == "done" || col == "deploy" || col == "test" {
+		return true
+	}
+	qa := strings.ToLower(strings.TrimSpace(t.QaColumn))
+	if t.HandedToQa && (qa == "done" || strings.EqualFold(strings.TrimSpace(t.QaStatus), "pass")) {
+		return true
+	}
+	return strings.TrimSpace(t.Commit) != ""
+}
+
+// trackerErrorBlocksShip — настоящий срыв задачи. «Git push недоступен»
+// как раз тот случай, ради которого мы сами зовём /api/push.
+func trackerErrorBlocksShip(err string) bool {
+	e := strings.TrimSpace(err)
+	if e == "" {
+		return false
+	}
+	low := strings.ToLower(e)
+	if strings.Contains(low, "push") || strings.Contains(low, "пуш") || strings.Contains(low, "git") {
+		return false
+	}
+	return true
 }
 
 // shipCompletedTrackerTask — после «выполнено» довести код до сервера:
@@ -510,7 +579,7 @@ func (b *Bot) shipCompletedTrackerTask(taskID int64, payload map[string]any, use
 	if err != nil {
 		return nil, err
 	}
-	if strings.TrimSpace(task.Status) != "done" || strings.TrimSpace(task.Error) != "" || strings.TrimSpace(task.Commit) == "" {
+	if !trackerTaskReadyToShip(task) {
 		out, _ := json.Marshal(map[string]any{"ok": true, "skipped": true})
 		return out, nil
 	}
@@ -531,12 +600,14 @@ func (b *Bot) shipCompletedTrackerTask(taskID int64, payload map[string]any, use
 			promoted = true
 		}
 	}
-	if _, err := b.trackerRequest("push", 0, map[string]any{}, userID, name); err != nil {
+	// id задачи — чтобы доска пушила ту ветку, которой закончился агент,
+	// а не «что лежит в рабочей копии».
+	if _, err := b.trackerRequest("push", 0, map[string]any{"id": taskID}, userID, name); err != nil {
 		problems = append(problems, "пуш: "+err.Error())
 	} else {
 		pushed = true
 	}
-	if _, err := b.trackerRequest("deploy_refresh", 0, map[string]any{}, userID, name); err != nil {
+	if _, err := b.trackerRequest("deploy_refresh", 0, map[string]any{"id": taskID}, userID, name); err != nil {
 		problems = append(problems, "сборка: "+err.Error())
 	} else {
 		deployed = true
@@ -571,9 +642,10 @@ func (b *Bot) ShipTrackerTaskInBackground(taskID, authorID int64) {
 			userID = b.leoBoardUserID()
 		}
 		var err error
-		for attempt := 0; attempt < 4; attempt++ {
+		delays := []time.Duration{3 * time.Second, 6 * time.Second, 12 * time.Second, 20 * time.Second, 30 * time.Second, 45 * time.Second, 60 * time.Second}
+		for attempt := 0; attempt <= len(delays); attempt++ {
 			if attempt > 0 {
-				time.Sleep(3 * time.Second)
+				time.Sleep(delays[attempt-1])
 			}
 			var raw json.RawMessage
 			raw, err = b.shipCompletedTrackerTask(taskID, nil, userID, "Стая")
@@ -581,19 +653,34 @@ func (b *Bot) ShipTrackerTaskInBackground(taskID, authorID int64) {
 				continue
 			}
 			var res struct {
-				Skipped bool `json:"skipped"`
+				Skipped  bool   `json:"skipped"`
+				Pushed   bool   `json:"pushed"`
+				Deployed bool   `json:"deployed"`
+				Promoted bool   `json:"promoted"`
+				Error    string `json:"error"`
 			}
 			_ = json.Unmarshal(raw, &res)
-			if !res.Skipped {
+			if res.Skipped {
+				err = fmt.Errorf("ещё не готова")
+				continue
+			}
+			if res.Pushed || res.Deployed || res.Promoted {
+				if res.Error != "" && b.logger != nil {
+					b.logger.Warnf("трекер: задача #%d на сервере с оговоркой: %s", taskID, res.Error)
+				}
 				return
 			}
-			err = nil
+			if res.Error != "" {
+				err = fmt.Errorf("%s", res.Error)
+				continue
+			}
+			err = fmt.Errorf("пуш и сборка не стартовали")
 		}
 		if err != nil {
 			if b.logger != nil {
 				b.logger.Warnf("трекер: не собрать задачу #%d на сервере: %v", taskID, err)
 			}
-			note := fmt.Sprintf("Задача #%d выполнена, но сборка на сервере не стартовала: %s", taskID, err.Error())
+			note := fmt.Sprintf("Задача #%d выполнена, но пуш и сборка на сервере не стартовали: %s", taskID, err.Error())
 			if nerr := b.NotifyTrackerResult(authorID, note); nerr != nil && b.logger != nil {
 				b.logger.Warnf("трекер: не сообщить о срыве сборки #%d: %v", taskID, nerr)
 			}

@@ -87,6 +87,18 @@ function canReturnToWork(task: TrackerTask): boolean {
     || ["canceled", "cancelled", "done"].includes(column);
 }
 
+/** Пуш и сборка: агент уже закончил. Коммит не обязателен — с сервера git push часто закрыт. */
+function canShipTask(task: TrackerTask): boolean {
+  const status = String(task.status || "").toLowerCase();
+  if (["running", "reviewing", "pending", "scheduled"].includes(status)) return false;
+  if (task.done) return true;
+  if (["done", "completed", "holding"].includes(status)) return true;
+  const column = String(task.dev_column || "").toLowerCase();
+  if (["done", "deploy", "test"].includes(column)) return true;
+  const qa = String(task.qa_column || "").toLowerCase();
+  return task.handed_to_qa && (qa === "done" || String(task.qa_status || "").toLowerCase() === "pass");
+}
+
 /** RFC3339 с сервера → «19.08 14:30» в часовом поясе читателя. Пусто — прочерк. */
 function formatWhen(iso: string): string {
   const t = Date.parse(iso || "");
@@ -1089,17 +1101,16 @@ export function TrackerScreen({ initData, showAlert }: Props) {
             ) : null}
             {detail.result ? <pre className="tracker-modal__log">{detail.result}</pre> : null}
             {detail.error ? <pre className="tracker-modal__log tracker-modal__log--err">{detail.error}</pre> : null}
-            {/* Что делать с результатом выполненной задачи: забрать со стенда
-                в основную ветку или откатить обратным коммитом. Обе операции
-                идут по запомненному коммиту задачи, поэтому без него кнопок нет. */}
-            {detail.status === "done" && detail.commit ? (
+            {/* Пуш и сборка — даже без SHA: агент часто не может git push.
+                Перенос и откат по-прежнему только если коммит известен. */}
+            {canShipTask(detail) || detail.commit ? (
               <div className="tracker-modal__result">
                 <span className="tracker-modal__commit">
-                  коммит {detail.commit}
+                  {detail.commit ? `коммит ${detail.commit}` : "коммита нет — пуш с сервера проекта был закрыт"}
                   {detail.branch ? ` · ветка ${detail.branch}` : ""}
                 </span>
                 <div className="tracker-modal__result-row">
-                  {detail.branch ? (
+                  {detail.branch && detail.commit ? (
                     <button
                       type="button"
                       className="tracker__primary"
@@ -1109,33 +1120,38 @@ export function TrackerScreen({ initData, showAlert }: Props) {
                       Забрать на основной стенд
                     </button>
                   ) : null}
-                  <button
-                    type="button"
-                    className="tracker__primary"
-                    disabled={busy}
-                    onClick={() =>
-                      void actOnDetail(async () => {
-                        const res = await trackerShip(initData, detail.id);
-                        if (res.skipped) throw new Error("Задачу ещё рано собирать.");
-                        if (res.error) throw new Error(res.error);
-                      }, "Сборка на сервере запущена.")
-                    }
-                  >
-                    Собрать на сервере
-                  </button>
-                  <button
-                    type="button"
-                    className="tracker__attach"
-                    disabled={busy}
-                    onClick={() => {
-                      void (async () => {
-                        if (!(await tgConfirm("Откатить результат этой задачи обратным коммитом?"))) return;
-                        await applyResult(detail, "Откат");
-                      })();
-                    }}
-                  >
-                    Откатить
-                  </button>
+                  {canShipTask(detail) ? (
+                    <button
+                      type="button"
+                      className="tracker__primary"
+                      disabled={busy}
+                      onClick={() =>
+                        void actOnDetail(async () => {
+                          const res = await trackerShip(initData, detail.id);
+                          if (res.skipped) throw new Error("Задачу ещё рано пушить — агент ещё работает.");
+                          if (res.pushed || res.deployed) return;
+                          if (res.error) throw new Error(res.error);
+                        }, "Пуш и сборка на сервере запущены.")
+                      }
+                    >
+                      Запушить и собрать
+                    </button>
+                  ) : null}
+                  {detail.commit ? (
+                    <button
+                      type="button"
+                      className="tracker__attach"
+                      disabled={busy}
+                      onClick={() => {
+                        void (async () => {
+                          if (!(await tgConfirm("Откатить результат этой задачи обратным коммитом?"))) return;
+                          await applyResult(detail, "Откат");
+                        })();
+                      }}
+                    >
+                      Откатить
+                    </button>
+                  ) : null}
                 </div>
               </div>
             ) : null}
@@ -1185,7 +1201,7 @@ export function TrackerScreen({ initData, showAlert }: Props) {
                   <button
                     type="button"
                     disabled={busy}
-                    onClick={() => void act(() => trackerQa(initData, detail.id, "pass"), "Задача принята.")}
+                    onClick={() => void act(() => trackerQa(initData, detail.id, "pass"), "Задача принята — пуш и сборка стартуют.")}
                   >
                     Принять
                   </button>

@@ -169,7 +169,8 @@ export function trackerRevert(initData: string, taskId: number) {
   return call<{ commit: string }>(initData, "revert", { payload: { id: taskId } });
 }
 
-/** Довести выполненную задачу до сервера: перенос в основную ветку, пуш, сборка. */
+/** Довести выполненную задачу до сервера: перенос в основную ветку, пуш, сборка.
+ *  Коммит не обязателен — агент часто не может git push с сервера проекта. */}
 export function trackerShip(initData: string, taskId: number) {
   return call<{ promoted?: boolean; pushed?: boolean; deployed?: boolean; skipped?: boolean; error?: string }>(
     initData,

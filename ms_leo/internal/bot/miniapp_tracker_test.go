@@ -106,4 +106,43 @@ func TestTrackerPayloadTaskID(t *testing.T) {
 	if got := trackerPayloadTaskID(0, nil); got != 0 {
 		t.Fatalf("empty, got %d", got)
 	}
+	if got := trackerPayloadTaskID(0, map[string]any{"id": "235"}); got != 235 {
+		t.Fatalf("string id, got %d", got)
+	}
+}
+
+func TestTrackerTaskReadyToShipWithoutCommit(t *testing.T) {
+	if !trackerTaskReadyToShip(trackerTaskSnapshot{Status: "done"}) {
+		t.Fatal("done without commit must ship: agent often cannot git push from the project server")
+	}
+	if !trackerTaskReadyToShip(trackerTaskSnapshot{Done: true, Error: "Git push недоступен с сервера"}) {
+		t.Fatal("push-unavailable error must not block ship")
+	}
+	if !trackerTaskReadyToShip(trackerTaskSnapshot{DevColumn: "test"}) {
+		t.Fatal("test column is ready: QA already looks at the result")
+	}
+	if !trackerTaskReadyToShip(trackerTaskSnapshot{HandedToQa: true, QaColumn: "done"}) {
+		t.Fatal("QA pass must ship")
+	}
+	if trackerTaskReadyToShip(trackerTaskSnapshot{Status: "running"}) {
+		t.Fatal("running must wait")
+	}
+	if trackerTaskReadyToShip(trackerTaskSnapshot{Status: "done", Error: "тест не прошёл"}) {
+		t.Fatal("real task error must not ship")
+	}
+	if trackerTaskReadyToShip(trackerTaskSnapshot{Status: "todo"}) {
+		t.Fatal("todo is not ready")
+	}
+}
+
+func TestTrackerOpShouldShip(t *testing.T) {
+	if !trackerOpShouldShip("qa", map[string]any{"action": "pass"}) {
+		t.Fatal("qa pass must ship")
+	}
+	if trackerOpShouldShip("qa", map[string]any{"action": "fail"}) {
+		t.Fatal("qa fail must not ship")
+	}
+	if trackerOpShouldShip("create", map[string]any{"action": "pass"}) {
+		t.Fatal("create must not ship")
+	}
 }

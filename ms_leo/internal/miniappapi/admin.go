@@ -4,11 +4,28 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
+	"strconv"
 	"strings"
 	"unicode/utf8"
 
 	"leo-bot/internal/bot"
 )
+
+func parseJSONInt64(raw json.RawMessage) int64 {
+	if len(raw) == 0 {
+		return 0
+	}
+	var n int64
+	if err := json.Unmarshal(raw, &n); err == nil {
+		return n
+	}
+	var s string
+	if err := json.Unmarshal(raw, &s); err == nil {
+		n, _ = strconv.ParseInt(strings.TrimSpace(s), 10, 64)
+		return n
+	}
+	return 0
+}
 
 func (s *Server) writeAdminErr(w http.ResponseWriter, err error) {
 	switch {
@@ -712,18 +729,20 @@ func (s *Server) handlePostAdminWipe(w http.ResponseWriter, r *http.Request) {
 func (s *Server) handleBoardNotify(w http.ResponseWriter, r *http.Request) {
 	corsWriteHeaders(w, r)
 	var body struct {
-		Repo     string `json:"repo"`
-		AuthorID int64  `json:"author_id"`
-		TaskID   int64  `json:"task_id"`
-		Text     string `json:"text"`
-		Token    string `json:"token"`
+		Repo     string          `json:"repo"`
+		AuthorID int64           `json:"author_id"`
+		TaskID   json.RawMessage `json:"task_id"`
+		Text     string          `json:"text"`
+		Token    string          `json:"token"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
 		s.jsonErr(w, http.StatusBadRequest, "invalid_json")
 		return
 	}
-	repo, userID, ok := s.bot.VerifyTrackerToken(body.Token, "notify")
-	if !ok || userID != body.AuthorID || repo != body.Repo {
+	// Автор в токене и в теле могут не совпасть: задачу ставил Лео (id < 0),
+	// из чата (0) или токен подписан владельцем доски. Репо и подпись — достаточны.
+	repo, tokenUser, ok := s.bot.VerifyTrackerToken(body.Token, "notify")
+	if !ok || (body.Repo != "" && repo != body.Repo) {
 		s.jsonErr(w, http.StatusUnauthorized, "bad_signature")
 		return
 	}
@@ -732,15 +751,20 @@ func (s *Server) handleBoardNotify(w http.ResponseWriter, r *http.Request) {
 		s.jsonErr(w, http.StatusBadRequest, "empty_text")
 		return
 	}
+	notifyUser := body.AuthorID
+	if notifyUser == 0 {
+		notifyUser = tokenUser
+	}
+	taskID := parseJSONInt64(body.TaskID)
+	// Карточка уже могла стать «выполнено» без пуша — сборку запускаем сами,
+	// даже если Telegram сейчас не отвечает: иначе фича так и не уедет.
+	s.bot.ShipTrackerTaskInBackground(taskID, notifyUser)
 	// Автора может не быть: задачу ставили из чата, а не из мини-аппа. Тогда
 	// результат уходит админам стаи — иначе о выполненной задаче никто не узнает.
-	if err := s.bot.NotifyTrackerResult(userID, text); err != nil {
+	if err := s.bot.NotifyTrackerResult(notifyUser, text); err != nil {
 		s.jsonErr(w, http.StatusBadGateway, "notify_failed")
 		return
 	}
-	// Карточка уже могла стать «выполнено» без пуша — сборку запускаем сами,
-	// вебхук не ждём: пуш и билд длятся минуты.
-	s.bot.ShipTrackerTaskInBackground(body.TaskID, userID)
 	s.writeAdminOK(w, map[string]any{})
 }
 

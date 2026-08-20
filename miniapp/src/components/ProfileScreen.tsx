@@ -1151,17 +1151,13 @@ export function ProfileScreen({
           onClick={() => void useSaveStreak()}
           disabled={saveStreakBusy || streakSaveBlocked}
         >
-          {saveStreakBusy ? "Отправляю…" : "Спасти стрик 🛡️"}
+          {saveStreakBusy
+            ? "Отправляю…"
+            : `Спасти стрик осталось ${saveStreakAvail}/${saveStreakMax}`}
         </button>
-        <span
-          className="profile__streak-save-counter"
-          title={`Доступно попыток: ${saveStreakAvail} из ${saveStreakMax}`}
-        >
-          осталось {saveStreakAvail}/{saveStreakMax}
-        </span>
       </div>
       <p className="profile__hint muted profile__streak-save-hint">
-        Можно восстановить сгоревший стрик, если случайно забыл внести тренировку.
+        Можно восстановить сгоревший стрик, если случайно забыл внести тренировку
       </p>
 
       <h2 className="section-title">Здоровье</h2>
@@ -1169,7 +1165,7 @@ export function ProfileScreen({
         <p className="profile__hint muted">Загрузка статуса…</p>
       ) : onSick ? (
         <div className="profile__health">
-          <p className="profile__hint">🏥 Ты на больничном — таймер остановлен. Возвращайся, когда поправишься.</p>
+          <p className="profile__hint">🏥 Ты на больничном — таймер остановлен — возвращайся, когда поправишься</p>
           <button
             type="button"
             className="profile__save profile__health-btn"
@@ -1181,7 +1177,7 @@ export function ProfileScreen({
         </div>
       ) : sickFormOpen ? (
         <div className="profile__health">
-          <p className="profile__hint muted">Опиши, что случилось — Лео решит, принимать ли больничный.</p>
+          <p className="profile__hint muted">Опиши, что случилось — Лео решит, принимать ли больничный</p>
           <textarea
             ref={healthTextareaRef}
             className="profile__input profile__health-textarea"
@@ -1231,7 +1227,7 @@ export function ProfileScreen({
         </div>
       ) : (
         <div className="profile__health">
-          <p className="profile__hint muted">Болеешь - таймер остановится до выздоровления.</p>
+          <p className="profile__hint muted">Болеешь — таймер остановится до выздоровления</p>
           <div className="profile__health-actions">
             <button
               type="button"
@@ -1290,7 +1286,7 @@ export function ProfileScreen({
         <p className="profile__hint muted">
           {reminderEnabled
             ? "Если до этого часа не отмечена тренировка — Лео мягко напомнит"
-            : "Напоминания выключены. Лео не будет писать о пропущенной тренировке."}
+            : "Напоминания выключены — Лео не будет писать о пропущенной тренировке"}
         </p>
 
         <label className="profile__reminder-row">
@@ -1306,7 +1302,7 @@ export function ProfileScreen({
         <p className="profile__hint muted">
           {wisdomEnabled
             ? "Каждый день в 04:20 по твоему времени Лео пришлёт короткую мудрость дня в личку"
-            : "Подписка выключена. Мудрость дня приходит только в чат стаи."}
+            : "Подписка выключена — мудрость дня приходит только в чат стаи"}
         </p>
 
         <label className="profile__reminder-row">
@@ -1322,7 +1318,7 @@ export function ProfileScreen({
         <p className="profile__hint muted">
           {likeNotifyEnabled
             ? "Лео напишет в личку, когда кто-то лайкнет твою тренировку или комментарий в ленте"
-            : "Уведомления выключены. О лайках на твоих постах и комментариях писать не будем."}
+            : "Уведомления выключены — о лайках на твоих постах и комментариях писать не будем"}
         </p>
 
         <label className="profile__reminder-row">
@@ -1337,10 +1333,10 @@ export function ProfileScreen({
         </label>
         <p className="profile__hint muted">
           {friends.length === 0
-            ? "Подпишись на участников в ленте («Следить за тренировками») — и Лео сможет писать об их тренировках."
+            ? "Подпишись на участников в ленте («Следить за тренировками») — и Лео сможет писать об их тренировках"
             : friendNotifyEnabled
               ? "Лео напишет в личку, когда кто-то из «Слежу за» внесёт тренировку"
-              : "Уведомления выключены. О тренировках друзей писать не будем."}
+              : "Уведомления выключены — о тренировках друзей писать не будем"}
         </p>
 
         <button
@@ -1356,7 +1352,7 @@ export function ProfileScreen({
             <p className="muted">Загрузка…</p>
           ) : followingList.length === 0 ? (
             <p className="profile__hint muted">
-              Пока ты ни на кого не подписан. Найди отчёт в ленте и нажми «Следить за тренировками».
+              Пока ты ни на кого не подписан — найди отчёт в ленте и нажми «Следить за тренировками»
             </p>
           ) : (
             <ul className="profile__friends-list">
@@ -1469,8 +1465,8 @@ export function ProfileScreen({
         <section className="profile__donate">
           <h2 className="section-title">Поддержать проект</h2>
           <p className="profile__hint muted">
-            Вход в стаю бесплатный. Донат — по желанию: он не отменяет вылет за неактивность,
-            но помогает Лео и проекту жить.
+            Вход в стаю бесплатный — донат по желанию: он не отменяет вылет за неактивность,
+            но помогает Лео и проекту жить
             {donateOptions.completedCount > 0 ? ` Ты уже поддержал ${donateOptions.completedCount} раз — спасибо!` : ""}
           </p>
 
@@ -1528,7 +1524,7 @@ export function ProfileScreen({
                 {donateBusy ? "Жду оплату…" : `Задонатить ${donateRub ?? ""} ₽`}
               </button>
               <p className="profile__hint muted profile__donate-note">
-                Оплата откроется в браузере. Вернись сюда — я дождусь подтверждения.
+                Оплата откроется в браузере — вернись сюда, я дождусь подтверждения
               </p>
             </div>
           )}
@@ -1542,7 +1538,7 @@ export function ProfileScreen({
 
       <div className="profile__support">
         <h2 className="section-title">Поддержка</h2>
-        <p className="profile__hint muted">Если что-то сломалось или нужен ответ от человека — напиши сюда.</p>
+        <p className="profile__hint muted">Если что-то сломалось или нужен ответ от человека — напиши сюда</p>
         <button type="button" className="profile__save profile__support-btn" onClick={onSupport}>
           Сообщить о проблеме
         </button>
@@ -1552,7 +1548,7 @@ export function ProfileScreen({
         <div className="profile__support profile__admin">
           <h2 className="section-title">Админка</h2>
           <p className="profile__hint muted">
-            Сообщество, система, данные, ресурсы и трекер задач. Видно только админам.
+            Сообщество, система, данные, ресурсы и трекер задач — видно только админам
           </p>
           <button type="button" className="profile__save profile__support-btn" onClick={onAdmin}>
             Открыть админку

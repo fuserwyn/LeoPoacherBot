@@ -166,9 +166,10 @@ func (b *Bot) createLeoSprintTasks(theme string, tasks []string, limit int) (cre
 		}
 		when := fmt.Sprintf("через %d мин", 5+i*20)
 		if _, err := b.trackerRequest("create", 0, map[string]any{
-			"when":   when,
-			"prompt": text,
-			"leo":    true,
+			"when":      when,
+			"prompt":    text,
+			"leo":       true,
+			"auto_push": true,
 		}, b.leoBoardUserID(), "Лео"); err != nil {
 			problems = append(problems, err.Error())
 			continue
