@@ -22,9 +22,11 @@ describe("theme", () => {
   });
 
   it("stores leopard theme", () => {
+    document.head.insertAdjacentHTML("beforeend", '<meta name="theme-color" content="#0d0d12" />');
     setTheme("leopard");
     expect(localStorage.getItem("leo-theme")).toBe("leopard");
     expect(getStoredTheme()).toBe("leopard");
     expect(document.documentElement.getAttribute("data-theme")).toBe("leopard");
+    expect(document.querySelector('meta[name="theme-color"]')?.getAttribute("content")).toBe("#e8c48a");
   });
 });
