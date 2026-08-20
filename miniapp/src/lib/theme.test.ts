@@ -27,6 +27,6 @@ describe("theme", () => {
     expect(localStorage.getItem("leo-theme")).toBe("leopard");
     expect(getStoredTheme()).toBe("leopard");
     expect(document.documentElement.getAttribute("data-theme")).toBe("leopard");
-    expect(document.querySelector('meta[name="theme-color"]')?.getAttribute("content")).toBe("#e8c48a");
+    expect(document.querySelector('meta[name="theme-color"]')?.getAttribute("content")).toBe("#f4c4d2");
   });
 });

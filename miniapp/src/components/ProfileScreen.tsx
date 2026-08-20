@@ -1464,7 +1464,7 @@ export function ProfileScreen({
             aria-pressed={theme === "leopard"}
             onClick={() => changeTheme("leopard")}
           >
-            🐆 Леопард
+            🐆 Розовый
           </button>
         </div>
       </div>

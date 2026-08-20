@@ -106,64 +106,49 @@
   /* --me-bubble-* наследуются из :root (на базе var(--accent)) → фиолетовые в светлой. */
 }
 
-/* ЛЕОПАРД — как на карточке: беж шкуры, тёмные розетки, охра. */
+/* РОЗОВЫЙ ЛЕОПАРД — шкура blush, розетки wine, карточки шёлк.
+   Пятна только на холсте; карточки и поля остаются чистыми. */
 :root[data-theme="leopard"] {
   color-scheme: light;
-  --bg: #e8c48a;
-  --bg-elevated: #f0d4a0;
-  --card: #f6e2b4;
-  --card-inner: #edd4a0;
-  --surface-elevated: #f8e8c4;
-  --popover: #f8e8c4;
-  --text: #2a1810;
-  --text-muted: #6b4528;
-  --muted: #8a5a32;
-  --text-label: #9a6a3c;
-  --accent: #3d2112;
-  --accent-2: #8b4e22;
-  --accent-dim: rgba(61, 33, 18, 0.16);
-  --border-subtle: rgba(42, 24, 16, 0.18);
-  --nav-bg: rgba(246, 226, 180, 0.92);
-  --fill-subtle: rgba(42, 24, 16, 0.05);
-  --fill-soft: rgba(42, 24, 16, 0.08);
-  --fill-strong: rgba(42, 24, 16, 0.12);
-  --shadow-card: 0 4px 16px rgba(42, 24, 16, 0.16);
-  --shadow-pop: 0 10px 28px rgba(42, 24, 16, 0.22);
-  --scrim: rgba(42, 24, 16, 0.55);
-  --pastel-pink: #e8c4a0;
-  --pastel-peach: #f0d0a0;
-  --pastel-lilac: #e4d0a8;
-  --pastel-blue: #dcc8a0;
-  --warn-bg: #f0d4a0;
-  --warn-fg: #5c2e12;
-  --warn-border: rgba(61, 33, 18, 0.35);
-  --tab-active-bg: #edd4a0;
-  --tab-active-fg: #2a1810;
-  --tab-active-border: #3d2112;
-  --ai-bg: #edd4a0;
-  --pinned-bg: rgba(139, 78, 34, 0.18);
-  --pinned-fg: #3d2112;
-  --pinned-border: rgba(61, 33, 18, 0.35);
-  --leo-bubble-bg: #edd4a0;
-  --leo-bubble-border: rgba(61, 33, 18, 0.28);
-  --leo-bubble-fg: #2a1810;
-}
-
-html[data-theme="leopard"] body {
-  background-color: #e8c48a;
-  background-image:
-    radial-gradient(ellipse 26px 18px at 16% 22%, #2c160c 0 34%, transparent 36%),
-    radial-gradient(ellipse 12px 9px at 20% 26%, #8b4e22 0 42%, transparent 44%),
-    radial-gradient(ellipse 22px 16px at 48% 38%, #3d2112 0 32%, transparent 35%),
-    radial-gradient(ellipse 10px 8px at 52% 41%, #a05628 0 40%, transparent 43%),
-    radial-gradient(ellipse 20px 14px at 78% 18%, #2a160c 0 36%, transparent 38%),
-    radial-gradient(ellipse 9px 7px at 74% 28%, #3d2112 0 45%, transparent 48%),
-    radial-gradient(ellipse 24px 17px at 30% 68%, #3d2112 0 33%, transparent 36%),
-    radial-gradient(ellipse 11px 8px at 34% 72%, #8b4e22 0 40%, transparent 43%),
-    radial-gradient(ellipse 18px 13px at 68% 62%, #2c160c 0 34%, transparent 37%),
-    radial-gradient(ellipse 8px 6px at 88% 54%, #3d2112 0 48%, transparent 50%),
-    radial-gradient(ellipse 7px 6px at 10% 52%, #2a160c 0 50%, transparent 52%);
-  background-size: 200px 170px;
+  --bg: #f4c4d2;
+  --bg-elevated: #fbe0e8;
+  --card: #fff5f8;
+  --card-inner: #f8d5df;
+  --surface-elevated: #fff7fa;
+  --popover: #fff7fa;
+  --text: #3a1524;
+  --text-muted: #8a4560;
+  --muted: #9a5a72;
+  --text-label: #b06a82;
+  --accent: #c23a6e;
+  --accent-2: #e06596;
+  --accent-dim: rgba(194, 58, 110, 0.16);
+  --border-subtle: rgba(74, 23, 48, 0.12);
+  --nav-bg: rgba(255, 245, 248, 0.92);
+  --fill-subtle: rgba(74, 23, 48, 0.04);
+  --fill-soft: rgba(74, 23, 48, 0.07);
+  --fill-strong: rgba(74, 23, 48, 0.11);
+  --shadow-card: 0 4px 16px rgba(74, 23, 48, 0.1);
+  --shadow-pop: 0 10px 28px rgba(74, 23, 48, 0.16);
+  --scrim: rgba(58, 21, 36, 0.5);
+  --pastel-pink: #f4c4d2;
+  --pastel-peach: #f6d0c8;
+  --pastel-lilac: #e8c8dc;
+  --pastel-blue: #e0c8d8;
+  --warn-bg: #f8d5df;
+  --warn-fg: #8a2048;
+  --warn-border: rgba(194, 58, 110, 0.35);
+  --tab-active-bg: #f8d5df;
+  --tab-active-fg: #3a1524;
+  --tab-active-border: #c23a6e;
+  --ai-bg: #f8d5df;
+  --pinned-bg: rgba(194, 58, 110, 0.14);
+  --pinned-fg: #8a2048;
+  --pinned-border: rgba(194, 58, 110, 0.32);
+  --leo-bubble-bg: #f8d5df;
+  --leo-bubble-border: rgba(194, 58, 110, 0.28);
+  --leo-bubble-fg: #3a1524;
+  --font: "Avenir Next", "Nunito Sans", ui-sans-serif, -apple-system, "SF Pro Text", system-ui, sans-serif;
 }
 
 *,
@@ -178,12 +163,36 @@ body,
   margin: 0;
   min-height: 100%;
   min-height: 100dvh;
-  background: var(--bg);
+  background-color: var(--bg);
   color: var(--text);
   font-family: var(--font);
   -webkit-font-smoothing: antialiased;
   -webkit-tap-highlight-color: transparent;
   overscroll-behavior: none;
+}
+
+html[data-theme="leopard"],
+html[data-theme="leopard"] body,
+html[data-theme="leopard"] #root {
+  background-color: #f4c4d2;
+  background-image:
+    radial-gradient(ellipse 22px 16px at 18% 20%, #4a1730 0 28%, transparent 31%),
+    radial-gradient(ellipse 10px 8px at 22% 24%, #d96a90 0 40%, transparent 43%),
+    radial-gradient(ellipse 18px 14px at 52% 36%, #5a1838 0 26%, transparent 30%),
+    radial-gradient(ellipse 8px 6px at 56% 39%, #e06596 0 38%, transparent 42%),
+    radial-gradient(ellipse 16px 12px at 80% 16%, #4a1730 0 30%, transparent 34%),
+    radial-gradient(ellipse 7px 6px at 76% 26%, #c23a6e 0 42%, transparent 46%),
+    radial-gradient(ellipse 20px 15px at 32% 70%, #5a1838 0 27%, transparent 31%),
+    radial-gradient(ellipse 9px 7px at 36% 74%, #d96a90 0 38%, transparent 42%),
+    radial-gradient(ellipse 14px 11px at 70% 64%, #4a1730 0 30%, transparent 34%),
+    radial-gradient(ellipse 6px 5px at 88% 52%, #c23a6e 0 44%, transparent 48%),
+    radial-gradient(ellipse 6px 5px at 10% 50%, #4a1730 0 46%, transparent 50%);
+  background-size: 220px 190px;
+  background-repeat: repeat;
+}
+
+html[data-theme="leopard"] .section-title {
+  letter-spacing: 0.16em;
 }
 
 body {

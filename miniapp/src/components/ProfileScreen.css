@@ -1243,12 +1243,9 @@ html.app-keyboard-open .profile__health-actions--keyboard {
 }
 
 :root[data-theme="leopard"] .profile__theme-opt.is-active {
-  background:
-    radial-gradient(ellipse 10px 7px at 22% 40%, #2c160c 0 40%, transparent 42%),
-    radial-gradient(ellipse 8px 6px at 70% 55%, #3d2112 0 38%, transparent 41%),
-    #f0d4a0;
-  color: #2a1810;
-  border-color: #3d2112;
+  background: #fff5f8;
+  color: #c23a6e;
+  border-color: #c23a6e;
 }
 
 /* Заголовок «Уведомления» — это кнопка: блок свёрнут по умолчанию.
