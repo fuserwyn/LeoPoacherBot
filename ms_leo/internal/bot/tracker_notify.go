@@ -97,6 +97,89 @@ func trackerTaskIfFound(t database.TrackerTask, err error) (database.TrackerTask
 	return t, true
 }
 
+// TrackerNotifyIsFullyShipped — в личку только финал: задача на Railway в main.
+func TrackerNotifyIsFullyShipped(text string) bool {
+	low := strings.ToLower(strings.TrimSpace(text))
+	if low == "" {
+		return false
+	}
+	if strings.Contains(low, "запушь") || strings.Contains(text, "TRACKER_NO_CODE") ||
+		strings.Contains(low, "началась") || strings.Contains(low, "можно на тест") ||
+		strings.Contains(low, "ревью не принято") || strings.Contains(low, "тест не прошёл") ||
+		strings.Contains(low, "тест не прошел") || strings.Contains(low, "кода нет") ||
+		strings.Contains(low, "не попал в github") {
+		return false
+	}
+	hasRailway := strings.Contains(low, "railway")
+	hasMain := strings.Contains(low, "ветке main") || strings.Contains(low, "ветки main") ||
+		strings.Contains(low, "ветка main") || strings.Contains(low, "в main") ||
+		strings.Contains(low, "(main)") || strings.Contains(low, "railway main")
+	hasDeployed := strings.Contains(low, "задепло") || strings.Contains(low, "выехал") ||
+		strings.Contains(low, "на railway") && (strings.Contains(low, "выполнен") || strings.Contains(low, "готово"))
+	return hasRailway && hasMain && hasDeployed
+}
+
+func trackerFullyDoneNote(t database.TrackerTask) string {
+	return fmt.Sprintf("✅ Задача #%d выполнена.\nВыехала на Railway (ветка main).", trackerDueNum(t))
+}
+
+const trackerShipNotifiedStep = "уведомили о выкате"
+
+func trackerAlreadyNotifiedShip(t database.TrackerTask) bool {
+	for _, step := range t.Steps {
+		if strings.TrimSpace(step) == trackerShipNotifiedStep {
+			return true
+		}
+	}
+	return false
+}
+
+func trackerNotifyAuthor(t database.TrackerTask) int64 {
+	if t.HasAuthor {
+		return t.AuthorID
+	}
+	return 0
+}
+
+func (b *Bot) notifyTrackerShippedOnce(t database.TrackerTask) {
+	if b == nil || t.ID <= 0 {
+		return
+	}
+	if b.db != nil {
+		if fresh, err := b.db.GetTrackerTask(t.ID); err == nil && fresh.ID > 0 {
+			t = fresh
+		}
+	}
+	if trackerAlreadyNotifiedShip(t) {
+		return
+	}
+	note := trackerFullyDoneNote(t)
+	appendTrackerStep(&t, trackerShipNotifiedStep)
+	if !strings.Contains(t.Result, note) {
+		t.Result = strings.TrimSpace(strings.TrimSpace(t.Result) + "\n\n" + note)
+	}
+	if b.db != nil {
+		if err := b.db.SaveTrackerTask(t); err != nil && b.logger != nil {
+			b.logger.Warnf("трекер: не сохранить уведомление о выкате #%d: %v", trackerDueNum(t), err)
+			return
+		}
+	}
+	if err := b.NotifyTrackerResult(trackerNotifyAuthor(t), note); err != nil && b.logger != nil {
+		b.logger.Warnf("трекер: не сообщить о выкате #%d: %v", trackerDueNum(t), err)
+	}
+}
+
+func (b *Bot) NotifyTrackerShippedIfNeeded(taskID int64, text string) {
+	if b == nil || !TrackerNotifyIsFullyShipped(text) {
+		return
+	}
+	t, err := b.findTrackerTaskForNotify(taskID, trackerNotifyTaskNum(text))
+	if err != nil || t.ID <= 0 {
+		return
+	}
+	b.notifyTrackerShippedOnce(t)
+}
+
 func trackerNotifyKind(text string) string {
 	low := strings.ToLower(text)
 	switch {

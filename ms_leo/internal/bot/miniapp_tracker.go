@@ -402,10 +402,6 @@ func (b *Bot) ShipTrackerTaskInBackground(taskID, authorID int64) {
 			if b.logger != nil {
 				b.logger.Warnf("трекер: не собрать задачу #%d на сервере: %v", taskID, err)
 			}
-			note := fmt.Sprintf("Задача #%d готова. Чтобы выкатить на сервер, напиши «запушь». (%s)", taskID, err.Error())
-			if nerr := b.NotifyTrackerResult(authorID, note); nerr != nil && b.logger != nil {
-				b.logger.Warnf("трекер: не сообщить о срыве сборки #%d: %v", taskID, nerr)
-			}
 		}
 	}()
 }

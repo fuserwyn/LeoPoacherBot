@@ -467,13 +467,7 @@ func (b *Bot) finishTrackerBuild(taskID int64) {
 			return
 		}
 	}
-	author := int64(0)
-	if t.HasAuthor {
-		author = t.AuthorID
-	}
-	if err := b.NotifyTrackerResult(author, trackerPipelineNotify(t)); err != nil && b.logger != nil {
-		b.logger.Warnf("трекер: не сообщить о выполнении #%d: %v", trackerDueNum(t), err)
-	}
+	// «Выполнена» в личку — только после пуша на Railway, не после локальной сборки.
 }
 
 func (b *Bot) localTrackerComposer(taskID int64, payload map[string]any, phase string) (json.RawMessage, error) {

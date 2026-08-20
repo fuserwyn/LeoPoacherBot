@@ -11,6 +11,24 @@ import (
 	"github.com/DATA-DOG/go-sqlmock"
 )
 
+func TestTrackerNotifyIsFullyShipped(t *testing.T) {
+	if TrackerNotifyIsFullyShipped("🔧 Задача #1 началась.") {
+		t.Fatal("start must stay silent")
+	}
+	if TrackerNotifyIsFullyShipped("Задача #7: коммит выполнения c0baa85 на ветке tracker/7-2.") {
+		t.Fatal("doing commit must stay silent")
+	}
+	if TrackerNotifyIsFullyShipped("Посредственное ревью: можно на тест.") {
+		t.Fatal("review must stay silent")
+	}
+	if TrackerNotifyIsFullyShipped("✅ Задача #7 выполнена.\n\nПрошла в работе, review, тест и сборку.\nЧтобы выкатить на сервер, напиши «запушь».") {
+		t.Fatal("запушь is not a Railway ship")
+	}
+	if !TrackerNotifyIsFullyShipped("✅ Задача #7 выполнена.\nВыехала на Railway (ветка main).") {
+		t.Fatal("railway main must notify")
+	}
+}
+
 func TestTrackerNotifyKind(t *testing.T) {
 	if got := trackerNotifyKind("⏰ Задача #236 выполнена.\n\nГотово."); got != "done" {
 		t.Fatalf("done: %q", got)
