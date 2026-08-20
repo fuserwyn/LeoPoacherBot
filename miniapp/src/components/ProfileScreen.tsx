@@ -954,7 +954,7 @@ export function ProfileScreen({
 
       {burnLabel ? (
         <div className="profile__burn" title={`Стрик ${burnLabel}`}>
-          🔥 стрик {burnLabel}
+          стрик {burnLabel}
         </div>
       ) : null}
 

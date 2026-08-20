@@ -37,6 +37,15 @@ func trackerImplModel(b *Bot) string {
 	return ""
 }
 
+// trackerAgentBoardUserID — кто в сессии create на внешней доске.
+// Всегда владелец: иначе гостевой SSO отвечает unauthorized.
+func (b *Bot) trackerAgentBoardUserID() int64 {
+	if b == nil {
+		return 0
+	}
+	return b.leoBoardUserID()
+}
+
 func trackerAgentName(phase string) string {
 	switch phase {
 	case "review":
@@ -205,12 +214,10 @@ func (b *Bot) remoteTrackerCreate(t database.TrackerTask, phase, model string) (
 	if model != "" {
 		payload["model_key"] = model
 	}
-	userID := int64(0)
-	if t.HasAuthor && t.AuthorID > 0 {
-		userID = t.AuthorID
-	} else {
-		userID = b.leoBoardUserID()
-	}
+	// Сессию доски открываем от владельца: MyVibeLab знает гостей по его
+	// telegram_id. Автор карточки (LoFi и т.п.) там часто не зарегистрирован —
+	// тогда create отвечает unauthorized и агент не стартует.
+	userID := b.trackerAgentBoardUserID()
 	raw, err := b.remoteTrackerRequest("create", 0, payload, userID, trackerAgentName(phase))
 	if err != nil {
 		return 0, "", err

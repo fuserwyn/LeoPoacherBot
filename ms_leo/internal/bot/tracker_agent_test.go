@@ -61,6 +61,16 @@ func TestTrackerComposerModel(t *testing.T) {
 	}
 }
 
+func TestTrackerAgentBoardUserIDUsesOwnerNotAuthor(t *testing.T) {
+	b := &Bot{config: &config.Config{OwnerID: 99, AdminIDs: []int64{7}}}
+	if got := b.trackerAgentBoardUserID(); got != 99 {
+		t.Fatalf("owner: %d", got)
+	}
+	if got := (&Bot{}).trackerAgentBoardUserID(); got != 0 {
+		t.Fatalf("empty: %d", got)
+	}
+}
+
 func TestTrackerPipelineNotify(t *testing.T) {
 	note := trackerPipelineNotify(database.TrackerTask{Num: 3})
 	if !strings.Contains(note, "#3") || !strings.Contains(note, "выполнена") {
