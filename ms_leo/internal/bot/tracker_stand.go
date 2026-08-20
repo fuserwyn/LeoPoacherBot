@@ -5,14 +5,88 @@ import (
 	"fmt"
 	"net/http"
 	"strings"
+	"sync"
 	"time"
+
+	"leo-bot/internal/database"
 )
 
 const trackerStandWait = 10 * time.Minute
 const trackerStandPoll = 12 * time.Second
+const trackerStandSkipGrace = 45 * time.Second
+
+var trackerStandInflight sync.Map
+
+type standDeploy struct {
+	Status    string
+	CreatedAt time.Time
+}
+
+func tryBeginTrackerStand(taskID int64) bool {
+	_, loaded := trackerStandInflight.LoadOrStore(taskID, struct{}{})
+	return !loaded
+}
+
+func endTrackerStand(taskID int64) {
+	trackerStandInflight.Delete(taskID)
+}
+
+func standDeployInFlight(status string) bool {
+	switch strings.ToUpper(strings.TrimSpace(status)) {
+	case "BUILDING", "DEPLOYING", "INITIALIZING", "QUEUED", "WAITING", "PENDING", "NEEDS_APPROVAL":
+		return true
+	default:
+		return false
+	}
+}
+
+// standWaitDecision — SUCCESS новой сборки, или уже живой стенд, если
+// MiniApp после пуша не пересобирался (SKIPPED / нет правок фронта).
+func standWaitDecision(deploys []standDeploy, since, started, now time.Time) (done bool, fail error) {
+	latestSuccess := false
+	inFlight := false
+	newSuccess := false
+	for _, d := range deploys {
+		st := strings.ToUpper(strings.TrimSpace(d.Status))
+		fresh := d.CreatedAt.IsZero() || !d.CreatedAt.Before(since)
+		if st == "SUCCESS" {
+			latestSuccess = true
+			if fresh {
+				newSuccess = true
+			}
+		}
+		if fresh && (st == "FAILED" || st == "CRASHED") {
+			return false, fmt.Errorf("деплой %s", strings.ToLower(st))
+		}
+		if fresh && standDeployInFlight(st) {
+			inFlight = true
+		}
+	}
+	if newSuccess {
+		return true, nil
+	}
+	if inFlight {
+		return false, nil
+	}
+	if latestSuccess && !started.IsZero() && now.Sub(started) >= trackerStandSkipGrace {
+		return true, nil
+	}
+	return false, nil
+}
+
+func trackerTaskShippedToStand(t database.TrackerTask) bool {
+	for _, s := range t.Steps {
+		low := strings.ToLower(s)
+		if strings.Contains(low, "пуш в ") || strings.Contains(low, "ждём сборку") {
+			return true
+		}
+	}
+	return false
+}
 
 // waitStandBuild — после пуша в main карточка сидит в «Сборка», пока MiniApp
-// на Railway не станет SUCCESS. Без токена проверяем, что стенд отвечает.
+// на Railway не станет SUCCESS. Если новой сборки нет — живой стенд тоже ок.
+// Падение Railway API не держит карточку вечно: проверяем, что стенд отвечает.
 func (b *Bot) waitStandBuild(started time.Time) error {
 	if b == nil || b.config == nil {
 		return fmt.Errorf("нет конфигурации Railway")
@@ -20,7 +94,7 @@ func (b *Bot) waitStandBuild(started time.Time) error {
 	if strings.TrimSpace(b.config.RailwayToken) != "" && strings.TrimSpace(b.config.RailwayProjectID) != "" {
 		if err := b.waitRailwayMiniApp(started); err == nil {
 			return nil
-		} else if !strings.Contains(err.Error(), "не найден") {
+		} else if strings.Contains(err.Error(), "деплой ") {
 			return err
 		}
 	}
@@ -58,18 +132,17 @@ func (b *Bot) waitRailwayMiniApp(started time.Time) error {
 			time.Sleep(trackerStandPoll)
 			continue
 		}
+		deploys := make([]standDeploy, 0, len(parsed.Deployments.Edges))
 		for _, edge := range parsed.Deployments.Edges {
-			n := edge.Node
-			at, _ := time.Parse(time.RFC3339, n.CreatedAt)
-			if !at.IsZero() && at.Before(since) {
-				continue
-			}
-			switch strings.ToUpper(n.Status) {
-			case "SUCCESS":
-				return nil
-			case "FAILED", "CRASHED":
-				return fmt.Errorf("деплой %s", strings.ToLower(n.Status))
-			}
+			at, _ := time.Parse(time.RFC3339, edge.Node.CreatedAt)
+			deploys = append(deploys, standDeploy{Status: edge.Node.Status, CreatedAt: at})
+		}
+		done, fail := standWaitDecision(deploys, since, started, time.Now())
+		if fail != nil {
+			return fail
+		}
+		if done {
+			return nil
 		}
 		time.Sleep(trackerStandPoll)
 	}

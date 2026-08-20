@@ -513,6 +513,10 @@ func (b *Bot) finishTrackerBuild(taskID int64) {
 	if b == nil || b.db == nil || taskID <= 0 {
 		return
 	}
+	if !tryBeginTrackerStand(taskID) {
+		return
+	}
+	defer endTrackerStand(taskID)
 	defer func() {
 		if rec := recover(); rec != nil && b.logger != nil {
 			b.logger.Errorf("трекер: паника сборки #%d: %v", taskID, rec)
@@ -523,6 +527,9 @@ func (b *Bot) finishTrackerBuild(taskID int64) {
 		return
 	}
 	if t.Status == "canceled" || t.DevColumn == trackerColCanceled {
+		return
+	}
+	if t.Status == "done" || t.DevColumn == trackerColDone {
 		return
 	}
 	if !trackerTaskHasCode(t) {
@@ -536,20 +543,22 @@ func (b *Bot) finishTrackerBuild(taskID int64) {
 	}
 	_ = applyTrackerColumn(&t, trackerColDeploy)
 	started := time.Now()
-	base, err := b.shipTrackerToMain(t)
-	if err != nil {
-		t.Error = "не влили в main: " + err.Error()
-		appendTrackerStep(&t, "пуш на стенд не вышел")
-		if serr := b.db.SaveTrackerTask(t); serr != nil && b.logger != nil {
-			b.logger.Warnf("трекер: не сохранить срыв пуша #%d: %v", trackerDueNum(t), serr)
+	if !trackerTaskShippedToStand(t) {
+		base, err := b.shipTrackerToMain(t)
+		if err != nil {
+			t.Error = "не влили в main: " + err.Error()
+			appendTrackerStep(&t, "пуш на стенд не вышел")
+			if serr := b.db.SaveTrackerTask(t); serr != nil && b.logger != nil {
+				b.logger.Warnf("трекер: не сохранить срыв пуша #%d: %v", trackerDueNum(t), serr)
+			}
+			return
 		}
-		return
-	}
-	appendTrackerStep(&t, "пуш в "+base)
-	appendTrackerStep(&t, "ждём сборку на стенде")
-	t.Error = ""
-	if err := b.db.SaveTrackerTask(t); err != nil && b.logger != nil {
-		b.logger.Warnf("трекер: не сохранить сборку #%d: %v", trackerDueNum(t), err)
+		appendTrackerStep(&t, "пуш в "+base)
+		appendTrackerStep(&t, "ждём сборку на стенде")
+		t.Error = ""
+		if err := b.db.SaveTrackerTask(t); err != nil && b.logger != nil {
+			b.logger.Warnf("трекер: не сохранить сборку #%d: %v", trackerDueNum(t), err)
+		}
 	}
 	if err := b.waitStandBuild(started); err != nil {
 		t.Error = "сборка на стенде: " + err.Error()
