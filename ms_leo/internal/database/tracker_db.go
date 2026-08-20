@@ -130,7 +130,7 @@ func (d *Database) AttachTrackerDatabase(databaseURL string) error {
 		_ = tdb.Close()
 		return err
 	}
-	if err := dropTrackerTablesFromLeo(d.db); err != nil {
+	if err := dropTrackerTablesFromLeo(d.db, tdb); err != nil {
 		_ = tdb.Close()
 		return err
 	}
@@ -164,42 +164,24 @@ func postgresHostDB(raw string) (host, name string) {
 }
 
 func copyTrackerTables(src, dst *sql.DB) error {
-	if err := copyIfDestEmpty(src, dst, "pack_tracker_tasks", `
-		INSERT INTO pack_tracker_tasks (
-			id, num, prompt, when_at, when_label, repeat, kind, status, dev_column,
-			qa_column, qa_status, handed_to_qa, auto_review, manual_qa, fast_track,
-			auto_push, error, result, steps, author_id, created_at, last_run_at, updated_at
-		) SELECT
-			id, num, prompt, when_at, when_label, repeat, kind, status, dev_column,
-			qa_column, qa_status, handed_to_qa, auto_review, manual_qa, fast_track,
-			auto_push, error, result, steps, author_id, created_at, last_run_at, updated_at
-		FROM pack_tracker_tasks
-	`); err != nil {
+	if err := copyIfDestEmpty(src, dst, "pack_tracker_tasks",
+		"id, num, prompt, when_at, when_label, repeat, kind, status, dev_column, qa_column, qa_status, handed_to_qa, auto_review, manual_qa, fast_track, auto_push, error, result, steps, author_id, created_at, last_run_at, updated_at",
+	); err != nil {
 		return err
 	}
-	if err := copyIfDestEmpty(src, dst, "pack_tracker_attachments", `
-		INSERT INTO pack_tracker_attachments (id, task_id, name, mime, size, data, created_at)
-		SELECT id, task_id, name, mime, size, data, created_at FROM pack_tracker_attachments
-	`); err != nil {
+	if err := copyIfDestEmpty(src, dst, "pack_tracker_attachments",
+		"id, task_id, name, mime, size, data, created_at",
+	); err != nil {
 		return err
 	}
-	if err := copyIfDestEmpty(src, dst, "leo_autonomy", `
-		INSERT INTO leo_autonomy (id, active_until, every_hours, tasks_per_run, last_run_at, last_note, updated_by, updated_at)
-		SELECT id, active_until, every_hours, tasks_per_run, last_run_at, last_note, updated_by, updated_at
-		FROM leo_autonomy
-		ON CONFLICT (id) DO NOTHING
-	`); err != nil {
+	if err := copyIfDestEmpty(src, dst, "leo_autonomy",
+		"id, active_until, every_hours, tasks_per_run, last_run_at, last_note, updated_by, updated_at",
+	); err != nil {
 		return err
 	}
-	if err := copyIfDestEmpty(src, dst, "ms_tracker_jobs", `
-		INSERT INTO ms_tracker_jobs (
-			id, source_task_id, source_num, author_id, prompt, phase, when_at, when_label,
-			status, error, result, steps, model, auto_push, branch, created_at, updated_at
-		) SELECT
-			id, source_task_id, source_num, author_id, prompt, phase, when_at, when_label,
-			status, error, result, steps, model, auto_push, branch, created_at, updated_at
-		FROM ms_tracker_jobs
-	`); err != nil {
+	if err := copyIfDestEmpty(src, dst, "ms_tracker_jobs",
+		"id, source_task_id, source_num, author_id, prompt, phase, when_at, when_label, status, error, result, steps, model, auto_push, branch, created_at, updated_at",
+	); err != nil {
 		return err
 	}
 	if _, err := dst.Exec(`
@@ -239,14 +221,13 @@ func copyIfDestEmpty(src, dst *sql.DB, table, insertSQL string) error {
 	return copyTableRows(src, dst, table, insertSQL)
 }
 
-func copyTableRows(src, dst *sql.DB, table, insertSQL string) error {
-	_ = table
-	rows, err := src.Query(selectSQLFromInsert(insertSQL))
+func copyTableRows(src, dst *sql.DB, table, cols string) error {
+	rows, err := src.Query("SELECT " + cols + " FROM " + table)
 	if err != nil {
 		return fmt.Errorf("читать %s: %w", table, err)
 	}
 	defer rows.Close()
-	cols, err := rows.Columns()
+	names, err := rows.Columns()
 	if err != nil {
 		return err
 	}
@@ -255,14 +236,17 @@ func copyTableRows(src, dst *sql.DB, table, insertSQL string) error {
 		return err
 	}
 	defer func() { _ = tx.Rollback() }()
-	placeholders := make([]string, len(cols))
-	for i := range cols {
+	placeholders := make([]string, len(names))
+	for i := range names {
 		placeholders[i] = fmt.Sprintf("$%d", i+1)
 	}
-	q := fmt.Sprintf("INSERT INTO %s (%s) VALUES (%s)", table, strings.Join(cols, ","), strings.Join(placeholders, ","))
+	q := fmt.Sprintf(
+		"INSERT INTO %s (%s) VALUES (%s) ON CONFLICT DO NOTHING",
+		table, cols, strings.Join(placeholders, ","),
+	)
 	for rows.Next() {
-		vals := make([]any, len(cols))
-		ptrs := make([]any, len(cols))
+		vals := make([]any, len(names))
+		ptrs := make([]any, len(names))
 		for i := range vals {
 			ptrs[i] = &vals[i]
 		}
@@ -279,21 +263,6 @@ func copyTableRows(src, dst *sql.DB, table, insertSQL string) error {
 	return tx.Commit()
 }
 
-func selectSQLFromInsert(insertSQL string) string {
-	low := strings.ToLower(insertSQL)
-	i := strings.Index(low, " select ")
-	if i < 0 {
-		i = strings.Index(low, "select ")
-	}
-	if i < 0 {
-		return insertSQL
-	}
-	sel := strings.TrimSpace(insertSQL[i:])
-	sel = strings.TrimSuffix(sel, "ON CONFLICT (id) DO NOTHING")
-	sel = strings.TrimSpace(sel)
-	return sel
-}
-
 func tableExists(db *sql.DB, name string) bool {
 	var n int
 	err := db.QueryRow(`
@@ -303,8 +272,22 @@ func tableExists(db *sql.DB, name string) bool {
 	return err == nil && n > 0
 }
 
-func dropTrackerTablesFromLeo(db *sql.DB) error {
-	_, err := db.Exec(`
+func dropTrackerTablesFromLeo(src, dst *sql.DB) error {
+	if tableExists(src, "pack_tracker_tasks") {
+		var srcN, dstN int
+		if err := src.QueryRow(`SELECT COUNT(*) FROM pack_tracker_tasks`).Scan(&srcN); err != nil {
+			return err
+		}
+		if tableExists(dst, "pack_tracker_tasks") {
+			if err := dst.QueryRow(`SELECT COUNT(*) FROM pack_tracker_tasks`).Scan(&dstN); err != nil {
+				return err
+			}
+		}
+		if srcN > 0 && dstN == 0 {
+			return fmt.Errorf("не перенесли доску: в новой БД пусто")
+		}
+	}
+	_, err := src.Exec(`
 		DROP TABLE IF EXISTS pack_tracker_attachments;
 		DROP TABLE IF EXISTS pack_tracker_tasks;
 		DROP TABLE IF EXISTS leo_autonomy;
