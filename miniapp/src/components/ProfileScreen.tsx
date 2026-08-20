@@ -1458,6 +1458,14 @@ export function ProfileScreen({
           >
             ☀️ Светлая
           </button>
+          <button
+            type="button"
+            className={`profile__theme-opt ${theme === "leopard" ? "is-active" : ""}`}
+            aria-pressed={theme === "leopard"}
+            onClick={() => changeTheme("leopard")}
+          >
+            🐆 Леопард
+          </button>
         </div>
       </div>
 
