@@ -1,14 +1,25 @@
 /** Тема оформления. По умолчанию — тёмная (как до редизайна); светлая — опция пользователя.
  *  Выбор хранится в localStorage и применяется атрибутом data-theme на <html>.
  *  Раннее применение (без мигания) — инлайн-скриптом в index.html; здесь — рантайм-переключение. */
-export type ThemeMode = "light" | "dark";
+export type ThemeMode = "light" | "dark" | "leopard";
 
 const STORAGE_KEY = "leo-theme";
-const THEME_COLOR: Record<ThemeMode, string> = { light: "#f5f1f5", dark: "#0d0d12" };
+const THEME_COLOR: Record<ThemeMode, string> = {
+  light: "#f5f1f5",
+  dark: "#0d0d12",
+  leopard: "#1a120c",
+};
+
+export function parseTheme(raw: string | null | undefined): ThemeMode {
+  if (raw === "light" || raw === "leopard") {
+    return raw;
+  }
+  return "dark";
+}
 
 export function getStoredTheme(): ThemeMode {
   try {
-    return localStorage.getItem(STORAGE_KEY) === "light" ? "light" : "dark";
+    return parseTheme(localStorage.getItem(STORAGE_KEY));
   } catch {
     return "dark";
   }

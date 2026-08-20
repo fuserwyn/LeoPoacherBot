@@ -1220,6 +1220,7 @@ html.app-keyboard-open .profile__health-actions--keyboard {
   border-radius: 999px;
   background: var(--card-inner);
   border: 1px solid var(--border-subtle);
+  flex-wrap: wrap;
 }
 
 .profile__theme-opt {
