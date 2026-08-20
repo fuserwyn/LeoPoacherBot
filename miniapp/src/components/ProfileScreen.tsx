@@ -229,12 +229,23 @@ export function ProfileScreen({
   const leopardUnlocked = canUseLeopardTheme(level);
 
   useEffect(() => {
+    const onTheme = (e: Event) => {
+      const mode = (e as CustomEvent<ThemeMode>).detail;
+      if (mode === "light" || mode === "dark" || mode === "leopard") setThemeState(mode);
+    };
+    window.addEventListener("leo-theme", onTheme);
+    return () => window.removeEventListener("leo-theme", onTheme);
+  }, []);
+
+  useEffect(() => {
+    // Пока кубки не приехали, уровень = 1. Нельзя затирать сохранённую Розовую.
+    if (profileLoading && xp <= 0) return;
     const next = themeAllowedForLevel(getStoredTheme(), level);
     if (next !== theme) {
       setTheme(next);
       setThemeState(next);
     }
-  }, [level, theme]);
+  }, [level, theme, profileLoading, xp]);
 
   const load = useCallback(async () => {
     if (!api || !inTelegram || !initData?.trim()) {
