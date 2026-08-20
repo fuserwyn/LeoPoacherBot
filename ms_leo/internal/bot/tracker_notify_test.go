@@ -28,7 +28,10 @@ func TestTrackerNotifyIsFullyShipped(t *testing.T) {
 		t.Fatal("pipeline summary must stay silent")
 	}
 	if !TrackerNotifyIsFullyShipped("✅ Задача #4 выполнена.\nВыехала на Railway (ветка main).") {
-		t.Fatal("real railway main ship must notify")
+		t.Fatal("old railway wording must still notify")
+	}
+	if !TrackerNotifyIsFullyShipped("✅ Задача #9 выполнена.\nВыехала на прод (ветка main).") {
+		t.Fatal("prod main ship must notify")
 	}
 	if !TrackerNotifyIsFullyShipped("Задача #4 задеплоена на Railway в ветке main.") {
 		t.Fatal("deployed on main must notify")
