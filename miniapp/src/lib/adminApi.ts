@@ -422,3 +422,32 @@ export function teachLeo(initData: string, text: string) {
 export function fetchLeoMemory(initData: string, days = 180) {
   return post<{ memory: LeoMemory }>("/api/miniapp/admin/leo-lab", initData, { action: "memory", days });
 }
+
+export type LeoPromptSlot = {
+  key: string;
+  file: string;
+  title: string;
+  about: string;
+  body: string;
+  builtin: string;
+  overridden: boolean;
+  filename: string;
+  updated_at: string;
+};
+
+export function fetchLeoPrompts(initData: string) {
+  return post<{ prompts: LeoPromptSlot[] }>("/api/miniapp/admin/leo-prompts", initData, { action: "list" });
+}
+
+export function saveLeoPrompt(initData: string, key: string, body: string, filename = "") {
+  return post<Record<string, never>>("/api/miniapp/admin/leo-prompts", initData, {
+    action: "save",
+    key,
+    body,
+    filename,
+  });
+}
+
+export function resetLeoPrompt(initData: string, key: string) {
+  return post<Record<string, never>>("/api/miniapp/admin/leo-prompts", initData, { action: "reset", key });
+}
