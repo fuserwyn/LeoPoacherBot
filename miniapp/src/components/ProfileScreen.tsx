@@ -11,6 +11,7 @@ import {
 import {
   canUseLeopardTheme,
   getStoredTheme,
+  persistThemeToServer,
   setTheme,
   themeAllowedForLevel,
   type ThemeMode,
@@ -108,11 +109,13 @@ export function ProfileScreen({
 }: Props) {
   const [cups, setCups] = useState(xp);
   const [theme, setThemeState] = useState<ThemeMode>(() => getStoredTheme());
+  const [themeLevelReady, setThemeLevelReady] = useState(false);
   const changeTheme = useCallback((mode: ThemeMode) => {
     const next = themeAllowedForLevel(mode, miniappLevelFromCups(cups));
     setTheme(next);
     setThemeState(next);
-  }, [cups]);
+    if (initData?.trim()) void persistThemeToServer(initData, next);
+  }, [cups, initData]);
   const [profile, setProfile] = useState<ProfileData>(EMPTY_PROFILE);
   const [savedProfile, setSavedProfile] = useState<ProfileData>(EMPTY_PROFILE);
   const [profileLoading, setProfileLoading] = useState(true);
@@ -238,14 +241,14 @@ export function ProfileScreen({
   }, []);
 
   useEffect(() => {
-    // Пока кубки не приехали, уровень = 1. Нельзя затирать сохранённую Розовую.
-    if (profileLoading && xp <= 0) return;
+    // Пока кубки не приехали с сервера, уровень = 1. Нельзя затирать Розовую.
+    if (!themeLevelReady) return;
     const next = themeAllowedForLevel(getStoredTheme(), level);
     if (next !== theme) {
       setTheme(next);
       setThemeState(next);
     }
-  }, [level, theme, profileLoading, xp]);
+  }, [level, theme, themeLevelReady]);
 
   const load = useCallback(async () => {
     if (!api || !inTelegram || !initData?.trim()) {
@@ -266,6 +269,7 @@ export function ProfileScreen({
         display_name?: string;
         timezone_offset?: number;
         xp?: number;
+        theme?: string;
         streak_save_attempts_used?: number;
         streak_save_attempts_max?: number;
       };
@@ -290,6 +294,12 @@ export function ProfileScreen({
       if (typeof j.xp === "number") {
         setCups(Math.max(0, j.xp));
       }
+      if (j.theme === "light" || j.theme === "dark" || j.theme === "leopard") {
+        const next = themeAllowedForLevel(j.theme, miniappLevelFromCups(typeof j.xp === "number" ? j.xp : cups));
+        setTheme(next);
+        setThemeState(next);
+      }
+      setThemeLevelReady(true);
       if (typeof j.streak_save_attempts_used === "number") {
         setSaveStreakUsed(Math.max(0, j.streak_save_attempts_used));
       }
