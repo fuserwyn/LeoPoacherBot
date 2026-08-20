@@ -970,19 +970,14 @@ html.app-keyboard-open .profile__health-actions--keyboard {
   background: color-mix(in srgb, var(--accent) 7%, var(--card-inner));
 }
 
-/* Поддержать проект: добровольный донат звёздами или картой.
-   Обособленная карточка, как «Уведомления» — раздел, а не строка настроек. */
+/* Поддержать проект — тот же тон, что «Поддержка»: заголовок, текст, кнопки. */
 .profile__donate {
   margin-top: 18px;
-  padding: 14px;
-  border-radius: var(--radius-sm);
-  border: 1px solid var(--border-subtle);
-  background: var(--card-inner);
+  margin-bottom: 0;
 }
 
 .profile__donate .section-title {
   margin-top: 0;
-  margin-bottom: 8px;
 }
 
 .profile__donate-method {
@@ -990,6 +985,12 @@ html.app-keyboard-open .profile__health-actions--keyboard {
   flex-direction: column;
   gap: 8px;
   margin-top: 14px;
+}
+
+.profile__donate-method + .profile__donate-method {
+  margin-top: 16px;
+  padding-top: 14px;
+  border-top: 1px solid var(--border-subtle);
 }
 
 .profile__donate-label {
@@ -1028,18 +1029,12 @@ html.app-keyboard-open .profile__health-actions--keyboard {
   cursor: not-allowed;
 }
 
-.profile__donate-btn {
+.profile__donate-btn,
+.profile__support-btn {
   width: 100%;
   margin-top: 0;
-  padding: 11px 16px;
-  font-size: 14px;
-}
-
-/* Карта — вторичный способ: контур вместо заливки, чтобы звёзды читались основным. */
-.profile__donate-btn--card {
-  background: transparent;
-  border: 1px solid color-mix(in srgb, var(--accent) 55%, transparent);
-  color: var(--accent);
+  padding: 14px 20px;
+  font-size: 15px;
 }
 
 .profile__donate-note {
