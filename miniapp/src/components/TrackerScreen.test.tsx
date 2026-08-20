@@ -68,6 +68,18 @@ const running: TrackerTask = {
   dev_column: "doing",
 };
 
+const reviewed: TrackerTask = {
+  ...running,
+  status: "reviewing",
+  status_label: "Review",
+  status_icon: "👀",
+  phase: "review",
+  dev_column: "review",
+  has_result: true,
+  result: "⏰ Задача #1 выполнена.\n\nГотово.\n- Подпись теперь только «сгорит через …».",
+  live_step: "Агент сдал результат",
+};
+
 describe("TrackerScreen refresh button", () => {
   it("calls refresh and moves a due card into work", async () => {
     trackerList.mockResolvedValue({ tasks: [pending], started: 0 });
@@ -86,5 +98,17 @@ describe("TrackerScreen refresh button", () => {
       expect(document.querySelector('[data-col="doing"]')?.textContent).toContain("#1");
     });
     expect(alerts.some((a) => a.includes("Взяли 1"))).toBe(true);
+  });
+
+  it("shows a completed result on the Review column, not in work", async () => {
+    trackerList.mockResolvedValue({ tasks: [reviewed], started: 0 });
+    trackerAuthors.mockResolvedValue([]);
+
+    render(<TrackerScreen initData="admin" showAlert={() => undefined} />);
+    await waitFor(() => expect(screen.getByText("#1")).toBeTruthy());
+    expect(document.querySelector('[data-col="doing"]')?.textContent).not.toContain("#1");
+    expect(document.querySelector('[data-col="review"]')?.textContent).toContain("#1");
+    expect(document.querySelector('[data-col="review"]')?.textContent).toContain("👀");
+    expect(document.querySelector(".tracker-card__live--result")?.textContent).toContain("выполнена");
   });
 });

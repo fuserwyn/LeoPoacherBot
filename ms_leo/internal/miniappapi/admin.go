@@ -755,9 +755,21 @@ func (s *Server) handleBoardNotify(w http.ResponseWriter, r *http.Request) {
 		notifyUser = tokenUser
 	}
 	taskID := parseJSONInt64(body.TaskID)
-	// Карточка уже могла стать «выполнено» без пуша — сборку запускаем сами,
-	// даже если Telegram сейчас не отвечает: иначе фича так и не уедет.
-	s.bot.ShipTrackerTaskInBackground(taskID, notifyUser)
+	// Сначала двигаем свою карточку: «выполнена» больше не должна висеть
+	// в «В работе», пока человеку уже написали в личку.
+	localID, ship, applyErr := s.bot.ApplyBoardNotify(taskID, text)
+	if applyErr != nil && s.logger != nil {
+		s.logger.Warnf("трекер: не обновить карточку по уведомлению: %v", applyErr)
+	}
+	shipID := localID
+	if shipID <= 0 {
+		shipID = taskID
+	}
+	// Сборку зовём только если карточка уже у публикации (fast-track / deploy).
+	// Review и тест — следующий шаг человека, пуш там рано.
+	if ship || localID <= 0 {
+		s.bot.ShipTrackerTaskInBackground(shipID, notifyUser)
+	}
 	// Автора может не быть: задачу ставили из чата, а не из мини-аппа. Тогда
 	// результат уходит админам стаи — иначе о выполненной задаче никто не узнает.
 	if err := s.bot.NotifyTrackerResult(notifyUser, text); err != nil {

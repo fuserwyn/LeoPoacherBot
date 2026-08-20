@@ -144,6 +144,13 @@ function plural(n: number, one: string, few: string, many: string): string {
   return many;
 }
 
+/** Короткий хвост результата на карточке: «Готово» видно, не раскрывая модалку. */
+function clipCardText(text: string, max = 180): string {
+  const raw = String(text || "").replace(/\s+/g, " ").trim();
+  if (raw.length <= max) return raw;
+  return `${raw.slice(0, max)}…`;
+}
+
 function cardClasses(t: TrackerTask, isQa: boolean): string {
   const cls = ["tracker-card"];
   if (isQa) {
@@ -1285,6 +1292,7 @@ function TaskCard({
   const steps = Array.isArray(task.steps) ? task.steps : [];
   const live = (task.live_step || "").trim() || (steps.length ? String(steps[steps.length - 1] || "").trim() : "");
   const showLive = task.status === "running" || task.status === "reviewing" || task.steps_running;
+  const resultPreview = clipCardText(task.result || "");
   const meta = metaParts(task, isQa);
   return (
     <div className={cardClasses(task, isQa)} role="button" tabIndex={0} onClick={onOpen}>
@@ -1310,7 +1318,9 @@ function TaskCard({
           ) : null}
         </div>
       ) : null}
-      {showLive ? (
+      {resultPreview ? (
+        <div className="tracker-card__live tracker-card__live--result">{resultPreview}</div>
+      ) : showLive ? (
         <div className="tracker-card__live">{live || "⏳ выполняется…"}</div>
       ) : null}
       {meta.length > 0 ? (

@@ -60,12 +60,7 @@ type TrackerAttachment struct {
 	Data []byte
 }
 
-// ListTrackerTasks — вся доска, свежие сверху. Лимит, чтобы админка не тянула архив.
-func (d *Database) ListTrackerTasks() ([]TrackerTask, error) {
-	if d == nil || d.db == nil {
-		return nil, fmt.Errorf("база недоступна")
-	}
-	rows, err := d.db.Query(`
+const trackerTaskSelect = `
 		SELECT t.id, t.num, t.prompt, t.when_at, t.when_label, t.repeat, t.kind,
 		       t.status, t.dev_column, t.qa_column, t.qa_status, t.handed_to_qa,
 		       t.auto_review, t.manual_qa, t.fast_track, t.auto_push,
@@ -73,6 +68,14 @@ func (d *Database) ListTrackerTasks() ([]TrackerTask, error) {
 		       t.created_at, t.last_run_at, t.updated_at,
 		       (SELECT COUNT(*) FROM pack_tracker_attachments a WHERE a.task_id = t.id)
 		FROM pack_tracker_tasks t
+`
+
+// ListTrackerTasks — вся доска, свежие сверху. Лимит, чтобы админка не тянула архив.
+func (d *Database) ListTrackerTasks() ([]TrackerTask, error) {
+	if d == nil || d.db == nil {
+		return nil, fmt.Errorf("база недоступна")
+	}
+	rows, err := d.db.Query(trackerTaskSelect + `
 		ORDER BY t.id DESC
 		LIMIT 300
 	`)
@@ -97,16 +100,7 @@ func (d *Database) GetTrackerTask(id int64) (TrackerTask, error) {
 	if d == nil || d.db == nil || id <= 0 {
 		return empty, fmt.Errorf("задача не найдена")
 	}
-	row := d.db.QueryRow(`
-		SELECT t.id, t.num, t.prompt, t.when_at, t.when_label, t.repeat, t.kind,
-		       t.status, t.dev_column, t.qa_column, t.qa_status, t.handed_to_qa,
-		       t.auto_review, t.manual_qa, t.fast_track, t.auto_push,
-		       t.error, t.result, t.steps, t.author_id,
-		       t.created_at, t.last_run_at, t.updated_at,
-		       (SELECT COUNT(*) FROM pack_tracker_attachments a WHERE a.task_id = t.id)
-		FROM pack_tracker_tasks t
-		WHERE t.id = $1
-	`, id)
+	row := d.db.QueryRow(trackerTaskSelect+`WHERE t.id = $1`, id)
 	t, err := scanTrackerTask(row)
 	if err == sql.ErrNoRows {
 		return empty, fmt.Errorf("задача не найдена")
@@ -121,6 +115,44 @@ func (d *Database) GetTrackerTask(id int64) (TrackerTask, error) {
 	t.Attachments = atts
 	t.AttachmentsCount = len(atts)
 	return t, nil
+}
+
+// GetTrackerTaskByNum — карточка по номеру на доске (#1, #236).
+// Уведомление часто шлёт номер, а не внутренний id.
+func (d *Database) GetTrackerTaskByNum(num int) (TrackerTask, error) {
+	var empty TrackerTask
+	if d == nil || d.db == nil || num <= 0 {
+		return empty, fmt.Errorf("задача не найдена")
+	}
+	row := d.db.QueryRow(trackerTaskSelect+`WHERE t.num = $1`, num)
+	t, err := scanTrackerTask(row)
+	if err == sql.ErrNoRows {
+		return empty, fmt.Errorf("задача не найдена")
+	}
+	return t, err
+}
+
+// FindOpenTrackerTask — самая свежая карточка в работе или на review.
+// Если id в уведомлении чужой (внешняя доска), двигаем то, что сейчас открыто.
+func (d *Database) FindOpenTrackerTask() (TrackerTask, error) {
+	var empty TrackerTask
+	if d == nil || d.db == nil {
+		return empty, fmt.Errorf("база недоступна")
+	}
+	row := d.db.QueryRow(trackerTaskSelect+`
+		WHERE t.status IN ('running', 'reviewing')
+		   OR (
+		        COALESCE(NULLIF(t.dev_column, ''), 'todo') IN ('doing', 'review')
+		    AND t.status NOT IN ('done', 'canceled', 'cancelled')
+		   )
+		ORDER BY t.last_run_at DESC NULLS LAST, t.id DESC
+		LIMIT 1
+	`)
+	t, err := scanTrackerTask(row)
+	if err == sql.ErrNoRows {
+		return empty, nil
+	}
+	return t, err
 }
 
 // CreateTrackerTask — новая карточка. Номер — следующий на доске.

@@ -448,6 +448,14 @@
   text-overflow: ellipsis;
 }
 
+.tracker-card__live--result {
+  white-space: normal;
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  text-overflow: unset;
+}
+
 .tracker-card__meta {
   display: flex;
   flex-wrap: wrap;
