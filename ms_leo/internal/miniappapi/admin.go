@@ -77,9 +77,8 @@ func (s *Server) handlePostAdminOverview(w http.ResponseWriter, r *http.Request)
 	_ = json.NewEncoder(w).Encode(map[string]any{"ok": true, "overview": overview})
 }
 
-// handlePostAdminTracker — единственная дверь мини-аппа к доске задач в
-// MyVibeLab: op из белого списка, всё остальное делает bot.MiniappTrackerCall.
-// Ответ трекера отдаём как есть — формат карточек и статусов у нас общий.
+// handlePostAdminTracker — дверь мини-аппа к своей доске задач.
+// op из белого списка, всё остальное делает bot.MiniappTrackerCall.
 func (s *Server) handlePostAdminTracker(w http.ResponseWriter, r *http.Request) {
 	corsWriteHeaders(w, r)
 	var body struct {

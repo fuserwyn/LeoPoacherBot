@@ -1496,6 +1496,59 @@ var Migrations = []Migration{
 			DROP TABLE IF EXISTS leo_autonomy;
 		`,
 	},
+	{
+		Version:     77,
+		Description: "Своя доска задач в админке: задачи и вложения",
+		UpSQL: `
+			-- Доска живёт у нас, а не на чужом трекере: карточки, QA и фото
+			-- остаются в базе стаи и не зависят от гостевой сессии снаружи.
+			CREATE TABLE IF NOT EXISTS pack_tracker_tasks (
+				id            BIGSERIAL PRIMARY KEY,
+				num           INT NOT NULL,
+				prompt        TEXT NOT NULL,
+				when_at       TIMESTAMP WITH TIME ZONE NOT NULL,
+				when_label    TEXT NOT NULL DEFAULT '',
+				repeat        TEXT NOT NULL DEFAULT 'разово',
+				kind          TEXT NOT NULL DEFAULT 'task',
+				status        TEXT NOT NULL DEFAULT 'pending',
+				dev_column    TEXT NOT NULL DEFAULT 'todo',
+				qa_column     TEXT,
+				qa_status     TEXT,
+				handed_to_qa  BOOLEAN NOT NULL DEFAULT FALSE,
+				auto_review   BOOLEAN NOT NULL DEFAULT FALSE,
+				manual_qa     BOOLEAN NOT NULL DEFAULT FALSE,
+				fast_track    BOOLEAN NOT NULL DEFAULT FALSE,
+				auto_push     BOOLEAN NOT NULL DEFAULT FALSE,
+				error         TEXT NOT NULL DEFAULT '',
+				result        TEXT NOT NULL DEFAULT '',
+				steps         JSONB NOT NULL DEFAULT '[]'::jsonb,
+				author_id     BIGINT,
+				created_at    TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
+				last_run_at   TIMESTAMP WITH TIME ZONE,
+				updated_at    TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW()
+			);
+			CREATE UNIQUE INDEX IF NOT EXISTS pack_tracker_tasks_num_uidx
+				ON pack_tracker_tasks (num);
+			CREATE INDEX IF NOT EXISTS pack_tracker_tasks_board_idx
+				ON pack_tracker_tasks (dev_column, created_at DESC);
+
+			CREATE TABLE IF NOT EXISTS pack_tracker_attachments (
+				id         TEXT PRIMARY KEY,
+				task_id    BIGINT NOT NULL REFERENCES pack_tracker_tasks(id) ON DELETE CASCADE,
+				name       TEXT NOT NULL,
+				mime       TEXT NOT NULL,
+				size       INT NOT NULL,
+				data       BYTEA NOT NULL,
+				created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW()
+			);
+			CREATE INDEX IF NOT EXISTS pack_tracker_attachments_task_idx
+				ON pack_tracker_attachments (task_id, created_at);
+		`,
+		DownSQL: `
+			DROP TABLE IF EXISTS pack_tracker_attachments;
+			DROP TABLE IF EXISTS pack_tracker_tasks;
+		`,
+	},
 }
 
 // MigrationRecord представляет запись о выполненной миграции

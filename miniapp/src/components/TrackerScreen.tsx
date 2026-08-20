@@ -16,10 +16,9 @@ import {
   trackerCreate,
   trackerDelete,
   trackerList,
-  trackerPromote,
+  trackerMove,
   trackerQa,
   trackerReschedule,
-  trackerRevert,
   trackerRunNow,
   trackerShip,
   trackerTask,
@@ -30,7 +29,6 @@ import {
 } from "../lib/trackerApi";
 import { TaskImageEditor, type TaskImage } from "./TaskImageEditor";
 import { LEO_AVATAR_URL } from "../lib/leoAvatar";
-import { tgConfirm } from "../lib/tgConfirm";
 import "./TrackerScreen.css";
 
 type Props = {
@@ -38,13 +36,13 @@ type Props = {
   showAlert: (text: string) => void;
 };
 
-/** Колонки разработчика и тестировщика — те же, что на доске MyVibeLab. */
+/** Колонки разработчика и тестировщика. */
 const DEV_COLS = [
   { key: "todo", title: "Ожидает" },
   { key: "doing", title: "В работе" },
   { key: "review", title: "Review" },
   { key: "test", title: "Тест" },
-  { key: "deploy", title: "Сборка" },
+  { key: "deploy", title: "Публикация" },
   { key: "done", title: "Выполнено" },
   { key: "canceled", title: "Отменено" },
 ];
@@ -66,7 +64,7 @@ function whenFromPicker(value: string): string {
   return value.replace("T", " ");
 }
 
-/** «[Спринт 2] текст» → номер спринта отдельным бейджем, как в MyVibeLab. */
+/** «[Спринт 2] текст» → номер спринта отдельным бейджем. */
 function parsePrompt(prompt: string): { sprint: number | null; text: string } {
   const raw = String(prompt || "").trim();
   const m = raw.match(/^\[Спринт\s+(\d+)\]\s*/i);
@@ -111,10 +109,18 @@ function formatWhen(iso: string): string {
   });
 }
 
-/** Задачу придумал Лео, а админ одобрил. Тот же id пишет MyVibeLab (board_share.LEO_AUTHOR_ID). */
+/** Задачу придумал Лео, а админ одобрил. */
 const LEO_AUTHOR_ID = -1;
 
-/** Автор задачи: Лео, гость мини-аппа или сам MyVibeLab, если ставили оттуда. */
+const NEXT_COL: Record<string, { column: string; label: string }> = {
+  todo: { column: "doing", label: "В работу" },
+  doing: { column: "review", label: "На review" },
+  review: { column: "test", label: "На тест" },
+  test: { column: "deploy", label: "К сборке" },
+  deploy: { column: "done", label: "Выполнено" },
+};
+
+/** Автор задачи: Лео или человек из админки. */
 function authorLabel(task: TrackerTask, authors: Record<number, string>): string {
   const id = Number(task.author_id) || 0;
   if (id === LEO_AUTHOR_ID) return "Лео";
@@ -371,56 +377,6 @@ export function TrackerScreen({ initData, showAlert }: Props) {
     await createTaskWith(proposal.task, { leo: true });
   };
 
-  /** Конфликт при переносе/откате — тупик только для git, но не для работы:
-      предлагаем поставить задачу, которую агент доведёт руками. */
-  const offerFixTask = async (task: TrackerTask, what: "Перенос" | "Откат", reason: string) => {
-    const ok = await tgConfirm(
-      `${what} не встал автоматически: ${reason}\n\nПоставить задачу, чтобы это сделали руками?`,
-    );
-    if (!ok) return;
-    const text =
-      `${what === "Откат" ? "Откатить" : "Перенести"} задачу #${taskNo(task)} вручную: ` +
-      `«${parsePrompt(task.prompt).text.slice(0, 200)}». ` +
-      "Автоматически не вышло — с тех пор те же места правили, git не смог применить изменение сам. " +
-      "Разберись в коде и приведи поведение к нужному состоянию.";
-    try {
-      const res = await trackerCreate(initData, { when: "через 5 мин", prompt: text });
-      showAlert(`Задача-исправление поставлена на ${res.when || "ближайший запуск"}.`);
-      await load(true);
-    } catch (e) {
-      showAlert(e instanceof Error ? e.message : "Не удалось поставить задачу");
-    }
-  };
-
-  /** Перенос и откат: успех — обычный путь, конфликт — предложение поправить задачей. */
-  const applyResult = async (task: TrackerTask, what: "Перенос" | "Откат") => {
-    setBusy(true);
-    try {
-      const res =
-        what === "Откат"
-          ? await trackerRevert(initData, task.id)
-          : await trackerPromote(initData, task.id);
-      showAlert(
-        what === "Откат"
-          ? `Задача откачена, коммит ${res.commit || ""}`.trim()
-          : `Забрал на основной стенд, коммит ${res.commit || ""}`.trim(),
-      );
-      const j = await trackerTask(initData, task.id);
-      if (j.task) setDetail(j.task);
-      await load(true);
-    } catch (e) {
-      const reason = e instanceof Error ? e.message : "не получилось";
-      // Конфликт узнаём по тексту трекера: он единственный, кто может его отдать.
-      if (/не встал|конфликт|разош/i.test(reason)) {
-        await offerFixTask(task, what, reason);
-      } else {
-        showAlert(reason);
-      }
-    } finally {
-      setBusy(false);
-    }
-  };
-
   const openTask = async (task: TrackerTask) => {
     setDetail(task);
     setMoveAt("");
@@ -432,8 +388,7 @@ export function TrackerScreen({ initData, showAlert }: Props) {
     }
   };
 
-  // Превью вложений: MyVibeLab отдаёт байты только по гостевой куке, поэтому
-  // тянем их через свой бэкенд и держим как data-URL.
+  // Превью вложений: байты идут через свой бэкенд, ссылкой их не показать.
   useEffect(() => {
     const list = detail?.attachments;
     if (!detail || !list || list.length === 0) return;
@@ -673,8 +628,8 @@ export function TrackerScreen({ initData, showAlert }: Props) {
 
           <p className="tracker__hint">
             {isQa
-              ? "После сдачи агент сам прогоняет AI-тест. Можно принять, вернуть в работу или запустить тест ещё раз."
-              : "Ожидает → в работе → Review → тест → сборка на сервере → выполнено."}
+              ? "После сдачи можно принять, вернуть в работу или попросить Лео написать чек-лист."
+              : "Ожидает → в работе → Review → тест → к публикации → выполнено. На сервер код уедет, когда напишешь «запушь»."}
           </p>
 
           {loading ? (
@@ -735,8 +690,7 @@ export function TrackerScreen({ initData, showAlert }: Props) {
               </div>
               <p className="tracker__hint">
                 Раз в {autonomy.every_hours} ч Лео придумывает спринт своим голосом и сам ставит
-                задачи — по {autonomy.tasks_per_run} за прогон. Выполняет их тот же агент, на доске
-                у них его аватарка.
+                задачи — по {autonomy.tasks_per_run} за прогон. На доске у них его аватарка.
               </p>
               {autonomy.active ? (
                 <p className="tracker__auto-facts">
@@ -899,8 +853,7 @@ export function TrackerScreen({ initData, showAlert }: Props) {
       ) : (
         <div className="tracker__sprint">
           <p className="tracker__hint">
-            Опиши тему спринта — агент разберёт проект, предложит идеи и нарежет задачи с требованиями и критериями
-            приёмки.
+            Опиши тему спринта — Лео предложит идеи и нарежет задачи. Потом их можно поставить на доску.
           </p>
           <textarea
             value={hint}
@@ -1033,8 +986,7 @@ export function TrackerScreen({ initData, showAlert }: Props) {
               <span>Поставил: {authorLabel(detail, authors)}</span>
             </div>
             <p className="tracker-modal__prompt">{parsePrompt(detail.prompt).text}</p>
-            {/* Приложенные фото: агент их видит (они уходят к нему вместе с
-                задачей), а здесь их можно рассмотреть и заменить. */}
+            {/* Приложенные фото: их можно рассмотреть и заменить. */}
             <div className="tracker-modal__atts">
               {(detail.attachments ?? []).map((att) => (
                 <div key={att.id} className="tracker-att">
@@ -1101,57 +1053,27 @@ export function TrackerScreen({ initData, showAlert }: Props) {
             ) : null}
             {detail.result ? <pre className="tracker-modal__log">{detail.result}</pre> : null}
             {detail.error ? <pre className="tracker-modal__log tracker-modal__log--err">{detail.error}</pre> : null}
-            {/* Пуш и сборка — даже без SHA: агент часто не может git push.
-                Перенос и откат по-прежнему только если коммит известен. */}
-            {canShipTask(detail) || detail.commit ? (
+            {canShipTask(detail) ? (
               <div className="tracker-modal__result">
                 <span className="tracker-modal__commit">
-                  {detail.commit ? `коммит ${detail.commit}` : "коммита нет — пуш с сервера проекта был закрыт"}
-                  {detail.branch ? ` · ветка ${detail.branch}` : ""}
+                  Код в этом проекте. Чтобы выкатить на сервер — напиши «запушь».
                 </span>
                 <div className="tracker-modal__result-row">
-                  {detail.branch && detail.commit ? (
-                    <button
-                      type="button"
-                      className="tracker__primary"
-                      disabled={busy}
-                      onClick={() => void applyResult(detail, "Перенос")}
-                    >
-                      Забрать на основной стенд
-                    </button>
-                  ) : null}
-                  {canShipTask(detail) ? (
-                    <button
-                      type="button"
-                      className="tracker__primary"
-                      disabled={busy}
-                      onClick={() =>
-                        void actOnDetail(async () => {
-                          const res = await trackerShip(initData, detail.id);
-                          if (res.skipped) throw new Error("Задачу ещё рано пушить — агент ещё работает.");
-                          if (res.pushed || res.deployed) return;
-                          if (res.error) throw new Error(res.error);
-                        }, "Пуш и сборка на сервере запущены.")
-                      }
-                    >
-                      Запушить и собрать
-                    </button>
-                  ) : null}
-                  {detail.commit ? (
-                    <button
-                      type="button"
-                      className="tracker__attach"
-                      disabled={busy}
-                      onClick={() => {
-                        void (async () => {
-                          if (!(await tgConfirm("Откатить результат этой задачи обратным коммитом?"))) return;
-                          await applyResult(detail, "Откат");
-                        })();
-                      }}
-                    >
-                      Откатить
-                    </button>
-                  ) : null}
+                  <button
+                    type="button"
+                    className="tracker__primary"
+                    disabled={busy}
+                    onClick={() =>
+                      void actOnDetail(async () => {
+                        const res = await trackerShip(initData, detail.id);
+                        if (res.skipped) throw new Error("Задачу ещё рано отмечать — сдвинь её дальше по доске.");
+                        if (res.deployed || res.pushed) return;
+                        if (res.error) throw new Error(res.error);
+                      }, "Отмечено. Чтобы выкатить на сервер — напиши «запушь».")
+                    }
+                  >
+                    Отметить к публикации
+                  </button>
                 </div>
               </div>
             ) : null}
@@ -1184,6 +1106,21 @@ export function TrackerScreen({ initData, showAlert }: Props) {
               <button type="button" disabled={busy} onClick={() => setEditorFor(detail.id)}>
                 🖼 Картинка
               </button>
+              {!isQa && NEXT_COL[detail.dev_column || "todo"] ? (
+                <button
+                  type="button"
+                  className="tracker-modal__accent"
+                  disabled={busy}
+                  onClick={() =>
+                    void actOnDetail(
+                      () => trackerMove(initData, detail.id, NEXT_COL[detail.dev_column || "todo"].column),
+                      `Сдвинули: ${NEXT_COL[detail.dev_column || "todo"].label}.`,
+                    )
+                  }
+                >
+                  {NEXT_COL[detail.dev_column || "todo"].label}
+                </button>
+              ) : null}
               {canReturnToWork(detail) ? (
                 <button
                   type="button"
@@ -1198,10 +1135,19 @@ export function TrackerScreen({ initData, showAlert }: Props) {
               ) : null}
               {isQa && detail.handed_to_qa ? (
                 <>
+                  {(detail.qa_column || "todo") === "todo" ? (
+                    <button
+                      type="button"
+                      disabled={busy}
+                      onClick={() => void act(() => trackerQa(initData, detail.id, "start"), "Взяли в тест.")}
+                    >
+                      Взять в тест
+                    </button>
+                  ) : null}
                   <button
                     type="button"
                     disabled={busy}
-                    onClick={() => void act(() => trackerQa(initData, detail.id, "pass"), "Задача принята — пуш и сборка стартуют.")}
+                    onClick={() => void act(() => trackerQa(initData, detail.id, "pass"), "Задача принята. Чтобы выкатить — напиши «запушь».")}
                   >
                     Принять
                   </button>
@@ -1215,7 +1161,7 @@ export function TrackerScreen({ initData, showAlert }: Props) {
                   <button
                     type="button"
                     disabled={busy}
-                    onClick={() => void act(() => trackerAutoQa(initData, detail.id), "AI-тест запущен.")}
+                    onClick={() => void act(() => trackerAutoQa(initData, detail.id), "Лео написал чек-лист.")}
                   >
                     AI-тест
                   </button>

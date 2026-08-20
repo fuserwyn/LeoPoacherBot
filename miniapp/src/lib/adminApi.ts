@@ -136,7 +136,7 @@ export function adminErrorLabel(code?: string): string {
     case "invalid_price":
       return "Цена должна быть от 1 до 100000 ₽";
     case "tracker_not_configured":
-      return "Трекер не настроен: нет BOARD_SSO_SECRET";
+      return "Доска недоступна";
     default:
       return code ?? "";
   }

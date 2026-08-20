@@ -1,9 +1,6 @@
 /**
- * Доска задач Леопарда. Живёт в MyVibeLab, ходим к ней через свой бэкенд
- * (ms_leo, ручка /api/miniapp/admin/tracker): секрет подписи гостевой сессии
- * нельзя отдавать в браузер, а наш initData MyVibeLab проверить не может —
- * он подписан токеном Леопарда. Формат карточек и статусов общий с MyVibeLab,
- * поэтому типы описывают ровно то, что отдаёт его трекер.
+ * Своя доска задач в админке. Мини-апп ходит только к ms_leo
+ * (/api/miniapp/admin/tracker): карточки лежат в нашей базе.
  */
 const api = (import.meta.env.VITE_MINIAPP_API_URL as string | undefined)?.replace(/\/$/, "") ?? "";
 
@@ -17,7 +14,7 @@ export type TrackerAttachment = {
 
 export type TrackerTask = {
   id: number;
-  /** Номер внутри доски: id общий на всю базу MyVibeLab и участнику ничего не говорит. */
+  /** Номер внутри доски: id общий, участнику ничего не говорит. */
   num?: number;
   prompt: string;
   repo: string;
@@ -96,6 +93,7 @@ export type TrackerOp =
   | "promote"
   | "revert"
   | "ship"
+  | "move"
   | "sprint_ideas"
   | "sprint_generate"
   | "sprint_apply";
@@ -128,7 +126,7 @@ function trackerErrorLabel(code?: string): string {
       return "Открой мини-апп из чата стаи";
     case "tracker not configured":
     case "tracker_not_configured":
-      return "Трекер не настроен: нет BOARD_SSO_SECRET";
+      return "Доска недоступна";
     case "invalid_action":
       return "Такое действие доске недоступно";
     default:
@@ -169,8 +167,7 @@ export function trackerRevert(initData: string, taskId: number) {
   return call<{ commit: string }>(initData, "revert", { payload: { id: taskId } });
 }
 
-/** Довести выполненную задачу до сервера: перенос в основную ветку, пуш, сборка.
- *  Коммит не обязателен — агент часто не может git push с сервера проекта. */}
+/** Отметить задачу готовой к публикации. Выкатить код — отдельным «запушь». */
 export function trackerShip(initData: string, taskId: number) {
   return call<{ promoted?: boolean; pushed?: boolean; deployed?: boolean; skipped?: boolean; error?: string }>(
     initData,
@@ -201,8 +198,12 @@ export function trackerReschedule(initData: string, taskId: number, when: string
   return call<{ ok: boolean }>(initData, "reschedule", { payload: { id: taskId, when } });
 }
 
-/** Вернуть завершённую или отменённую задачу в очередь. Доска принимает только
- *  время в будущем — «сейчас» для неё та же фраза, что при постановке задачи. */
+/** Сдвинуть карточку: column — колонка или «next». */
+export function trackerMove(initData: string, taskId: number, column: string) {
+  return call<{ ok: boolean }>(initData, "move", { task_id: taskId, payload: { id: taskId, column } });
+}
+
+/** Вернуть завершённую или отменённую задачу в очередь. */
 export function trackerRunNow(initData: string, taskId: number) {
   return call<{ ok: boolean }>(initData, "reschedule", {
     payload: { id: taskId, when: "через 1 мин" },
@@ -257,7 +258,7 @@ export async function leoProposeTask(
   return { reply: j.reply ?? "", title: j.title ?? "", task: j.task ?? "" };
 }
 
-/** Байты приложенного фото: MyVibeLab отдаёт их по гостевой куке, поэтому идём через свой бэкенд. */
+/** Байты приложенного фото: отдаём через свой бэкенд, ссылкой их не показать. */
 export async function trackerAttachmentGet(
   initData: string,
   taskId: number,

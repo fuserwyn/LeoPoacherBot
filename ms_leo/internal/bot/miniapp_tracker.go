@@ -1,16 +1,11 @@
 package bot
 
 import (
-	"bytes"
 	"crypto/hmac"
 	"crypto/sha256"
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
-	"io"
-	"mime/multipart"
-	"net/http"
-	"net/textproto"
 	"strconv"
 	"strings"
 	"time"
@@ -21,64 +16,19 @@ import (
 	initdata "github.com/telegram-mini-apps/init-data-golang"
 )
 
-// Трекер задач Леопарда живёт в MyVibeLab: там доска, спринты и агент, который
-// эти задачи выполняет. Доску показываем прямо в мини-аппе (TrackerScreen), а
-// сюда сводим весь разговор с MyVibeLab: мини-апп ходит только к нам, а мы уже
-// подписываем гостевую сессию общим секретом (BOARD_SSO_SECRET) и дёргаем
-// нужную ручку трекера.
+// Трекер задач Леопарда живёт у нас: карточки в pack_tracker_tasks, фото в
+// pack_tracker_attachments. Доску рисует TrackerScreen в админке.
 //
-// Почему через нас, а не напрямую из браузера: секрет подписи нельзя отдавать
-// в мини-апп (его собрал бы кто угодно, кто открыл приложение), а initData
-// Леопарда MyVibeLab проверить не может — она подписана нашим токеном бота.
-const (
-	trackerSessionTTL = 12 * time.Hour
-	trackerTimeout    = 45 * time.Second
-	// Спринты — это ход ИИ по коду проекта: разбор репозитория и нарезка задач
-	// занимают до минуты с лишним, обычного таймаута не хватает.
-	trackerSlowTimeout = 180 * time.Second
-)
+// Раньше ходили на чужую доску по гостевой сессии. Своя доска не зависит от
+// чужого секрета, а выкатить код на сервер человек делает сам («запушь»).
+const trackerSessionTTL = 12 * time.Hour
 
-// ErrTrackerNotConfigured — не задан секрет или адрес: доску показывать нечем.
+// ErrTrackerNotConfigured — старый код гостевой сессии: доска теперь своя,
+// этот код остаётся только для входящих уведомлений.
 var ErrTrackerNotConfigured = fmt.Errorf("tracker not configured")
 
-// trackerOp — что мини-апп разрешено делать с доской. Белый список, а не
-// произвольный путь: иначе через прокси можно было бы дотянуться до любой
-// ручки MyVibeLab от имени владельца доски.
-type trackerOp struct {
-	method string
-	path   string // {id} подставляется из task_id
-	slow   bool   // ход ИИ: длинный таймаут
-}
-
-var trackerOps = map[string]trackerOp{
-	"list":   {http.MethodGet, "/api/scheduled", false},
-	"create": {http.MethodPost, "/api/scheduled", false},
-	"task":   {http.MethodGet, "/api/scheduled/{id}", false},
-	"status": {http.MethodGet, "/api/scheduled/{id}/status", false},
-	"cancel": {http.MethodPost, "/api/scheduled/cancel", false},
-	// Результат выполненной задачи: забрать со стенда в прод или откатить.
-	"promote":         {http.MethodPost, "/api/scheduled/promote", true},
-	"revert":          {http.MethodPost, "/api/scheduled/revert", true},
-	"delete":          {http.MethodDelete, "/api/scheduled/{id}", false},
-	"qa":              {http.MethodPost, "/api/scheduled/qa", false},
-	"auto_qa":         {http.MethodPost, "/api/scheduled/auto_qa", true},
-	"prompt":          {http.MethodPost, "/api/scheduled/prompt", false},
-	"reschedule":      {http.MethodPost, "/api/scheduled/reschedule", false},
-	"sprint_ideas":    {http.MethodPost, "/api/scheduled/sprints/ideas", true},
-	"sprint_generate": {http.MethodPost, "/api/scheduled/sprints/generate", true},
-	"sprint_apply":    {http.MethodPost, "/api/scheduled/sprints/apply", true},
-	// Пуш в репозиторий и проверка сборки на сервере: задача может уже быть
-	// «выполнена», а контейнер — ещё со старым кодом, если авто-пуш не сработал.
-	"push":           {http.MethodPost, "/api/push", true},
-	"deploy_refresh": {http.MethodPost, "/api/deploy/refresh", true},
-	"deploy_watch":   {http.MethodGet, "/api/deploy/watch", false},
-}
-
 // MiniappTrackerAttach — приложить картинку к задаче.
-//
-// Трекер принимает файл только multipart-ом, а мини-апп отдаёт готовое
-// изображение из canvas (кроп + рисование) base64-строкой — собираем
-// multipart здесь, чтобы браузеру не нужно было знать про чужой протокол.
+// Мини-апп отдаёт готовое изображение из canvas base64-строкой.
 func (b *Bot) MiniappTrackerAttach(
 	viewerUserID int64,
 	initD initdata.InitData,
@@ -97,100 +47,29 @@ func (b *Bot) MiniappTrackerAttach(
 	if err != nil {
 		return nil, fmt.Errorf("картинка не разобралась")
 	}
-	const maxBytes = 8 << 20
-	if len(raw) == 0 || len(raw) > maxBytes {
-		return nil, fmt.Errorf("картинка должна быть до 8 МБ")
-	}
-	if filename = strings.TrimSpace(filename); filename == "" {
-		filename = "photo.jpg"
-	}
-	if mime = strings.TrimSpace(mime); mime == "" {
-		mime = "image/jpeg"
-	}
-	session, err := b.trackerSession(viewerUserID, trackerViewerName(initD))
+	att, err := b.db.AddTrackerAttachment(taskID, filename, mime, raw)
 	if err != nil {
 		return nil, err
 	}
-
-	body := &bytes.Buffer{}
-	writer := multipart.NewWriter(body)
-	header := make(textproto.MIMEHeader)
-	header.Set("Content-Disposition", fmt.Sprintf(`form-data; name="file"; filename=%q`, filename))
-	header.Set("Content-Type", mime)
-	part, err := writer.CreatePart(header)
-	if err != nil {
-		return nil, err
-	}
-	if _, err := part.Write(raw); err != nil {
-		return nil, err
-	}
-	if err := writer.Close(); err != nil {
-		return nil, err
-	}
-
-	url := fmt.Sprintf("%s/api/scheduled/%d/attachments", strings.TrimRight(b.config.BoardURL, "/"), taskID)
-	req, err := http.NewRequest(http.MethodPost, url, body)
-	if err != nil {
-		return nil, err
-	}
-	req.Header.Set("Cookie", "mvl_board="+session)
-	req.Header.Set("Content-Type", writer.FormDataContentType())
-	res, err := (&http.Client{Timeout: trackerTimeout}).Do(req)
-	if err != nil {
-		return nil, fmt.Errorf("трекер недоступен: %w", err)
-	}
-	defer res.Body.Close()
-	out, err := io.ReadAll(io.LimitReader(res.Body, 1<<20))
-	if err != nil {
-		return nil, err
-	}
-	if res.StatusCode >= 400 {
-		var errBody struct {
-			Error string `json:"error"`
-		}
-		_ = json.Unmarshal(out, &errBody)
-		if strings.TrimSpace(errBody.Error) != "" {
-			return nil, fmt.Errorf("%s", errBody.Error)
-		}
-		return nil, fmt.Errorf("трекер ответил %d", res.StatusCode)
-	}
-	if len(bytes.TrimSpace(out)) == 0 {
-		out = []byte("{}")
-	}
-	return json.RawMessage(out), nil
+	return trackerJSON(map[string]any{"id": att.ID, "name": att.Name, "mime": att.Mime, "size": att.Size})
 }
 
 // MiniappTrackerAttachmentGet — байты приложенного к задаче фото.
-//
-// Мини-апп не может забрать картинку у MyVibeLab сам: она отдаётся по гостевой
-// куке, а куку нельзя показывать браузеру. Поэтому качаем здесь и отдаём
-// base64 — картинки к задаче маленькие, ради них не заводим отдельный CDN.
 func (b *Bot) MiniappTrackerAttachmentGet(
 	viewerUserID int64, initD initdata.InitData, taskID int64, attID string,
 ) (mime string, data string, err error) {
 	if _, err := b.requireMiniappAdmin(viewerUserID, initD); err != nil {
 		return "", "", err
 	}
-	res, err := b.trackerAttachmentRequest(
-		http.MethodGet, taskID, attID, viewerUserID, trackerViewerName(initD),
-	)
+	att, err := b.db.GetTrackerAttachment(taskID, attID)
 	if err != nil {
 		return "", "", err
 	}
-	defer res.Body.Close()
-	const maxBytes = 8 << 20
-	raw, err := io.ReadAll(io.LimitReader(res.Body, maxBytes))
-	if err != nil {
-		return "", "", err
-	}
-	if res.StatusCode >= 400 {
-		return "", "", trackerHTTPError(raw, res.StatusCode)
-	}
-	mime = res.Header.Get("Content-Type")
+	mime = att.Mime
 	if mime == "" {
 		mime = "image/jpeg"
 	}
-	return mime, base64.StdEncoding.EncodeToString(raw), nil
+	return mime, base64.StdEncoding.EncodeToString(att.Data), nil
 }
 
 // MiniappTrackerAttachmentDelete — снять фото с задачи: так работает «заменить».
@@ -200,61 +79,7 @@ func (b *Bot) MiniappTrackerAttachmentDelete(
 	if _, err := b.requireMiniappAdmin(viewerUserID, initD); err != nil {
 		return err
 	}
-	res, err := b.trackerAttachmentRequest(
-		http.MethodDelete, taskID, attID, viewerUserID, trackerViewerName(initD),
-	)
-	if err != nil {
-		return err
-	}
-	defer res.Body.Close()
-	raw, err := io.ReadAll(io.LimitReader(res.Body, 1<<20))
-	if err != nil {
-		return err
-	}
-	if res.StatusCode >= 400 {
-		return trackerHTTPError(raw, res.StatusCode)
-	}
-	return nil
-}
-
-// trackerAttachmentRequest — запрос к одному вложению задачи под гостевой сессией.
-func (b *Bot) trackerAttachmentRequest(
-	method string, taskID int64, attID string, userID int64, name string,
-) (*http.Response, error) {
-	attID = strings.TrimSpace(attID)
-	if taskID <= 0 || attID == "" || len(attID) > 32 {
-		return nil, ErrAdminActionInvalid
-	}
-	session, err := b.trackerSession(userID, name)
-	if err != nil {
-		return nil, err
-	}
-	url := fmt.Sprintf(
-		"%s/api/scheduled/%d/attachments/%s",
-		strings.TrimRight(b.config.BoardURL, "/"), taskID, attID,
-	)
-	req, err := http.NewRequest(method, url, nil)
-	if err != nil {
-		return nil, err
-	}
-	req.Header.Set("Cookie", "mvl_board="+session)
-	res, err := (&http.Client{Timeout: trackerTimeout}).Do(req)
-	if err != nil {
-		return nil, fmt.Errorf("трекер недоступен: %w", err)
-	}
-	return res, nil
-}
-
-// trackerHTTPError — человеческий текст ошибки трекера, если он его прислал.
-func trackerHTTPError(raw []byte, status int) error {
-	var errBody struct {
-		Error string `json:"error"`
-	}
-	_ = json.Unmarshal(raw, &errBody)
-	if strings.TrimSpace(errBody.Error) != "" {
-		return fmt.Errorf("%s", errBody.Error)
-	}
-	return fmt.Errorf("трекер ответил %d", status)
+	return b.db.DeleteTrackerAttachment(taskID, attID)
 }
 
 // MiniappTrackerAuthors — кто ставил задачи: ник и имя по telegram_id.
@@ -313,9 +138,7 @@ func trackerViewerName(initD initdata.InitData) string {
 	return name
 }
 
-// MiniappTrackerCall — выполнить операцию доски от имени админа мини-аппа.
-// Возвращает тело ответа MyVibeLab как есть: разбирать его — дело экрана,
-// формат карточек и статусов у нас с MyVibeLab общий.
+// MiniappTrackerCall — операция своей доски от имени админа мини-аппа.
 func (b *Bot) MiniappTrackerCall(
 	viewerUserID int64,
 	initD initdata.InitData,
@@ -327,15 +150,11 @@ func (b *Bot) MiniappTrackerCall(
 		return nil, err
 	}
 	name := trackerViewerName(initD)
-	if op == "ship" {
-		return b.shipCompletedTrackerTask(taskID, payload, viewerUserID, name)
-	}
 	raw, err := b.trackerRequest(op, taskID, payload, viewerUserID, name)
 	if err != nil {
 		return raw, err
 	}
-	// QA «принять» = фича готова: пуш и сборку не ждём от агента —
-	// у него с сервера проекта git push часто закрыт.
+	// QA «принять» = фича готова: помечаем к публикации, пуш делает человек.
 	if trackerOpShouldShip(op, payload) {
 		b.ShipTrackerTaskInBackground(trackerPayloadTaskID(taskID, payload), viewerUserID)
 	}
@@ -351,99 +170,53 @@ func trackerOpShouldShip(op string, payload map[string]any) bool {
 	return strings.EqualFold(strings.TrimSpace(action), "pass")
 }
 
-// trackerRequest — сам поход к доске MyVibeLab от имени userID.
+// trackerRequest — операция своей доски от имени userID.
 //
-// Отдельно от MiniappTrackerCall, потому что ходить к доске нужно не только по
-// нажатию админа: автономный Лео (leo_autonomy.go) ставит задачи сам, и права
+// Отдельно от MiniappTrackerCall: автономный Лео ставит задачи сам, и права
 // проверять не у кого — там решает состояние в базе, а не initData.
 func (b *Bot) trackerRequest(
 	op string, taskID int64, payload map[string]any, userID int64, name string,
 ) (json.RawMessage, error) {
-	spec, ok := trackerOps[op]
-	if !ok {
+	_ = name
+	if b.db == nil {
+		return nil, fmt.Errorf("база недоступна")
+	}
+	switch op {
+	case "list":
+		return b.localTrackerList()
+	case "create":
+		return b.localTrackerCreate(payload, userID)
+	case "task", "status":
+		return b.localTrackerTask(taskID, payload)
+	case "cancel":
+		return b.localTrackerCancel(taskID, payload)
+	case "delete":
+		return b.localTrackerDelete(taskID, payload)
+	case "qa":
+		return b.localTrackerQa(taskID, payload)
+	case "auto_qa":
+		return b.localTrackerAutoQa(taskID, payload)
+	case "prompt":
+		return b.localTrackerPrompt(taskID, payload)
+	case "reschedule":
+		return b.localTrackerReschedule(taskID, payload)
+	case "move":
+		return b.localTrackerMove(taskID, payload)
+	case "promote":
+		return b.localTrackerPromoteRevert("Перенос")
+	case "revert":
+		return b.localTrackerPromoteRevert("Откат")
+	case "ship", "push", "deploy_refresh", "deploy_watch":
+		return b.localTrackerShip(taskID, payload)
+	case "sprint_ideas":
+		return b.localTrackerSprintIdeas(payload)
+	case "sprint_generate":
+		return b.localTrackerSprintGenerate(payload)
+	case "sprint_apply":
+		return b.localTrackerSprintApply(payload, userID)
+	default:
 		return nil, ErrAdminActionInvalid
 	}
-	session, err := b.trackerSession(userID, name)
-	if err != nil {
-		return nil, err
-	}
-	path := spec.path
-	if strings.Contains(path, "{id}") {
-		if taskID <= 0 {
-			return nil, ErrAdminActionInvalid
-		}
-		path = strings.ReplaceAll(path, "{id}", fmt.Sprintf("%d", taskID))
-	}
-
-	// Модель доски задаёт окружение, а не мини-апп: на тестовом стенде задачи
-	// гоняются на Cursor auto, а мини-апп об этом знать не обязан.
-	if op == "create" && payload != nil {
-		if model := strings.TrimSpace(b.config.BoardModel); model != "" {
-			if _, set := payload["model"]; !set {
-				payload["model"] = model
-			}
-		}
-		// Без авто-пуша агент закрывает задачу локальным коммитом, статус
-		// «выполнено», а на сервер код не уезжает — фича не собирается.
-		if _, set := payload["auto_push"]; !set {
-			payload["auto_push"] = true
-		}
-	}
-	if op == "sprint_apply" && payload != nil {
-		if _, set := payload["auto_push"]; !set {
-			payload["auto_push"] = true
-		}
-	}
-	// «Вернуть в работу» раньше слало mode=now без when — доска отвечает
-	// «Укажи время в будущем» и задача остаётся на месте.
-	normalizeTrackerReschedule(op, payload)
-
-	var body io.Reader
-	if spec.method != http.MethodGet && payload != nil {
-		raw, err := json.Marshal(payload)
-		if err != nil {
-			return nil, err
-		}
-		body = bytes.NewReader(raw)
-	}
-	url := strings.TrimRight(b.config.BoardURL, "/") + path
-	req, err := http.NewRequest(spec.method, url, body)
-	if err != nil {
-		return nil, err
-	}
-	req.Header.Set("Cookie", "mvl_board="+session)
-	if body != nil {
-		req.Header.Set("Content-Type", "application/json")
-	}
-	timeout := trackerTimeout
-	if spec.slow {
-		timeout = trackerSlowTimeout
-	}
-	res, err := (&http.Client{Timeout: timeout}).Do(req)
-	if err != nil {
-		return nil, fmt.Errorf("трекер недоступен: %w", err)
-	}
-	defer res.Body.Close()
-	raw, err := io.ReadAll(io.LimitReader(res.Body, 4<<20))
-	if err != nil {
-		return nil, err
-	}
-	if res.StatusCode >= 400 {
-		// Текст ошибки у MyVibeLab уже человеческий («Укажи время в будущем»),
-		// поэтому показываем его как есть, а не подменяем своим кодом.
-		var errBody struct {
-			Error string `json:"error"`
-		}
-		_ = json.Unmarshal(raw, &errBody)
-		if strings.TrimSpace(errBody.Error) != "" {
-			return nil, fmt.Errorf("%s", errBody.Error)
-		}
-		return nil, fmt.Errorf("трекер ответил %d", res.StatusCode)
-	}
-	if len(bytes.TrimSpace(raw)) == 0 {
-		raw = []byte("{}")
-	}
-	return json.RawMessage(raw), nil
 }
 
 // trackerTaskSnapshot — поля задачи, нужные чтобы понять, надо ли собирать на сервере.
@@ -560,69 +333,12 @@ func trackerErrorBlocksShip(err string) bool {
 	return true
 }
 
-// shipCompletedTrackerTask — после «выполнено» довести код до сервера:
-// изолированную ветку забрать в основную (только на проде), запушить и
-// проверить сборку. Иначе карточка зелёная, а контейнер со старым кодом.
+// shipCompletedTrackerTask — отметить задачу готовой к публикации.
+// Сами мы git не трогаем: выкатить код человек делает через «запушь».
 func (b *Bot) shipCompletedTrackerTask(taskID int64, payload map[string]any, userID int64, name string) (json.RawMessage, error) {
-	taskID = trackerPayloadTaskID(taskID, payload)
-	if taskID <= 0 {
-		return nil, ErrAdminActionInvalid
-	}
-	if name == "" {
-		name = "Стая"
-	}
-	raw, err := b.trackerRequest("task", taskID, nil, userID, name)
-	if err != nil {
-		return nil, err
-	}
-	task, err := parseTrackerTaskSnapshot(raw)
-	if err != nil {
-		return nil, err
-	}
-	if !trackerTaskReadyToShip(task) {
-		out, _ := json.Marshal(map[string]any{"ok": true, "skipped": true})
-		return out, nil
-	}
-
-	var (
-		promoted bool
-		pushed   bool
-		deployed bool
-		problems []string
-	)
-	// На тестовом стенде (BOARD_BRANCH задан) в основную не забираем — иначе
-	// эксперимент уедет в прод. На проде отдельная ветка задачи как раз и
-	// мешает сборке: сервер смотрит основную.
-	if strings.TrimSpace(task.Branch) != "" && b.config != nil && strings.TrimSpace(b.config.BoardBranch) == "" {
-		if _, err := b.trackerRequest("promote", 0, map[string]any{"id": taskID}, userID, name); err != nil {
-			problems = append(problems, "перенос: "+err.Error())
-		} else {
-			promoted = true
-		}
-	}
-	// id задачи — чтобы доска пушила ту ветку, которой закончился агент,
-	// а не «что лежит в рабочей копии».
-	if _, err := b.trackerRequest("push", 0, map[string]any{"id": taskID}, userID, name); err != nil {
-		problems = append(problems, "пуш: "+err.Error())
-	} else {
-		pushed = true
-	}
-	if _, err := b.trackerRequest("deploy_refresh", 0, map[string]any{"id": taskID}, userID, name); err != nil {
-		problems = append(problems, "сборка: "+err.Error())
-	} else {
-		deployed = true
-	}
-	if len(problems) > 0 && !pushed && !deployed && !promoted {
-		return nil, fmt.Errorf("%s", strings.Join(problems, "; "))
-	}
-	out, err := json.Marshal(map[string]any{
-		"ok":       true,
-		"promoted": promoted,
-		"pushed":   pushed,
-		"deployed": deployed,
-		"error":    strings.Join(problems, "; "),
-	})
-	return out, err
+	_ = userID
+	_ = name
+	return b.localTrackerShip(taskID, payload)
 }
 
 // ShipTrackerTaskInBackground — после уведомления доски довести сдачу до
@@ -680,7 +396,7 @@ func (b *Bot) ShipTrackerTaskInBackground(taskID, authorID int64) {
 			if b.logger != nil {
 				b.logger.Warnf("трекер: не собрать задачу #%d на сервере: %v", taskID, err)
 			}
-			note := fmt.Sprintf("Задача #%d выполнена, но пуш и сборка на сервере не стартовали: %s", taskID, err.Error())
+			note := fmt.Sprintf("Задача #%d готова. Чтобы выкатить на сервер, напиши «запушь». (%s)", taskID, err.Error())
 			if nerr := b.NotifyTrackerResult(authorID, note); nerr != nil && b.logger != nil {
 				b.logger.Warnf("трекер: не сообщить о срыве сборки #%d: %v", taskID, nerr)
 			}
