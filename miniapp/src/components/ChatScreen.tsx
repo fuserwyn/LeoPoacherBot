@@ -131,6 +131,8 @@ export function ChatScreen({ name, initData, inTelegram, showAlert, onInboxOpene
   const [lightboxUrl, setLightboxUrl] = useState<string | null>(null);
   /** Читает историю выше — показать кнопку «к последним». */
   const [showJumpLatest, setShowJumpLatest] = useState(false);
+  /** Лента уже прокручена вниз — иначе при открытии вкладки сначала фон, потом бабблы. */
+  const [logSettled, setLogSettled] = useState(false);
   const photoInputRef = useRef<HTMLInputElement | null>(null);
   /** blob-URL оптимистичных превью — ревокаем на размонтировании, чтобы не текла память. */
   const optimisticBlobsRef = useRef<string[]>([]);
@@ -186,6 +188,18 @@ export function ChatScreen({ name, initData, inTelegram, showAlert, onInboxOpene
     if (userScrolledUpRef.current && !isNearLogBottom(120)) return;
     scrollLogToEnd();
   }, [isNearLogBottom, scrollLogToEnd]);
+
+  // Пока вкладка была display:none, WebKit обнулил scrollTop. Крутим вниз
+  // и только потом показываем ленту — иначе сначала фон, потом сообщения.
+  useLayoutEffect(() => {
+    if (!active) {
+      setLogSettled(false);
+      return;
+    }
+    if (!loaded) return;
+    if (items.length > 0) scrollLogToEnd();
+    setLogSettled(true);
+  }, [active, loaded, items.length, scrollLogToEnd]);
 
   // Отслеживаем жест скролла и «читаю историю».
   useEffect(() => {
@@ -540,7 +554,7 @@ export function ChatScreen({ name, initData, inTelegram, showAlert, onInboxOpene
   const showTypingCue = sending || leoTyping;
 
   return (
-    <div className="chat" ref={chatRef}>
+    <div className={`chat${active && logSettled ? " chat--ready" : ""}`} ref={chatRef}>
       {!import.meta.env.VITE_MINIAPP_API_URL && (
         <div className="chat__configwarn" role="status">
           Нет <code className="chat__code">VITE_MINIAPP_API_URL</code> при сборке. В Railway → сервис
