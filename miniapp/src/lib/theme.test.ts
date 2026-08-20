@@ -1,6 +1,13 @@
 // @vitest-environment jsdom
 import { afterEach, describe, expect, it } from "vitest";
-import { applyTheme, getStoredTheme, setTheme } from "./theme";
+import {
+  applyTheme,
+  canUseLeopardTheme,
+  enforceThemeForLevel,
+  getStoredTheme,
+  setTheme,
+  themeAllowedForLevel,
+} from "./theme";
 
 describe("theme", () => {
   afterEach(() => {
@@ -19,5 +26,25 @@ describe("theme", () => {
     expect(document.documentElement.getAttribute("data-theme")).toBe("light");
     applyTheme("dark");
     expect(document.documentElement.getAttribute("data-theme")).toBe("dark");
+  });
+
+  it("stores leopard theme", () => {
+    document.head.insertAdjacentHTML("beforeend", '<meta name="theme-color" content="#0d0d12" />');
+    setTheme("leopard");
+    expect(localStorage.getItem("leo-theme")).toBe("leopard");
+    expect(getStoredTheme()).toBe("leopard");
+    expect(document.documentElement.getAttribute("data-theme")).toBe("leopard");
+    expect(document.querySelector('meta[name="theme-color"]')?.getAttribute("content")).toBe("#f6d4de");
+  });
+
+  it("locks leopard theme below level 5", () => {
+    expect(canUseLeopardTheme(4)).toBe(false);
+    expect(canUseLeopardTheme(5)).toBe(true);
+    expect(themeAllowedForLevel("leopard", 4)).toBe("dark");
+    expect(themeAllowedForLevel("leopard", 5)).toBe("leopard");
+    expect(themeAllowedForLevel("light", 2)).toBe("light");
+    setTheme("leopard");
+    expect(enforceThemeForLevel(3)).toBe("dark");
+    expect(getStoredTheme()).toBe("dark");
   });
 });

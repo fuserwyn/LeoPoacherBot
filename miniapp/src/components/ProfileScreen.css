@@ -1220,6 +1220,7 @@ html.app-keyboard-open .profile__health-actions--keyboard {
   border-radius: 999px;
   background: var(--card-inner);
   border: 1px solid var(--border-subtle);
+  flex-wrap: wrap;
 }
 
 .profile__theme-opt {
@@ -1239,6 +1240,22 @@ html.app-keyboard-open .profile__health-actions--keyboard {
   background: var(--accent-dim);
   border-color: color-mix(in srgb, var(--accent) 55%, transparent);
   color: var(--accent);
+}
+
+:root[data-theme="leopard"] .profile__theme-opt.is-active {
+  background: #fff;
+  color: #e11d62;
+  border-color: rgba(225, 29, 98, 0.35);
+}
+
+.profile__theme-opt.is-locked {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.profile__theme-lock {
+  margin: 8px 4px 0;
+  font-size: 12px;
 }
 
 /* Заголовок «Уведомления» — это кнопка: блок свёрнут по умолчанию.

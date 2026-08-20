@@ -106,6 +106,66 @@
   /* --me-bubble-* наследуются из :root (на базе var(--accent)) → фиолетовые в светлой. */
 }
 
+/* РОЗОВЫЙ ЛЕОПАРД — iOS blush: шёлковые карточки, системный шрифт.
+   Пятна только в ленте и в чате с Лео, не по всему приложению. */
+:root[data-theme="leopard"] {
+  color-scheme: light;
+  --bg: #f6d4de;
+  --bg-elevated: #fff7fa;
+  --card: #fff8fb;
+  --card-inner: #ffe8ef;
+  --surface-elevated: #fff8fb;
+  --popover: rgba(255, 248, 251, 0.94);
+  --text: #2c1220;
+  --text-muted: #9a5a70;
+  --muted: #a86a80;
+  --text-label: #c07a90;
+  --accent: #e11d62;
+  --accent-2: #ff4d8d;
+  --accent-dim: rgba(225, 29, 98, 0.12);
+  --border-subtle: rgba(44, 18, 32, 0.08);
+  --nav-bg: rgba(255, 247, 250, 0.72);
+  --fill-subtle: rgba(44, 18, 32, 0.03);
+  --fill-soft: rgba(44, 18, 32, 0.055);
+  --fill-strong: rgba(44, 18, 32, 0.09);
+  --shadow-card: 0 1px 0 rgba(255, 255, 255, 0.7) inset, 0 8px 24px rgba(120, 28, 58, 0.08);
+  --shadow-pop: 0 18px 40px rgba(80, 16, 40, 0.16);
+  --scrim: rgba(28, 10, 18, 0.42);
+  --pastel-pink: #ffd6e4;
+  --pastel-peach: #ffd8d0;
+  --pastel-lilac: #f3d0e4;
+  --pastel-blue: #ecd4e0;
+  --warn-bg: #ffe8ef;
+  --warn-fg: #9b1848;
+  --warn-border: rgba(225, 29, 98, 0.28);
+  --tab-active-bg: #ffe0ea;
+  --tab-active-fg: #e11d62;
+  --tab-active-border: rgba(225, 29, 98, 0.35);
+  --ai-bg: #ffe8ef;
+  --pinned-bg: rgba(225, 29, 98, 0.1);
+  --pinned-fg: #9b1848;
+  --pinned-border: rgba(225, 29, 98, 0.22);
+  --leo-bubble-bg: #fff8fb;
+  --leo-bubble-border: rgba(44, 18, 32, 0.06);
+  --leo-bubble-fg: #2c1220;
+  --radius-sm: 11px;
+  --radius-md: 16px;
+  --radius-lg: 24px;
+  --font: -apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Display", ui-sans-serif, system-ui, sans-serif;
+  --leopard-spots:
+    radial-gradient(ellipse 20px 15px at 16% 18%, #4a1730 0 26%, transparent 29%),
+    radial-gradient(ellipse 9px 7px at 20% 22%, #ff4d8d 0 38%, transparent 42%),
+    radial-gradient(ellipse 17px 13px at 50% 34%, #5a1838 0 24%, transparent 28%),
+    radial-gradient(ellipse 7px 6px at 54% 37%, #e11d62 0 36%, transparent 40%),
+    radial-gradient(ellipse 15px 11px at 78% 14%, #4a1730 0 28%, transparent 32%),
+    radial-gradient(ellipse 6px 5px at 74% 24%, #c2185b 0 40%, transparent 44%),
+    radial-gradient(ellipse 18px 14px at 30% 68%, #5a1838 0 25%, transparent 29%),
+    radial-gradient(ellipse 8px 6px at 34% 72%, #ff4d8d 0 36%, transparent 40%),
+    radial-gradient(ellipse 13px 10px at 68% 62%, #4a1730 0 28%, transparent 32%),
+    radial-gradient(ellipse 6px 5px at 88% 50%, #e11d62 0 42%, transparent 46%),
+    radial-gradient(ellipse 5px 4px at 8% 48%, #4a1730 0 44%, transparent 48%);
+}
+
 *,
 *::before,
 *::after {
@@ -118,12 +178,43 @@ body,
   margin: 0;
   min-height: 100%;
   min-height: 100dvh;
-  background: var(--bg);
+  background-color: var(--bg);
   color: var(--text);
   font-family: var(--font);
   -webkit-font-smoothing: antialiased;
   -webkit-tap-highlight-color: transparent;
   overscroll-behavior: none;
+}
+
+html[data-theme="leopard"] {
+  background-color: var(--bg);
+  background-image: none;
+}
+
+html[data-theme="leopard"] .feed,
+html[data-theme="leopard"] .chat:not(.support-chat) .chat__log,
+html[data-theme="leopard"] .chat:not(.support-chat) .chat__log-wrap {
+  background-color: #f6d4de;
+  background-image: var(--leopard-spots);
+  background-size: 240px 200px;
+  background-repeat: repeat;
+  animation: leopard-spots-drift 56s linear infinite;
+}
+
+html[data-theme="leopard"] .feed__sticky,
+html[data-theme="leopard"] .feed__sticky::before,
+html[data-theme="leopard"] .feed__sticky-inner,
+html[data-theme="leopard"] .chat:not(.support-chat) .chat__head {
+  background: var(--nav-bg);
+  backdrop-filter: saturate(1.4) blur(22px);
+  -webkit-backdrop-filter: saturate(1.4) blur(22px);
+}
+
+html[data-theme="leopard"] .section-title {
+  letter-spacing: 0.04em;
+  font-weight: 600;
+  text-transform: none;
+  font-size: 13px;
 }
 
 body {
@@ -254,3 +345,159 @@ button {
 /* На десктопе раскрываемся во весь экран: #root без верхней границы по ширине.
    Узкие экраны (ChatScreen/ProfileScreen/RulesScreen) ограничивают себя сами через
    свой max-width и margin: 0 auto. Лента раскрывается в авто-сетку (см. FeedScreen.css). */
+
+html[data-theme="leopard"] .bottom-nav {
+  background: var(--nav-bg);
+  backdrop-filter: saturate(1.5) blur(24px);
+  -webkit-backdrop-filter: saturate(1.5) blur(24px);
+  border-top-color: rgba(44, 18, 32, 0.06);
+}
+
+html[data-theme="leopard"] .bottom-nav__item.is-active {
+  color: var(--accent);
+}
+
+html[data-theme="leopard"] .bottom-nav__compose {
+  background: rgba(255, 255, 255, 0.72);
+  border-color: rgba(44, 18, 32, 0.06);
+  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.8) inset;
+}
+
+html[data-theme="leopard"] .chip,
+html[data-theme="leopard"] .feed__filter-pill,
+html[data-theme="leopard"] .feed__filter-chip {
+  background: rgba(255, 255, 255, 0.62);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+}
+
+html[data-theme="leopard"] .chip[aria-pressed="true"],
+html[data-theme="leopard"] .feed__filter-pill.is-active,
+html[data-theme="leopard"] .feed__filter-chip.is-active {
+  background: #fff;
+  color: var(--accent);
+  border-color: rgba(225, 29, 98, 0.28);
+  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.9) inset;
+}
+
+html[data-theme="leopard"] .feed__card-slot .act-card,
+html[data-theme="leopard"] .feed__card {
+  border-radius: 22px;
+  border-color: rgba(255, 255, 255, 0.55);
+  box-shadow: var(--shadow-card);
+}
+
+html[data-theme="leopard"] .chat:not(.support-chat) .chat__bubble--sys {
+  background: rgba(255, 248, 251, 0.88);
+  border: 1px solid rgba(44, 18, 32, 0.05);
+  box-shadow: 0 8px 20px rgba(120, 28, 58, 0.06);
+}
+
+html[data-theme="leopard"] .chat:not(.support-chat) .chat__bubble--user {
+  background: linear-gradient(180deg, #ff5a93 0%, #e11d62 100%);
+  color: #fff;
+  border: 0;
+}
+
+html[data-theme="leopard"] .profile__stat-slot,
+html[data-theme="leopard"] .profile__form,
+html[data-theme="leopard"] .profile__achievements,
+html[data-theme="leopard"] .tracker-modal__box,
+html[data-theme="leopard"] .nwo,
+html[data-theme="leopard"] .admin {
+  background: var(--card);
+  box-shadow: var(--shadow-card);
+}
+
+html[data-theme="leopard"] button:active {
+  transform: scale(0.98);
+}
+
+html[data-theme="leopard"] .bottom-nav__item {
+  transition: color 180ms var(--motion-ease), transform 180ms var(--motion-ease);
+}
+
+html[data-theme="leopard"] .bottom-nav__item.is-active .bottom-nav__icon {
+  animation: leopard-tab-pop 420ms var(--motion-ease);
+}
+
+html[data-theme="leopard"] .profile__theme-opt {
+  transition: background 180ms var(--motion-ease), color 180ms var(--motion-ease),
+    border-color 180ms var(--motion-ease), transform 180ms var(--motion-ease);
+}
+
+html[data-theme="leopard"] .profile__theme-opt.is-active {
+  animation: leopard-pill-in 360ms var(--motion-ease);
+}
+
+html[data-theme="leopard"] .profile__theme-opt.is-locked:active {
+  animation: leopard-lock-nudge 380ms ease;
+  transform: none;
+}
+
+html[data-theme="leopard"] .feed__card-slot .act-card {
+  transition: transform 180ms var(--motion-ease), box-shadow 180ms var(--motion-ease);
+}
+
+html[data-theme="leopard"] .feed__card-slot .act-card:active {
+  transform: scale(0.985);
+}
+
+@keyframes leopard-spots-drift {
+  from {
+    background-position: 0 0;
+  }
+  to {
+    background-position: 240px 200px;
+  }
+}
+
+@keyframes leopard-tab-pop {
+  0% {
+    transform: scale(0.86);
+  }
+  60% {
+    transform: scale(1.12);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+
+@keyframes leopard-pill-in {
+  from {
+    transform: scale(0.96);
+  }
+  to {
+    transform: scale(1);
+  }
+}
+
+@keyframes leopard-lock-nudge {
+  0%,
+  100% {
+    transform: translateX(0);
+  }
+  25% {
+    transform: translateX(-3px);
+  }
+  75% {
+    transform: translateX(3px);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html[data-theme="leopard"] .feed,
+  html[data-theme="leopard"] .chat:not(.support-chat) .chat__log,
+  html[data-theme="leopard"] .chat:not(.support-chat) .chat__log-wrap,
+  html[data-theme="leopard"] .bottom-nav__item.is-active .bottom-nav__icon,
+  html[data-theme="leopard"] .profile__theme-opt.is-active,
+  html[data-theme="leopard"] .profile__theme-opt.is-locked:active {
+    animation: none;
+  }
+
+  html[data-theme="leopard"] button:active,
+  html[data-theme="leopard"] .feed__card-slot .act-card:active {
+    transform: none;
+  }
+}
