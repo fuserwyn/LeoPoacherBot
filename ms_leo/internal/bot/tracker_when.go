@@ -8,7 +8,7 @@ import (
 	"time"
 )
 
-// Разбор «когда запустить» с формы доски: пресеты («через 1 мин»,
+// Разбор «когда запустить» с формы доски: пресеты («сейчас», «через 5 мин»,
 // «завтра 4:20») и datetime-local («2026-08-20 09:00»). Время — московское,
 // как и остальная база стаи.
 
@@ -28,15 +28,19 @@ func trackerMoscow() *time.Location {
 
 func parseTrackerWhen(raw string) (at time.Time, label string, err error) {
 	s := strings.TrimSpace(raw)
-	if s == "" {
-		s = "через 1 мин"
-	}
 	now := time.Now().In(trackerMoscow())
+	// «Сейчас» — сразу, без минуты ожидания. Иначе карточка минуту (а при
+	// сдвиге TZ и три часа) сидит в «Ожидает», хотя человек уже нажал запуск.
+	if s == "" || strings.EqualFold(s, "сейчас") || strings.EqualFold(s, "now") {
+		at = now.Add(-time.Second)
+		return at, formatTrackerWhen(now), nil
+	}
 
 	if m := whenInMinutes.FindStringSubmatch(s); m != nil {
 		n, _ := strconv.Atoi(m[1])
 		if n <= 0 {
-			n = 1
+			at = now.Add(-time.Second)
+			return at, formatTrackerWhen(now), nil
 		}
 		if n > 7*24*60 {
 			return time.Time{}, "", fmt.Errorf("слишком далеко: максимум неделя")

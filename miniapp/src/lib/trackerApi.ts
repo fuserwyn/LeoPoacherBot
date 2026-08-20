@@ -89,6 +89,8 @@ export type TrackerOp =
   | "delete"
   | "qa"
   | "auto_qa"
+  | "review"
+  | "auto_test"
   | "prompt"
   | "reschedule"
   | "promote"
@@ -209,15 +211,25 @@ export function trackerMove(initData: string, taskId: number, column: string) {
   return call<{ ok: boolean }>(initData, "move", { task_id: taskId, payload: { id: taskId, column } });
 }
 
-/** Вернуть завершённую или отменённую задачу в очередь. */
+/** Вернуть завершённую или отменённую задачу в очередь и сразу взять в работу. */
 export function trackerRunNow(initData: string, taskId: number) {
   return call<{ ok: boolean }>(initData, "reschedule", {
-    payload: { id: taskId, when: "через 1 мин" },
+    payload: { id: taskId, when: "сейчас" },
   });
 }
 
 export function trackerAutoQa(initData: string, taskId: number) {
   return call<{ ok: boolean }>(initData, "auto_qa", { payload: { id: taskId } });
+}
+
+/** Ревью на Cursor Composer: читает код и двигает карточку на тест. */
+export function trackerReview(initData: string, taskId: number) {
+  return call<{ ok: boolean }>(initData, "review", { payload: { id: taskId } });
+}
+
+/** Тест на Cursor Composer: проверки по задаче, затем сборка. */
+export function trackerAutoTest(initData: string, taskId: number) {
+  return call<{ ok: boolean }>(initData, "auto_test", { payload: { id: taskId } });
 }
 
 /** Приложить картинку к задаче: base64 без префикса data:. */

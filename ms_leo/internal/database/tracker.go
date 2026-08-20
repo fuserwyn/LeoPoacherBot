@@ -140,12 +140,14 @@ func (d *Database) FindOpenTrackerTask() (TrackerTask, error) {
 		return empty, fmt.Errorf("база недоступна")
 	}
 	row := d.db.QueryRow(trackerTaskSelect+`
-		WHERE t.status IN ('running', 'reviewing')
-		   OR (
-		        COALESCE(NULLIF(t.dev_column, ''), 'todo') IN ('doing', 'review')
-		    AND t.status NOT IN ('done', 'canceled', 'cancelled')
-		   )
-		ORDER BY t.last_run_at DESC NULLS LAST, t.id DESC
+		WHERE t.status NOT IN ('done', 'canceled', 'cancelled')
+		ORDER BY
+		  CASE
+		    WHEN t.status IN ('running', 'reviewing') THEN 0
+		    WHEN COALESCE(NULLIF(t.dev_column, ''), 'todo') IN ('doing', 'review') THEN 0
+		    ELSE 1
+		  END,
+		  t.last_run_at DESC NULLS LAST, t.id DESC
 		LIMIT 1
 	`)
 	t, err := scanTrackerTask(row)
@@ -256,15 +258,16 @@ func (d *Database) SaveTrackerTask(t TrackerTask) error {
 }
 
 // ClaimDueTrackerTasks атомарно забирает карточки, срок которых наступил:
-// «Ожидает» + when_at <= now. Ставит «В работе», пишет шаг и last_run_at.
+// «Ожидает» + when_at <= NOW(). Ставит «В работе», пишет шаг и last_run_at.
+// Сравниваем с часами базы, не с time.Now() из Go: сессия Postgres — Москва,
+// сервер в UTC, и lib/pq может отдать «наивный» UTC. Тогда карточка висит
+// ещё три часа, как #1 на доске: срок 10:10, а колонка всё ещё «Ожидает».
 // FOR UPDATE SKIP LOCKED — если крутятся две реплики, одну карточку возьмёт одна.
 func (d *Database) ClaimDueTrackerTasks(now time.Time) ([]TrackerTask, error) {
 	if d == nil || d.db == nil {
 		return nil, fmt.Errorf("база недоступна")
 	}
-	if now.IsZero() {
-		now = time.Now()
-	}
+	_ = now
 	rows, err := d.db.Query(`
 		UPDATE pack_tracker_tasks
 		SET status = 'running',
@@ -281,13 +284,13 @@ func (d *Database) ClaimDueTrackerTasks(now time.Time) ([]TrackerTask, error) {
 			SELECT id FROM pack_tracker_tasks
 			WHERE status IN ('pending', 'scheduled')
 			  AND COALESCE(NULLIF(dev_column, ''), 'todo') = 'todo'
-			  AND when_at <= $1
+			  AND when_at <= NOW()
 			ORDER BY when_at, id
 			LIMIT 10
 			FOR UPDATE SKIP LOCKED
 		)
 		RETURNING id, num, prompt, author_id
-	`, now)
+	`)
 	if err != nil {
 		return nil, err
 	}

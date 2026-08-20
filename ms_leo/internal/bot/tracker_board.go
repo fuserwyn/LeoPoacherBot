@@ -193,7 +193,9 @@ func trackerTaskView(t database.TrackerTask, withAtts bool) map[string]any {
 		"auto_push":          t.AutoPush,
 		"author_id":          author,
 		"steps":              t.Steps,
-		"steps_running":      t.Status == "running" || t.Status == "reviewing",
+		"steps_running":      t.Status == "running" || t.Status == "reviewing" ||
+			(t.Status == "holding" && (t.DevColumn == trackerColTest && !t.ManualQa || t.DevColumn == trackerColDeploy)),
+		"model_key":          "",
 		"live_step":          live,
 		"result":             t.Result,
 		"created_at":         t.CreatedAt.Format(time.RFC3339),
@@ -308,11 +310,14 @@ func (b *Bot) localTrackerCreate(payload map[string]any, userID int64) (json.Raw
 		Kind:       "task",
 		Status:     "pending",
 		DevColumn:  trackerColTodo,
-		AutoReview: payloadBool(payload, "auto_review"),
+		AutoReview: true,
 		ManualQa:   payloadBool(payload, "manual_qa"),
 		FastTrack:  payloadBool(payload, "fast_track"),
 		AutoPush:   payloadBool(payload, "auto_push"),
 		Steps:      []string{"Поставлена на доску стаи"},
+	}
+	if _, ok := payload["auto_review"]; ok {
+		t.AutoReview = payloadBool(payload, "auto_review")
 	}
 	if payloadBool(payload, "leo") {
 		t.AuthorID = database.TrackerLeoAuthorID
@@ -325,7 +330,11 @@ func (b *Bot) localTrackerCreate(payload map[string]any, userID int64) (json.Raw
 	if err != nil {
 		return nil, err
 	}
-	b.kickTrackerDueIfReady(created.WhenAt)
+	// Срок «сейчас» — забираем в этом же запросе, не в горутине: иначе
+	// следующая отрисовка доски ещё покажет карточку в «Ожидает».
+	if trackerTaskDueForStart(created, time.Now()) {
+		_, _ = b.claimAndNotifyDueTrackerTasks()
+	}
 	return trackerJSON(map[string]any{"id": created.ID, "when": created.WhenLabel})
 }
 
@@ -381,7 +390,9 @@ func (b *Bot) localTrackerReschedule(taskID int64, payload map[string]any) (json
 	if err := b.db.SaveTrackerTask(t); err != nil {
 		return nil, err
 	}
-	b.kickTrackerDueIfReady(t.WhenAt)
+	if trackerTaskDueForStart(t, time.Now()) {
+		_, _ = b.claimAndNotifyDueTrackerTasks()
+	}
 	return trackerJSON(map[string]any{"ok": true})
 }
 
@@ -406,6 +417,7 @@ func (b *Bot) localTrackerMove(taskID int64, payload map[string]any) (json.RawMe
 	if err := b.db.SaveTrackerTask(t); err != nil {
 		return nil, err
 	}
+	b.kickTrackerPipeline(t)
 	return trackerJSON(map[string]any{"ok": true, "task": trackerTaskView(t, false)})
 }
 
@@ -457,6 +469,9 @@ func (b *Bot) localTrackerQa(taskID int64, payload map[string]any) (json.RawMess
 	}
 	if err := b.db.SaveTrackerTask(t); err != nil {
 		return nil, err
+	}
+	if t.DevColumn == trackerColDeploy {
+		b.kickTrackerPipeline(t)
 	}
 	return trackerJSON(map[string]any{"ok": true})
 }
@@ -667,7 +682,10 @@ func (b *Bot) localTrackerSprintApply(payload map[string]any, userID int64) (jso
 		if sprint > 0 {
 			prompt = fmt.Sprintf("[Спринт %d] %s", sprint, prompt)
 		}
-		when := fmt.Sprintf("через %d мин", 1+i)
+		when := "сейчас"
+		if i > 0 {
+			when = fmt.Sprintf("через %d мин", i)
+		}
 		if _, err := b.localTrackerCreate(map[string]any{
 			"when":   when,
 			"prompt": prompt,

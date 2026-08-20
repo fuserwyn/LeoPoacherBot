@@ -20,9 +20,11 @@ import {
   trackerQa,
   trackerRefresh,
   trackerReschedule,
+  trackerReview,
   trackerRunNow,
   trackerShip,
   trackerTask,
+  trackerAutoTest,
   type LeoAutonomy,
   type SprintFeature,
   type SprintIdea,
@@ -43,7 +45,7 @@ const DEV_COLS = [
   { key: "doing", title: "В работе" },
   { key: "review", title: "Review" },
   { key: "test", title: "Тест" },
-  { key: "deploy", title: "Публикация" },
+  { key: "deploy", title: "Сборка" },
   { key: "done", title: "Выполнено" },
   { key: "canceled", title: "Отменено" },
 ];
@@ -55,7 +57,7 @@ const QA_COLS = [
 ];
 
 const WHEN_PRESETS = [
-  { value: "через 1 мин", label: "Сейчас" },
+  { value: "сейчас", label: "Сейчас" },
   { value: "завтра 4:20", label: "Завтра в 4:20" },
   { value: "custom", label: "Дата и время…" },
 ];
@@ -294,7 +296,9 @@ export function TrackerScreen({ initData, showAlert }: Props) {
   const columns = isQa ? QA_COLS : DEV_COLS;
   const errCount = pool.filter((t) => t.error).length;
   const runningCount = pool.filter((t) =>
-    isQa ? (t.qa_column || "todo") === "doing" : t.status === "running",
+    isQa
+      ? (t.qa_column || "todo") === "doing"
+      : t.status === "running" || t.status === "reviewing" || t.steps_running,
   ).length;
 
   const createTask = async () => {
@@ -331,7 +335,7 @@ export function TrackerScreen({ initData, showAlert }: Props) {
       setImage(null);
       setPrompt("");
       showAlert(`Задача поставлена на ${res.when || "ближайший запуск"}.`);
-      await load();
+      await load(false, true);
     } catch (e) {
       showAlert(e instanceof Error ? e.message : "Не удалось поставить задачу");
     } finally {
@@ -660,7 +664,7 @@ export function TrackerScreen({ initData, showAlert }: Props) {
           <p className="tracker__hint">
             {isQa
               ? "После сдачи можно принять, вернуть в работу или попросить Лео написать чек-лист."
-              : "Ожидает → в работе → Review → тест → к публикации → выполнено. На сервер код уедет, когда напишешь «запушь»."}
+              : "Ожидает → в работе (агент пишет код) → Review (Composer) → тест (Composer) → сборка → выполнено и уведомление. На сервер код уедет, когда напишешь «запушь»."}
           </p>
 
           {loading ? (
@@ -1152,6 +1156,30 @@ export function TrackerScreen({ initData, showAlert }: Props) {
                   {NEXT_COL[detail.dev_column || "todo"].label}
                 </button>
               ) : null}
+              {!isQa && detail.dev_column === "review" ? (
+                <button
+                  type="button"
+                  className="tracker-modal__accent"
+                  disabled={busy}
+                  onClick={() =>
+                    void actOnDetail(() => trackerReview(initData, detail.id), "Composer взял ревью.")
+                  }
+                >
+                  Ревью Composer
+                </button>
+              ) : null}
+              {!isQa && detail.dev_column === "test" ? (
+                <button
+                  type="button"
+                  className="tracker-modal__accent"
+                  disabled={busy}
+                  onClick={() =>
+                    void actOnDetail(() => trackerAutoTest(initData, detail.id), "Composer взял тест.")
+                  }
+                >
+                  Тест Composer
+                </button>
+              ) : null}
               {canReturnToWork(detail) ? (
                 <button
                   type="button"
@@ -1195,6 +1223,13 @@ export function TrackerScreen({ initData, showAlert }: Props) {
                     onClick={() => void act(() => trackerAutoQa(initData, detail.id), "Лео написал чек-лист.")}
                   >
                     AI-тест
+                  </button>
+                  <button
+                    type="button"
+                    disabled={busy}
+                    onClick={() => void act(() => trackerAutoTest(initData, detail.id), "Composer взял тест.")}
+                  >
+                    Тест Composer
                   </button>
                 </>
               ) : null}
@@ -1291,7 +1326,12 @@ function TaskCard({
     : `${task.status_icon || ""} ${task.status_label || ""}`;
   const steps = Array.isArray(task.steps) ? task.steps : [];
   const live = (task.live_step || "").trim() || (steps.length ? String(steps[steps.length - 1] || "").trim() : "");
-  const showLive = task.status === "running" || task.status === "reviewing" || task.steps_running;
+  const showLive =
+    task.status === "running" ||
+    task.status === "reviewing" ||
+    task.steps_running ||
+    task.dev_column === "test" ||
+    task.dev_column === "deploy";
   const resultPreview = clipCardText(task.result || "");
   const meta = metaParts(task, isQa);
   return (

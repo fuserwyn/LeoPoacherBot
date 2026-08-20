@@ -198,6 +198,10 @@ func (b *Bot) trackerRequest(
 		return b.localTrackerQa(taskID, payload)
 	case "auto_qa":
 		return b.localTrackerAutoQa(taskID, payload)
+	case "review":
+		return b.localTrackerComposer(taskID, payload, "review")
+	case "auto_test":
+		return b.localTrackerComposer(taskID, payload, "test")
 	case "prompt":
 		return b.localTrackerPrompt(taskID, payload)
 	case "reschedule":
@@ -251,8 +255,8 @@ func parseTrackerTaskSnapshot(raw json.RawMessage) (trackerTaskSnapshot, error) 
 	return flat, nil
 }
 
-// normalizeTrackerReschedule — mode=now без when превращаем в «через 1 мин»:
-// так же ставит форма «Сейчас», и доска снова ставит задачу в «Ожидает».
+// normalizeTrackerReschedule — mode=now без when превращаем в «сейчас»:
+// карточка сразу уходит в работу, а не сидит минуту в «Ожидает».
 func normalizeTrackerReschedule(op string, payload map[string]any) {
 	if op != "reschedule" || payload == nil {
 		return
@@ -265,7 +269,7 @@ func normalizeTrackerReschedule(op string, payload map[string]any) {
 	if !strings.EqualFold(strings.TrimSpace(mode), "now") {
 		return
 	}
-	payload["when"] = "через 1 мин"
+	payload["when"] = "сейчас"
 	delete(payload, "mode")
 }
 

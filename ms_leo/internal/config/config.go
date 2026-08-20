@@ -106,6 +106,8 @@ type Config struct {
 	// владельца доски. На тестовом стенде это cursor-auto: эксперименты Лео
 	// незачем гонять дорогой моделью.
 	BoardModel string
+	// Модель ревью и теста. Пусто — cursor-composer: он читает код в репо.
+	BoardReviewModel string
 
 	// Раздел «Ресурсы» в админке: расход Railway за месяц и пересчёт оплат в
 	// доллары. Ставки — из тарифов Railway, курс — руками, чтобы не тянуть
@@ -192,6 +194,7 @@ func Load() (*Config, error) {
 		BoardRepo:             getEnv("BOARD_REPO", "fuserwyn/Fat-Leopard"),
 		BoardBranch:           getEnv("BOARD_BRANCH", ""),
 		BoardModel:            getEnv("BOARD_MODEL", ""),
+		BoardReviewModel:      getEnv("BOARD_REVIEW_MODEL", "cursor-composer"),
 		RailwayToken:          getEnv("RAILWAY_API_TOKEN", ""),
 		LabEnvironmentID:      getEnv("LAB_ENVIRONMENT_ID", ""),
 		LabServices:           getEnv("LAB_SERVICE_IDS", ""),

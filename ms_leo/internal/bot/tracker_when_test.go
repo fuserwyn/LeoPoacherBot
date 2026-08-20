@@ -61,8 +61,25 @@ func TestParseTrackerWhenEmptyIsSoon(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if time.Until(at) > 2*time.Minute {
-		t.Fatalf("empty must be ~1 min, got %v", at)
+	if at.After(time.Now()) {
+		t.Fatalf("empty must start now, got %v", at)
+	}
+}
+
+func TestParseTrackerWhenNowIsImmediate(t *testing.T) {
+	at, label, err := parseTrackerWhen("сейчас")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if at.After(time.Now()) {
+		t.Fatalf("сейчас must start now, got %v", at)
+	}
+	if label == "" || label == "—" {
+		t.Fatalf("label: %q", label)
+	}
+	at2, _, err := parseTrackerWhen("now")
+	if err != nil || at2.After(time.Now()) {
+		t.Fatalf("now: %v err=%v", at2, err)
 	}
 }
 

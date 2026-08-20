@@ -21,9 +21,12 @@ func TestAdminRefreshClaimsDueTask(t *testing.T) {
 
 	now := time.Date(2026, 8, 20, 9, 20, 0, 0, time.UTC)
 	mock.ExpectQuery(`UPDATE pack_tracker_tasks`).
-		WithArgs(sqlmock.AnyArg()).
 		WillReturnRows(sqlmock.NewRows([]string{"id", "num", "prompt", "author_id"}).
 			AddRow(int64(11), 1, "починить кнопку обновить", int64(42)))
+	expectTrackerList(mock, trackerListRow{
+		id: 11, num: 1, prompt: "починить кнопку обновить",
+		status: "running", col: "doing", author: 42, at: now,
+	})
 
 	listCols := []string{
 		"id", "num", "prompt", "when_at", "when_label", "repeat", "kind",
@@ -96,8 +99,11 @@ func TestAdminTrackerRequestFullCycle(t *testing.T) {
 
 	// Срок ещё не наступил — «Обновить» ничего не снимает, доска та же.
 	mock.ExpectQuery(`UPDATE pack_tracker_tasks`).
-		WithArgs(sqlmock.AnyArg()).
 		WillReturnRows(sqlmock.NewRows([]string{"id", "num", "prompt", "author_id"}))
+	expectTrackerList(mock, trackerListRow{
+		id: 11, num: 1, prompt: "прогнать доску под админом",
+		status: "pending", col: "todo", author: adminID, at: now,
+	})
 	expectTrackerList(mock, trackerListRow{
 		id: 11, num: 1, prompt: "прогнать доску под админом",
 		status: "pending", col: "todo", author: adminID, at: now,

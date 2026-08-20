@@ -82,7 +82,7 @@ func TestParseTrackerTaskSnapshotWrapAndFlat(t *testing.T) {
 func TestNormalizeTrackerRescheduleNow(t *testing.T) {
 	p := map[string]any{"id": float64(7), "mode": "now"}
 	normalizeTrackerReschedule("reschedule", p)
-	if p["when"] != "через 1 мин" {
+	if p["when"] != "сейчас" {
 		t.Fatalf("when: %#v", p["when"])
 	}
 	if _, ok := p["mode"]; ok {

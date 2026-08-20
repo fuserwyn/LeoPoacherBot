@@ -27,6 +27,12 @@ func TestTrackerNotifyKind(t *testing.T) {
 	if got := trackerNotifyKind("⏰ Задача #1 выполнена.\n\nГотово.\n📤 Git push недоступен"); got != "done" {
 		t.Fatalf("git push note is still done: %q", got)
 	}
+	if got := trackerNotifyKind("можно на тест"); got != "done" {
+		t.Fatalf("composer review pass: %q", got)
+	}
+	if got := trackerNotifyKind("ревью не принято: нет тестов"); got != "done" {
+		t.Fatalf("composer review fail is still a phase result: %q", got)
+	}
 }
 
 func TestTrackerNotifyTaskNum(t *testing.T) {
@@ -38,6 +44,14 @@ func TestTrackerNotifyTaskNum(t *testing.T) {
 	}
 	if got := trackerNotifyTaskNum("без номера"); got != 0 {
 		t.Fatalf("empty: %d", got)
+	}
+}
+
+func TestApplyTrackerNotifyReviewGoesToTest(t *testing.T) {
+	task := database.TrackerTask{Status: "reviewing", DevColumn: trackerColReview}
+	applyTrackerNotify(&task, "done", "можно на тест")
+	if task.DevColumn != trackerColTest || task.Status != "holding" {
+		t.Fatalf("review → test: %+v", task)
 	}
 }
 
@@ -78,12 +92,17 @@ func TestApplyTrackerNotifyFastTrackGoesToDeploy(t *testing.T) {
 
 func TestApplyTrackerNotifyDoesNotPullBackFromTest(t *testing.T) {
 	task := database.TrackerTask{Status: "holding", DevColumn: trackerColTest, HandedToQa: true}
-	applyTrackerNotify(&task, "done", "Задача #8 выполнена.")
-	if task.DevColumn != trackerColTest {
-		t.Fatalf("must stay on test: %s", task.DevColumn)
+	applyTrackerNotify(&task, "done", "Задача #8 выполнена.\n\nтест пройден")
+	if task.DevColumn != trackerColDeploy {
+		t.Fatalf("composer test pass goes to build: %s", task.DevColumn)
 	}
 	if trackerShouldShipAfterNotify(task) {
-		t.Fatal("test column is for QA, not ship")
+		t.Fatal("ordinary pipeline ships via finishTrackerBuild, not this flag")
+	}
+	manual := database.TrackerTask{Status: "holding", DevColumn: trackerColTest, HandedToQa: true, ManualQa: true}
+	applyTrackerNotify(&manual, "done", "Задача #8 выполнена.")
+	if manual.DevColumn != trackerColTest {
+		t.Fatalf("manual QA stays on test: %s", manual.DevColumn)
 	}
 }
 
@@ -115,11 +134,41 @@ func TestTrackerNotifyDoneColumn(t *testing.T) {
 	if got := trackerNotifyDoneColumn(database.TrackerTask{DevColumn: trackerColDoing}); got != trackerColReview {
 		t.Fatalf("default: %s", got)
 	}
-	if got := trackerNotifyDoneColumn(database.TrackerTask{DevColumn: trackerColDoing, AutoReview: true}); got != trackerColTest {
-		t.Fatalf("auto review: %s", got)
+	if got := trackerNotifyDoneColumn(database.TrackerTask{DevColumn: trackerColDoing, AutoReview: true}); got != trackerColReview {
+		t.Fatalf("auto review still goes through review: %s", got)
 	}
-	if got := trackerNotifyDoneColumn(database.TrackerTask{DevColumn: trackerColReview}); got != trackerColReview {
-		t.Fatalf("keep review: %s", got)
+	if got := trackerNotifyDoneColumn(database.TrackerTask{DevColumn: trackerColReview}); got != trackerColTest {
+		t.Fatalf("review → test: %s", got)
+	}
+	if got := trackerNotifyDoneColumn(database.TrackerTask{DevColumn: trackerColTest}); got != trackerColDeploy {
+		t.Fatalf("test → build: %s", got)
+	}
+}
+
+func TestTrackerShouldAdvanceFromResult(t *testing.T) {
+	waiting := database.TrackerTask{
+		Status:    "pending",
+		DevColumn: trackerColTodo,
+		Result:    "⏰ Задача #236 выполнена.\n\nГотово.\n- Подпись теперь только «сгорит через …».",
+	}
+	if !trackerShouldAdvanceFromResult(waiting) {
+		t.Fatal("waiting + выполнена must leave Ожидает")
+	}
+	doing := waiting
+	doing.Status = "running"
+	doing.DevColumn = trackerColDoing
+	if !trackerShouldAdvanceFromResult(doing) {
+		t.Fatal("doing + выполнена must leave В работе")
+	}
+	review := waiting
+	review.Status = "reviewing"
+	review.DevColumn = trackerColReview
+	if trackerShouldAdvanceFromResult(review) {
+		t.Fatal("already on review must stay")
+	}
+	empty := database.TrackerTask{Status: "pending", DevColumn: trackerColTodo}
+	if trackerShouldAdvanceFromResult(empty) {
+		t.Fatal("no result must not move")
 	}
 }
 
@@ -138,7 +187,7 @@ func TestApplyBoardNotifyFindsOpenTaskWhenForeignID(t *testing.T) {
 	mock.ExpectQuery(`WHERE t.num = \$1`).
 		WithArgs(236).
 		WillReturnError(sql.ErrNoRows)
-	mock.ExpectQuery(`ORDER BY t.last_run_at DESC`).
+	mock.ExpectQuery(`t.last_run_at DESC`).
 		WillReturnRows(sqlmock.NewRows(trackerListColumns()).AddRow(
 			int64(11), 1, "починить статус на доске", now, "20.08 09:19", "разово", "task",
 			"running", "doing", nil, nil, false,

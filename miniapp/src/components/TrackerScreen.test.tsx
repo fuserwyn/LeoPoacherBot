@@ -100,6 +100,21 @@ describe("TrackerScreen refresh button", () => {
     expect(alerts.some((a) => a.includes("Взяли 1"))).toBe(true);
   });
 
+  it("starts a waiting card after create by calling refresh", async () => {
+    trackerList.mockResolvedValue({ tasks: [pending], started: 0 });
+    trackerRefresh.mockResolvedValue({ tasks: [running], started: 1 });
+    trackerAuthors.mockResolvedValue([]);
+
+    render(<TrackerScreen initData="admin" showAlert={() => undefined} />);
+    await waitFor(() => expect(screen.getByText("#1")).toBeTruthy());
+    expect(document.querySelector('[data-col="todo"]')?.textContent).toContain("#1");
+
+    fireEvent.click(screen.getByRole("button", { name: "Обновить" }));
+    await waitFor(() => {
+      expect(document.querySelector('[data-col="doing"]')?.textContent).toContain("#1");
+    });
+  });
+
   it("shows a completed result on the Review column, not in work", async () => {
     trackerList.mockResolvedValue({ tasks: [reviewed], started: 0 });
     trackerAuthors.mockResolvedValue([]);
@@ -110,5 +125,15 @@ describe("TrackerScreen refresh button", () => {
     expect(document.querySelector('[data-col="review"]')?.textContent).toContain("#1");
     expect(document.querySelector('[data-col="review"]')?.textContent).toContain("👀");
     expect(document.querySelector(".tracker-card__live--result")?.textContent).toContain("выполнена");
+  });
+
+  it("shows the build column and the Composer pipeline hint", async () => {
+    trackerList.mockResolvedValue({ tasks: [reviewed], started: 0 });
+    trackerAuthors.mockResolvedValue([]);
+
+    render(<TrackerScreen initData="admin" showAlert={() => undefined} />);
+    await waitFor(() => expect(screen.getByText("#1")).toBeTruthy());
+    expect(document.querySelector('[data-col="deploy"]')?.textContent).toContain("Сборка");
+    expect(screen.getByText(/Composer/)).toBeTruthy();
   });
 });

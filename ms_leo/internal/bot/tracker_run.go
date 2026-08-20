@@ -9,9 +9,7 @@ import (
 	"leo-bot/internal/database"
 )
 
-// Как часто смотрим, не пора ли снять карточку с «Ожидает». Форма «Сейчас»
-// ставит запуск через минуту — тик короче минуты, иначе задача снова висела бы
-// после срока, как на скрине: 09:19 поставлена, 09:20 ещё в очереди.
+// Как часто смотрим, не пора ли снять карточку с «Ожидает».
 const trackerDueTick = 15 * time.Second
 
 // trackerTaskDueForStart — та же развилка, что в ClaimDueTrackerTasks:
@@ -85,6 +83,10 @@ func (b *Bot) claimAndNotifyDueTrackerTasks() (int, error) {
 		}
 		return 0, err
 	}
+	healed, herr := b.healTrackerCardsFromStoredResult()
+	if herr != nil && b.logger != nil {
+		b.logger.Warnf("трекер: не додвинуть карточки по сохранённому результату: %v", herr)
+	}
 	for _, t := range due {
 		if b.logger != nil {
 			b.logger.Infof("трекер: задача #%d началась по расписанию", trackerDueNum(t))
@@ -96,8 +98,11 @@ func (b *Bot) claimAndNotifyDueTrackerTasks() (int, error) {
 		if err := b.NotifyTrackerResult(author, trackerDueStartedNote(t)); err != nil && b.logger != nil {
 			b.logger.Warnf("трекер: не сообщить о старте #%d: %v", trackerDueNum(t), err)
 		}
+		// Карточка в «В работе» — агент пишет код. Без этого вызова
+		// статус есть, а в репозитории ничего не происходит.
+		b.dispatchTrackerAgent(t, "doing")
 	}
-	return len(due), nil
+	return len(due) + healed, nil
 }
 
 func trackerDueNum(t database.TrackerTask) int {
