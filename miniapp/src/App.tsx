@@ -15,7 +15,7 @@ import { AchievementToast } from "./components/AchievementToast";
 import { LevelUpToast } from "./components/LevelUpToast";
 import { earnedAchievementKeys, freshAchievementKeys, type AchievementKey } from "./lib/achievements";
 import { miniappLevelFromCups } from "./lib/miniappLevel";
-import { enforceThemeForLevel } from "./lib/theme";
+import { enforceThemeForLevel, getStoredTheme, hydrateThemeFromCloud, persistTheme } from "./lib/theme";
 import { buildOptimisticTrainingFeedItem, type PackFeedItemDTO } from "./lib/packFeed";
 import { sendMiniappPrivateText, sendMiniappTrainingWithPhoto } from "./lib/miniappPrivateSend";
 import { isModerationError, moderationUserMessage } from "./lib/moderationMessages";
@@ -94,6 +94,20 @@ export function App() {
       reportMiniappOpened(initData);
     }
   }, [inTelegram, initData]);
+
+  useEffect(() => {
+    hydrateThemeFromCloud();
+    const flush = () => persistTheme(getStoredTheme());
+    const onHide = () => {
+      if (document.visibilityState === "hidden") flush();
+    };
+    window.addEventListener("pagehide", flush);
+    document.addEventListener("visibilitychange", onHide);
+    return () => {
+      window.removeEventListener("pagehide", flush);
+      document.removeEventListener("visibilitychange", onHide);
+    };
+  }, []);
 
   const refreshAccessStatus = useCallback(async () => {
     if (!inTelegram || !initData?.trim()) {

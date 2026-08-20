@@ -54,6 +54,11 @@ interface TelegramWebApp {
   /** Внешняя ссылка в браузере — для страницы оплаты ЮKassa. */
   openLink?: (url: string, options?: { try_instant_view?: boolean }) => void;
   close: () => void;
+  /** Bot API ≥ 6.9 — ключи переживают закрытие Mini App, в отличие от localStorage на iOS. */
+  CloudStorage?: {
+    setItem: (key: string, value: string, callback?: (error: unknown, stored?: boolean) => void) => void;
+    getItem: (key: string, callback: (error: unknown, value?: string) => void) => void;
+  };
 }
 
 interface Window {

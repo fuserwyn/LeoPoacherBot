@@ -47,4 +47,11 @@ describe("theme", () => {
     expect(enforceThemeForLevel(3)).toBe("dark");
     expect(getStoredTheme()).toBe("dark");
   });
+
+  it("keeps stored theme until a real level is enforced", () => {
+    setTheme("leopard");
+    expect(getStoredTheme()).toBe("leopard");
+    expect(themeAllowedForLevel("leopard", 5)).toBe("leopard");
+    expect(themeAllowedForLevel("light", 1)).toBe("light");
+  });
 });

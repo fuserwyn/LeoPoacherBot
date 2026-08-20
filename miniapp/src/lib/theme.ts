@@ -1,6 +1,6 @@
 /** Тема оформления. По умолчанию — тёмная (как до редизайна); светлая — опция пользователя.
- *  Выбор хранится в localStorage и применяется атрибутом data-theme на <html>.
- *  Раннее применение (без мигания) — инлайн-скриптом в index.html; здесь — рантайм-переключение. */
+ *  Выбор хранится в localStorage и Telegram CloudStorage, на <html> — data-theme.
+ *  Раннее применение (без мигания) — инлайн-скриптом в index.html; здесь — рантайм. */
 export type ThemeMode = "light" | "dark" | "leopard";
 
 /** Розовая леопардовая тема — с 5 уровня (Лев). */
@@ -34,7 +34,7 @@ export function enforceThemeForLevel(level: number): ThemeMode {
 }
 
 export function parseTheme(raw: string | null | undefined): ThemeMode {
-  if (raw === "light" || raw === "leopard") {
+  if (raw === "light" || raw === "leopard" || raw === "dark") {
     return raw;
   }
   return "dark";
@@ -48,17 +48,64 @@ export function getStoredTheme(): ThemeMode {
   }
 }
 
+function cloudStorage() {
+  return window.Telegram?.WebApp?.CloudStorage;
+}
+
+export function persistTheme(mode: ThemeMode): void {
+  try {
+    localStorage.setItem(STORAGE_KEY, mode);
+  } catch {
+    /* приватный режим */
+  }
+  try {
+    cloudStorage()?.setItem(STORAGE_KEY, mode);
+  } catch {
+    /* старый клиент без CloudStorage */
+  }
+}
+
 export function applyTheme(mode: ThemeMode): void {
   document.documentElement.setAttribute("data-theme", mode);
   const meta = document.querySelector('meta[name="theme-color"]');
   if (meta) meta.setAttribute("content", THEME_COLOR[mode]);
+  window.dispatchEvent(new CustomEvent("leo-theme", { detail: mode }));
 }
 
 export function setTheme(mode: ThemeMode): void {
-  try {
-    localStorage.setItem(STORAGE_KEY, mode);
-  } catch {
-    /* приватный режим — просто применим без сохранения */
-  }
+  persistTheme(mode);
   applyTheme(mode);
+}
+
+/** Достаёт тему из CloudStorage Telegram — она живёт после закрытия Mini App. */
+export function hydrateThemeFromCloud(onDone?: (mode: ThemeMode) => void): void {
+  const cs = cloudStorage();
+  if (!cs?.getItem) {
+    onDone?.(getStoredTheme());
+    return;
+  }
+  try {
+    cs.getItem(STORAGE_KEY, (err, value) => {
+      const cloud = parseTheme(typeof value === "string" ? value : null);
+      const localRaw = (() => {
+        try {
+          return localStorage.getItem(STORAGE_KEY);
+        } catch {
+          return null;
+        }
+      })();
+      if (!err && (value === "light" || value === "dark" || value === "leopard")) {
+        persistTheme(cloud);
+        applyTheme(cloud);
+        onDone?.(cloud);
+        return;
+      }
+      if (localRaw) {
+        persistTheme(parseTheme(localRaw));
+      }
+      onDone?.(getStoredTheme());
+    });
+  } catch {
+    onDone?.(getStoredTheme());
+  }
 }
