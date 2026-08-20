@@ -20,4 +20,11 @@ describe("theme", () => {
     applyTheme("dark");
     expect(document.documentElement.getAttribute("data-theme")).toBe("dark");
   });
+
+  it("stores leopard theme", () => {
+    setTheme("leopard");
+    expect(localStorage.getItem("leo-theme")).toBe("leopard");
+    expect(getStoredTheme()).toBe("leopard");
+    expect(document.documentElement.getAttribute("data-theme")).toBe("leopard");
+  });
 });
