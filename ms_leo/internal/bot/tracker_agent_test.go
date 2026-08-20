@@ -1,21 +1,27 @@
 package bot
 
 import (
+	"encoding/json"
+	"io"
+	"net/http"
+	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
 
-	"leo-bot/internal/database"
 	"leo-bot/internal/config"
+	"leo-bot/internal/database"
 )
 
 func TestTrackerAgentPromptPhases(t *testing.T) {
 	task := database.TrackerTask{Num: 7, Prompt: "починить стрик", Result: "подпись короче"}
 	doing := trackerAgentPrompt(task, "doing")
-	if !strings.Contains(doing, "#7") || !strings.Contains(doing, "починить стрик") {
+	if !strings.Contains(doing, "#7") || !strings.Contains(doing, "починить стрик") ||
+		!strings.Contains(doing, "замечания ревью") || !strings.Contains(doing, "подпись короче") {
 		t.Fatalf("doing: %q", doing)
 	}
 	review := trackerAgentPrompt(task, "review")
-	if !strings.Contains(review, "Cursor Composer") || !strings.Contains(review, "можно на тест") {
+	if !strings.Contains(review, "Посредственное") || !strings.Contains(review, "можно на тест") {
 		t.Fatalf("review: %q", review)
 	}
 	test := trackerAgentPrompt(task, "test")
@@ -36,6 +42,9 @@ func TestTrackerComposerPassed(t *testing.T) {
 	}
 	if trackerComposerPassed("test", "Тест не прошёл: кнопка не жмётся.") {
 		t.Fatal("test fail")
+	}
+	if !trackerComposerPassed("review", "глянул поверхностно, в целом ок") {
+		t.Fatal("lenient review must pass")
 	}
 	if !trackerComposerPassed("doing", "⏰ Задача #1 выполнена.\n\nГотово.") {
 		t.Fatal("impl done is pass")
@@ -71,13 +80,149 @@ func TestTrackerAgentBoardUserIDUsesOwnerNotAuthor(t *testing.T) {
 	}
 }
 
+func TestTrackerTaskCommitAndHasCode(t *testing.T) {
+	task := database.TrackerTask{
+		Steps:  []string{"Агент сдал", "коммит abc1234 выполнение", "ветка tracker/5-314"},
+		Result: "Задача #5: коммит выполнения abc1234 на ветке tracker/5-314.",
+	}
+	if got := trackerTaskCommit(task); got != "abc1234" {
+		t.Fatalf("commit: %q", got)
+	}
+	if !trackerTaskHasCode(task) {
+		t.Fatal("commit step is code")
+	}
+	if trackerTaskHasCode(database.TrackerTask{Result: "план без правок"}) {
+		t.Fatal("plan is not code")
+	}
+}
+
+func TestTrackerTaskBranch(t *testing.T) {
+	if got := trackerTaskBranch(database.TrackerTask{Result: "код в ветке tracker/4-43.\nещё текст"}); got != "tracker/4-43" {
+		t.Fatalf("result: %q", got)
+	}
+	if got := trackerTaskBranch(database.TrackerTask{Steps: []string{"Агент сдал", "ветка tracker/8-12 на GitHub"}}); got != "tracker/8-12" {
+		t.Fatalf("steps: %q", got)
+	}
+	if got := trackerTaskBranch(database.TrackerTask{Result: "можно на тест"}); got != "" {
+		t.Fatalf("empty: %q", got)
+	}
+}
+
+func TestShipTrackerToMain(t *testing.T) {
+	var got map[string]any
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/api/ship" {
+			t.Fatalf("path %s", r.URL.Path)
+		}
+		if r.Header.Get("X-Tracker-Secret") != "sec" {
+			t.Fatal("secret")
+		}
+		_ = json.NewDecoder(r.Body).Decode(&got)
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"ok":true,"merged":true,"base":"main","head":"tracker/4-43"}`))
+	}))
+	defer srv.Close()
+	b := &Bot{config: &config.Config{BoardURL: srv.URL, BoardSecret: "sec"}}
+	base, err := b.shipTrackerToMain(database.TrackerTask{
+		ID: 11, Num: 4, Result: "код в ветке tracker/4-43",
+	})
+	if err != nil || base != "main" {
+		t.Fatalf("ship: %s %v", base, err)
+	}
+	if int(got["source_task_id"].(float64)) != 11 || got["branch"] != "tracker/4-43" {
+		t.Fatalf("payload %#v", got)
+	}
+}
+
 func TestTrackerPipelineNotify(t *testing.T) {
 	note := trackerPipelineNotify(database.TrackerTask{Num: 3})
-	if !strings.Contains(note, "#3") || !strings.Contains(note, "выполнена") {
-		t.Fatalf("note: %q", note)
+	if !strings.Contains(note, "#3") || strings.Contains(note, "тест и сборку") {
+		t.Fatalf("must not fake a build: %q", note)
 	}
-	if !strings.Contains(note, "запушь") {
-		t.Fatalf("must mention push: %q", note)
+	if !strings.Contains(note, "не выехала") {
+		t.Fatalf("no-code note: %q", note)
+	}
+	withCode := trackerPipelineNotify(database.TrackerTask{Num: 3, Result: "код в ветке tracker/3-1"})
+	if !strings.Contains(withCode, "запушь") || strings.Contains(withCode, "не выехала") {
+		t.Fatalf("with code: %q", withCode)
+	}
+}
+
+func TestTrackerNeedsAgentKick(t *testing.T) {
+	now := time.Date(2026, 8, 20, 10, 50, 0, 0, time.UTC)
+	failed := database.TrackerTask{
+		Status:     "running",
+		DevColumn:  "doing",
+		Error:      "Агент не стартовал: unauthorized",
+		Steps:      []string{"Взяли в работу по расписанию", "Агент не стартовал"},
+		HasLastRun: true,
+		LastRunAt:  now.Add(-time.Minute),
+	}
+	if !trackerNeedsAgentKick(failed, now, true) {
+		t.Fatal("failed agent must retry on refresh")
+	}
+	freshClaim := database.TrackerTask{
+		Status:     "running",
+		DevColumn:  "doing",
+		Steps:      []string{"Взяли в работу по расписанию"},
+		HasLastRun: true,
+		LastRunAt:  now.Add(-5 * time.Second),
+	}
+	if trackerNeedsAgentKick(freshClaim, now, true) {
+		t.Fatal("fresh claim must not double-dispatch")
+	}
+	staleClaim := freshClaim
+	staleClaim.LastRunAt = now.Add(-time.Hour)
+	if !trackerNeedsAgentKick(staleClaim, now, false) {
+		t.Fatal("stale claim without remote id must retry")
+	}
+	hasRemote := failed
+	hasRemote.Steps = append(hasRemote.Steps, "агент:#88")
+	if trackerNeedsAgentKick(hasRemote, now, true) {
+		t.Fatal("already on remote board must not retry")
+	}
+}
+
+func TestRemoteTrackerCreateUsesOwnTracker(t *testing.T) {
+	var gotPath, gotSecret, gotWhen string
+	var sourceID float64
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotPath = r.URL.Path
+		gotSecret = r.Header.Get("X-Tracker-Secret")
+		raw, _ := io.ReadAll(r.Body)
+		var body map[string]any
+		_ = json.Unmarshal(raw, &body)
+		gotWhen, _ = body["when"].(string)
+		sourceID, _ = body["source_task_id"].(float64)
+		if _, ok := body["session"]; ok {
+			t.Error("own tracker must not send MyVibeLab session")
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"ok":true,"id":512,"when":"20.08 10:54"}`))
+	}))
+	defer srv.Close()
+
+	b := &Bot{config: &config.Config{
+		OwnerID:     99,
+		BoardSecret: "secret",
+		BoardRepo:   "fuserwyn/Fat-Leopard",
+		BoardURL:    srv.URL,
+	}}
+	id, when, err := b.remoteTrackerCreate(database.TrackerTask{ID: 2, Num: 2, Prompt: "убрать огонёк"}, "doing", "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if id != 512 || when != "20.08 10:54" {
+		t.Fatalf("id=%d when=%q", id, when)
+	}
+	if gotPath != trackerBoardAPI {
+		t.Fatalf("path: %s", gotPath)
+	}
+	if gotSecret != "secret" {
+		t.Fatalf("secret: %q", gotSecret)
+	}
+	if gotWhen != trackerRemoteWhen || sourceID != 2 {
+		t.Fatalf("when=%q source=%v", gotWhen, sourceID)
 	}
 }
 

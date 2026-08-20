@@ -21,6 +21,7 @@ type OpenRouterClient struct {
 	logger        logger.Logger
 	httpClient    *http.Client
 	promptsBundle prompts.Bundle
+	livePrompts   func() prompts.Bundle
 }
 
 // SetVisionModel задаёт vision-модель (slug OpenRouter). Пустая строка отключает анализ фото.
@@ -34,6 +35,23 @@ func (c *OpenRouterClient) SetVisionModel(model string) {
 // HasVision — доступен ли анализ изображений (задана vision-модель).
 func (c *OpenRouterClient) HasVision() bool {
 	return c != nil && strings.TrimSpace(c.visionModel) != ""
+}
+
+// SetLivePrompts — подставлять актуальный бандл (админка могла заменить файлы).
+func (c *OpenRouterClient) SetLivePrompts(fn func() prompts.Bundle) {
+	if c != nil {
+		c.livePrompts = fn
+	}
+}
+
+func (c *OpenRouterClient) bundle() prompts.Bundle {
+	if c != nil && c.livePrompts != nil {
+		return c.livePrompts()
+	}
+	if c == nil {
+		return prompts.Bundle{}
+	}
+	return c.promptsBundle
 }
 
 type ChatMessage struct {
@@ -151,7 +169,7 @@ func (c *OpenRouterClient) Chat(messages []ChatMessage, model string) (string, e
 
 // GenerateDailySummary генерирует ежедневную сводку о тренировках
 func (c *OpenRouterClient) GenerateDailySummary(usersData []UserTrainingData) (string, error) {
-	systemPrompt := c.promptsBundle.DailySummary
+	systemPrompt := c.bundle().DailySummary
 
 	var userReports strings.Builder
 	userReports.WriteString("Отчеты о тренировках за прошедшие сутки:\n\n")
@@ -181,7 +199,7 @@ func (c *OpenRouterClient) GenerateDailySummary(usersData []UserTrainingData) (s
 
 // GenerateMonthlySummary генерирует ежемесячную сводку о тренировках
 func (c *OpenRouterClient) GenerateMonthlySummary(usersData []UserTrainingData) (string, error) {
-	systemPrompt := c.promptsBundle.MonthlySummary
+	systemPrompt := c.bundle().MonthlySummary
 
 	var userReports strings.Builder
 	userReports.WriteString("Отчеты о тренировках за прошедший месяц:\n\n")
@@ -212,7 +230,7 @@ func (c *OpenRouterClient) GenerateMonthlySummary(usersData []UserTrainingData) 
 // AnswerUserQuestion отвечает на вопрос пользователя.
 // userContext — либо полный structured user-message (с «Контекст для этого ответа»), либо legacy-плоский контекст + question.
 func (c *OpenRouterClient) AnswerUserQuestion(question string, userContext string) (string, error) {
-	systemPrompt := c.promptsBundle.AnswerUserQuestion
+	systemPrompt := c.bundle().AnswerUserQuestion
 
 	userContent := strings.TrimSpace(userContext)
 	if question != "" && !strings.Contains(userContent, "Контекст для этого ответа") {
@@ -231,9 +249,10 @@ func (c *OpenRouterClient) AnswerUserQuestion(question string, userContext strin
 
 // GenerateDailyWisdom генерирует короткую «мудрость дня» о тренировках и дисциплине (тело из daily_wisdom_training.txt в промпт-бандле).
 func (c *OpenRouterClient) GenerateDailyWisdom() (string, error) {
-	systemPrompt := c.promptsBundle.DailyWisdomTraining
+	live := c.bundle()
+	systemPrompt := live.DailyWisdomTraining
 
-	systemPrompt += "\n\n" + c.promptsBundle.DailyWisdomLangRule
+	systemPrompt += "\n\n" + live.DailyWisdomLangRule
 
 	// Добавляем ежедневное семя (дата + тема дня), чтобы повысить вариативность
 	today := time.Now().Format("2006-01-02")
@@ -256,7 +275,7 @@ func (c *OpenRouterClient) GenerateDailyWisdom() (string, error) {
 		theme = "тихая сила духа"
 	}
 
-	userPrompt := fmt.Sprintf(c.promptsBundle.DailyWisdomUserTemplate, today, theme)
+	userPrompt := fmt.Sprintf(live.DailyWisdomUserTemplate, today, theme)
 
 	messages := []ChatMessage{
 		{Role: "system", Content: systemPrompt},

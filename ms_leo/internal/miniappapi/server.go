@@ -179,6 +179,8 @@ func (s *Server) serve(w http.ResponseWriter, r *http.Request) {
 		s.handlePostAdminLeoPropose(w, r)
 	case path == "/api/miniapp/admin/leo-lab" && r.Method == http.MethodPost:
 		s.handlePostAdminLeoLab(w, r)
+	case path == "/api/miniapp/admin/leo-prompts" && r.Method == http.MethodPost:
+		s.handlePostAdminLeoPrompts(w, r)
 	case path == "/api/miniapp/admin/tracker/leo-autonomy" && r.Method == http.MethodPost:
 		s.handlePostAdminLeoAutonomy(w, r)
 	case path == "/api/miniapp/admin/tracker/attachment" && r.Method == http.MethodPost:
@@ -2355,11 +2357,13 @@ func (s *Server) handlePostProfileLoad(w http.ResponseWriter, r *http.Request) {
 	tz := s.bot.GetTimezoneOffsetForAPI(parsed.User.ID, packID)
 	stats := s.bot.GetMiniappProfileStatsForAPI(parsed.User.ID, packID)
 	kickAt := s.bot.GetMiniappInactivityRemovalDeadlineRFC3339(parsed.User.ID, packID)
+	theme := s.bot.GetMiniappThemeForAPI(parsed.User.ID, packID)
 	w.Header().Set("Content-Type", "application/json; charset=utf-8")
 	out := map[string]any{
 		"ok":                         true,
 		"gender":                     g,
 		"display_name":               d,
+		"theme":                      theme,
 		"timezone_offset":            tz,
 		"xp":                         stats.XP,
 		"level":                      stats.Level,
@@ -2401,6 +2405,7 @@ func (s *Server) handlePostProfileSave(w http.ResponseWriter, r *http.Request) {
 		DisplayName    *string `json:"display_name"`
 		Age            *int    `json:"age"`
 		TimezoneOffset *int    `json:"timezone_offset"`
+		Theme          *string `json:"theme"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
 		s.jsonErr(w, http.StatusBadRequest, "invalid_json")
@@ -2436,18 +2441,27 @@ func (s *Server) handlePostProfileSave(w http.ResponseWriter, r *http.Request) {
 		s.jsonErr(w, http.StatusServiceUnavailable, "pack_not_configured")
 		return
 	}
-	gv := ""
-	if body.Gender != nil {
-		gv = *body.Gender
+	if body.Gender != nil || body.DisplayName != nil || body.Age != nil {
+		gv := ""
+		if body.Gender != nil {
+			gv = *body.Gender
+		}
+		dn := ""
+		if body.DisplayName != nil {
+			dn = *body.DisplayName
+		}
+		if err := s.bot.SaveMiniappUserProfileFromMiniapp(parsed.User.ID, packID, gv, dn, body.Age); err != nil {
+			s.logger.Errorf("miniapp profile save: %v", err)
+			s.jsonErr(w, http.StatusInternalServerError, "save_failed")
+			return
+		}
 	}
-	dn := ""
-	if body.DisplayName != nil {
-		dn = *body.DisplayName
-	}
-	if err := s.bot.SaveMiniappUserProfileFromMiniapp(parsed.User.ID, packID, gv, dn, body.Age); err != nil {
-		s.logger.Errorf("miniapp profile save: %v", err)
-		s.jsonErr(w, http.StatusInternalServerError, "save_failed")
-		return
+	if body.Theme != nil {
+		if err := s.bot.SaveMiniappThemeFromMiniapp(parsed.User.ID, packID, *body.Theme); err != nil {
+			s.logger.Errorf("miniapp theme save: %v", err)
+			s.jsonErr(w, http.StatusBadRequest, "invalid_theme")
+			return
+		}
 	}
 	if body.TimezoneOffset != nil {
 		if err := s.bot.SaveTimezoneOffsetFromMiniapp(parsed.User.ID, packID, *body.TimezoneOffset); err != nil {
@@ -2460,11 +2474,13 @@ func (s *Server) handlePostProfileSave(w http.ResponseWriter, r *http.Request) {
 	tz := s.bot.GetTimezoneOffsetForAPI(parsed.User.ID, packID)
 	stats := s.bot.GetMiniappProfileStatsForAPI(parsed.User.ID, packID)
 	kickAt := s.bot.GetMiniappInactivityRemovalDeadlineRFC3339(parsed.User.ID, packID)
+	theme := s.bot.GetMiniappThemeForAPI(parsed.User.ID, packID)
 	w.Header().Set("Content-Type", "application/json; charset=utf-8")
 	out := map[string]any{
 		"ok":                         true,
 		"gender":                     g,
 		"display_name":               d,
+		"theme":                      theme,
 		"timezone_offset":            tz,
 		"xp":                         stats.XP,
 		"level":                      stats.Level,

@@ -34,7 +34,7 @@ func (b *Bot) MiniappLeoLabAsk(
 	}
 	sys := strings.TrimSpace(systemPrompt)
 	if sys == "" {
-		sys = strings.TrimSpace(b.config.Prompts.AnswerUserQuestion)
+		sys = strings.TrimSpace(b.livePrompts().AnswerUserQuestion)
 		usedDefault = true
 	}
 	if len([]rune(sys)) > 6000 {
@@ -58,7 +58,7 @@ func (b *Bot) MiniappLeoLabPrompt(viewerUserID int64, initD initdata.InitData) (
 	if _, err := b.requireMiniappAdmin(viewerUserID, initD); err != nil {
 		return "", err
 	}
-	return strings.TrimSpace(b.config.Prompts.AnswerUserQuestion), nil
+	return strings.TrimSpace(b.livePrompts().AnswerUserQuestion), nil
 }
 
 // MiniappLeoLabTeach — положить факт в память Лео (RAG общего чата стаи).

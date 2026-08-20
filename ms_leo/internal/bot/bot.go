@@ -150,6 +150,9 @@ func New(cfg *config.Config, db *database.Database, log logger.Logger) (*Bot, er
 		ugcModerationGate:    moderation.NewGate(limiter),
 		dynamicAdmins:        make(map[int64]struct{}),
 	}
+	if aiClient != nil {
+		aiClient.SetLivePrompts(b.livePrompts)
+	}
 	b.reloadDynamicAdmins()
 	return b, nil
 }
@@ -2351,7 +2354,7 @@ func (b *Bot) handleAIQuestion(msg *tgbotapi.Message, questionText string, perso
 		)
 	}
 
-	finalQuestion += b.config.Prompts.CombinedChatInstructionSuffix()
+	finalQuestion += b.livePrompts().CombinedChatInstructionSuffix()
 
 	userPrompt := prompts.FormatAIQuestionUserMessage(prompts.AIQuestionUserPayload{
 		InterlocutorName: interlocutorName,

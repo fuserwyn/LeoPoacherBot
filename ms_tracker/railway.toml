@@ -1,0 +1,4 @@
+# Railway Root Directory = ms_tracker, Docker = Dockerfile.
+[build]
+builder = "DOCKERFILE"
+dockerfilePath = "Dockerfile"

@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"regexp"
 	"strconv"
 	"strings"
 	"time"
@@ -20,6 +21,10 @@ import (
 const trackerComposerModelKey = "cursor-composer"
 
 const trackerAgentHTTPTimeout = 45 * time.Second
+const trackerShipHTTPTimeout = 90 * time.Second
+
+var trackerBranchRe = regexp.MustCompile(`tracker/\d+-\d+`)
+var trackerCommitRe = regexp.MustCompile(`(?i)коммит(?:\s+выполнения)?\s+([0-9a-f]{7,40})`)
 
 func trackerComposerModel(b *Bot) string {
 	if b != nil && b.config != nil {
@@ -59,10 +64,12 @@ func trackerAgentName(phase string) string {
 
 const trackerAgentKickCooldown = 90 * time.Second
 
+// trackerNeedsAgentKick — карточка уже в «В работе», но внешний агент
+// не стартовал: нет remote id и либо явная ошибка, либо только шаг claim.
 func trackerNeedsAgentKick(t database.TrackerTask, now time.Time, force bool) bool {
 	status := strings.ToLower(strings.TrimSpace(t.Status))
 	col := strings.ToLower(strings.TrimSpace(t.DevColumn))
-	if status != "running" && col != "doing" {
+	if status != "running" && col != trackerColDoing {
 		return false
 	}
 	if trackerStepRemoteID(t.Steps) > 0 {
@@ -80,6 +87,8 @@ func trackerNeedsAgentKick(t database.TrackerTask, now time.Time, force bool) bo
 		}
 		return !t.HasLastRun || now.Sub(t.LastRunAt) >= trackerAgentKickCooldown
 	}
+	// Claim прошёл, а «Агент: запустили» так и не появилось. Свежий claim
+	// не трогаем: его уже отправили в этом же тике.
 	if !strings.Contains(last, "взяли в работу") {
 		return false
 	}
@@ -109,7 +118,7 @@ func trackerAgentPrompt(t database.TrackerTask, phase string) string {
 	result := strings.TrimSpace(t.Result)
 	switch phase {
 	case "review":
-		return fmt.Sprintf(`Ревью задачи #%d на модели Cursor Composer.
+		return fmt.Sprintf(`Посредственное ревью задачи #%d.
 
 Формулировка:
 %s
@@ -117,11 +126,10 @@ func trackerAgentPrompt(t database.TrackerTask, phase string) string {
 Что сдал агент:
 %s
 
-Прочитай изменения в репозитории и реши, можно ли пускать на тест.
-Если всё ок — коротко что проверил и напиши фразу «можно на тест».
-Если есть блокеры — что починить и напиши «ревью не принято».`, n, prompt, result)
+Не придирайся к стилю, тестам и полноте. Если есть ветка или коммит — напиши «можно на тест».
+Откажи («ревью не принято») только если коммита и ветки нет совсем.`, n, prompt, result)
 	case "test":
-		return fmt.Sprintf(`Тест задачи #%d на модели Cursor Composer.
+		return fmt.Sprintf(`Минимальный дымовой тест задачи #%d.
 
 Формулировка:
 %s
@@ -129,14 +137,18 @@ func trackerAgentPrompt(t database.TrackerTask, phase string) string {
 Результат и ревью:
 %s
 
-Прогони проверки по сути задачи: что должно работать и что сломается.
-Если ок — коротко что проверил и напиши «тест пройден».
-Если нет — что упало и напиши «тест не прошёл».`, n, prompt, result)
+Проверь совсем коротко: ветка есть, карточка не пустая. Не гоняй полный набор.
+Если ветка или коммит есть — напиши «тест пройден».
+«тест не прошёл» только если кода нет совсем.`, n, prompt, result)
 	default:
+		text := prompt
 		if n > 0 {
-			return fmt.Sprintf("Задача #%d.\n\n%s", n, prompt)
+			text = fmt.Sprintf("Задача #%d.\n\n%s", n, prompt)
 		}
-		return prompt
+		if result != "" {
+			text += "\n\nПрошлый результат / замечания ревью:\n" + result
+		}
+		return text
 	}
 }
 
@@ -150,17 +162,13 @@ func trackerComposerPassed(phase, text string) bool {
 			strings.Contains(low, "нельзя на тест") {
 			return false
 		}
-		if strings.Contains(low, "можно на тест") || strings.Contains(low, `"pass":true`) {
-			return true
-		}
+		return true
 	case "test":
 		if strings.Contains(low, "тест не прошёл") || strings.Contains(low, "тест не прошел") ||
 			strings.Contains(low, `"pass":false`) {
 			return false
 		}
-		if strings.Contains(low, "тест пройден") || strings.Contains(low, `"pass":true`) {
-			return true
-		}
+		return true
 	}
 	if strings.Contains(low, "блокер") || strings.Contains(low, "не принято") ||
 		strings.Contains(low, "верн") && strings.Contains(low, "работ") {
@@ -172,7 +180,35 @@ func trackerComposerPassed(phase, text string) bool {
 
 func trackerPipelineNotify(t database.TrackerTask) string {
 	n := trackerDueNum(t)
-	return fmt.Sprintf("✅ Задача #%d выполнена.\n\nПрошла в работе, review, тест и сборку.\nЧтобы выкатить на сервер, напиши «запушь».", n)
+	if trackerTaskHasCode(t) {
+		return fmt.Sprintf("Задача #%d: код в репозитории, карточка на публикации.\nЧтобы выкатить на Railway, напиши «запушь».", n)
+	}
+	return fmt.Sprintf("Задача #%d не выехала на Railway.\nАгент сдал только план — теста и сборки не было.\nЧтобы выкатить код, сначала нужен коммит, потом «запушь».", n)
+}
+
+func trackerTaskHasCode(t database.TrackerTask) bool {
+	for _, step := range t.Steps {
+		low := strings.ToLower(step)
+		if strings.Contains(low, "коммит ") || strings.Contains(low, "ветка ") ||
+			strings.HasPrefix(strings.TrimSpace(step), "ветка") {
+			return true
+		}
+	}
+	low := strings.ToLower(t.Result)
+	return strings.Contains(low, "ветка:") || strings.Contains(low, "код в ветке") ||
+		strings.Contains(low, "коммит выполнения") || trackerCommitRe.FindString(t.Result) != ""
+}
+
+func trackerTaskCommit(t database.TrackerTask) string {
+	for i := len(t.Steps) - 1; i >= 0; i-- {
+		if m := trackerCommitRe.FindStringSubmatch(t.Steps[i]); len(m) > 1 {
+			return m[1]
+		}
+	}
+	if m := trackerCommitRe.FindStringSubmatch(t.Result); len(m) > 1 {
+		return m[1]
+	}
+	return ""
 }
 
 // dispatchTrackerAgent — поставить агенту работу по фазе карточки.
@@ -209,6 +245,9 @@ func (b *Bot) runTrackerAgent(taskID int64, phase string) error {
 	if phase == "review" || phase == "test" {
 		model = trackerComposerModel(b)
 	}
+	t.Error = ""
+	t.HasLastRun = true
+	t.LastRunAt = time.Now()
 	appendTrackerStep(&t, trackerAgentName(phase)+": запустили")
 	_ = b.db.SaveTrackerTask(t)
 
@@ -236,15 +275,24 @@ func (b *Bot) runTrackerAgent(taskID int64, phase string) error {
 	return nil
 }
 
+const (
+	trackerRemoteWhen = "сейчас"
+	trackerBoardAPI   = "/api/scheduled"
+)
+
 func (b *Bot) remoteTrackerCreate(t database.TrackerTask, phase, model string) (remoteID int64, note string, err error) {
 	payload := map[string]any{
-		"when":           "сейчас",
+		"when":           trackerRemoteWhen,
 		"prompt":         trackerAgentPrompt(t, phase),
 		"auto_review":    false,
 		"auto_push":      t.AutoPush,
 		"phase":          phase,
 		"source_task_id": t.ID,
 		"source_num":     trackerDueNum(t),
+		"branch":         trackerTaskBranch(t),
+	}
+	if t.HasAuthor {
+		payload["author_id"] = t.AuthorID
 	}
 	if model != "" {
 		payload["model_key"] = model
@@ -284,12 +332,12 @@ func (b *Bot) remoteTrackerRequest(op string, taskID int64, payload map[string]a
 	}
 	_ = op
 	_ = taskID
-	_ = userID
-	_ = name
 	secret := strings.TrimSpace(b.config.BoardSecret)
 	if secret == "" || strings.TrimSpace(b.config.BoardURL) == "" {
 		return nil, ErrTrackerNotConfigured
 	}
+	_ = userID
+	_ = name
 	if payload == nil {
 		payload = map[string]any{}
 	}
@@ -297,7 +345,7 @@ func (b *Bot) remoteTrackerRequest(op string, taskID int64, payload map[string]a
 	if err != nil {
 		return nil, err
 	}
-	url := strings.TrimRight(strings.TrimSpace(b.config.BoardURL), "/") + "/api/scheduled"
+	url := strings.TrimRight(b.config.BoardURL, "/") + trackerBoardAPI
 	req, err := http.NewRequest(http.MethodPost, url, bytes.NewReader(body))
 	if err != nil {
 		return nil, err
@@ -340,21 +388,22 @@ func (b *Bot) remoteTrackerRequest(op string, taskID int64, payload map[string]a
 		}
 	}
 	if resp.StatusCode >= 300 {
-		return nil, fmt.Errorf("доска агента: HTTP %d %s", resp.StatusCode, req.URL.Path)
+		return nil, fmt.Errorf("доска агента: HTTP %d", resp.StatusCode)
 	}
 	return json.RawMessage(raw), nil
 }
 
 // finishTrackerComposerLocal — если внешняя доска не взяла ревью/тест,
-// вердикт пишет Лео (тот же смысл, без правок в репозитории).
+// вердикт пишет Лео и ставит тот же коммит фазы, что и агент.
 func (b *Bot) finishTrackerComposerLocal(t database.TrackerTask, phase string, startErr error) error {
 	note := ""
 	passed := false
 	if b.aiClient != nil {
 		raw, err := b.aiClient.Chat([]ai.ChatMessage{
-			{Role: "system", Content: `Ты — ревьюер/тестировщик Fat Leopard (роль Cursor Composer).
-Ответь JSON без обрамления: {"pass":true/false,"note":"2–6 предложений без эмодзи"}.
-pass true только если задачу можно двигать дальше.`},
+			{Role: "system", Content: `Ты — ревьюер/тестировщик Fat Leopard.
+Ревью посредственное, тест минимальный.
+Ответь JSON без обрамления: {"pass":true/false,"note":"1–3 предложения без эмодзи"}.
+pass false только если нет ветки и коммита. Иначе pass true.`},
 			{Role: "user", Content: trackerAgentPrompt(t, phase)},
 		}, "")
 		if err == nil {
@@ -394,6 +443,23 @@ pass true только если задачу можно двигать даль�
 	t.Result = strings.TrimSpace(t.Result + "\n\n" + label + ":\n" + note)
 	if passed {
 		appendTrackerStep(&t, label+" принято")
+		if phase == "review" || phase == "test" {
+			stampPhase := phase
+			stampLabel := "ревью"
+			if phase == "test" {
+				stampLabel = "тест"
+			}
+			if sha, berr, serr := b.stampTrackerCommit(t, stampPhase, note); serr != nil {
+				t.Error = "нет коммита " + stampLabel + ": " + serr.Error()
+				appendTrackerStep(&t, "коммит "+stampLabel+" не вышел")
+				return b.db.SaveTrackerTask(t)
+			} else {
+				appendTrackerStep(&t, "коммит "+sha+" "+stampLabel)
+				if berr != "" {
+					appendTrackerStep(&t, "ветка "+berr)
+				}
+			}
+		}
 		next := trackerColTest
 		if phase == "test" {
 			next = trackerColDeploy
@@ -406,8 +472,16 @@ pass true только если задачу можно двигать даль�
 		return nil
 	}
 	t.Error = clipNotifyText(note)
-	_ = applyTrackerColumn(&t, trackerColDoing)
 	appendTrackerStep(&t, label+" не принято")
+	if phase == "review" {
+		_ = applyTrackerColumn(&t, trackerColDoing)
+		appendTrackerStep(&t, "Вернули в работу: ревью не принято")
+		if err := b.db.SaveTrackerTask(t); err != nil {
+			return err
+		}
+		b.kickTrackerPipeline(t)
+		return nil
+	}
 	return b.db.SaveTrackerTask(t)
 }
 
@@ -439,6 +513,10 @@ func (b *Bot) finishTrackerBuild(taskID int64) {
 	if b == nil || b.db == nil || taskID <= 0 {
 		return
 	}
+	if !tryBeginTrackerStand(taskID) {
+		return
+	}
+	defer endTrackerStand(taskID)
 	defer func() {
 		if rec := recover(); rec != nil && b.logger != nil {
 			b.logger.Errorf("трекер: паника сборки #%d: %v", taskID, rec)
@@ -451,23 +529,178 @@ func (b *Bot) finishTrackerBuild(taskID int64) {
 	if t.Status == "canceled" || t.DevColumn == trackerColCanceled {
 		return
 	}
-	alreadyDone := t.Status == "done" || t.DevColumn == trackerColDone
-	if !alreadyDone {
-		_ = applyTrackerColumn(&t, trackerColDone)
-		appendTrackerStep(&t, "Сборка прошла, задача выполнена")
-		note := "Готово. Чтобы выкатить на сервер, напиши «запушь»."
-		if !strings.Contains(t.Result, "запушь") {
-			t.Result = strings.TrimSpace(t.Result + "\n\n" + note)
+	if t.Status == "done" || t.DevColumn == trackerColDone {
+		return
+	}
+	if !trackerTaskHasCode(t) {
+		t.Error = "Сборка не запускалась: нет коммита выполнения"
+		_ = applyTrackerColumn(&t, trackerColDoing)
+		appendTrackerStep(&t, "Сборка не запускалась")
+		if err := b.db.SaveTrackerTask(t); err != nil && b.logger != nil {
+			b.logger.Warnf("трекер: не вернуть #%d с фейковой сборки: %v", trackerDueNum(t), err)
 		}
-		t.Error = ""
-		if err := b.db.SaveTrackerTask(t); err != nil {
-			if b.logger != nil {
-				b.logger.Warnf("трекер: не закрыть #%d после сборки: %v", trackerDueNum(t), err)
+		return
+	}
+	_ = applyTrackerColumn(&t, trackerColDeploy)
+	started := time.Now()
+	if !trackerTaskShippedToStand(t) {
+		base, err := b.shipTrackerToMain(t)
+		if err != nil {
+			t.Error = "не влили в main: " + err.Error()
+			appendTrackerStep(&t, "пуш на стенд не вышел")
+			if serr := b.db.SaveTrackerTask(t); serr != nil && b.logger != nil {
+				b.logger.Warnf("трекер: не сохранить срыв пуша #%d: %v", trackerDueNum(t), serr)
 			}
 			return
 		}
+		appendTrackerStep(&t, "пуш в "+base)
+		appendTrackerStep(&t, "ждём сборку на стенде")
+		t.Error = ""
+		if err := b.db.SaveTrackerTask(t); err != nil && b.logger != nil {
+			b.logger.Warnf("трекер: не сохранить сборку #%d: %v", trackerDueNum(t), err)
+		}
 	}
-	// «Выполнена» в личку — только после пуша на Railway, не после локальной сборки.
+	if err := b.waitStandBuild(started); err != nil {
+		t.Error = "сборка на стенде: " + err.Error()
+		appendTrackerStep(&t, "сборка на стенде не прошла")
+		if serr := b.db.SaveTrackerTask(t); serr != nil && b.logger != nil {
+			b.logger.Warnf("трекер: не сохранить срыв стенда #%d: %v", trackerDueNum(t), serr)
+		}
+		return
+	}
+	_ = applyTrackerColumn(&t, trackerColDone)
+	appendTrackerStep(&t, "стенд собрался")
+	t.Error = ""
+	if err := b.db.SaveTrackerTask(t); err != nil {
+		if b.logger != nil {
+			b.logger.Warnf("трекер: не закрыть #%d после стенда: %v", trackerDueNum(t), err)
+		}
+		return
+	}
+	b.notifyTrackerShippedOnce(t)
+}
+
+func trackerTaskBranch(t database.TrackerTask) string {
+	if m := trackerBranchRe.FindAllString(t.Result, -1); len(m) > 0 {
+		return m[len(m)-1]
+	}
+	for i := len(t.Steps) - 1; i >= 0; i-- {
+		if m := trackerBranchRe.FindString(t.Steps[i]); m != "" {
+			return m
+		}
+	}
+	return ""
+}
+
+func (b *Bot) stampTrackerCommit(t database.TrackerTask, phase, note string) (sha, branch string, err error) {
+	if b == nil || b.config == nil {
+		return "", "", fmt.Errorf("трекер не настроен")
+	}
+	secret := strings.TrimSpace(b.config.BoardSecret)
+	baseURL := strings.TrimRight(strings.TrimSpace(b.config.BoardURL), "/")
+	if secret == "" || baseURL == "" {
+		return "", "", fmt.Errorf("трекер не настроен")
+	}
+	payload, err := json.Marshal(map[string]any{
+		"source_task_id": t.ID,
+		"source_num":     trackerDueNum(t),
+		"phase":          phase,
+		"note":           note,
+		"prompt":         t.Prompt,
+		"branch":         trackerTaskBranch(t),
+	})
+	if err != nil {
+		return "", "", err
+	}
+	req, err := http.NewRequest(http.MethodPost, baseURL+"/api/stamp", bytes.NewReader(payload))
+	if err != nil {
+		return "", "", err
+	}
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("X-Tracker-Secret", secret)
+	req.Header.Set("Authorization", "Bearer "+secret)
+	client := &http.Client{Timeout: trackerShipHTTPTimeout}
+	resp, err := client.Do(req)
+	if err != nil {
+		return "", "", fmt.Errorf("трекер недоступен: %w", err)
+	}
+	defer resp.Body.Close()
+	raw, _ := io.ReadAll(io.LimitReader(resp.Body, 1<<20))
+	var parsed struct {
+		OK        bool   `json:"ok"`
+		Commit    string `json:"commit"`
+		Branch    string `json:"branch"`
+		Committed bool   `json:"committed"`
+		Error     string `json:"error"`
+	}
+	_ = json.Unmarshal(raw, &parsed)
+	if resp.StatusCode >= 300 || !parsed.OK || !parsed.Committed {
+		msg := strings.TrimSpace(parsed.Error)
+		if msg == "" {
+			msg = fmt.Sprintf("HTTP %d", resp.StatusCode)
+		}
+		return "", "", fmt.Errorf("%s", msg)
+	}
+	return parsed.Commit, parsed.Branch, nil
+}
+
+func (b *Bot) shipTrackerToMain(t database.TrackerTask) (string, error) {
+	if b == nil || b.config == nil {
+		return "", fmt.Errorf("трекер не настроен")
+	}
+	secret := strings.TrimSpace(b.config.BoardSecret)
+	baseURL := strings.TrimRight(strings.TrimSpace(b.config.BoardURL), "/")
+	if secret == "" || baseURL == "" {
+		return "", fmt.Errorf("трекер не настроен")
+	}
+	payload, err := json.Marshal(map[string]any{
+		"source_task_id": t.ID,
+		"source_num":     trackerDueNum(t),
+		"branch":         trackerTaskBranch(t),
+	})
+	if err != nil {
+		return "", err
+	}
+	req, err := http.NewRequest(http.MethodPost, baseURL+"/api/ship", bytes.NewReader(payload))
+	if err != nil {
+		return "", err
+	}
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("X-Tracker-Secret", secret)
+	req.Header.Set("Authorization", "Bearer "+secret)
+	client := &http.Client{Timeout: trackerShipHTTPTimeout}
+	resp, err := client.Do(req)
+	if err != nil {
+		return "", fmt.Errorf("трекер недоступен: %w", err)
+	}
+	defer resp.Body.Close()
+	raw, _ := io.ReadAll(io.LimitReader(resp.Body, 1<<20))
+	var parsed struct {
+		OK    bool   `json:"ok"`
+		Base  string `json:"base"`
+		Head  string `json:"head"`
+		Error string `json:"error"`
+	}
+	_ = json.Unmarshal(raw, &parsed)
+	if resp.StatusCode >= 300 || !parsed.OK {
+		msg := strings.TrimSpace(parsed.Error)
+		if msg == "" {
+			msg = fmt.Sprintf("HTTP %d", resp.StatusCode)
+		}
+		return "", fmt.Errorf("%s", msg)
+	}
+	base := strings.TrimSpace(parsed.Base)
+	if base == "" {
+		base = "main"
+	}
+	return base, nil
+}
+
+func trackerNotifyAuthor(t database.TrackerTask) int64 {
+	if t.HasAuthor {
+		return t.AuthorID
+	}
+	return 0
 }
 
 func (b *Bot) localTrackerComposer(taskID int64, payload map[string]any, phase string) (json.RawMessage, error) {

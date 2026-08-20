@@ -223,7 +223,7 @@ func (b *Bot) sendInactiveRemovalWarning(userID, chatID int64, username string, 
 		}
 		var ctxBuilder strings.Builder
 		ctxBuilder.WriteString(fmt.Sprintf("Пользователь: %s\nstage: %s\nДо удаления за неактивность осталось около %d ч.\nДедлайн: %s\n", username, stage, hoursBefore, deadlineHuman))
-		if addendum, err := b.aiClient.AnswerUserQuestion(b.config.Prompts.WarningTimerQuestion, ctxBuilder.String()); err == nil {
+		if addendum, err := b.aiClient.AnswerUserQuestion(b.livePrompts().WarningTimerQuestion, ctxBuilder.String()); err == nil {
 			addendum = ai.SanitizeTextForUser(addendum)
 			if addendum != "" {
 				messageText = messageText + "\n\n" + addendum

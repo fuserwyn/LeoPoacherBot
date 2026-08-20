@@ -17,18 +17,19 @@ type MiniappUserProfile struct {
 	DisplayName       string
 	AgeYears          sql.NullInt64
 	TelegramPhotoURL  string
+	Theme             string
 	UpdatedAt         time.Time
 }
 
 // GetMiniappUserProfile — профиль.
 func (d *Database) GetMiniappUserProfile(userID, packChatID int64) (*MiniappUserProfile, error) {
 	const q = `
-		SELECT user_id, pack_chat_id, gender, display_name, age_years, telegram_photo_url, updated_at
+		SELECT user_id, pack_chat_id, gender, display_name, age_years, telegram_photo_url, COALESCE(theme, ''), updated_at
 		FROM miniapp_user_profile
 		WHERE user_id = $1 AND pack_chat_id = $2`
 	var p MiniappUserProfile
 	err := d.db.QueryRow(q, userID, packChatID).Scan(
-		&p.UserID, &p.PackChatID, &p.Gender, &p.DisplayName, &p.AgeYears, &p.TelegramPhotoURL, &p.UpdatedAt,
+		&p.UserID, &p.PackChatID, &p.Gender, &p.DisplayName, &p.AgeYears, &p.TelegramPhotoURL, &p.Theme, &p.UpdatedAt,
 	)
 	if err != nil {
 		return nil, err
@@ -114,15 +115,35 @@ func (d *Database) UpsertMiniappUserProfile(p *MiniappUserProfile) error {
 		return fmt.Errorf("pack chat id")
 	}
 	const q = `
-		INSERT INTO miniapp_user_profile (user_id, pack_chat_id, gender, display_name, age_years, updated_at)
-		VALUES ($1, $2, $3, $4, $5, $6)
+		INSERT INTO miniapp_user_profile (user_id, pack_chat_id, gender, display_name, age_years, theme, updated_at)
+		VALUES ($1, $2, $3, $4, $5, $6, $7)
 		ON CONFLICT (user_id, pack_chat_id) DO UPDATE SET
 			gender = EXCLUDED.gender,
 			display_name = EXCLUDED.display_name,
 			age_years = EXCLUDED.age_years,
+			theme = CASE WHEN EXCLUDED.theme <> '' THEN EXCLUDED.theme ELSE miniapp_user_profile.theme END,
 			updated_at = EXCLUDED.updated_at`
-	_, err := d.db.Exec(q, p.UserID, p.PackChatID, p.Gender, p.DisplayName, p.AgeYears, time.Now().UTC())
+	_, err := d.db.Exec(q, p.UserID, p.PackChatID, p.Gender, p.DisplayName, p.AgeYears, strings.TrimSpace(p.Theme), time.Now().UTC())
 	return err
+}
+
+// UpsertMiniappTheme — только колонка темы; остальные поля профиля не трогает.
+func (d *Database) UpsertMiniappTheme(userID, packChatID int64, theme string) error {
+	theme = strings.TrimSpace(theme)
+	if d == nil || packChatID == 0 || userID == 0 {
+		return nil
+	}
+	const q = `
+		INSERT INTO miniapp_user_profile (user_id, pack_chat_id, gender, display_name, age_years, theme, updated_at)
+		VALUES ($1, $2, '', '', NULL, $3, NOW())
+		ON CONFLICT (user_id, pack_chat_id) DO UPDATE SET
+			theme = EXCLUDED.theme,
+			updated_at = EXCLUDED.updated_at`
+	_, err := d.db.Exec(q, userID, packChatID, theme)
+	if err != nil {
+		return fmt.Errorf("upsert miniapp theme: %w", err)
+	}
+	return nil
 }
 
 // PatchTrainingStateGenderIfExists — дублирует пол в training_state (чат стаи).

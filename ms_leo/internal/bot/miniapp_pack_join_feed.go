@@ -129,7 +129,7 @@ func (b *Bot) savePackRemovedMiniappFeed(chatID, userID int64, username string) 
 		UserID:      userID,
 		ChatID:      chatID,
 		Username:    strings.TrimSpace(username),
-		MessageText: PackRemovedFeedNotice(b.config.Prompts, username),
+		MessageText: PackRemovedFeedNotice(b.livePrompts(), username),
 		MessageType: userMessageTypePackRemoved,
 	}
 	if err := b.db.SaveUserMessage(um); err != nil {

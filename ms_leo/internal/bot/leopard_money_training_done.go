@@ -514,7 +514,7 @@ func (b *Bot) handleLeopardMoneyTrainingDone(msg *tgbotapi.Message, personalRepl
 		}
 	}
 
-	if achievementAwarded && b.aiClient != nil && b.config.Prompts.AchievementMilestone != "" {
+	if achievementAwarded && b.aiClient != nil && b.livePrompts().AchievementMilestone != "" {
 		uid := msg.From.ID
 		un := username
 		streak := newStreak
@@ -533,7 +533,7 @@ func (b *Bot) handleLeopardMoneyTrainingDone(msg *tgbotapi.Message, personalRepl
 				"Пользователь: @%s\nСтрик: %d дней (milestone)\nТier: %d\nУровень: %s\nis_record: %v\nis_first_achievement: %v",
 				strings.TrimPrefix(un, "@"), streak, tier, levelName, isRecord, isFirst,
 			)
-			raw, err := b.aiClient.AnswerUserQuestion(b.config.Prompts.AchievementMilestone, ctx)
+			raw, err := b.aiClient.AnswerUserQuestion(b.livePrompts().AchievementMilestone, ctx)
 			if err != nil {
 				b.logger.Warnf("achievement milestone AI: %v", err)
 				return

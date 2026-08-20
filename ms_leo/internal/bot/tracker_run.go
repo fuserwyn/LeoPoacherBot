@@ -70,9 +70,12 @@ func (b *Bot) runDueTrackerTasks() {
 }
 
 // claimAndNotifyDueTrackerTasks — то, что делает «Обновить» на доске:
-// снимает созревшие с «Ожидает» и пишет автору. Ошибка наружу — кнопка
-// не должна притворяться, что доска обновилась, если забрать не вышло.
+// снимает созревшие с «Ожидает». В личку не пишет.
 func (b *Bot) claimAndNotifyDueTrackerTasks() (int, error) {
+	return b.claimAndKickTrackerTasks(false)
+}
+
+func (b *Bot) claimAndKickTrackerTasks(forceStuck bool) (int, error) {
 	if b == nil || b.db == nil {
 		return 0, fmt.Errorf("база недоступна")
 	}
@@ -91,25 +94,45 @@ func (b *Bot) claimAndNotifyDueTrackerTasks() (int, error) {
 		if b.logger != nil {
 			b.logger.Infof("трекер: задача #%d началась по расписанию", trackerDueNum(t))
 		}
-		// В личку не пишем: старт — промежуточный статус.
+		// В личку не пишем: старт — промежуточный статус. Уведомление
+		// будет только когда задача выедет на Railway в main.
 		b.dispatchTrackerAgent(t, "doing")
 	}
-	kicked := b.kickStuckTrackerAgents(false)
-	return len(due) + healed + kicked, nil
+	kicked := b.kickStuckTrackerAgents(forceStuck)
+	resumed := b.resumeTrackerStandBuilds()
+	return len(due) + healed + kicked + resumed, nil
 }
 
-func (b *Bot) claimAndKickTrackerTasks(forceStuck bool) (int, error) {
-	started, err := b.claimAndNotifyDueTrackerTasks()
+func (b *Bot) resumeTrackerStandBuilds() int {
+	if b == nil || b.db == nil {
+		return 0
+	}
+	list, err := b.db.ListTrackerTasks()
 	if err != nil {
-		return started, err
+		if b.logger != nil {
+			b.logger.Warnf("трекер: не прочитать сборки: %v", err)
+		}
+		return 0
 	}
-	if !forceStuck {
-		return started, nil
+	n := 0
+	for _, t := range list {
+		col := strings.ToLower(strings.TrimSpace(t.DevColumn))
+		if col != trackerColDeploy {
+			continue
+		}
+		if t.Status == "canceled" || t.Status == "done" {
+			continue
+		}
+		if !trackerTaskHasCode(t) && !trackerTaskShippedToStand(t) {
+			continue
+		}
+		if b.logger != nil {
+			b.logger.Infof("трекер: дожимаем сборку #%d", trackerDueNum(t))
+		}
+		go b.finishTrackerBuild(t.ID)
+		n++
 	}
-	// claimAndNotify already kicked with force=false. Обновить — ещё раз
-	// принудительно, чтобы HTTP 405 и прочие фейлы не висели до кулдауна.
-	extra := b.kickStuckTrackerAgents(true)
-	return started + extra, nil
+	return n
 }
 
 func (b *Bot) kickStuckTrackerAgents(force bool) int {

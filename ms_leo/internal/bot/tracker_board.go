@@ -12,8 +12,9 @@ import (
 )
 
 // Своя доска: те же карточки, что рисует TrackerScreen, но данные из нашей базы.
-// Код пишется в этом проекте, на сервер он уезжает только когда человек
-// напишет «запушь» — сами мы git не трогаем.
+// Коммиты на ветке задачи: выполнение до review, ревью до теста.
+// Пуш в main и колонка «Сборка» — только после теста. Выполнено — когда
+// стенд собрался.
 
 const (
 	trackerColTodo     = "todo"
@@ -162,43 +163,45 @@ func trackerTaskView(t database.TrackerTask, withAtts bool) map[string]any {
 		live = t.Steps[n-1]
 	}
 	out := map[string]any{
-		"id":                 t.ID,
-		"num":                t.Num,
-		"prompt":             t.Prompt,
-		"repo":               "",
-		"when":               when,
-		"repeat":             t.Repeat,
-		"kind":               t.Kind,
-		"status":             t.Status,
-		"status_label":       label,
-		"status_icon":        icon,
-		"done":               done,
-		"active":             active,
-		"can_delete":         canDelete,
-		"auto_review":        t.AutoReview,
-		"manual_qa":          t.ManualQa,
-		"fast_track":         t.FastTrack,
-		"error":              t.Error,
-		"has_result":         strings.TrimSpace(t.Result) != "",
-		"phase":              phase,
-		"qa_status":          qaStatus,
-		"qa_label":           qaLabel,
-		"qa_icon":            qaIcon,
-		"auto_qa_running":    false,
-		"dev_column":         t.DevColumn,
-		"qa_column":          qaCol,
-		"handed_to_qa":       t.HandedToQa,
-		"attachments_count":  t.AttachmentsCount,
-		"has_attachments":    t.AttachmentsCount > 0,
-		"auto_push":          t.AutoPush,
-		"author_id":          author,
-		"steps":              t.Steps,
-		"steps_running":      t.Status == "running" || t.Status == "reviewing" ||
+		"id":                t.ID,
+		"num":               t.Num,
+		"prompt":            t.Prompt,
+		"repo":              "",
+		"when":              when,
+		"repeat":            t.Repeat,
+		"kind":              t.Kind,
+		"status":            t.Status,
+		"status_label":      label,
+		"status_icon":       icon,
+		"done":              done,
+		"active":            active,
+		"can_delete":        canDelete,
+		"auto_review":       t.AutoReview,
+		"manual_qa":         t.ManualQa,
+		"fast_track":        t.FastTrack,
+		"error":             t.Error,
+		"has_result":        strings.TrimSpace(t.Result) != "",
+		"phase":             phase,
+		"qa_status":         qaStatus,
+		"qa_label":          qaLabel,
+		"qa_icon":           qaIcon,
+		"auto_qa_running":   false,
+		"dev_column":        t.DevColumn,
+		"qa_column":         qaCol,
+		"handed_to_qa":      t.HandedToQa,
+		"attachments_count": t.AttachmentsCount,
+		"has_attachments":   t.AttachmentsCount > 0,
+		"auto_push":         t.AutoPush,
+		"author_id":         author,
+		"steps":             t.Steps,
+		"steps_running": t.Status == "running" || t.Status == "reviewing" ||
 			(t.Status == "holding" && (t.DevColumn == trackerColTest && !t.ManualQa || t.DevColumn == trackerColDeploy)),
-		"model_key":          "",
-		"live_step":          live,
-		"result":             t.Result,
-		"created_at":         t.CreatedAt.Format(time.RFC3339),
+		"model_key":  "",
+		"live_step":  live,
+		"result":     t.Result,
+		"created_at": t.CreatedAt.Format(time.RFC3339),
+		"commit":     trackerTaskCommit(t),
+		"branch":     trackerTaskBranch(t),
 	}
 	if t.HasLastRun {
 		out["last_run_at"] = t.LastRunAt.Format(time.RFC3339)
@@ -378,6 +381,15 @@ func (b *Bot) localTrackerReschedule(taskID int64, payload map[string]any) (json
 	}
 	t.WhenAt = at
 	t.WhenLabel = label
+	if trackerNeedsAgentKick(t, time.Now(), true) {
+		t.Error = ""
+		appendTrackerStep(&t, "Снова запускаем агента")
+		if err := b.db.SaveTrackerTask(t); err != nil {
+			return nil, err
+		}
+		b.dispatchTrackerAgent(t, "doing")
+		return trackerJSON(map[string]any{"ok": true})
+	}
 	if t.Status == "done" || t.Status == "canceled" || t.Status == "error" ||
 		t.DevColumn == trackerColDone || t.DevColumn == trackerColCanceled {
 		if err := applyTrackerColumn(&t, trackerColTodo); err != nil {
@@ -559,20 +571,17 @@ func (b *Bot) localTrackerShip(taskID int64, payload map[string]any) (json.RawMe
 	if !trackerTaskReadyToShip(snap) {
 		return trackerJSON(map[string]any{"ok": true, "skipped": true})
 	}
-	_ = applyTrackerColumn(&t, trackerColDone)
-	note := "Готово к публикации. Чтобы выкатить на сервер, напиши «запушь»."
-	if !strings.Contains(t.Result, "запушь") {
-		t.Result = strings.TrimSpace(t.Result + "\n\n" + note)
-	}
-	appendTrackerStep(&t, "Отметили к публикации")
+	_ = applyTrackerColumn(&t, trackerColDeploy)
+	appendTrackerStep(&t, "К сборке: пуш после теста")
 	if err := b.db.SaveTrackerTask(t); err != nil {
 		return nil, err
 	}
+	b.kickTrackerPipeline(t)
 	return trackerJSON(map[string]any{
 		"ok":       true,
 		"promoted": false,
-		"pushed":   false,
-		"deployed": true,
+		"pushed":   true,
+		"deployed": false,
 	})
 }
 
@@ -600,8 +609,8 @@ title до 60 символов, summary до 180, без эмодзи.`},
 		return nil, fmt.Errorf("не удалось предложить идеи: %w", err)
 	}
 	var parsed struct {
-		Ideas          []map[string]any `json:"ideas"`
-		RecommendedID  string           `json:"recommended_id"`
+		Ideas         []map[string]any `json:"ideas"`
+		RecommendedID string           `json:"recommended_id"`
 	}
 	if block := leoJSONBlock.FindString(raw); block != "" {
 		_ = json.Unmarshal([]byte(block), &parsed)

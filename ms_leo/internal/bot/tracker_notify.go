@@ -30,17 +30,13 @@ func (b *Bot) ApplyBoardNotify(taskID int64, text string) (localID int64, ship b
 	}
 	from := strings.ToLower(strings.TrimSpace(t.DevColumn))
 	applyTrackerNotify(&t, kind, text)
-	if kind == "done" && (from == trackerColReview || from == trackerColTest) &&
-		!trackerComposerPassed(from, text) {
-		// Composer вернул провал: не двигаем дальше, возвращаем в работу.
-		t.Error = clipNotifyText(text)
-		_ = applyTrackerColumn(&t, trackerColDoing)
-		appendTrackerStep(&t, trackerAgentName(from)+" не принято")
+	if kind == "done" {
+		applyTrackerPhaseVerdict(&t, from, text)
 	}
 	if err := b.db.SaveTrackerTask(t); err != nil {
 		return t.ID, false, err
 	}
-	if kind == "done" {
+	if trackerShouldKickAfterNotify(kind, from, text) {
 		b.kickTrackerPipeline(t)
 	}
 	return t.ID, trackerShouldShipAfterNotify(t), nil
@@ -97,7 +93,8 @@ func trackerTaskIfFound(t database.TrackerTask, err error) (database.TrackerTask
 	return t, true
 }
 
-// TrackerNotifyIsFullyShipped — в личку только финал: задача на Railway в main.
+// TrackerNotifyIsFullyShipped — в личку пишем только финал: задача уже
+// на Railway в ветке main. Промежуточные статусы крутятся на доске молча.
 func TrackerNotifyIsFullyShipped(text string) bool {
 	low := strings.ToLower(strings.TrimSpace(text))
 	if low == "" {
@@ -134,11 +131,43 @@ func trackerAlreadyNotifiedShip(t database.TrackerTask) bool {
 	return false
 }
 
-func trackerNotifyAuthor(t database.TrackerTask) int64 {
-	if t.HasAuthor {
-		return t.AuthorID
+func trackerShouldKickAfterNotify(kind, from, text string) bool {
+	if kind != "done" {
+		return false
 	}
-	return 0
+	// Финал на Railway — карточка уже в «Выполнено». Ещё один прогон
+	// review/теста шлёт второе «задача выполнена».
+	if TrackerNotifyIsFullyShipped(text) {
+		return false
+	}
+	// Тест провален — ждём человека или повторный клик. Ревью провалено —
+	// агент снова пишет код во «В работе».
+	if from == trackerColTest && !trackerComposerPassed(from, text) {
+		return false
+	}
+	return true
+}
+
+// applyTrackerPhaseVerdict — отказ ревью возвращает карточку в работу,
+// чтобы агент правил по замечаниям. Отказ теста остаётся на тесте.
+func applyTrackerPhaseVerdict(t *database.TrackerTask, from, text string) {
+	if t == nil {
+		return
+	}
+	if from != trackerColReview && from != trackerColTest {
+		return
+	}
+	if trackerComposerPassed(from, text) {
+		return
+	}
+	t.Error = clipNotifyText(text)
+	if from == trackerColReview {
+		_ = applyTrackerColumn(t, trackerColDoing)
+		appendTrackerStep(t, "Вернули в работу: ревью не принято")
+		return
+	}
+	_ = applyTrackerColumn(t, from)
+	appendTrackerStep(t, trackerAgentName(from)+" не принято")
 }
 
 func (b *Bot) notifyTrackerShippedOnce(t database.TrackerTask) {
@@ -183,8 +212,13 @@ func (b *Bot) NotifyTrackerShippedIfNeeded(taskID int64, text string) {
 func trackerNotifyKind(text string) string {
 	low := strings.ToLower(text)
 	switch {
+	case strings.Contains(text, "TRACKER_NO_CODE") || strings.Contains(low, "кода нет") ||
+		strings.Contains(low, "репозиторий не менялся"):
+		return "plan"
 	case strings.Contains(low, "отменен") || strings.Contains(low, "cancelled") || strings.Contains(low, "canceled"):
 		return "canceled"
+	case strings.Contains(low, "агент не стартовал") || strings.Contains(low, "openrouter"):
+		return "error"
 	case strings.Contains(low, "выполнен") || strings.Contains(low, "completed") ||
 		strings.Contains(low, "готово") || strings.Contains(text, "✅") ||
 		strings.Contains(low, "можно на тест") || strings.Contains(low, "тест пройден") ||
@@ -221,6 +255,9 @@ func clipNotifyText(s string) string {
 }
 
 func trackerNotifyDoneColumn(t database.TrackerTask) string {
+	if TrackerNotifyIsFullyShipped(t.Result) {
+		return trackerColDone
+	}
 	col := strings.ToLower(strings.TrimSpace(t.DevColumn))
 	// Сдача на review/тесте — это вердикт Composer, двигаем дальше.
 	// Ручное QA на тесте не перескакиваем: человек ещё смотрит.
@@ -268,11 +305,13 @@ func (b *Bot) healTrackerCardsFromStoredResult() (int, error) {
 		if !trackerShouldAdvanceFromResult(t) {
 			continue
 		}
-		applyTrackerNotify(&t, trackerNotifyKind(t.Result), t.Result)
+		kind := trackerNotifyKind(t.Result)
+		applyTrackerNotify(&t, kind, t.Result)
 		if err := b.db.SaveTrackerTask(t); err != nil {
 			return moved, err
 		}
-		if trackerNotifyKind(t.Result) == "done" {
+		if kind == "done" && !trackerComposerFailedResult(t.Result) &&
+			trackerShouldKickAfterNotify(kind, t.DevColumn, t.Result) {
 			b.kickTrackerPipeline(t)
 		}
 		moved++
@@ -281,9 +320,20 @@ func (b *Bot) healTrackerCardsFromStoredResult() (int, error) {
 }
 
 // trackerShouldAdvanceFromResult — в result уже «готово», а колонка не там.
+func trackerComposerFailedResult(text string) bool {
+	low := strings.ToLower(text)
+	return strings.Contains(low, "ревью не принято") ||
+		strings.Contains(low, "тест не прошёл") ||
+		strings.Contains(low, "тест не прошел") ||
+		strings.Contains(low, "агент не стартовал")
+}
+
 func trackerShouldAdvanceFromResult(t database.TrackerTask) bool {
 	kind := trackerNotifyKind(t.Result)
-	if kind == "" || kind == "started" {
+	if kind == "" || kind == "started" || kind == "error" {
+		return false
+	}
+	if trackerComposerFailedResult(t.Result) {
 		return false
 	}
 	col := strings.ToLower(strings.TrimSpace(t.DevColumn))
@@ -294,6 +344,9 @@ func trackerShouldAdvanceFromResult(t database.TrackerTask) bool {
 	}
 	switch kind {
 	case "done":
+		if TrackerNotifyIsFullyShipped(t.Result) {
+			return col != trackerColDone && col != trackerColCanceled
+		}
 		want := trackerNotifyDoneColumn(t)
 		if col == want && status != "pending" && status != "scheduled" && status != "running" {
 			return false
@@ -317,7 +370,24 @@ func applyTrackerNotify(t *database.TrackerTask, kind, text string) {
 	if text != "" {
 		t.Result = text
 	}
+	if br := trackerBranchRe.FindString(text); br != "" {
+		appendTrackerStep(t, "ветка "+br)
+	}
+	if m := trackerCommitRe.FindStringSubmatch(text); len(m) > 1 {
+		label := "выполнение"
+		lowText := strings.ToLower(text)
+		if strings.Contains(lowText, "ревью") {
+			label = "ревью"
+		} else if strings.Contains(lowText, "тест") {
+			label = "тест"
+		}
+		appendTrackerStep(t, "коммит "+m[1]+" "+label)
+	}
 	switch kind {
+	case "plan":
+		_ = applyTrackerColumn(t, trackerColDoing)
+		t.Error = "Кода в репозитории нет"
+		appendTrackerStep(t, "Агент сдал план без кода")
 	case "canceled":
 		_ = applyTrackerColumn(t, trackerColCanceled)
 		appendTrackerStep(t, "Отменена по уведомлению")

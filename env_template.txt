@@ -41,8 +41,12 @@ OPENROUTER_MODEL=deepseek/deepseek-r1-0528
 # Примеры: openai/gpt-4o-mini, google/gemini-2.0-flash-001, anthropic/claude-3.5-sonnet
 OPENROUTER_VISION_MODEL=openai/gpt-4o-mini
 
-# Промпты ИИ (Fat Leopard) — только встроенные тексты из ms_leo/internal/prompts/data/*.txt через //go:embed.
-# Переопределения через PROMPT_* в env больше не читаются — меняйте файлы в репозитории и пересобирайте.
+# Промпты ИИ (Fat Leopard) — встроенные тексты из ms_leo/internal/prompts/data/*.txt.
+# В админке «Промпты Леопарда» их можно заменить текстом или файлом (таблица leo_prompt_overrides).
+
+# TRACKER_DATABASE_URL — Postgres только трекера (карточки, вложения, автономия).
+# Не должна совпадать с DATABASE_URL Лео. На Railway — отдельный Postgres сервиса ms-tracker.
+# TRACKER_DATABASE_URL=postgresql://postgres:password@localhost:5432/leo_tracker?sslmode=disable
 
 # Сканирование истории при старте (true/false, по умолчанию false)
 # Если true - бот попытается просканировать доступную историю сообщений при первом запуске (если БД пустая)

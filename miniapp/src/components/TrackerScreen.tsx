@@ -80,11 +80,20 @@ function taskNo(task: TrackerTask): number {
   return Number(task.num) || Number(task.id);
 }
 
-/** Завершённую, отменённую или упавшую задачу можно снова поставить в очередь. */
+/** Агент не стартовал, карточка зависла в «В работе». */
+function canRetryAgent(task: TrackerTask): boolean {
+  const status = String(task.status || "").toLowerCase();
+  const column = String(task.dev_column || "").toLowerCase();
+  const err = String(task.error || "");
+  return (status === "running" || column === "doing") && /агент не стартовал/i.test(err);
+}
+
+/** Завершённую, отменённую, упавшую или зависшую задачу можно снова поставить. */
 function canReturnToWork(task: TrackerTask): boolean {
   const status = String(task.status || "").toLowerCase();
   const column = String(task.dev_column || "").toLowerCase();
-  return ["canceled", "cancelled", "done", "error", "holding"].includes(status)
+  return canRetryAgent(task)
+    || ["canceled", "cancelled", "done", "error", "holding"].includes(status)
     || ["canceled", "cancelled", "done"].includes(column);
 }
 
@@ -1186,10 +1195,13 @@ export function TrackerScreen({ initData, showAlert }: Props) {
                   className="tracker-modal__accent"
                   disabled={busy}
                   onClick={() =>
-                    void actOnDetail(() => trackerRunNow(initData, detail.id), "Задача снова в работе.")
+                    void actOnDetail(
+                      () => trackerRunNow(initData, detail.id),
+                      canRetryAgent(detail) ? "Снова запускаем агента." : "Задача снова в работе.",
+                    )
                   }
                 >
-                  Вернуть в работу
+                  {canRetryAgent(detail) ? "Запустить снова" : "Вернуть в работу"}
                 </button>
               ) : null}
               {isQa && detail.handed_to_qa ? (
