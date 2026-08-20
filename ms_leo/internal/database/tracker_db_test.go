@@ -15,3 +15,12 @@ func TestSamePostgresDSN(t *testing.T) {
 		t.Fatal("empty")
 	}
 }
+
+func TestEnsureTrackerSchemaNeedsDB(t *testing.T) {
+	if err := (*Database)(nil).EnsureTrackerSchema(); err == nil {
+		t.Fatal("nil db must fail")
+	}
+	if err := (&Database{}).EnsureTrackerSchema(); err == nil {
+		t.Fatal("empty db must fail")
+	}
+}

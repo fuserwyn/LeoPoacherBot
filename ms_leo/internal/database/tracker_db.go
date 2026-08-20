@@ -95,6 +95,17 @@ func (d *Database) trackerDB() *sql.DB {
 	return d.db
 }
 
+// EnsureTrackerSchema — таблицы доски на том пуле, куда сейчас пишет трекер.
+func (d *Database) EnsureTrackerSchema() error {
+	if d == nil || d.trackerDB() == nil {
+		return fmt.Errorf("база недоступна")
+	}
+	if _, err := d.trackerDB().Exec(trackerBoardSchema); err != nil {
+		return fmt.Errorf("tracker schema: %w", err)
+	}
+	return nil
+}
+
 // AttachTrackerDatabase — подключить БД только трекера, перенести туда карточки
 // и автономию с базы стаи, потом снести таблицы с Лео.
 func (d *Database) AttachTrackerDatabase(databaseURL string) error {
@@ -102,14 +113,11 @@ func (d *Database) AttachTrackerDatabase(databaseURL string) error {
 		return fmt.Errorf("база недоступна")
 	}
 	databaseURL = strings.TrimSpace(databaseURL)
-	if databaseURL == "" {
-		return nil
-	}
-	if samePostgresDSN(d.dsn, databaseURL) {
-		if d.logger != nil {
-			d.logger.Warn("TRACKER_DATABASE_URL совпадает с DATABASE_URL — доска всё ещё на базе Лео")
+	if databaseURL == "" || samePostgresDSN(d.dsn, databaseURL) {
+		if databaseURL != "" && d.logger != nil {
+			d.logger.Warn("TRACKER_DATABASE_URL совпадает с DATABASE_URL — доска на базе Лео")
 		}
-		return nil
+		return d.EnsureTrackerSchema()
 	}
 	u := ensureSessionTimeZone(databaseURL)
 	tdb, err := sql.Open("postgres", u)
