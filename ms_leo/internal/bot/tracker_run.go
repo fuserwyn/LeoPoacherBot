@@ -73,6 +73,10 @@ func (b *Bot) runDueTrackerTasks() {
 // снимает созревшие с «Ожидает» и пишет автору. Ошибка наружу — кнопка
 // не должна притворяться, что доска обновилась, если забрать не вышло.
 func (b *Bot) claimAndNotifyDueTrackerTasks() (int, error) {
+	return b.claimAndKickTrackerTasks(false)
+}
+
+func (b *Bot) claimAndKickTrackerTasks(forceStuck bool) (int, error) {
 	if b == nil || b.db == nil {
 		return 0, fmt.Errorf("база недоступна")
 	}
@@ -102,7 +106,42 @@ func (b *Bot) claimAndNotifyDueTrackerTasks() (int, error) {
 		// статус есть, а в репозитории ничего не происходит.
 		b.dispatchTrackerAgent(t, "doing")
 	}
-	return len(due) + healed, nil
+	kicked := b.kickStuckTrackerAgents(forceStuck)
+	return len(due) + healed + kicked, nil
+}
+
+func (b *Bot) kickStuckTrackerAgents(force bool) int {
+	if b == nil || b.db == nil {
+		return 0
+	}
+	list, err := b.db.ListTrackerTasks()
+	if err != nil {
+		if b.logger != nil {
+			b.logger.Warnf("трекер: не прочитать зависшие задачи: %v", err)
+		}
+		return 0
+	}
+	now := time.Now()
+	n := 0
+	for _, t := range list {
+		if !trackerNeedsAgentKick(t, now, force) {
+			continue
+		}
+		t.Error = ""
+		appendTrackerStep(&t, "Снова запускаем агента")
+		if err := b.db.SaveTrackerTask(t); err != nil {
+			if b.logger != nil {
+				b.logger.Warnf("трекер: не перезапустить #%d: %v", trackerDueNum(t), err)
+			}
+			continue
+		}
+		if b.logger != nil {
+			b.logger.Infof("трекер: снова запускаем агента #%d", trackerDueNum(t))
+		}
+		b.dispatchTrackerAgent(t, "doing")
+		n++
+	}
+	return n
 }
 
 func trackerDueNum(t database.TrackerTask) int {

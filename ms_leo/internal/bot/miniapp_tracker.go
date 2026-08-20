@@ -107,6 +107,9 @@ func (b *Bot) trackerSession(userID int64, name string) (string, error) {
 	if secret == "" || repo == "" || strings.TrimSpace(b.config.BoardURL) == "" {
 		return "", ErrTrackerNotConfigured
 	}
+	if userID <= 0 {
+		return "", fmt.Errorf("не задан OWNER_ID для сессии доски")
+	}
 	// Пустую ветку в подпись не кладём: MyVibeLab тогда заводит отдельную
 	// ветку задачи, помечает её «выполнено» и не пушит в основную — сборка
 	// на сервере не стартует. Нет поля — работает ветка репозитория по умолчанию.

@@ -93,8 +93,8 @@ type Config struct {
 	QdrantCollection  string
 	RAGEmbeddingModel string
 
-	// Трекер задач в MyVibeLab: секрет подписи ссылки на доску, адрес сервиса и
-	// репозиторий, чья доска открыта (см. internal/bot/miniapp_tracker.go).
+	// Свой трекер (ms_tracker): TRACKER_URL + TRACKER_SECRET.
+	// Старые имена MYVIBELAB_URL / BOARD_SSO_SECRET ещё читаются как запас.
 	BoardSecret string
 	BoardURL    string
 	BoardRepo   string
@@ -189,8 +189,8 @@ func Load() (*Config, error) {
 	return &Config{
 		APIToken:              apiToken,
 		OwnerID:               ownerID,
-		BoardSecret:           getEnv("BOARD_SSO_SECRET", ""),
-		BoardURL:              getEnv("MYVIBELAB_URL", "https://myvibelab-production.up.railway.app"),
+		BoardSecret:           firstNonEmpty(getEnv("TRACKER_SECRET", ""), getEnv("BOARD_SSO_SECRET", "")),
+		BoardURL:              firstNonEmpty(getEnv("TRACKER_URL", ""), getEnv("MYVIBELAB_URL", "")),
 		BoardRepo:             getEnv("BOARD_REPO", "fuserwyn/Fat-Leopard"),
 		BoardBranch:           getEnv("BOARD_BRANCH", ""),
 		BoardModel:            getEnv("BOARD_MODEL", ""),
@@ -427,6 +427,15 @@ func getEnv(key, defaultValue string) string {
 		return value
 	}
 	return defaultValue
+}
+
+func firstNonEmpty(values ...string) string {
+	for _, v := range values {
+		if strings.TrimSpace(v) != "" {
+			return v
+		}
+	}
+	return ""
 }
 
 func parseEnvBool(s string) bool {

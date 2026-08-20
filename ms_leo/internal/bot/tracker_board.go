@@ -162,43 +162,43 @@ func trackerTaskView(t database.TrackerTask, withAtts bool) map[string]any {
 		live = t.Steps[n-1]
 	}
 	out := map[string]any{
-		"id":                 t.ID,
-		"num":                t.Num,
-		"prompt":             t.Prompt,
-		"repo":               "",
-		"when":               when,
-		"repeat":             t.Repeat,
-		"kind":               t.Kind,
-		"status":             t.Status,
-		"status_label":       label,
-		"status_icon":        icon,
-		"done":               done,
-		"active":             active,
-		"can_delete":         canDelete,
-		"auto_review":        t.AutoReview,
-		"manual_qa":          t.ManualQa,
-		"fast_track":         t.FastTrack,
-		"error":              t.Error,
-		"has_result":         strings.TrimSpace(t.Result) != "",
-		"phase":              phase,
-		"qa_status":          qaStatus,
-		"qa_label":           qaLabel,
-		"qa_icon":            qaIcon,
-		"auto_qa_running":    false,
-		"dev_column":         t.DevColumn,
-		"qa_column":          qaCol,
-		"handed_to_qa":       t.HandedToQa,
-		"attachments_count":  t.AttachmentsCount,
-		"has_attachments":    t.AttachmentsCount > 0,
-		"auto_push":          t.AutoPush,
-		"author_id":          author,
-		"steps":              t.Steps,
-		"steps_running":      t.Status == "running" || t.Status == "reviewing" ||
+		"id":                t.ID,
+		"num":               t.Num,
+		"prompt":            t.Prompt,
+		"repo":              "",
+		"when":              when,
+		"repeat":            t.Repeat,
+		"kind":              t.Kind,
+		"status":            t.Status,
+		"status_label":      label,
+		"status_icon":       icon,
+		"done":              done,
+		"active":            active,
+		"can_delete":        canDelete,
+		"auto_review":       t.AutoReview,
+		"manual_qa":         t.ManualQa,
+		"fast_track":        t.FastTrack,
+		"error":             t.Error,
+		"has_result":        strings.TrimSpace(t.Result) != "",
+		"phase":             phase,
+		"qa_status":         qaStatus,
+		"qa_label":          qaLabel,
+		"qa_icon":           qaIcon,
+		"auto_qa_running":   false,
+		"dev_column":        t.DevColumn,
+		"qa_column":         qaCol,
+		"handed_to_qa":      t.HandedToQa,
+		"attachments_count": t.AttachmentsCount,
+		"has_attachments":   t.AttachmentsCount > 0,
+		"auto_push":         t.AutoPush,
+		"author_id":         author,
+		"steps":             t.Steps,
+		"steps_running": t.Status == "running" || t.Status == "reviewing" ||
 			(t.Status == "holding" && (t.DevColumn == trackerColTest && !t.ManualQa || t.DevColumn == trackerColDeploy)),
-		"model_key":          "",
-		"live_step":          live,
-		"result":             t.Result,
-		"created_at":         t.CreatedAt.Format(time.RFC3339),
+		"model_key":  "",
+		"live_step":  live,
+		"result":     t.Result,
+		"created_at": t.CreatedAt.Format(time.RFC3339),
 	}
 	if t.HasLastRun {
 		out["last_run_at"] = t.LastRunAt.Format(time.RFC3339)
@@ -265,7 +265,7 @@ func (b *Bot) localTrackerList() (json.RawMessage, error) {
 // localTrackerRefresh — кнопка «Обновить»: если созревшие не снялись,
 // админ видит ошибку, а не ту же очередь.
 func (b *Bot) localTrackerRefresh() (json.RawMessage, error) {
-	started, err := b.claimAndNotifyDueTrackerTasks()
+	started, err := b.claimAndKickTrackerTasks(true)
 	if err != nil {
 		return nil, err
 	}
@@ -378,6 +378,15 @@ func (b *Bot) localTrackerReschedule(taskID int64, payload map[string]any) (json
 	}
 	t.WhenAt = at
 	t.WhenLabel = label
+	if trackerNeedsAgentKick(t, time.Now(), true) {
+		t.Error = ""
+		appendTrackerStep(&t, "Снова запускаем агента")
+		if err := b.db.SaveTrackerTask(t); err != nil {
+			return nil, err
+		}
+		b.dispatchTrackerAgent(t, "doing")
+		return trackerJSON(map[string]any{"ok": true})
+	}
 	if t.Status == "done" || t.Status == "canceled" || t.Status == "error" ||
 		t.DevColumn == trackerColDone || t.DevColumn == trackerColCanceled {
 		if err := applyTrackerColumn(&t, trackerColTodo); err != nil {
@@ -600,8 +609,8 @@ title до 60 символов, summary до 180, без эмодзи.`},
 		return nil, fmt.Errorf("не удалось предложить идеи: %w", err)
 	}
 	var parsed struct {
-		Ideas          []map[string]any `json:"ideas"`
-		RecommendedID  string           `json:"recommended_id"`
+		Ideas         []map[string]any `json:"ideas"`
+		RecommendedID string           `json:"recommended_id"`
 	}
 	if block := leoJSONBlock.FindString(raw); block != "" {
 		_ = json.Unmarshal([]byte(block), &parsed)
