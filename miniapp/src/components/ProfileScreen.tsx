@@ -940,15 +940,13 @@ export function ProfileScreen({
       </header>
 
       <div className="profile__grid3">
-        <div className="profile__stat-slot">
-          <div
-            className={`stat-card${
-              inactiveHighlight !== "none" ? ` stat-card--inactive-${inactiveHighlight}` : ""
-            }`}
-          >
-            <div className="stat-card__label">Текущий стрик</div>
-            <div className="stat-card__val">{displayStreak}</div>
-          </div>
+        <div
+          className={`stat-card${
+            inactiveHighlight !== "none" ? ` stat-card--inactive-${inactiveHighlight}` : ""
+          }`}
+        >
+          <div className="stat-card__label">Текущий стрик</div>
+          <div className="stat-card__val">{displayStreak}</div>
         </div>
         <div
           className={`stat-card${

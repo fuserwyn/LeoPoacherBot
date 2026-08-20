@@ -187,6 +187,14 @@
   flex-direction: column;
 }
 
+.chat:not(.support-chat):not(.chat--ready) .chat__log {
+  visibility: hidden;
+}
+
+.chat:not(.support-chat):not(.chat--ready) .chat__jump-latest {
+  display: none;
+}
+
 .chat__log {
   flex: 1;
   min-height: 0;
