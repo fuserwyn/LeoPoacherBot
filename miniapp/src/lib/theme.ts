@@ -1,12 +1,20 @@
 /** Тема оформления. По умолчанию — тёмная (как до редизайна); светлая — опция пользователя.
- *  Выбор хранится в localStorage и Telegram CloudStorage, на <html> — data-theme.
- *  Раннее применение (без мигания) — инлайн-скриптом в index.html; здесь — рантайм. */
+ *  Источник правды — профиль на сервере. localStorage и Telegram CloudStorage — кэш:
+ *  WebView после закрытия Mini App часто их теряет. */
 export type ThemeMode = "light" | "dark" | "leopard";
 
 /** Розовая леопардовая тема — с 5 уровня (Лев). */
 export const LEOPARD_THEME_MIN_LEVEL = 5;
 
 const STORAGE_KEY = "leo-theme";
+const apiBase = (import.meta.env.VITE_MINIAPP_API_URL as string | undefined)?.replace(/\/$/, "") ?? "";
+
+/** Сервер уже отдал тему — CloudStorage не должен затереть её устаревшим значением. */
+let themeLockedFromServer = false;
+
+export function resetThemeRuntimeForTests(): void {
+  themeLockedFromServer = false;
+}
 const THEME_COLOR: Record<ThemeMode, string> = {
   light: "#f5f1f5",
   dark: "#0d0d12",
@@ -48,6 +56,15 @@ export function getStoredTheme(): ThemeMode {
   }
 }
 
+export function hasStoredTheme(): boolean {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    return raw === "light" || raw === "dark" || raw === "leopard";
+  } catch {
+    return false;
+  }
+}
+
 function cloudStorage() {
   return window.Telegram?.WebApp?.CloudStorage;
 }
@@ -77,6 +94,30 @@ export function setTheme(mode: ThemeMode): void {
   applyTheme(mode);
 }
 
+export async function persistThemeToServer(initData: string, mode: ThemeMode): Promise<void> {
+  if (!apiBase || !initData.trim()) return;
+  try {
+    await fetch(`${apiBase}/api/miniapp/profile/save`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ init_data: initData, theme: mode }),
+    });
+  } catch {
+    /* тема останется в localStorage / CloudStorage */
+  }
+}
+
+/** Тема из профиля. Пустой ответ не затирает кэш и не пишет dark на сервер. */
+export function hydrateThemeFromServer(raw: unknown, level: number): ThemeMode {
+  if (raw === "light" || raw === "dark" || raw === "leopard") {
+    themeLockedFromServer = true;
+    const next = themeAllowedForLevel(raw, level);
+    setTheme(next);
+    return next;
+  }
+  return enforceThemeForLevel(level);
+}
+
 /** Достаёт тему из CloudStorage Telegram — она живёт после закрытия Mini App. */
 export function hydrateThemeFromCloud(onDone?: (mode: ThemeMode) => void): void {
   const cs = cloudStorage();
@@ -86,6 +127,10 @@ export function hydrateThemeFromCloud(onDone?: (mode: ThemeMode) => void): void 
   }
   try {
     cs.getItem(STORAGE_KEY, (err, value) => {
+      if (themeLockedFromServer) {
+        onDone?.(getStoredTheme());
+        return;
+      }
       const cloud = parseTheme(typeof value === "string" ? value : null);
       const localRaw = (() => {
         try {

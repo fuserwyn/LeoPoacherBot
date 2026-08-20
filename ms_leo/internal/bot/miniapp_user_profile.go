@@ -100,12 +100,17 @@ func (b *Bot) SaveMiniappUserProfileFromMiniapp(userID, packChatID int64, gender
 			n = sql.NullInt64{Int64: int64(*age), Valid: true}
 		}
 	}
+	theme := ""
+	if errG == nil && existing != nil {
+		theme = strings.TrimSpace(existing.Theme)
+	}
 	prof := &database.MiniappUserProfile{
 		UserID:      userID,
 		PackChatID:  packChatID,
 		Gender:      g,
 		DisplayName: dn,
 		AgeYears:    n,
+		Theme:       theme,
 	}
 	if err := b.db.UpsertMiniappUserProfile(prof); err != nil {
 		return err
@@ -169,6 +174,49 @@ func (b *Bot) GetMiniappUserProfileJSONForAPI(userID, packChatID int64) (gender,
 		}
 	}
 	return gender, displayName, age
+}
+
+const miniappLeopardThemeMinLevel = 5
+
+// NormalizeMiniappTheme — light/dark/leopard; розовая только с уровня Лев.
+func NormalizeMiniappTheme(raw string, level int) (string, bool) {
+	t := strings.TrimSpace(strings.ToLower(raw))
+	if t != "light" && t != "dark" && t != "leopard" {
+		return "", false
+	}
+	if t == "leopard" && level < miniappLeopardThemeMinLevel {
+		return "dark", true
+	}
+	return t, true
+}
+
+// GetMiniappThemeForAPI — сохранённая тема мини-аппа; пусто — клиент берёт кэш.
+func (b *Bot) GetMiniappThemeForAPI(userID, packChatID int64) string {
+	if b == nil || b.db == nil || packChatID == 0 || userID == 0 {
+		return ""
+	}
+	p, err := b.db.GetMiniappUserProfile(userID, packChatID)
+	if err != nil || p == nil {
+		return ""
+	}
+	t := strings.TrimSpace(strings.ToLower(p.Theme))
+	if t != "light" && t != "dark" && t != "leopard" {
+		return ""
+	}
+	return t
+}
+
+// SaveMiniappThemeFromMiniapp пишет только тему; пол и имя не трогает.
+func (b *Bot) SaveMiniappThemeFromMiniapp(userID, packChatID int64, theme string) error {
+	if b == nil || b.db == nil {
+		return nil
+	}
+	stats := b.GetMiniappProfileStatsForAPI(userID, packChatID)
+	normalized, ok := NormalizeMiniappTheme(theme, stats.Level)
+	if !ok {
+		return errors.New("invalid theme")
+	}
+	return b.db.UpsertMiniappTheme(userID, packChatID, normalized)
 }
 
 type MiniappProfileStats struct {

@@ -15,7 +15,7 @@ import { AchievementToast } from "./components/AchievementToast";
 import { LevelUpToast } from "./components/LevelUpToast";
 import { earnedAchievementKeys, freshAchievementKeys, type AchievementKey } from "./lib/achievements";
 import { miniappLevelFromCups } from "./lib/miniappLevel";
-import { enforceThemeForLevel, getStoredTheme, hydrateThemeFromCloud, persistTheme } from "./lib/theme";
+import { getStoredTheme, hasStoredTheme, hydrateThemeFromCloud, hydrateThemeFromServer, persistTheme, persistThemeToServer } from "./lib/theme";
 import { buildOptimisticTrainingFeedItem, type PackFeedItemDTO } from "./lib/packFeed";
 import { sendMiniappPrivateText, sendMiniappTrainingWithPhoto } from "./lib/miniappPrivateSend";
 import { isModerationError, moderationUserMessage } from "./lib/moderationMessages";
@@ -232,6 +232,7 @@ export function App() {
         last_training_date?: string;
         is_admin?: boolean;
         access_price_rub?: number;
+        theme?: string;
       };
       if (!res.ok || !j.ok) return;
       setIsAdmin(Boolean(j.is_admin));
@@ -247,7 +248,10 @@ export function App() {
       const xpNow = typeof j.xp === "number" ? j.xp : 0;
       setXP(xpNow);
       const levelNow = miniappLevelFromCups(xpNow);
-      enforceThemeForLevel(levelNow);
+      hydrateThemeFromServer(j.theme, levelNow);
+      if (j.theme !== "light" && j.theme !== "dark" && j.theme !== "leopard" && hasStoredTheme()) {
+        void persistThemeToServer(initData, getStoredTheme());
+      }
       notifyLevelUp(userId, levelNow);
       const achCount = typeof j.achievement_count === "number" ? j.achievement_count : 0;
       const workoutsTotal = typeof j.workouts_total === "number" ? j.workouts_total : 0;

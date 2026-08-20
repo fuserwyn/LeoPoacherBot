@@ -1565,6 +1565,17 @@ var Migrations = []Migration{
 			DROP TABLE IF EXISTS leo_prompt_overrides;
 		`,
 	},
+	{
+		Version:     79,
+		Description: "miniapp_user_profile.theme — тема мини-аппа переживает закрытие WebView",
+		UpSQL: `
+			ALTER TABLE miniapp_user_profile
+			ADD COLUMN IF NOT EXISTS theme TEXT NOT NULL DEFAULT '';
+		`,
+		DownSQL: `
+			ALTER TABLE miniapp_user_profile DROP COLUMN IF EXISTS theme;
+		`,
+	},
 }
 
 // MigrationRecord представляет запись о выполненной миграции

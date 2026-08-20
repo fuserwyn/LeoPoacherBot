@@ -5,6 +5,9 @@ import {
   canUseLeopardTheme,
   enforceThemeForLevel,
   getStoredTheme,
+  hasStoredTheme,
+  hydrateThemeFromServer,
+  resetThemeRuntimeForTests,
   setTheme,
   themeAllowedForLevel,
 } from "./theme";
@@ -13,6 +16,7 @@ describe("theme", () => {
   afterEach(() => {
     localStorage.removeItem("leo-theme");
     document.documentElement.removeAttribute("data-theme");
+    resetThemeRuntimeForTests();
   });
 
   it("defaults to dark when nothing stored", () => {
@@ -53,5 +57,14 @@ describe("theme", () => {
     expect(getStoredTheme()).toBe("leopard");
     expect(themeAllowedForLevel("leopard", 5)).toBe("leopard");
     expect(themeAllowedForLevel("light", 1)).toBe("light");
+  });
+
+  it("applies explicit server theme and ignores empty server theme", () => {
+    setTheme("leopard");
+    expect(hydrateThemeFromServer("", 5)).toBe("leopard");
+    expect(getStoredTheme()).toBe("leopard");
+    expect(hasStoredTheme()).toBe(true);
+    expect(hydrateThemeFromServer("leopard", 5)).toBe("leopard");
+    expect(hydrateThemeFromServer("leopard", 3)).toBe("dark");
   });
 });
