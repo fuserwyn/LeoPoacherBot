@@ -233,6 +233,20 @@ var Migrations = []Migration{
 			DROP COLUMN IF EXISTS timezone_offset_from_moscow;
 		`,
 	},
+	{
+		Version:     12,
+		Description: "Ensure message_log columns from migrations 2-6 exist (repair drifted schema)",
+		UpSQL: `
+			-- Migration history can mark older versions applied while columns are missing.
+			ALTER TABLE message_log ADD COLUMN IF NOT EXISTS cups_earned INTEGER DEFAULT 0;
+			ALTER TABLE message_log ADD COLUMN IF NOT EXISTS calorie_streak_days INTEGER DEFAULT 0;
+			ALTER TABLE message_log ADD COLUMN IF NOT EXISTS is_exempt_from_deletion BOOLEAN DEFAULT FALSE;
+			ALTER TABLE message_log ADD COLUMN IF NOT EXISTS gender TEXT DEFAULT '';
+		`,
+		DownSQL: `
+			-- No-op: columns may predate this repair migration.
+		`,
+	},
 }
 
 // MigrationRecord представляет запись о выполненной миграции

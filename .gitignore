@@ -69,4 +69,23 @@ vendor/
 go.sum
 
 # PostgreSQL data (if running locally)
-postgres_data/ 
+postgres_data/
+
+# Telethon training parser (tools/tg_training_parser)
+*.session
+*.session-journal
+tools/tg_training_parser/.venv/
+tools/tg_training_parser/*.csv
+tools/tg_training_parser/result.json
+tools/tg_training_parser/*.json
+
+# Telegram Desktop export folders (история чата)
+ChatExport_*/
+**/ChatExport_*/
+chat history/
+**/chat history/
+chat_history/
+**/chat_history/
+
+__pycache__/
+*.pyc

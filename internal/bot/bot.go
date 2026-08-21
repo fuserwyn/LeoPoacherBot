@@ -499,16 +499,11 @@ func (b *Bot) handleMessage(msg *tgbotapi.Message) {
 
 	// КРИТИЧЕСКИ ВАЖНО: Сначала проверяем хештеги команд (#training_done, #writing_done, #sick_leave, и т.д.)
 	// Команды имеют приоритет над ИИ-обработкой
-	// Проверяем тип чата для определения правильного хештега
-	chatTypeForCommand, err := b.db.GetChatType(msg.Chat.ID)
-	if err != nil {
-		chatTypeForCommand = "training" // По умолчанию
-	}
-
 	hasTrainingDone := strings.Contains(strings.ToLower(text), "#training_done")
 	hasWritingDone := strings.Contains(strings.ToLower(text), "#writing_done")
-	// Для чатов писательства принимаем оба хештега для совместимости, но приоритет у #writing_done
-	hasTrainingDone = hasTrainingDone || (hasWritingDone && chatTypeForCommand == "writing")
+	// Оба тега ведут в handleTrainingDone; тексты/метрики адаптируются по chat_type внутри handler.
+	// Раньше #writing_done без chat_type=writing молча игнорировался (hasCommand=true, handler не вызывался).
+	hasTrainingDone = hasTrainingDone || hasWritingDone
 	hasSickLeave := strings.Contains(strings.ToLower(text), "#sick_leave")
 	hasHealthy := strings.Contains(strings.ToLower(text), "#healthy")
 	hasChange := strings.Contains(strings.ToLower(text), "#change")

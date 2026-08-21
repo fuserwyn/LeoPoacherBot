@@ -101,6 +101,32 @@ func (d *Database) CreateTables() error {
 		return fmt.Errorf("failed to run migrations: %w", err)
 	}
 
+	// Repair: migrations table can claim versions applied while columns are missing.
+	if err := d.EnsureMessageLogColumns(); err != nil {
+		return fmt.Errorf("failed to ensure message_log columns: %w", err)
+	}
+
+	return nil
+}
+
+// EnsureMessageLogColumns adds required columns if they are missing (idempotent).
+func (d *Database) EnsureMessageLogColumns() error {
+	alters := []string{
+		`ALTER TABLE message_log ADD COLUMN IF NOT EXISTS cups_earned INTEGER DEFAULT 0`,
+		`ALTER TABLE message_log ADD COLUMN IF NOT EXISTS calorie_streak_days INTEGER DEFAULT 0`,
+		`ALTER TABLE message_log ADD COLUMN IF NOT EXISTS is_exempt_from_deletion BOOLEAN DEFAULT FALSE`,
+		`ALTER TABLE message_log ADD COLUMN IF NOT EXISTS gender TEXT DEFAULT ''`,
+		`ALTER TABLE message_log ADD COLUMN IF NOT EXISTS timezone_offset_from_moscow INTEGER NOT NULL DEFAULT 0`,
+		`ALTER TABLE message_log ADD COLUMN IF NOT EXISTS sick_approval_pending BOOLEAN DEFAULT FALSE`,
+		`ALTER TABLE message_log ADD COLUMN IF NOT EXISTS sick_approval_deadline TIMESTAMP WITH TIME ZONE`,
+		`ALTER TABLE message_log ADD COLUMN IF NOT EXISTS sick_approval_message_id BIGINT`,
+	}
+	for _, q := range alters {
+		if _, err := d.db.Exec(q); err != nil {
+			return fmt.Errorf("ensure column failed (%s): %w", q, err)
+		}
+	}
+	fmt.Println("Ensured message_log required columns exist")
 	return nil
 }
 
