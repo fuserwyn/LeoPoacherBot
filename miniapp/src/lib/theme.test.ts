@@ -92,7 +92,7 @@ describe("theme", () => {
     expect(localStorage.getItem("leo-theme")).toBe("wild");
     expect(getStoredTheme()).toBe("wild");
     expect(document.documentElement.getAttribute("data-theme")).toBe("wild");
-    expect(document.querySelector('meta[name="theme-color"]')?.getAttribute("content")).toBe("#3e2723");
+    expect(document.querySelector('meta[name="theme-color"]')?.getAttribute("content")).toBe("#0a0a0a");
     expect(hydrateThemeFromServer("wild", 3)).toBe("dark");
     setTheme("wild");
     expect(hydrateThemeFromServer("wild", 3, { isAdmin: true })).toBe("wild");

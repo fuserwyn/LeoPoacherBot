@@ -1245,7 +1245,7 @@ html.app-keyboard-open .profile__health-actions--keyboard {
 }
 
 :root[data-theme="wild"] .profile__theme-opt.is-active {
-  background: #352418;
+  background: #1c1c1c;
   color: #e09a3e;
   border-color: rgba(224, 154, 62, 0.45);
 }

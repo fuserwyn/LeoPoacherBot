@@ -28,7 +28,7 @@ const THEME_COLOR: Record<ThemeMode, string> = {
   light: "#f5f1f5",
   dark: "#0d0d12",
   leopard: "#f6d4de",
-  wild: "#3e2723",
+  wild: "#0a0a0a",
 };
 
 export function isThemeMode(raw: unknown): raw is ThemeMode {

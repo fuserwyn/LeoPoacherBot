@@ -107,7 +107,7 @@
 }
 
 /* РОЗОВЫЙ ЛЕОПАРД — iOS blush: шёлковые карточки, системный шрифт.
-   Пятна только в ленте и в чате с Лео, не по всему приложению. */
+   Обои только в ленте и в чате с Лео; карточки непрозрачные. */
 :root[data-theme="leopard"] {
   color-scheme: light;
   --bg: #f6d4de;
@@ -155,62 +155,52 @@
     "SF Pro Rounded", ui-sans-serif, system-ui, sans-serif;
   --font-display: "Plus Jakarta Sans", "SF Pro Rounded", "SF Pro Display", -apple-system,
     BlinkMacSystemFont, sans-serif;
-  --leopard-spots:
-    radial-gradient(ellipse 20px 15px at 16% 18%, #4a1730 0 26%, transparent 29%),
-    radial-gradient(ellipse 9px 7px at 20% 22%, #ff4d8d 0 38%, transparent 42%),
-    radial-gradient(ellipse 17px 13px at 50% 34%, #5a1838 0 24%, transparent 28%),
-    radial-gradient(ellipse 7px 6px at 54% 37%, #e11d62 0 36%, transparent 40%),
-    radial-gradient(ellipse 15px 11px at 78% 14%, #4a1730 0 28%, transparent 32%),
-    radial-gradient(ellipse 6px 5px at 74% 24%, #c2185b 0 40%, transparent 44%),
-    radial-gradient(ellipse 18px 14px at 30% 68%, #5a1838 0 25%, transparent 29%),
-    radial-gradient(ellipse 8px 6px at 34% 72%, #ff4d8d 0 36%, transparent 40%),
-    radial-gradient(ellipse 13px 10px at 68% 62%, #4a1730 0 28%, transparent 32%),
-    radial-gradient(ellipse 6px 5px at 88% 50%, #e11d62 0 42%, transparent 46%),
-    radial-gradient(ellipse 5px 4px at 8% 48%, #4a1730 0 44%, transparent 48%);
+  /* Розовые обои леопарда — бесшовный тайл (лента и чат с Лео). */
+  --leopard-spots: url("./assets/pink-leopard-wallpaper.jpg");
 }
 
-/* ДИКИЙ ЛЕОПАРД — тёмный шоколад и обои с чёрными розетками.
+/* ДИКИЙ ЛЕОПАРД — чёрный интерфейс, золотой акцент, обои с розетками.
    Обои только в ленте стаи и в чате с Лео; карточки тренировок непрозрачные. */
 :root[data-theme="wild"] {
   color-scheme: dark;
-  --bg: #3e2723;
-  --bg-elevated: #2a1c16;
-  --card: #2c1d14;
-  --card-inner: #241810;
-  --surface-elevated: #2a1c16;
-  --popover: #2c1d14;
-  --text: #f3e6d4;
-  --text-muted: #b89a7c;
-  --muted: #a88868;
-  --text-label: #9a7a5c;
+  --bg: #0a0a0a;
+  --bg-elevated: #141414;
+  --card: #161616;
+  --card-inner: #101010;
+  --surface-elevated: #141414;
+  --popover: #161616;
+  --text: #f2f0ec;
+  --text-muted: #a8a29a;
+  --muted: #8e877e;
+  --text-label: #7a746c;
   --accent: #e09a3e;
   --accent-2: #d4782a;
   --accent-dim: rgba(224, 154, 62, 0.18);
-  --border-subtle: rgba(243, 230, 212, 0.1);
-  --nav-bg: rgba(36, 24, 16, 0.88);
-  --fill-subtle: rgba(243, 230, 212, 0.05);
-  --fill-soft: rgba(243, 230, 212, 0.08);
-  --fill-strong: rgba(243, 230, 212, 0.14);
-  --shadow-card: 0 8px 24px rgba(8, 4, 2, 0.45);
-  --shadow-pop: 0 16px 36px rgba(8, 4, 2, 0.55);
-  --scrim: rgba(10, 6, 4, 0.78);
-  --pastel-pink: #3a221c;
-  --pastel-peach: #3a2a18;
-  --pastel-lilac: #2e221c;
-  --pastel-blue: #241c18;
-  --warn-bg: #3a2a14;
+  --border-subtle: rgba(255, 255, 255, 0.08);
+  --nav-bg: rgba(8, 8, 8, 0.9);
+  --fill-subtle: rgba(255, 255, 255, 0.04);
+  --fill-soft: rgba(255, 255, 255, 0.07);
+  --fill-strong: rgba(255, 255, 255, 0.12);
+  --shadow-card: 0 8px 24px rgba(0, 0, 0, 0.55);
+  --shadow-pop: 0 16px 36px rgba(0, 0, 0, 0.65);
+  --scrim: rgba(0, 0, 0, 0.82);
+  --pastel-pink: #1a1416;
+  --pastel-peach: #1a1610;
+  --pastel-lilac: #161416;
+  --pastel-blue: #121416;
+  --warn-bg: #1c1810;
   --warn-fg: #f0c888;
   --warn-border: rgba(224, 154, 62, 0.35);
-  --tab-active-bg: #3a2a18;
-  --tab-active-fg: #f3e6d4;
+  --tab-active-bg: #1c1810;
+  --tab-active-fg: #f2f0ec;
   --tab-active-border: #c9782a;
-  --ai-bg: #241810;
+  --ai-bg: #101010;
   --pinned-bg: rgba(224, 154, 62, 0.16);
   --pinned-fg: #f0c888;
   --pinned-border: rgba(224, 154, 62, 0.35);
-  --leo-bubble-bg: #2c1d14;
+  --leo-bubble-bg: #161616;
   --leo-bubble-border: rgba(224, 154, 62, 0.22);
-  --leo-bubble-fg: #f3e6d4;
+  --leo-bubble-fg: #f2f0ec;
   /* Тёмные обои леопарда — бесшовный тайл (лента и чат с Лео). */
   --wild-spots: url("./assets/wild-leopard-wallpaper.jpg");
 }
@@ -245,9 +235,13 @@ html[data-theme="leopard"] .chat:not(.support-chat) .chat__log,
 html[data-theme="leopard"] .chat:not(.support-chat) .chat__log-wrap {
   background-color: #f6d4de;
   background-image: var(--leopard-spots);
-  background-size: 240px 200px;
+  background-size: 400px 400px;
   background-repeat: repeat;
-  animation: leopard-spots-drift 56s linear infinite;
+  background-position: 0 0;
+}
+
+html[data-theme="leopard"] .feed {
+  min-height: calc(100dvh - var(--bottom-nav-h, 88px));
 }
 
 html[data-theme="leopard"] .chat:not(.support-chat) {
@@ -262,7 +256,7 @@ html[data-theme="wild"] {
 html[data-theme="wild"] .feed,
 html[data-theme="wild"] .chat:not(.support-chat) .chat__log,
 html[data-theme="wild"] .chat:not(.support-chat) .chat__log-wrap {
-  background-color: #4a2c18;
+  background-color: #0a0a0a;
   background-image: var(--wild-spots);
   background-size: 400px 400px;
   background-repeat: repeat;
@@ -274,7 +268,7 @@ html[data-theme="wild"] .feed {
 }
 
 html[data-theme="wild"] .chat:not(.support-chat) {
-  background-color: #3e2723;
+  background-color: #0a0a0a;
 }
 
 html[data-theme="wild"] .feed__sticky,
@@ -473,6 +467,10 @@ html[data-theme="leopard"] .feed__card-slot .act-card,
 html[data-theme="leopard"] .feed__card,
 html[data-theme="leopard"] .act-card {
   background: #fff8fb;
+  background-image: none;
+  opacity: 1;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
   border-radius: 22px;
   border-color: rgba(255, 255, 255, 0.72);
   box-shadow: 0 10px 28px rgba(120, 28, 58, 0.08);
@@ -480,13 +478,15 @@ html[data-theme="leopard"] .act-card {
 
 html[data-theme="leopard"] .act-card--leo {
   background: linear-gradient(160deg, #fff8fb 0%, #ffe4ee 100%);
+  background-image: none;
+  opacity: 1;
 }
 
 html[data-theme="wild"] .bottom-nav {
   background: var(--nav-bg);
   backdrop-filter: saturate(1.2) blur(18px);
   -webkit-backdrop-filter: saturate(1.2) blur(18px);
-  border-top-color: rgba(243, 230, 212, 0.08);
+  border-top-color: rgba(255, 255, 255, 0.08);
 }
 
 html[data-theme="wild"] .bottom-nav__item.is-active {
@@ -496,15 +496,15 @@ html[data-theme="wild"] .bottom-nav__item.is-active {
 html[data-theme="wild"] .chip,
 html[data-theme="wild"] .feed__filter-pill,
 html[data-theme="wild"] .feed__filter-chip {
-  background: #2c1d14;
+  background: #161616;
   color: var(--text);
-  border-color: rgba(243, 230, 212, 0.1);
+  border-color: rgba(255, 255, 255, 0.08);
 }
 
 html[data-theme="wild"] .chip[aria-pressed="true"],
 html[data-theme="wild"] .feed__filter-pill.is-active,
 html[data-theme="wild"] .feed__filter-chip.is-active {
-  background: #352418;
+  background: #1c1c1c;
   color: var(--accent);
   border-color: rgba(224, 154, 62, 0.4);
 }
@@ -514,30 +514,30 @@ html[data-theme="wild"] .feed__card-slot .act-card,
 html[data-theme="wild"] .feed__card,
 html[data-theme="wild"] .act-card,
 html[data-theme="wild"] .act-card--light {
-  background: #2c1d14;
+  background: #161616;
   background-image: none;
   opacity: 1;
   backdrop-filter: none;
   -webkit-backdrop-filter: none;
-  border-color: rgba(243, 230, 212, 0.1);
-  box-shadow: 0 10px 24px rgba(8, 4, 2, 0.4);
+  border-color: rgba(255, 255, 255, 0.08);
+  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.5);
 }
 
 html[data-theme="wild"] .act-card--leo {
-  background: linear-gradient(160deg, #352418 0%, #2a1a12 100%);
+  background: linear-gradient(160deg, #1c1c1c 0%, #121212 100%);
   background-image: none;
   opacity: 1;
 }
 
 html[data-theme="wild"] .chat:not(.support-chat) .chat__bubble--sys {
-  background: #2c1d14;
+  background: #161616;
   border: 1px solid rgba(224, 154, 62, 0.18);
-  box-shadow: 0 8px 18px rgba(8, 4, 2, 0.28);
+  box-shadow: 0 8px 18px rgba(0, 0, 0, 0.35);
 }
 
 html[data-theme="wild"] .chat:not(.support-chat) .chat__bubble--user {
   background: linear-gradient(180deg, #e09a3e 0%, #c9782a 100%);
-  color: #1a100c;
+  color: #0a0a0a;
   border: 0;
 }
 
