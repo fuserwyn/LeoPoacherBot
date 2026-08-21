@@ -1212,14 +1212,15 @@ html.app-keyboard-open .profile__health-actions--keyboard {
   display: flex;
   gap: 6px;
   padding: 4px;
-  border-radius: 999px;
+  border-radius: 18px;
   background: var(--card-inner);
   border: 1px solid var(--border-subtle);
   flex-wrap: wrap;
 }
 
 .profile__theme-opt {
-  flex: 1;
+  flex: 1 1 calc(50% - 6px);
+  min-width: 0;
   padding: 8px 12px;
   border-radius: 999px;
   border: 1px solid transparent;
@@ -1241,6 +1242,12 @@ html.app-keyboard-open .profile__health-actions--keyboard {
   background: #fff;
   color: #e11d62;
   border-color: rgba(225, 29, 98, 0.35);
+}
+
+:root[data-theme="wild"] .profile__theme-opt.is-active {
+  background: #352418;
+  color: #e09a3e;
+  border-color: rgba(224, 154, 62, 0.45);
 }
 
 .profile__theme-opt.is-locked {

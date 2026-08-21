@@ -19,3 +19,26 @@ func TestNormalizeMiniappTheme(t *testing.T) {
 		t.Fatal("invalid must fail")
 	}
 }
+
+func TestNormalizeMiniappThemeAccessWild(t *testing.T) {
+	got, ok := NormalizeMiniappThemeAccess("wild", MiniappThemeAccess{Level: 1})
+	if !ok || got != "dark" {
+		t.Fatalf("lock: %q %v", got, ok)
+	}
+	got, ok = NormalizeMiniappThemeAccess("wild", MiniappThemeAccess{StreakDays: 365})
+	if !ok || got != "wild" {
+		t.Fatalf("streak: %q %v", got, ok)
+	}
+	got, ok = NormalizeMiniappThemeAccess("wild", MiniappThemeAccess{MaxStreakDays: 400})
+	if !ok || got != "wild" {
+		t.Fatalf("record: %q %v", got, ok)
+	}
+	got, ok = NormalizeMiniappThemeAccess("wild", MiniappThemeAccess{IsAdmin: true})
+	if !ok || got != "wild" {
+		t.Fatalf("admin: %q %v", got, ok)
+	}
+	got, ok = NormalizeMiniappThemeAccess("wild", MiniappThemeAccess{StreakDays: 364})
+	if !ok || got != "dark" {
+		t.Fatalf("almost: %q %v", got, ok)
+	}
+}

@@ -1,10 +1,19 @@
 /** Тема оформления. По умолчанию — тёмная (как до редизайна); светлая — опция пользователя.
  *  Источник правды — профиль на сервере. localStorage и Telegram CloudStorage — кэш:
  *  WebView после закрытия Mini App часто их теряет. */
-export type ThemeMode = "light" | "dark" | "leopard";
+export type ThemeMode = "light" | "dark" | "leopard" | "wild";
 
 /** Розовая леопардовая тема — с 5 уровня (Лев). */
 export const LEOPARD_THEME_MIN_LEVEL = 5;
+
+/** Дикая тёмная леопардовая тема — админам и тем, кто достиг стрика 365 дней. */
+export const WILD_THEME_MIN_STREAK = 365;
+
+export type ThemeUnlock = {
+  streakDays?: number;
+  maxStreakDays?: number;
+  isAdmin?: boolean;
+};
 
 const STORAGE_KEY = "leo-theme";
 const apiBase = (import.meta.env.VITE_MINIAPP_API_URL as string | undefined)?.replace(/\/$/, "") ?? "";
@@ -19,22 +28,36 @@ const THEME_COLOR: Record<ThemeMode, string> = {
   light: "#f5f1f5",
   dark: "#0d0d12",
   leopard: "#f6d4de",
+  wild: "#3e2723",
 };
+
+export function isThemeMode(raw: unknown): raw is ThemeMode {
+  return raw === "light" || raw === "dark" || raw === "leopard" || raw === "wild";
+}
 
 export function canUseLeopardTheme(level: number): boolean {
   return level >= LEOPARD_THEME_MIN_LEVEL;
 }
 
-export function themeAllowedForLevel(mode: ThemeMode, level: number): ThemeMode {
+export function canUseWildTheme(unlock: ThemeUnlock = {}): boolean {
+  if (unlock.isAdmin) return true;
+  const streak = Math.max(0, unlock.streakDays ?? 0, unlock.maxStreakDays ?? 0);
+  return streak >= WILD_THEME_MIN_STREAK;
+}
+
+export function themeAllowedForLevel(mode: ThemeMode, level: number, unlock: ThemeUnlock = {}): ThemeMode {
   if (mode === "leopard" && !canUseLeopardTheme(level)) {
+    return "dark";
+  }
+  if (mode === "wild" && !canUseWildTheme(unlock)) {
     return "dark";
   }
   return mode;
 }
 
-export function enforceThemeForLevel(level: number): ThemeMode {
+export function enforceThemeForLevel(level: number, unlock: ThemeUnlock = {}): ThemeMode {
   const stored = getStoredTheme();
-  const next = themeAllowedForLevel(stored, level);
+  const next = themeAllowedForLevel(stored, level, unlock);
   if (next !== stored) {
     setTheme(next);
   }
@@ -42,7 +65,7 @@ export function enforceThemeForLevel(level: number): ThemeMode {
 }
 
 export function parseTheme(raw: string | null | undefined): ThemeMode {
-  if (raw === "light" || raw === "leopard" || raw === "dark") {
+  if (isThemeMode(raw)) {
     return raw;
   }
   return "dark";
@@ -58,8 +81,7 @@ export function getStoredTheme(): ThemeMode {
 
 export function hasStoredTheme(): boolean {
   try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    return raw === "light" || raw === "dark" || raw === "leopard";
+    return isThemeMode(localStorage.getItem(STORAGE_KEY));
   } catch {
     return false;
   }
@@ -108,14 +130,14 @@ export async function persistThemeToServer(initData: string, mode: ThemeMode): P
 }
 
 /** Тема из профиля. Пустой ответ не затирает кэш и не пишет dark на сервер. */
-export function hydrateThemeFromServer(raw: unknown, level: number): ThemeMode {
-  if (raw === "light" || raw === "dark" || raw === "leopard") {
+export function hydrateThemeFromServer(raw: unknown, level: number, unlock: ThemeUnlock = {}): ThemeMode {
+  if (isThemeMode(raw)) {
     themeLockedFromServer = true;
-    const next = themeAllowedForLevel(raw, level);
+    const next = themeAllowedForLevel(raw, level, unlock);
     setTheme(next);
     return next;
   }
-  return enforceThemeForLevel(level);
+  return enforceThemeForLevel(level, unlock);
 }
 
 /** Достаёт тему из CloudStorage Telegram — она живёт после закрытия Mini App. */
@@ -139,7 +161,7 @@ export function hydrateThemeFromCloud(onDone?: (mode: ThemeMode) => void): void 
           return null;
         }
       })();
-      if (!err && (value === "light" || value === "dark" || value === "leopard")) {
+      if (!err && isThemeMode(value)) {
         persistTheme(cloud);
         applyTheme(cloud);
         onDone?.(cloud);

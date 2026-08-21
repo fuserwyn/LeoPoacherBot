@@ -3,6 +3,7 @@ import { afterEach, describe, expect, it } from "vitest";
 import {
   applyTheme,
   canUseLeopardTheme,
+  canUseWildTheme,
   enforceThemeForLevel,
   getStoredTheme,
   hasStoredTheme,
@@ -66,5 +67,34 @@ describe("theme", () => {
     expect(hasStoredTheme()).toBe(true);
     expect(hydrateThemeFromServer("leopard", 5)).toBe("leopard");
     expect(hydrateThemeFromServer("leopard", 3)).toBe("dark");
+  });
+
+  it("unlocks wild theme for admin or 365-day streak", () => {
+    expect(canUseWildTheme({})).toBe(false);
+    expect(canUseWildTheme({ streakDays: 364 })).toBe(false);
+    expect(canUseWildTheme({ streakDays: 365 })).toBe(true);
+    expect(canUseWildTheme({ maxStreakDays: 365 })).toBe(true);
+    expect(canUseWildTheme({ streakDays: 10, isAdmin: true })).toBe(true);
+    expect(themeAllowedForLevel("wild", 1)).toBe("dark");
+    expect(themeAllowedForLevel("wild", 1, { streakDays: 365 })).toBe("wild");
+    expect(themeAllowedForLevel("wild", 1, { isAdmin: true })).toBe("wild");
+    expect(themeAllowedForLevel("leopard", 5, { streakDays: 0 })).toBe("leopard");
+    setTheme("wild");
+    expect(enforceThemeForLevel(6)).toBe("dark");
+    expect(getStoredTheme()).toBe("dark");
+    setTheme("wild");
+    expect(enforceThemeForLevel(2, { maxStreakDays: 400 })).toBe("wild");
+  });
+
+  it("stores wild theme and hydrates it only when unlocked", () => {
+    document.head.insertAdjacentHTML("beforeend", '<meta name="theme-color" content="#0d0d12" />');
+    setTheme("wild");
+    expect(localStorage.getItem("leo-theme")).toBe("wild");
+    expect(getStoredTheme()).toBe("wild");
+    expect(document.documentElement.getAttribute("data-theme")).toBe("wild");
+    expect(document.querySelector('meta[name="theme-color"]')?.getAttribute("content")).toBe("#3e2723");
+    expect(hydrateThemeFromServer("wild", 3)).toBe("dark");
+    setTheme("wild");
+    expect(hydrateThemeFromServer("wild", 3, { isAdmin: true })).toBe("wild");
   });
 });

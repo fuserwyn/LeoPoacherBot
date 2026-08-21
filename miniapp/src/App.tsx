@@ -15,7 +15,7 @@ import { AchievementToast } from "./components/AchievementToast";
 import { LevelUpToast } from "./components/LevelUpToast";
 import { earnedAchievementKeys, freshAchievementKeys, type AchievementKey } from "./lib/achievements";
 import { miniappLevelFromCups } from "./lib/miniappLevel";
-import { getStoredTheme, hasStoredTheme, hydrateThemeFromCloud, hydrateThemeFromServer, persistTheme, persistThemeToServer } from "./lib/theme";
+import { getStoredTheme, hasStoredTheme, hydrateThemeFromCloud, hydrateThemeFromServer, isThemeMode, persistTheme, persistThemeToServer } from "./lib/theme";
 import { buildOptimisticTrainingFeedItem, type PackFeedItemDTO } from "./lib/packFeed";
 import { sendMiniappPrivateText, sendMiniappTrainingWithPhoto } from "./lib/miniappPrivateSend";
 import { isModerationError, moderationUserMessage } from "./lib/moderationMessages";
@@ -248,8 +248,13 @@ export function App() {
       const xpNow = typeof j.xp === "number" ? j.xp : 0;
       setXP(xpNow);
       const levelNow = miniappLevelFromCups(xpNow);
-      hydrateThemeFromServer(j.theme, levelNow);
-      if (j.theme !== "light" && j.theme !== "dark" && j.theme !== "leopard" && hasStoredTheme()) {
+      const themeUnlock = {
+        streakDays: typeof j.streak_days === "number" ? j.streak_days : 0,
+        maxStreakDays: typeof j.max_streak_days === "number" ? j.max_streak_days : 0,
+        isAdmin: Boolean(j.is_admin),
+      };
+      hydrateThemeFromServer(j.theme, levelNow, themeUnlock);
+      if (!isThemeMode(j.theme) && hasStoredTheme()) {
         void persistThemeToServer(initData, getStoredTheme());
       }
       notifyLevelUp(userId, levelNow);

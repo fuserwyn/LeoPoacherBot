@@ -10,7 +10,9 @@ import {
 } from "../lib/streakLabel";
 import {
   canUseLeopardTheme,
+  canUseWildTheme,
   getStoredTheme,
+  isThemeMode,
   persistThemeToServer,
   setTheme,
   themeAllowedForLevel,
@@ -111,11 +113,15 @@ export function ProfileScreen({
   const [theme, setThemeState] = useState<ThemeMode>(() => getStoredTheme());
   const [themeLevelReady, setThemeLevelReady] = useState(false);
   const changeTheme = useCallback((mode: ThemeMode) => {
-    const next = themeAllowedForLevel(mode, miniappLevelFromCups(cups));
+    const next = themeAllowedForLevel(mode, miniappLevelFromCups(cups), {
+      streakDays: streak,
+      maxStreakDays: recordStreak,
+      isAdmin,
+    });
     setTheme(next);
     setThemeState(next);
     if (initData?.trim()) void persistThemeToServer(initData, next);
-  }, [cups, initData]);
+  }, [cups, initData, streak, recordStreak, isAdmin]);
   const [profile, setProfile] = useState<ProfileData>(EMPTY_PROFILE);
   const [savedProfile, setSavedProfile] = useState<ProfileData>(EMPTY_PROFILE);
   const [profileLoading, setProfileLoading] = useState(true);
@@ -230,11 +236,17 @@ export function ProfileScreen({
   const levelTitle = miniappLevelName(level) || "—";
   const barPct = cupsLevelProgressBarPct(cupProgress);
   const leopardUnlocked = canUseLeopardTheme(level);
+  const wildUnlocked = canUseWildTheme({
+    streakDays: displayStreak,
+    maxStreakDays: recordStreak,
+    isAdmin,
+  });
+  const themeUnlock = { streakDays: displayStreak, maxStreakDays: recordStreak, isAdmin };
 
   useEffect(() => {
     const onTheme = (e: Event) => {
       const mode = (e as CustomEvent<ThemeMode>).detail;
-      if (mode === "light" || mode === "dark" || mode === "leopard") setThemeState(mode);
+      if (isThemeMode(mode)) setThemeState(mode);
     };
     window.addEventListener("leo-theme", onTheme);
     return () => window.removeEventListener("leo-theme", onTheme);
@@ -242,13 +254,16 @@ export function ProfileScreen({
 
   useEffect(() => {
     // Пока кубки не приехали с сервера, уровень = 1. Нельзя затирать Розовую.
+    // Дикую здесь не трогаем: стрик/админ в пропсах сначала нули и затёрли бы тему.
     if (!themeLevelReady) return;
-    const next = themeAllowedForLevel(getStoredTheme(), level);
+    const stored = getStoredTheme();
+    if (stored !== "leopard") return;
+    const next = themeAllowedForLevel(stored, level, themeUnlock);
     if (next !== theme) {
       setTheme(next);
       setThemeState(next);
     }
-  }, [level, theme, themeLevelReady]);
+  }, [level, theme, themeLevelReady, displayStreak, recordStreak, isAdmin]);
 
   const load = useCallback(async () => {
     if (!api || !inTelegram || !initData?.trim()) {
@@ -270,6 +285,9 @@ export function ProfileScreen({
         timezone_offset?: number;
         xp?: number;
         theme?: string;
+        streak_days?: number;
+        max_streak_days?: number;
+        is_admin?: boolean;
         streak_save_attempts_used?: number;
         streak_save_attempts_max?: number;
       };
@@ -294,8 +312,12 @@ export function ProfileScreen({
       if (typeof j.xp === "number") {
         setCups(Math.max(0, j.xp));
       }
-      if (j.theme === "light" || j.theme === "dark" || j.theme === "leopard") {
-        const next = themeAllowedForLevel(j.theme, miniappLevelFromCups(typeof j.xp === "number" ? j.xp : cups));
+      if (isThemeMode(j.theme)) {
+        const next = themeAllowedForLevel(j.theme, miniappLevelFromCups(typeof j.xp === "number" ? j.xp : cups), {
+          streakDays: typeof j.streak_days === "number" ? j.streak_days : streak,
+          maxStreakDays: typeof j.max_streak_days === "number" ? j.max_streak_days : recordStreak,
+          isAdmin: typeof j.is_admin === "boolean" ? j.is_admin : isAdmin,
+        });
         setTheme(next);
         setThemeState(next);
       }
@@ -1504,9 +1526,23 @@ export function ProfileScreen({
           >
             🐆 Розовый
           </button>
+          <button
+            type="button"
+            className={`profile__theme-opt ${theme === "wild" ? "is-active" : ""} ${wildUnlocked ? "" : "is-locked"}`}
+            aria-pressed={theme === "wild"}
+            aria-disabled={!wildUnlocked}
+            disabled={!wildUnlocked}
+            title={wildUnlocked ? "Дикая леопардовая тема" : "Стрик 365 дней или админ"}
+            onClick={() => changeTheme("wild")}
+          >
+            🐆 Дикий
+          </button>
         </div>
         {!leopardUnlocked ? (
           <p className="profile__theme-lock muted">Розовая тема откроется на 5 уровне · Лев</p>
+        ) : null}
+        {!wildUnlocked ? (
+          <p className="profile__theme-lock muted">Дикая тема — стрик 365 дней или админ</p>
         ) : null}
       </div>
 

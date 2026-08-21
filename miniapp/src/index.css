@@ -169,6 +169,74 @@
     radial-gradient(ellipse 5px 4px at 8% 48%, #4a1730 0 44%, transparent 48%);
 }
 
+/* ДИКИЙ ЛЕОПАРД — тёмный шоколад и чёрные розетки.
+   Пятна только в ленте стаи и в чате с Лео; карточки тренировок непрозрачные. */
+:root[data-theme="wild"] {
+  color-scheme: dark;
+  --bg: #3e2723;
+  --bg-elevated: #2a1c16;
+  --card: #2c1d14;
+  --card-inner: #241810;
+  --surface-elevated: #2a1c16;
+  --popover: #2c1d14;
+  --text: #f3e6d4;
+  --text-muted: #b89a7c;
+  --muted: #a88868;
+  --text-label: #9a7a5c;
+  --accent: #e09a3e;
+  --accent-2: #d4782a;
+  --accent-dim: rgba(224, 154, 62, 0.18);
+  --border-subtle: rgba(243, 230, 212, 0.1);
+  --nav-bg: rgba(36, 24, 16, 0.88);
+  --fill-subtle: rgba(243, 230, 212, 0.05);
+  --fill-soft: rgba(243, 230, 212, 0.08);
+  --fill-strong: rgba(243, 230, 212, 0.14);
+  --shadow-card: 0 8px 24px rgba(8, 4, 2, 0.45);
+  --shadow-pop: 0 16px 36px rgba(8, 4, 2, 0.55);
+  --scrim: rgba(10, 6, 4, 0.78);
+  --pastel-pink: #3a221c;
+  --pastel-peach: #3a2a18;
+  --pastel-lilac: #2e221c;
+  --pastel-blue: #241c18;
+  --warn-bg: #3a2a14;
+  --warn-fg: #f0c888;
+  --warn-border: rgba(224, 154, 62, 0.35);
+  --tab-active-bg: #3a2a18;
+  --tab-active-fg: #f3e6d4;
+  --tab-active-border: #c9782a;
+  --ai-bg: #241810;
+  --pinned-bg: rgba(224, 154, 62, 0.16);
+  --pinned-fg: #f0c888;
+  --pinned-border: rgba(224, 154, 62, 0.35);
+  --leo-bubble-bg: #2c1d14;
+  --leo-bubble-border: rgba(224, 154, 62, 0.22);
+  --leo-bubble-fg: #f3e6d4;
+  --wild-spots:
+    radial-gradient(ellipse 24px 17px at 12% 16%, #0c0806 0 34%, transparent 38%),
+    radial-gradient(ellipse 9px 7px at 16% 20%, #4a3424 0 42%, transparent 46%),
+    radial-gradient(ellipse 20px 15px at 38% 28%, #100a08 0 30%, transparent 34%),
+    radial-gradient(ellipse 8px 6px at 42% 32%, #4a3424 0 40%, transparent 44%),
+    radial-gradient(ellipse 22px 16px at 68% 14%, #0c0806 0 32%, transparent 36%),
+    radial-gradient(ellipse 8px 6px at 64% 18%, #3e2a1c 0 40%, transparent 44%),
+    radial-gradient(ellipse 18px 13px at 88% 30%, #100a08 0 34%, transparent 38%),
+    radial-gradient(ellipse 7px 5px at 84% 34%, #4a3424 0 42%, transparent 46%),
+    radial-gradient(ellipse 21px 15px at 22% 52%, #0c0806 0 30%, transparent 34%),
+    radial-gradient(ellipse 8px 6px at 26% 56%, #3e2a1c 0 40%, transparent 44%),
+    radial-gradient(ellipse 16px 12px at 52% 58%, #100a08 0 32%, transparent 36%),
+    radial-gradient(ellipse 6px 5px at 56% 62%, #4a3424 0 42%, transparent 46%),
+    radial-gradient(ellipse 23px 16px at 78% 64%, #0c0806 0 30%, transparent 34%),
+    radial-gradient(ellipse 9px 6px at 74% 68%, #3e2a1c 0 40%, transparent 44%),
+    radial-gradient(ellipse 17px 13px at 10% 78%, #100a08 0 32%, transparent 36%),
+    radial-gradient(ellipse 7px 5px at 14% 82%, #4a3424 0 42%, transparent 46%),
+    radial-gradient(ellipse 20px 14px at 44% 84%, #0c0806 0 30%, transparent 34%),
+    radial-gradient(ellipse 8px 6px at 48% 88%, #3e2a1c 0 40%, transparent 44%),
+    radial-gradient(ellipse 19px 14px at 90% 82%, #100a08 0 32%, transparent 36%),
+    radial-gradient(ellipse 7px 5px at 86% 86%, #4a3424 0 42%, transparent 46%),
+    radial-gradient(ellipse 12px 9px at 32% 8%, #0c0806 0 36%, transparent 40%),
+    radial-gradient(ellipse 14px 10px at 60% 42%, #100a08 0 32%, transparent 36%),
+    radial-gradient(ellipse 11px 8px at 6% 40%, #0c0806 0 38%, transparent 42%);
+}
+
 *,
 *::before,
 *::after {
@@ -206,6 +274,34 @@ html[data-theme="leopard"] .chat:not(.support-chat) .chat__log-wrap {
 
 html[data-theme="leopard"] .chat:not(.support-chat) {
   background-color: #f6d4de;
+}
+
+html[data-theme="wild"] {
+  background-color: var(--bg);
+  background-image: none;
+}
+
+html[data-theme="wild"] .feed,
+html[data-theme="wild"] .chat:not(.support-chat) .chat__log,
+html[data-theme="wild"] .chat:not(.support-chat) .chat__log-wrap {
+  background-color: #3e2723;
+  background-image: var(--wild-spots);
+  background-size: 240px 200px;
+  background-repeat: repeat;
+  animation: leopard-spots-drift 56s linear infinite;
+}
+
+html[data-theme="wild"] .chat:not(.support-chat) {
+  background-color: #3e2723;
+}
+
+html[data-theme="wild"] .feed__sticky,
+html[data-theme="wild"] .feed__sticky::before,
+html[data-theme="wild"] .feed__sticky-inner,
+html[data-theme="wild"] .chat:not(.support-chat) .chat__head {
+  background: var(--nav-bg);
+  backdrop-filter: saturate(1.2) blur(18px);
+  -webkit-backdrop-filter: saturate(1.2) blur(18px);
 }
 
 html[data-theme="leopard"] .feed__sticky,
@@ -402,6 +498,65 @@ html[data-theme="leopard"] .act-card {
 
 html[data-theme="leopard"] .act-card--leo {
   background: linear-gradient(160deg, #fff8fb 0%, #ffe4ee 100%);
+}
+
+html[data-theme="wild"] .bottom-nav {
+  background: var(--nav-bg);
+  backdrop-filter: saturate(1.2) blur(18px);
+  -webkit-backdrop-filter: saturate(1.2) blur(18px);
+  border-top-color: rgba(243, 230, 212, 0.08);
+}
+
+html[data-theme="wild"] .bottom-nav__item.is-active {
+  color: var(--accent);
+}
+
+html[data-theme="wild"] .chip,
+html[data-theme="wild"] .feed__filter-pill,
+html[data-theme="wild"] .feed__filter-chip {
+  background: #2c1d14;
+  color: var(--text);
+  border-color: rgba(243, 230, 212, 0.1);
+}
+
+html[data-theme="wild"] .chip[aria-pressed="true"],
+html[data-theme="wild"] .feed__filter-pill.is-active,
+html[data-theme="wild"] .feed__filter-chip.is-active {
+  background: #352418;
+  color: var(--accent);
+  border-color: rgba(224, 154, 62, 0.4);
+}
+
+/* Карточки тренировок юзеров — полностью непрозрачные, пятна не просвечивают. */
+html[data-theme="wild"] .feed__card-slot .act-card,
+html[data-theme="wild"] .feed__card,
+html[data-theme="wild"] .act-card,
+html[data-theme="wild"] .act-card--light {
+  background: #2c1d14;
+  background-image: none;
+  opacity: 1;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  border-color: rgba(243, 230, 212, 0.1);
+  box-shadow: 0 10px 24px rgba(8, 4, 2, 0.4);
+}
+
+html[data-theme="wild"] .act-card--leo {
+  background: linear-gradient(160deg, #352418 0%, #2a1a12 100%);
+  background-image: none;
+  opacity: 1;
+}
+
+html[data-theme="wild"] .chat:not(.support-chat) .chat__bubble--sys {
+  background: #2c1d14;
+  border: 1px solid rgba(224, 154, 62, 0.18);
+  box-shadow: 0 8px 18px rgba(8, 4, 2, 0.28);
+}
+
+html[data-theme="wild"] .chat:not(.support-chat) .chat__bubble--user {
+  background: linear-gradient(180deg, #e09a3e 0%, #c9782a 100%);
+  color: #1a100c;
+  border: 0;
 }
 
 html[data-theme="leopard"] .chat:not(.support-chat) .chat__bubble--sys {
@@ -897,7 +1052,10 @@ html[data-theme="leopard"] .chat:not(.support-chat) .chat__bubble--user {
   html[data-theme="leopard"] .profile__xp-fill::after,
   html[data-theme="leopard"] .profile__save::after,
   html[data-theme="leopard"] .profile__donate-btn::after,
-  html[data-theme="leopard"] .profile__support-btn::after {
+  html[data-theme="leopard"] .profile__support-btn::after,
+  html[data-theme="wild"] .feed,
+  html[data-theme="wild"] .chat:not(.support-chat) .chat__log,
+  html[data-theme="wild"] .chat:not(.support-chat) .chat__log-wrap {
     animation: none;
   }
 

@@ -177,14 +177,46 @@ func (b *Bot) GetMiniappUserProfileJSONForAPI(userID, packChatID int64) (gender,
 }
 
 const miniappLeopardThemeMinLevel = 5
+const miniappWildThemeMinStreak = 365
+
+// MiniappThemeAccess — уровень, стрик и админ-флаг для разблокировки тем.
+type MiniappThemeAccess struct {
+	Level         int
+	StreakDays    int
+	MaxStreakDays int
+	IsAdmin       bool
+}
+
+func isMiniappThemeName(t string) bool {
+	return t == "light" || t == "dark" || t == "leopard" || t == "wild"
+}
+
+func canUseWildMiniappTheme(access MiniappThemeAccess) bool {
+	if access.IsAdmin {
+		return true
+	}
+	streak := access.StreakDays
+	if access.MaxStreakDays > streak {
+		streak = access.MaxStreakDays
+	}
+	return streak >= miniappWildThemeMinStreak
+}
 
 // NormalizeMiniappTheme — light/dark/leopard; розовая только с уровня Лев.
 func NormalizeMiniappTheme(raw string, level int) (string, bool) {
+	return NormalizeMiniappThemeAccess(raw, MiniappThemeAccess{Level: level})
+}
+
+// NormalizeMiniappThemeAccess — light/dark/leopard/wild с проверкой стрика и админа.
+func NormalizeMiniappThemeAccess(raw string, access MiniappThemeAccess) (string, bool) {
 	t := strings.TrimSpace(strings.ToLower(raw))
-	if t != "light" && t != "dark" && t != "leopard" {
+	if !isMiniappThemeName(t) {
 		return "", false
 	}
-	if t == "leopard" && level < miniappLeopardThemeMinLevel {
+	if t == "leopard" && access.Level < miniappLeopardThemeMinLevel {
+		return "dark", true
+	}
+	if t == "wild" && !canUseWildMiniappTheme(access) {
 		return "dark", true
 	}
 	return t, true
@@ -200,7 +232,7 @@ func (b *Bot) GetMiniappThemeForAPI(userID, packChatID int64) string {
 		return ""
 	}
 	t := strings.TrimSpace(strings.ToLower(p.Theme))
-	if t != "light" && t != "dark" && t != "leopard" {
+	if !isMiniappThemeName(t) {
 		return ""
 	}
 	return t
@@ -212,7 +244,12 @@ func (b *Bot) SaveMiniappThemeFromMiniapp(userID, packChatID int64, theme string
 		return nil
 	}
 	stats := b.GetMiniappProfileStatsForAPI(userID, packChatID)
-	normalized, ok := NormalizeMiniappTheme(theme, stats.Level)
+	normalized, ok := NormalizeMiniappThemeAccess(theme, MiniappThemeAccess{
+		Level:         stats.Level,
+		StreakDays:    stats.StreakDays,
+		MaxStreakDays: stats.MaxStreakDays,
+		IsAdmin:       b.IsMiniappViewerAdmin(userID),
+	})
 	if !ok {
 		return errors.New("invalid theme")
 	}
