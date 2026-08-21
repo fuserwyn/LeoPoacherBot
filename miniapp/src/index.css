@@ -169,8 +169,8 @@
     radial-gradient(ellipse 5px 4px at 8% 48%, #4a1730 0 44%, transparent 48%);
 }
 
-/* ДИКИЙ ЛЕОПАРД — тёмный шоколад и чёрные розетки.
-   Пятна только в ленте стаи и в чате с Лео; карточки тренировок непрозрачные. */
+/* ДИКИЙ ЛЕОПАРД — тёмный шоколад и обои с чёрными розетками.
+   Обои только в ленте стаи и в чате с Лео; карточки тренировок непрозрачные. */
 :root[data-theme="wild"] {
   color-scheme: dark;
   --bg: #3e2723;
@@ -211,30 +211,8 @@
   --leo-bubble-bg: #2c1d14;
   --leo-bubble-border: rgba(224, 154, 62, 0.22);
   --leo-bubble-fg: #f3e6d4;
-  --wild-spots:
-    radial-gradient(ellipse 24px 17px at 12% 16%, #0c0806 0 34%, transparent 38%),
-    radial-gradient(ellipse 9px 7px at 16% 20%, #4a3424 0 42%, transparent 46%),
-    radial-gradient(ellipse 20px 15px at 38% 28%, #100a08 0 30%, transparent 34%),
-    radial-gradient(ellipse 8px 6px at 42% 32%, #4a3424 0 40%, transparent 44%),
-    radial-gradient(ellipse 22px 16px at 68% 14%, #0c0806 0 32%, transparent 36%),
-    radial-gradient(ellipse 8px 6px at 64% 18%, #3e2a1c 0 40%, transparent 44%),
-    radial-gradient(ellipse 18px 13px at 88% 30%, #100a08 0 34%, transparent 38%),
-    radial-gradient(ellipse 7px 5px at 84% 34%, #4a3424 0 42%, transparent 46%),
-    radial-gradient(ellipse 21px 15px at 22% 52%, #0c0806 0 30%, transparent 34%),
-    radial-gradient(ellipse 8px 6px at 26% 56%, #3e2a1c 0 40%, transparent 44%),
-    radial-gradient(ellipse 16px 12px at 52% 58%, #100a08 0 32%, transparent 36%),
-    radial-gradient(ellipse 6px 5px at 56% 62%, #4a3424 0 42%, transparent 46%),
-    radial-gradient(ellipse 23px 16px at 78% 64%, #0c0806 0 30%, transparent 34%),
-    radial-gradient(ellipse 9px 6px at 74% 68%, #3e2a1c 0 40%, transparent 44%),
-    radial-gradient(ellipse 17px 13px at 10% 78%, #100a08 0 32%, transparent 36%),
-    radial-gradient(ellipse 7px 5px at 14% 82%, #4a3424 0 42%, transparent 46%),
-    radial-gradient(ellipse 20px 14px at 44% 84%, #0c0806 0 30%, transparent 34%),
-    radial-gradient(ellipse 8px 6px at 48% 88%, #3e2a1c 0 40%, transparent 44%),
-    radial-gradient(ellipse 19px 14px at 90% 82%, #100a08 0 32%, transparent 36%),
-    radial-gradient(ellipse 7px 5px at 86% 86%, #4a3424 0 42%, transparent 46%),
-    radial-gradient(ellipse 12px 9px at 32% 8%, #0c0806 0 36%, transparent 40%),
-    radial-gradient(ellipse 14px 10px at 60% 42%, #100a08 0 32%, transparent 36%),
-    radial-gradient(ellipse 11px 8px at 6% 40%, #0c0806 0 38%, transparent 42%);
+  /* Тёмные обои леопарда — бесшовный тайл (лента и чат с Лео). */
+  --wild-spots: url("./assets/wild-leopard-wallpaper.jpg");
 }
 
 *,
@@ -284,11 +262,15 @@ html[data-theme="wild"] {
 html[data-theme="wild"] .feed,
 html[data-theme="wild"] .chat:not(.support-chat) .chat__log,
 html[data-theme="wild"] .chat:not(.support-chat) .chat__log-wrap {
-  background-color: #3e2723;
+  background-color: #4a2c18;
   background-image: var(--wild-spots);
-  background-size: 240px 200px;
+  background-size: 400px 400px;
   background-repeat: repeat;
-  animation: leopard-spots-drift 56s linear infinite;
+  background-position: 0 0;
+}
+
+html[data-theme="wild"] .feed {
+  min-height: calc(100dvh - var(--bottom-nav-h, 88px));
 }
 
 html[data-theme="wild"] .chat:not(.support-chat) {
