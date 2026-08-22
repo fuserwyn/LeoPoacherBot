@@ -49,6 +49,12 @@ func TestTrackerComposerPassed(t *testing.T) {
 	if !trackerComposerPassed("doing", "⏰ Задача #1 выполнена.\n\nГотово.") {
 		t.Fatal("impl done is pass")
 	}
+	if trackerComposerPassed("review", "ревью не принято: на ветке только заметка трекера") {
+		t.Fatal("note-only review must fail")
+	}
+	if trackerComposerPassed("test", "тест не прошёл: нет правок приложения") {
+		t.Fatal("note-only test must fail")
+	}
 }
 
 func TestTrackerStepRemoteID(t *testing.T) {
@@ -94,6 +100,12 @@ func TestTrackerTaskCommitAndHasCode(t *testing.T) {
 	if trackerTaskHasCode(database.TrackerTask{Result: "план без правок"}) {
 		t.Fatal("plan is not code")
 	}
+	if trackerTaskHasCode(database.TrackerTask{
+		Steps:  []string{"коммит abc1234 выполнение", "ветка tracker/12-17"},
+		Result: "Задача #12: агент сдал план\nTRACKER_NO_CODE",
+	}) {
+		t.Fatal("tracker note is not app code")
+	}
 }
 
 func TestTrackerTaskBranch(t *testing.T) {
@@ -131,6 +143,21 @@ func TestShipTrackerToMain(t *testing.T) {
 	}
 	if int(got["source_task_id"].(float64)) != 11 || got["branch"] != "tracker/4-43" {
 		t.Fatalf("payload %#v", got)
+	}
+}
+
+func TestInspectTrackerBranch(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/api/inspect" || r.URL.Query().Get("branch") != "tracker/12-17" {
+			t.Fatalf("req %s %s", r.URL.Path, r.URL.RawQuery)
+		}
+		_, _ = w.Write([]byte(`{"ok":true,"exists":true,"has_impl":false}`))
+	}))
+	defer srv.Close()
+	b := &Bot{config: &config.Config{BoardURL: srv.URL, BoardSecret: "sec"}}
+	ok, err := b.inspectTrackerBranch(database.TrackerTask{Result: "ветка tracker/12-17"})
+	if err != nil || ok {
+		t.Fatalf("note-only: %v %v", ok, err)
 	}
 }
 

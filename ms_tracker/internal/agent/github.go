@@ -12,14 +12,14 @@ import (
 )
 
 type branchInfo struct {
-	Exists   bool
-	Head     string
-	Commits  []string
-	Files    []string
-	HasImpl  bool
+	Exists  bool
+	Head    string
+	Commits []string
+	Files   []string
+	HasImpl bool
 }
 
-func inspectBranch(cfg config.Config, branch string) (branchInfo, error) {
+func InspectBranch(cfg config.Config, branch string) (branchInfo, error) {
 	var out branchInfo
 	branch = strings.TrimSpace(branch)
 	if branch == "" || strings.TrimSpace(cfg.GithubToken) == "" || strings.TrimSpace(cfg.Repo) == "" {
@@ -40,7 +40,7 @@ func inspectBranch(cfg config.Config, branch string) (branchInfo, error) {
 		return out, fmt.Errorf("github compare HTTP %d", status)
 	}
 	var parsed struct {
-		Status string `json:"status"`
+		Status  string `json:"status"`
 		Commits []struct {
 			SHA    string `json:"sha"`
 			Commit struct {
@@ -73,10 +73,8 @@ func inspectBranch(cfg config.Config, branch string) (branchInfo, error) {
 			continue
 		}
 		out.Files = append(out.Files, f.Filename)
-		if !strings.HasPrefix(f.Filename, ".tracker/") {
-			out.HasImpl = true
-		}
 	}
+	out.HasImpl = filesHaveImpl(out.Files)
 	return out, nil
 }
 

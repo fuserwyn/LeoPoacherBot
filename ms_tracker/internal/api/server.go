@@ -33,6 +33,7 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("POST /api/scheduled/cancel", s.auth(s.cancel))
 	mux.HandleFunc("POST /api/ship", s.auth(s.ship))
 	mux.HandleFunc("POST /api/stamp", s.auth(s.stamp))
+	mux.HandleFunc("GET /api/inspect", s.auth(s.inspect))
 	return mux
 }
 
@@ -191,6 +192,11 @@ func (s *Server) ship(w http.ResponseWriter, r *http.Request) {
 	if branch == "" && sourceID > 0 {
 		branch = s.st.SourceBranch(sourceID)
 	}
+	info, ierr := agent.InspectBranch(s.cfg, branch)
+	if reason := agent.ShipBlockReason(info, ierr); reason != "" {
+		writeJSON(w, http.StatusBadRequest, map[string]any{"ok": false, "error": reason})
+		return
+	}
 	base, err := agent.MergeToMain(s.cfg, branch, num)
 	if err != nil {
 		writeJSON(w, http.StatusBadRequest, map[string]any{"ok": false, "error": err.Error()})
@@ -202,6 +208,23 @@ func (s *Server) ship(w http.ResponseWriter, r *http.Request) {
 		"merged": true,
 		"base":   base,
 		"head":   branch,
+	})
+}
+
+func (s *Server) inspect(w http.ResponseWriter, r *http.Request) {
+	branch := strings.TrimSpace(r.URL.Query().Get("branch"))
+	info, err := agent.InspectBranch(s.cfg, branch)
+	if err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]any{"ok": false, "error": err.Error()})
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{
+		"ok":       true,
+		"exists":   info.Exists,
+		"has_impl": info.HasImpl,
+		"head":     info.Head,
+		"files":    info.Files,
+		"branch":   branch,
 	})
 }
 

@@ -21,6 +21,8 @@ type Result struct {
 	Branch    string
 	Commit    string
 	Committed bool
+	// HasImpl — в коммите есть файлы приложения, не только .tracker/job-N.md.
+	HasImpl bool
 	// Pushed — ветка уехала в main/стенд. Коммиты выполнения и ревью
 	// живут на ветке задачи и пушем на стенд не считаются.
 	Pushed bool
@@ -34,28 +36,11 @@ func Run(cfg config.Config, job store.Job) (Result, error) {
 	if phase == "review" || phase == "test" {
 		return runVerdict(cfg, job, phase)
 	}
-	note, err := chat(cfg, job)
-	if err != nil {
-		return Result{}, err
+	if !writesGit(phase) || strings.TrimSpace(cfg.GithubToken) == "" || strings.TrimSpace(cfg.Repo) == "" {
+		note, err := chat(cfg, job)
+		return Result{Note: note}, err
 	}
-	out := Result{Note: note}
-	if !writesGit(phase) {
-		return out, nil
-	}
-	if strings.TrimSpace(cfg.GithubToken) == "" || strings.TrimSpace(cfg.Repo) == "" {
-		return out, nil
-	}
-	branch, sha, gerr := applyPhaseCommit(cfg, job, note)
-	out.Branch = branch
-	out.Commit = sha
-	out.Committed = sha != "" && gerr == nil
-	if gerr != nil {
-		if out.Note != "" {
-			out.Note += "\n\n"
-		}
-		out.Note += "Git: " + gerr.Error()
-	}
-	return out, nil
+	return applyDoing(cfg, job)
 }
 
 func runVerdict(cfg config.Config, job store.Job, phase string) (Result, error) {
@@ -63,7 +48,7 @@ func runVerdict(cfg config.Config, job store.Job, phase string) (Result, error) 
 	if branch == "" {
 		branch = taskBranch(job)
 	}
-	info, ierr := inspectBranch(cfg, branch)
+	info, ierr := InspectBranch(cfg, branch)
 	if ierr != nil && !info.Exists && strings.TrimSpace(job.Prompt) == "" {
 		return Result{}, ierr
 	}
@@ -73,6 +58,13 @@ func runVerdict(cfg config.Config, job store.Job, phase string) (Result, error) 
 			note = "тест не прошёл: нет коммита выполнения на ветке " + branch + "."
 		}
 		return Result{Note: note, Branch: branch}, nil
+	}
+	if !info.HasImpl {
+		note := "ревью не принято: на ветке только заметка трекера, нет правок приложения."
+		if phase == "test" {
+			note = "тест не прошёл: на ветке только заметка трекера, нечего катить на стенд."
+		}
+		return Result{Note: note, Branch: branch, Commit: info.Head, HasImpl: false}, nil
 	}
 	// Пока ревью посредственное, тест дымовой: ветка есть — пропускаем.
 	// Модель не зовём: на #6 она крутила отказы и упиралась в OpenRouter 504.
@@ -89,6 +81,7 @@ func runVerdict(cfg config.Config, job store.Job, phase string) (Result, error) 
 	out.Commit = stamped.Commit
 	out.Committed = stamped.Committed
 	out.Branch = stamped.Branch
+	out.HasImpl = true
 	return out, nil
 }
 
@@ -107,13 +100,15 @@ func verdictPassed(phase, text string) bool {
 	low := strings.ToLower(text)
 	if phase == "review" {
 		if strings.Contains(low, "ревью не принято") || strings.Contains(low, "нельзя на тест") ||
-			strings.Contains(low, `"pass":false`) {
+			strings.Contains(low, `"pass":false`) || strings.Contains(low, "только заметка") ||
+			strings.Contains(low, "нет правок приложения") {
 			return false
 		}
 		return true
 	}
 	if strings.Contains(low, "тест не прошёл") || strings.Contains(low, "тест не прошел") ||
-		strings.Contains(low, `"pass":false`) {
+		strings.Contains(low, `"pass":false`) || strings.Contains(low, "только заметка") ||
+		strings.Contains(low, "нет правок приложения") {
 		return false
 	}
 	return true
@@ -126,11 +121,74 @@ func Stamp(cfg config.Config, job store.Job, note string) (Result, error) {
 	if strings.TrimSpace(cfg.GithubToken) == "" || strings.TrimSpace(cfg.Repo) == "" {
 		return out, fmt.Errorf("нет GitHub")
 	}
-	branch, sha, err := applyPhaseCommit(cfg, job, out.Note)
+	branch, sha, _, err := applyPhaseCommit(cfg, job, out.Note, nil)
 	out.Branch = branch
 	out.Commit = sha
 	out.Committed = sha != "" && err == nil
 	return out, err
+}
+
+func applyDoing(cfg config.Config, job store.Job) (Result, error) {
+	note := ""
+	edits := []fileEdit{}
+	if strings.TrimSpace(cfg.OpenRouterKey) == "" {
+		note = "Агент без OPENROUTER_API_KEY: задачу приняли, код не писали."
+	} else {
+		dir, err := os.MkdirTemp("", "leo-tracker-ctx-*")
+		if err != nil {
+			return Result{}, err
+		}
+		repoDir, branch, cleanup, err := prepareRepo(cfg, job, dir)
+		if err != nil {
+			cleanup()
+			return Result{}, err
+		}
+		snippets := collectContextFiles(repoDir, job.Prompt)
+		cleanup()
+		reply, cerr := implChat(cfg, job, snippets)
+		if cerr != nil {
+			return Result{}, cerr
+		}
+		note = reply.Note
+		edits = reply.Files
+		_ = branch
+	}
+	out := Result{Note: note}
+	branch, sha, hasImpl, gerr := applyPhaseCommit(cfg, job, note, edits)
+	out.Branch = branch
+	out.Commit = sha
+	out.Committed = sha != "" && gerr == nil
+	out.HasImpl = hasImpl && out.Committed
+	if gerr != nil {
+		if out.Note != "" {
+			out.Note += "\n\n"
+		}
+		out.Note += "Git: " + gerr.Error()
+	}
+	return out, nil
+}
+
+func implChat(cfg config.Config, job store.Job, files []fileSnippet) (implReply, error) {
+	var b strings.Builder
+	b.WriteString(job.Prompt)
+	if len(files) > 0 {
+		b.WriteString("\n\nФайлы из репозитория. Верни полный новый текст каждого файла, который меняешь.\n")
+		for _, f := range files {
+			b.WriteString("\n--- ")
+			b.WriteString(f.Path)
+			b.WriteString(" ---\n")
+			b.WriteString(f.Content)
+			b.WriteByte('\n')
+		}
+	}
+	system := "Ты агент трекера Fat Leopard. Меняй код приложения, не пиши только план. " +
+		"Ответ — JSON без обёртки: {\"note\":\"что сделал\",\"files\":[{\"path\":\"miniapp/src/...\",\"content\":\"полный файл\"}]}. " +
+		"path только из miniapp/, ms_leo/, ms_tracker/. Без эмодзи."
+	raw, err := chatRaw(cfg, system, b.String())
+	if err != nil {
+		return implReply{}, err
+	}
+	return parseImplReply(raw), nil
 }
 
 func chat(cfg config.Config, job store.Job) (string, error) {
@@ -145,11 +203,15 @@ func chat(cfg config.Config, job store.Job) (string, error) {
 			"Если на ветке есть любой коммит — пиши «можно на тест» или «тест пройден». " +
 			"Не придирайся к стилю, полноте и покрытию. Откажи только если ветки нет. Без эмодзи."
 	}
+	return chatRaw(cfg, system, job.Prompt)
+}
+
+func chatRaw(cfg config.Config, system, user string) (string, error) {
 	body, _ := json.Marshal(map[string]any{
 		"model": cfg.OpenRouterModel,
 		"messages": []map[string]string{
 			{"role": "system", "content": system},
-			{"role": "user", "content": job.Prompt},
+			{"role": "user", "content": user},
 		},
 	})
 	req, err := http.NewRequest(http.MethodPost, "https://openrouter.ai/api/v1/chat/completions", bytes.NewReader(body))
@@ -182,7 +244,7 @@ func chat(cfg config.Config, job store.Job) (string, error) {
 		return "", fmt.Errorf("openrouter пустой ответ")
 	}
 	note := strings.TrimSpace(parsed.Choices[0].Message.Content)
-	return clip(note, 3500), nil
+	return clip(note, 12000), nil
 }
 
 func writesGit(phase string) bool {
@@ -211,37 +273,49 @@ func taskBranch(job store.Job) string {
 	return fmt.Sprintf("tracker/0-%d", job.ID)
 }
 
-func applyPhaseCommit(cfg config.Config, job store.Job, note string) (string, string, error) {
-	dir, err := os.MkdirTemp("", "leo-tracker-*")
-	if err != nil {
-		return "", "", err
-	}
-	defer os.RemoveAll(dir)
+func prepareRepo(cfg config.Config, job store.Job, dir string) (repoDir, branch string, cleanup func(), err error) {
+	cleanup = func() { _ = os.RemoveAll(dir) }
 	cloneURL := fmt.Sprintf("https://x-access-token:%s@github.com/%s.git", cfg.GithubToken, cfg.Repo)
-	if err := run(dir, "git", "clone", "--depth", "20", cloneURL, "repo"); err != nil {
-		return "", "", fmt.Errorf("clone: %w", err)
+	if err = run(dir, "git", "clone", "--depth", "20", cloneURL, "repo"); err != nil {
+		return "", "", cleanup, fmt.Errorf("clone: %w", err)
 	}
-	repoDir := filepath.Join(dir, "repo")
-	branch := strings.TrimSpace(job.Branch)
+	repoDir = filepath.Join(dir, "repo")
+	branch = strings.TrimSpace(job.Branch)
 	if branch == "" {
 		branch = taskBranch(job)
 	}
 	if remoteBranchExists(repoDir, branch) {
-		if err := run(repoDir, "git", "fetch", "origin", branch, "--depth", "20"); err != nil {
-			return branch, "", fmt.Errorf("fetch: %w", err)
+		if err = run(repoDir, "git", "fetch", "origin", branch, "--depth", "20"); err != nil {
+			return repoDir, branch, cleanup, fmt.Errorf("fetch: %w", err)
 		}
-		if err := run(repoDir, "git", "checkout", "-B", branch, "origin/"+branch); err != nil {
-			return branch, "", err
+		if err = run(repoDir, "git", "checkout", "-B", branch, "origin/"+branch); err != nil {
+			return repoDir, branch, cleanup, err
 		}
-	} else if err := run(repoDir, "git", "checkout", "-B", branch); err != nil {
-		return branch, "", err
+	} else if err = run(repoDir, "git", "checkout", "-B", branch); err != nil {
+		return repoDir, branch, cleanup, err
+	}
+	return repoDir, branch, cleanup, nil
+}
+
+func applyPhaseCommit(cfg config.Config, job store.Job, note string, edits []fileEdit) (string, string, bool, error) {
+	dir, err := os.MkdirTemp("", "leo-tracker-*")
+	if err != nil {
+		return "", "", false, err
+	}
+	repoDir, branch, cleanup, err := prepareRepo(cfg, job, dir)
+	defer cleanup()
+	if err != nil {
+		return branch, "", false, err
+	}
+	if _, err := applyFileEdits(repoDir, edits); err != nil {
+		return branch, "", false, err
 	}
 	notePath := filepath.Join(repoDir, ".tracker", fmt.Sprintf("job-%d.md", job.SourceTaskID))
 	if job.SourceTaskID <= 0 {
 		notePath = filepath.Join(repoDir, ".tracker", fmt.Sprintf("job-%d.md", job.ID))
 	}
 	if err := os.MkdirAll(filepath.Dir(notePath), 0o755); err != nil {
-		return branch, "", err
+		return branch, "", false, err
 	}
 	label := commitLabel(job.Phase)
 	prev, _ := os.ReadFile(notePath)
@@ -251,24 +325,39 @@ func applyPhaseCommit(cfg config.Config, job store.Job, note string) (string, st
 	}
 	body += fmt.Sprintf("\n## %s\n\n%s\n", label, strings.TrimSpace(note))
 	if err := os.WriteFile(notePath, []byte(body), 0o644); err != nil {
-		return branch, "", err
+		return branch, "", false, err
 	}
 	_ = run(repoDir, "git", "config", "user.email", "tracker@fat-leopard")
 	_ = run(repoDir, "git", "config", "user.name", "Leo Tracker")
-	if err := run(repoDir, "git", "add", ".tracker"); err != nil {
-		return branch, "", err
+	if len(edits) > 0 {
+		if err := run(repoDir, "git", "add", "-A"); err != nil {
+			return branch, "", false, err
+		}
+	} else if err := run(repoDir, "git", "add", ".tracker"); err != nil {
+		return branch, "", false, err
 	}
+	hasImpl := stagedHasImpl(repoDir)
 	msg := fmt.Sprintf("tracker: #%d %s", job.SourceNum, label)
 	if err := run(repoDir, "git", "commit", "-m", msg); err != nil {
 		if sha := gitHead(repoDir); sha != "" && (label == "ревью" || label == "тест") {
-			return branch, sha, nil
+			return branch, sha, hasImpl, nil
 		}
-		return branch, "", err
+		return branch, "", false, err
 	}
 	if err := run(repoDir, "git", "push", "-u", "origin", branch); err != nil {
-		return branch, "", fmt.Errorf("ветка: %w", err)
+		return branch, "", false, fmt.Errorf("ветка: %w", err)
 	}
-	return branch, gitHead(repoDir), nil
+	return branch, gitHead(repoDir), hasImpl, nil
+}
+
+func stagedHasImpl(repoDir string) bool {
+	cmd := exec.Command("git", "diff", "--cached", "--name-only")
+	cmd.Dir = repoDir
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		return false
+	}
+	return filesHaveImpl(strings.Split(string(out), "\n"))
 }
 
 func remoteBranchExists(repoDir, branch string) bool {
