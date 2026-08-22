@@ -127,8 +127,8 @@ func trackerAgentPrompt(t database.TrackerTask, phase string) string {
 Что сдал агент:
 %s
 
-Не придирайся к стилю, тестам и полноте. Если в репозитории есть правки приложения — напиши «можно на тест».
-Откажи («ревью не принято»), если коммита нет или на ветке только заметка .tracker без правок приложения.`, n, prompt, result)
+Не придирайся к стилю, тестам и полноте. Если есть ветка или коммит — напиши «можно на тест».
+Откажи («ревью не принято») только если коммита и ветки нет совсем.`, n, prompt, result)
 	case "test":
 		return fmt.Sprintf(`Минимальный дымовой тест задачи #%d.
 
@@ -138,9 +138,9 @@ func trackerAgentPrompt(t database.TrackerTask, phase string) string {
 Результат и ревью:
 %s
 
-Проверь совсем коротко: в ветке есть правки приложения, не только .tracker/job-N.md.
-Если правки приложения есть — напиши «тест пройден».
-«тест не прошёл», если кода нет или влита только заметка трекера.`, n, prompt, result)
+Проверь совсем коротко: ветка есть, карточка не пустая. Не гоняй полный набор.
+Если ветка или коммит есть — напиши «тест пройден».
+«тест не прошёл» только если кода нет совсем.`, n, prompt, result)
 	default:
 		text := prompt
 		if n > 0 {
@@ -157,9 +157,6 @@ func trackerAgentPrompt(t database.TrackerTask, phase string) string {
 // Явный провал важнее общего «готово» от доски.
 func trackerComposerPassed(phase, text string) bool {
 	low := strings.ToLower(text)
-	if trackerLooksLikeNoteOnly(text) {
-		return false
-	}
 	switch phase {
 	case "review":
 		if strings.Contains(low, "ревью не принято") || strings.Contains(low, `"pass":false`) ||
@@ -200,14 +197,6 @@ func trackerLooksLikeNoteOnly(text string) bool {
 }
 
 func trackerTaskHasCode(t database.TrackerTask) bool {
-	if trackerLooksLikeNoteOnly(t.Result) {
-		return false
-	}
-	for _, step := range t.Steps {
-		if trackerLooksLikeNoteOnly(step) {
-			return false
-		}
-	}
 	for _, step := range t.Steps {
 		low := strings.ToLower(step)
 		if strings.Contains(low, "коммит ") || strings.Contains(low, "ветка ") ||
@@ -306,7 +295,7 @@ func (b *Bot) remoteTrackerCreate(t database.TrackerTask, phase, model string) (
 		"when":           trackerRemoteWhen,
 		"prompt":         trackerAgentPrompt(t, phase),
 		"auto_review":    false,
-		"auto_push":      t.AutoPush,
+		"auto_push":      true,
 		"phase":          phase,
 		"source_task_id": t.ID,
 		"source_num":     trackerDueNum(t),
@@ -424,7 +413,7 @@ func (b *Bot) finishTrackerComposerLocal(t database.TrackerTask, phase string, s
 			{Role: "system", Content: `Ты — ревьюер/тестировщик Fat Leopard.
 Ревью посредственное, тест минимальный.
 Ответь JSON без обрамления: {"pass":true/false,"note":"1–3 предложения без эмодзи"}.
-pass false если нет ветки, нет коммита или на ветке только заметка .tracker без правок приложения. Иначе pass true.`},
+pass false только если нет ветки и коммита. Иначе pass true.`},
 			{Role: "user", Content: trackerAgentPrompt(t, phase)},
 		}, "")
 		if err == nil {
@@ -559,19 +548,6 @@ func (b *Bot) finishTrackerBuild(taskID int64) {
 		appendTrackerStep(&t, "Сборка не запускалась")
 		if err := b.db.SaveTrackerTask(t); err != nil && b.logger != nil {
 			b.logger.Warnf("трекер: не вернуть #%d с фейковой сборки: %v", trackerDueNum(t), err)
-		}
-		return
-	}
-	if hasImpl, ierr := b.inspectTrackerBranch(t); ierr != nil {
-		if b.logger != nil {
-			b.logger.Warnf("трекер: не проверить ветку #%d: %v", trackerDueNum(t), ierr)
-		}
-	} else if !hasImpl {
-		t.Error = "на стенд нечего катить: в ветке только заметка трекера"
-		appendTrackerStep(&t, "пуш на стенд не вышел")
-		_ = applyTrackerColumn(&t, trackerColDoing)
-		if err := b.db.SaveTrackerTask(t); err != nil && b.logger != nil {
-			b.logger.Warnf("трекер: не вернуть #%d без правок приложения: %v", trackerDueNum(t), err)
 		}
 		return
 	}

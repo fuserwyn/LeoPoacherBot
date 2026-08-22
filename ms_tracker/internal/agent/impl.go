@@ -213,8 +213,5 @@ func ShipBlockReason(info branchInfo, err error) string {
 	if !info.Exists {
 		return "нет ветки задачи"
 	}
-	if !info.HasImpl {
-		return "нет правок приложения, только заметка трекера"
-	}
 	return ""
 }

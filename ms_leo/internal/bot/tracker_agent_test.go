@@ -49,11 +49,11 @@ func TestTrackerComposerPassed(t *testing.T) {
 	if !trackerComposerPassed("doing", "⏰ Задача #1 выполнена.\n\nГотово.") {
 		t.Fatal("impl done is pass")
 	}
-	if trackerComposerPassed("review", "ревью не принято: на ветке только заметка трекера") {
-		t.Fatal("note-only review must fail")
+	if !trackerComposerPassed("review", "на ветке есть коммит, даже если это заметка трекера. Можно на тест.") {
+		t.Fatal("branch present must go to test")
 	}
-	if trackerComposerPassed("test", "тест не прошёл: нет правок приложения") {
-		t.Fatal("note-only test must fail")
+	if !trackerComposerPassed("test", "ветка на месте, тест пройден") {
+		t.Fatal("branch present must pass test")
 	}
 }
 
@@ -100,11 +100,11 @@ func TestTrackerTaskCommitAndHasCode(t *testing.T) {
 	if trackerTaskHasCode(database.TrackerTask{Result: "план без правок"}) {
 		t.Fatal("plan is not code")
 	}
-	if trackerTaskHasCode(database.TrackerTask{
+	if !trackerTaskHasCode(database.TrackerTask{
 		Steps:  []string{"коммит abc1234 выполнение", "ветка tracker/12-17"},
 		Result: "Задача #12: агент сдал план\nTRACKER_NO_CODE",
 	}) {
-		t.Fatal("tracker note is not app code")
+		t.Fatal("commit and branch must still ship")
 	}
 }
 
@@ -213,6 +213,7 @@ func TestTrackerNeedsAgentKick(t *testing.T) {
 func TestRemoteTrackerCreateUsesOwnTracker(t *testing.T) {
 	var gotPath, gotSecret, gotWhen string
 	var sourceID float64
+	var autoPush bool
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		gotPath = r.URL.Path
 		gotSecret = r.Header.Get("X-Tracker-Secret")
@@ -221,6 +222,7 @@ func TestRemoteTrackerCreateUsesOwnTracker(t *testing.T) {
 		_ = json.Unmarshal(raw, &body)
 		gotWhen, _ = body["when"].(string)
 		sourceID, _ = body["source_task_id"].(float64)
+		autoPush, _ = body["auto_push"].(bool)
 		if _, ok := body["session"]; ok {
 			t.Error("own tracker must not send MyVibeLab session")
 		}
@@ -235,7 +237,7 @@ func TestRemoteTrackerCreateUsesOwnTracker(t *testing.T) {
 		BoardRepo:   "fuserwyn/Fat-Leopard",
 		BoardURL:    srv.URL,
 	}}
-	id, when, err := b.remoteTrackerCreate(database.TrackerTask{ID: 2, Num: 2, Prompt: "убрать огонёк"}, "doing", "")
+	id, when, err := b.remoteTrackerCreate(database.TrackerTask{ID: 2, Num: 2, Prompt: "убрать огонёк", AutoPush: false}, "doing", "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -250,6 +252,9 @@ func TestRemoteTrackerCreateUsesOwnTracker(t *testing.T) {
 	}
 	if gotWhen != trackerRemoteWhen || sourceID != 2 {
 		t.Fatalf("when=%q source=%v", gotWhen, sourceID)
+	}
+	if !autoPush {
+		t.Fatal("admin pipeline always auto-pushes to Railway")
 	}
 }
 

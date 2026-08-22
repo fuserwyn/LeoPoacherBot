@@ -58,8 +58,8 @@ func TestShipBlockReason(t *testing.T) {
 	if got := ShipBlockReason(branchInfo{}, nil); got != "нет ветки задачи" {
 		t.Fatalf("missing: %q", got)
 	}
-	if got := ShipBlockReason(branchInfo{Exists: true, HasImpl: false}, nil); got == "" || got == "нет ветки задачи" {
-		t.Fatalf("note-only: %q", got)
+	if got := ShipBlockReason(branchInfo{Exists: true, HasImpl: false}, nil); got != "" {
+		t.Fatalf("admin branch must ship: %q", got)
 	}
 	if got := ShipBlockReason(branchInfo{Exists: true, HasImpl: true}, nil); got != "" {
 		t.Fatalf("ok: %q", got)

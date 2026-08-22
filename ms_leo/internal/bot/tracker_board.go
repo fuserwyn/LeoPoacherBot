@@ -258,6 +258,18 @@ func payloadBool(p map[string]any, key string) bool {
 	}
 }
 
+// payloadBoolOr — как payloadBool, но без ключа берём запасное значение.
+// Админские задачи без явного auto_push катим на Railway сами.
+func payloadBoolOr(p map[string]any, key string, fallback bool) bool {
+	if p == nil {
+		return fallback
+	}
+	if _, ok := p[key]; !ok {
+		return fallback
+	}
+	return payloadBool(p, key)
+}
+
 func (b *Bot) localTrackerList() (json.RawMessage, error) {
 	// Тихий опрос доски тоже снимает созревшие: иначе «Обновить» и автообновление
 	// показывали бы одну и ту же карточку в «Ожидает» после срока.
@@ -316,7 +328,7 @@ func (b *Bot) localTrackerCreate(payload map[string]any, userID int64) (json.Raw
 		AutoReview: true,
 		ManualQa:   payloadBool(payload, "manual_qa"),
 		FastTrack:  payloadBool(payload, "fast_track"),
-		AutoPush:   payloadBool(payload, "auto_push"),
+		AutoPush:   payloadBoolOr(payload, "auto_push", true),
 		Steps:      []string{"Поставлена на доску стаи"},
 	}
 	if _, ok := payload["auto_review"]; ok {

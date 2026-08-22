@@ -7,6 +7,21 @@ import (
 	"leo-bot/internal/database"
 )
 
+func TestPayloadBoolOrAutoPushDefault(t *testing.T) {
+	if !payloadBoolOr(nil, "auto_push", true) {
+		t.Fatal("nil payload ships")
+	}
+	if !payloadBoolOr(map[string]any{}, "auto_push", true) {
+		t.Fatal("omitted auto_push ships")
+	}
+	if payloadBoolOr(map[string]any{"auto_push": false}, "auto_push", true) {
+		t.Fatal("explicit false must stay off")
+	}
+	if !payloadBoolOr(map[string]any{"auto_push": true}, "auto_push", false) {
+		t.Fatal("explicit true")
+	}
+}
+
 func TestApplyTrackerColumnFlow(t *testing.T) {
 	var task database.TrackerTask
 	if err := applyTrackerColumn(&task, "todo"); err != nil {

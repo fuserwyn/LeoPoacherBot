@@ -59,13 +59,6 @@ func runVerdict(cfg config.Config, job store.Job, phase string) (Result, error) 
 		}
 		return Result{Note: note, Branch: branch}, nil
 	}
-	if !info.HasImpl {
-		note := "ревью не принято: на ветке только заметка трекера, нет правок приложения."
-		if phase == "test" {
-			note = "тест не прошёл: на ветке только заметка трекера, нечего катить на стенд."
-		}
-		return Result{Note: note, Branch: branch, Commit: info.Head, HasImpl: false}, nil
-	}
 	// Пока ревью посредственное, тест дымовой: ветка есть — пропускаем.
 	// Модель не зовём: на #6 она крутила отказы и упиралась в OpenRouter 504.
 	note := lenientVerdictNote(phase, branch, info)
@@ -100,15 +93,13 @@ func verdictPassed(phase, text string) bool {
 	low := strings.ToLower(text)
 	if phase == "review" {
 		if strings.Contains(low, "ревью не принято") || strings.Contains(low, "нельзя на тест") ||
-			strings.Contains(low, `"pass":false`) || strings.Contains(low, "только заметка") ||
-			strings.Contains(low, "нет правок приложения") {
+			strings.Contains(low, `"pass":false`) {
 			return false
 		}
 		return true
 	}
 	if strings.Contains(low, "тест не прошёл") || strings.Contains(low, "тест не прошел") ||
-		strings.Contains(low, `"pass":false`) || strings.Contains(low, "только заметка") ||
-		strings.Contains(low, "нет правок приложения") {
+		strings.Contains(low, `"pass":false`) {
 		return false
 	}
 	return true
