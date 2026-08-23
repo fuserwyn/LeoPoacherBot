@@ -247,10 +247,11 @@ func (c *OpenRouterClient) AnswerUserQuestion(question string, userContext strin
 	return c.Chat(messages, "")
 }
 
-// GenerateDailyWisdom генерирует короткую «мудрость дня» о тренировках и дисциплине (тело из daily_wisdom_training.txt в промпт-бандле).
+// GenerateDailyWisdom генерирует короткую «мудрость дня» о тренировках и дисциплине
+// (системный промпт ротируется между daily_wisdom_training и вариациями).
 func (c *OpenRouterClient) GenerateDailyWisdom() (string, error) {
 	live := c.bundle()
-	systemPrompt := live.DailyWisdomTraining
+	systemPrompt := live.DailyWisdomTrainingVariant(time.Now())
 
 	systemPrompt += "\n\n" + live.DailyWisdomLangRule
 

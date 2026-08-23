@@ -3,6 +3,7 @@ package prompts
 import (
 	_ "embed"
 	"strings"
+	"time"
 )
 
 // Bundle — промпты персонажа Fat Leopard для OpenRouter и бота (встроенные через //go:embed в data/).
@@ -13,6 +14,8 @@ type Bundle struct {
 	DailyWisdomTraining     string
 	DailyWisdomLangRule     string
 	DailyWisdomUserTemplate string
+	DailyWisdomVariation1   string
+	DailyWisdomVariation2   string
 	TrainingChatSuffix      string
 	CriticalTimerQuestion   string
 	WarningTimerQuestion    string // предупреждение день 5/6/7 до кика за неактивность (stage-aware)
@@ -39,6 +42,12 @@ var embeddedDailyWisdomLangRule string
 
 //go:embed data/daily_wisdom_user_template.txt
 var embeddedDailyWisdomUserTemplate string
+
+//go:embed data/daily_wisdom_variation1.txt
+var embeddedDailyWisdomVariation1 string
+
+//go:embed data/daily_wisdom_variation2.txt
+var embeddedDailyWisdomVariation2 string
 
 //go:embed data/training_chat_suffix.txt
 var embeddedTrainingChatSuffix string
@@ -67,6 +76,8 @@ func DefaultBundle() Bundle {
 		DailyWisdomTraining:        embeddedDailyWisdomTraining,
 		DailyWisdomLangRule:        embeddedDailyWisdomLangRule,
 		DailyWisdomUserTemplate:    embeddedDailyWisdomUserTemplate,
+		DailyWisdomVariation1:      embeddedDailyWisdomVariation1,
+		DailyWisdomVariation2:      embeddedDailyWisdomVariation2,
 		TrainingChatSuffix:         embeddedTrainingChatSuffix,
 		CriticalTimerQuestion:      embeddedCriticalTimerQuestion,
 		WarningTimerQuestion:       embeddedWarningTimerQuestion,
@@ -74,6 +85,25 @@ func DefaultBundle() Bundle {
 		TrainingEvaluation:         embeddedTrainingEvaluation,
 		PackFeedParticipantRemoved: embeddedPackFeedParticipantRemoved,
 	}
+}
+
+// DailyWisdomTrainingVariant выбирает системный промпт мудрости дня по дате,
+// чтобы формулировки не застревали в одном шаблоне.
+func (b Bundle) DailyWisdomTrainingVariant(day time.Time) string {
+	variants := []string{b.DailyWisdomTraining, b.DailyWisdomVariation1, b.DailyWisdomVariation2}
+	picked := make([]string, 0, len(variants))
+	for _, v := range variants {
+		if strings.TrimSpace(v) != "" {
+			picked = append(picked, v)
+		}
+	}
+	if len(picked) == 0 {
+		return ""
+	}
+	if day.IsZero() {
+		return picked[0]
+	}
+	return picked[day.YearDay()%len(picked)]
 }
 
 // CombinedChatInstructionSuffix — добавка из training_chat_suffix.txt для ответа в чате.
