@@ -21,6 +21,8 @@ func Catalog() []Slot {
 		{Key: "daily_wisdom_training", File: "daily_wisdom_training.txt", Title: "Мудрость дня", About: "Текст мудрости про тренировки", embedded: embeddedDailyWisdomTraining},
 		{Key: "daily_wisdom_lang_rule", File: "daily_wisdom_lang_rule.txt", Title: "Язык мудрости", About: "На каком языке писать мудрость", embedded: embeddedDailyWisdomLangRule},
 		{Key: "daily_wisdom_user_template", File: "daily_wisdom_user_template.txt", Title: "Шаблон мудрости", About: "User-сообщение для мудрости дня", embedded: embeddedDailyWisdomUserTemplate},
+		{Key: "daily_wisdom_variation1", File: "daily_wisdom_variation1.txt", Title: "Мудрость вариация 1", About: "Альтернативный вариант мудрости", embedded: embeddedDailyWisdomVariation1},
+		{Key: "daily_wisdom_variation2", File: "daily_wisdom_variation2.txt", Title: "Мудрость вариация 2", About: "Альтернативный вариант мудрости", embedded: embeddedDailyWisdomVariation2},
 		{Key: "warning_timer_question", File: "warning_timer_question.txt", Title: "Предупреждение таймера", About: "День 5–7 до кика за неактивность", embedded: embeddedWarningTimerQuestion},
 		{Key: "critical_timer_question", File: "critical_timer_question.txt", Title: "Критический таймер", About: "Последний день перед киком", embedded: embeddedCriticalTimerQuestion},
 		{Key: "achievement_milestone", File: "achievement_milestone.txt", Title: "Ачивка-веха", About: "Текст к milestone-ачивке", embedded: embeddedAchievementMilestone},
@@ -74,6 +76,10 @@ func setBundleKey(b Bundle, key, body string) Bundle {
 		b.DailyWisdomLangRule = body
 	case "daily_wisdom_user_template":
 		b.DailyWisdomUserTemplate = body
+	case "daily_wisdom_variation1":
+		b.DailyWisdomVariation1 = body
+	case "daily_wisdom_variation2":
+		b.DailyWisdomVariation2 = body
 	case "training_chat_suffix":
 		b.TrainingChatSuffix = body
 	case "critical_timer_question":

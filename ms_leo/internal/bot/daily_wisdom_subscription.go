@@ -12,10 +12,11 @@ import (
 	initdata "github.com/telegram-mini-apps/init-data-golang"
 )
 
-// Мудрость дня всегда приходит в 04:20 по локальному времени пользователя.
-// Это фиксированное время (не настраивается): галочка в мини-аппе — только вкл/выкл.
+// Мудрость дня приходит в случайное время между 04:00 и 06:00 по локальному времени пользователя.
+// Это делает рассылку менее предсказуемой и более интересной.
 const (
-	wisdomLocalHour   = 4
+	wisdomLocalMinHour   = 4
+	wisdomLocalMaxHour   = 6
 	wisdomLocalMinute = 20
 )
 
@@ -41,8 +42,9 @@ func (b *Bot) GetWisdomSubscriptionForViewer(viewerUserID int64, initD initdata.
 }
 
 // SaveWisdomSubscriptionForViewer — сохранить настройки подписки текущего пользователя.
-// Час не настраивается: мудрость всегда приходит в 04:20 локального времени, поэтому
-// входящий remindHour игнорируется, а в БД пишется фиксированный wisdomLocalHour.
+// Час не настраивается: мудрость приходит в случайное время между 04:00 и 06:00
+// локального времени, поэтому входящий remindHour игнорируется, а в БД пишется
+// случайный час из заданного диапазона.
 func (b *Bot) SaveWisdomSubscriptionForViewer(viewerUserID int64, initD initdata.InitData, enabled bool, _ int) error {
 	if err := b.AssertMiniAppPackChatAligns(initD); err != nil {
 		return err
@@ -52,7 +54,7 @@ func (b *Bot) SaveWisdomSubscriptionForViewer(viewerUserID int64, initD initdata
 	}
 	return b.db.SaveWisdomSubscriptionSettings(viewerUserID, b.config.MonetizedChatID, database.WisdomSubscriptionSettings{
 		Enabled:    enabled,
-		RemindHour: wisdomLocalHour,
+		RemindHour: utils.RandomInt(wisdomLocalMinHour, wisdomLocalMaxHour),
 	})
 }
 
@@ -115,12 +117,10 @@ func (b *Bot) runDailyWisdomSubscriptionSweep() {
 	mskToday := utils.GetMoscowTime().Format("2006-01-02")
 	sent := 0
 	for _, c := range candidates {
-		// Мудрость приходит в фиксированные 04:20 локального времени пользователя.
-		// Окно — с 04:20 до конца часа: если свип чуть опоздал, отправка всё равно
-		// сработает, а идемпотентность по МСК-дате не даст задублировать.
+		// Мудрость приходит в случайное время между 04:00 и 06:00 локального времени пользователя
 		loc := userLocalLoc(c.TimezoneOffsetFromMoscow)
 		localNow := utils.GetMoscowTime().In(loc)
-		if localNow.Hour() != wisdomLocalHour || localNow.Minute() < wisdomLocalMinute {
+		if localNow.Hour() != c.RemindHour || localNow.Minute() < wisdomLocalMinute {
 			continue
 		}
 		// Уже отправляли сегодня (по МСК-дате) — не дублируем.
