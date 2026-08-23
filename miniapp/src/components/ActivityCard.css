@@ -1,0 +1,1590 @@
+.act-card {
+  background: var(--card);
+  border-radius: var(--radius-lg);
+  padding: 8px 10px 10px;
+  border: 1px solid var(--border-subtle);
+  margin-bottom: 14px;
+  /* Компактная карточка; при открытых комментариях см. .act-card--thread-open */
+  max-height: min(33dvh, 33vh);
+  max-width: 100%;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  overflow-x: clip;
+  box-sizing: border-box;
+  touch-action: pan-y;
+  overflow-anchor: none;
+}
+
+/* Открытый тред: почти на экран, чтобы можно было читать переписку без крошечного окна */
+.act-card--thread-open {
+  max-height: min(
+    620px,
+    calc(var(--feed-vvh, 100dvh) - var(--feed-bottom-nav-h, 88px) - var(--safe-top, 0px) - 18px)
+  );
+  touch-action: pan-y;
+}
+
+/* Карточка с фото — фото показываем целиком, а не обрезанным */
+.act-card--has-photo {
+  max-height: none;
+}
+
+.act-card--has-photo .act-card__body {
+  overflow: visible;
+}
+
+/* Развёрнутое объявление: карточка растёт под текст, без внутреннего скролла —
+   читается целиком, прокручивается вся лента. */
+.act-card--comment-expanded {
+  max-height: none;
+}
+
+.act-card--comment-expanded .act-card__body {
+  overflow: visible;
+}
+
+.act-card--leo {
+  border-color: color-mix(in srgb, var(--accent) 35%, transparent);
+  background: linear-gradient(160deg, var(--card) 0%, color-mix(in srgb, var(--accent) 7%, transparent) 100%);
+}
+
+.act-card--light {
+  background: var(--card);
+  border-color: var(--border-subtle);
+  box-shadow: 0 0 0 1px var(--fill-strong);
+}
+
+.act-card--light .act-card__avatar {
+  background: var(--fill-soft);
+  border: 1px solid var(--border-subtle);
+}
+
+.act-card__head {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin-bottom: 6px;
+  flex-shrink: 0;
+  position: relative;
+}
+
+.act-card__menu {
+  position: relative;
+  flex-shrink: 0;
+}
+
+/* Меню «⋯» в углу карточки — выводим из потока, чтобы колонка meta занимала всю
+   ширину и пилюля стрика прибивалась к правому борту карточки. */
+.act-card__menu--head {
+  position: absolute;
+  top: 0;
+  right: 0;
+  margin-left: 0;
+}
+
+.act-card__menu-toggle {
+  border: none;
+  background: transparent;
+  font-size: 20px;
+  line-height: 1;
+  letter-spacing: 1px;
+  padding: 2px 6px;
+  cursor: pointer;
+  color: var(--muted, #8b8b9a);
+  opacity: 0.92;
+}
+
+.act-card__menu-toggle:hover:not(:disabled),
+.act-card__menu-toggle:focus-visible,
+.act-card__menu-toggle--open {
+  opacity: 1;
+  color: var(--text, #e8e8f0);
+}
+
+.act-card__menu-toggle:disabled {
+  cursor: default;
+  opacity: 0.45;
+}
+
+.act-card__menu-popover {
+  position: absolute;
+  z-index: 40;
+  right: 0;
+  top: calc(100% + 4px);
+  min-width: min(240px, calc(100vw - 32px));
+  max-width: min(calc(100vw - 32px), 280px);
+  padding: 4px;
+  background: var(--card, #14141c);
+  border: 1px solid var(--border-subtle, #2a2a36);
+  border-radius: var(--radius-md, 12px);
+  box-shadow: var(--shadow-pop);
+}
+
+/* Портал в body: позиция задаётся useLikersPopover (не обрезается overflow треда). */
+.act-card__menu-popover--portal {
+  position: fixed;
+  right: auto;
+  top: auto;
+  z-index: 1200;
+  overflow-y: auto;
+}
+
+.act-card__menu-item {
+  display: block;
+  width: 100%;
+  padding: 10px 12px;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  font: inherit;
+  font-size: 14px;
+  line-height: 1.35;
+  text-align: left;
+  color: var(--text, #e8e8f0);
+  cursor: pointer;
+}
+
+.act-card__menu-item:hover,
+.act-card__menu-item:focus-visible {
+  background: var(--fill-soft);
+}
+
+.act-card__menu-item--danger {
+  color: #d6453d;
+}
+
+.act-card__avatar {
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  background: var(--card-inner);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 18px;
+  flex-shrink: 0;
+  overflow: hidden;
+}
+
+.act-card__avatar-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.act-card__thread-avatar--member {
+  border: 1px solid rgba(180, 180, 210, 0.25);
+}
+
+.act-card__thread-avatar--fallback {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--card-inner);
+  font-size: 13px;
+  line-height: 1;
+}
+
+.pill--streak {
+  gap: 4px;
+  justify-content: center;
+  padding-inline: 10px;
+}
+
+.pill__streak-word {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.62rem;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  padding-left: 0.03em;
+  text-transform: uppercase;
+  opacity: 0.88;
+  line-height: 1;
+}
+
+.pill__streak-num {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+}
+
+.act-card__meta {
+  flex: 1;
+  min-width: 0;
+}
+
+.act-card__row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.act-card__row--name {
+  margin-bottom: 1px;
+  /* Место под абсолютную кнопку «⋯», чтобы длинное имя не уезжало под неё. */
+  padding-right: 30px;
+}
+
+.act-card__row--sub {
+  flex-wrap: nowrap;
+  justify-content: flex-start;
+  gap: 6px;
+}
+
+.act-card__name {
+  font-weight: 600;
+  font-size: 14px;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.act-card__time {
+  font-size: 11px;
+  color: var(--text-muted);
+  margin: 0;
+  /* Сжимаемся с многоточием, чтобы пилюля стрика (в т.ч. 3-значного) оставалась
+     на одной строке со временем, а не уезжала вниз в узкой колонке meta. */
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.act-card__row--sub .pill--streak {
+  flex-shrink: 0;
+  margin-left: auto;
+  padding-inline: 8px;
+}
+
+/* Строка с типом тренировки + реакции справа. */
+.act-card__type-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 2px;
+}
+
+.act-card__type {
+  font-weight: 600;
+  font-size: 13px;
+  margin-bottom: 2px;
+  min-width: 0;
+}
+
+.act-card__type-row .act-card__type {
+  flex: 1 1 auto;
+  margin-bottom: 0;
+}
+
+/* Реакции внутри строки типа: компактно, по правому краю, без полосы на всю ширину.
+   Повышенная специфичность (.act-card__react.act-card__react--inline), иначе базовое
+   правило .act-card__react { width: 100% } идёт ниже по файлу и перебивает — реакции
+   растягивались на всю ширину и налезали на тип. */
+.act-card__react.act-card__react--inline {
+  flex: 0 0 auto;
+  width: auto;
+  padding: 0;
+}
+
+.act-card__react.act-card__react--inline .act-card__react-inner {
+  width: auto;
+}
+
+/* Сообщения: текст слева, реакция справа в той же строке (реакция у нижнего края). */
+.act-card__msg-row {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.act-card__msg-row .act-card__comment {
+  flex: 1 1 auto;
+  min-width: 0;
+  margin: 0;
+}
+
+.act-card__type-ico {
+  margin-right: 2px;
+}
+
+.act-card__body {
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
+  flex: 1;
+  min-height: 0;
+  overflow-x: clip;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior-x: none;
+  touch-action: pan-y;
+}
+
+.act-card--thread-open .act-card__body {
+  flex: 0 1 auto;
+  max-height: min(24dvh, 24vh);
+  overflow-y: auto;
+}
+
+/* Фото-карточка: при раскрытии треда тело НЕ превращаем в обрезанный 24dvh
+   скролл-вьюпорт. Большое фото в нём схлопывается, а iOS WebView (Telegram)
+   не перерисовывает освободившуюся область — заголовок/детали остаются
+   «призраком» поверх фото. Оставляем тело в потоке, страница скроллится. */
+.act-card--has-photo.act-card--thread-open .act-card__body {
+  max-height: none;
+  overflow: visible;
+}
+
+/* Реакции всегда между телом и «Комментарии» — не внутри скролла body. */
+.act-card--thread-open .act-card__react {
+  flex-shrink: 0;
+}
+
+.act-card__details {
+  font-size: 12px;
+  line-height: 1.35;
+  margin-bottom: 4px;
+  color: var(--text-muted);
+  overflow-wrap: break-word;
+  word-break: break-word;
+  max-width: 100%;
+}
+
+.act-card__comment {
+  font-size: 12px;
+  line-height: 1.35;
+  margin-bottom: 6px;
+  color: var(--text);
+  overflow-wrap: break-word;
+  word-break: break-word;
+  max-width: 100%;
+}
+
+.act-card__pinned-badge {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  margin-left: 6px;
+  padding: 1px 7px;
+  font-size: 10px;
+  font-weight: 600;
+  line-height: 1.6;
+  color: var(--pinned-fg);
+  background: var(--pinned-bg);
+  border: 1px solid var(--pinned-border);
+  border-radius: 999px;
+  white-space: nowrap;
+}
+
+.act-card__comment-collapsible {
+  margin-bottom: 6px;
+}
+
+/* Свёрнутое объявление — видна только первая строка. */
+.act-card__comment--clamped {
+  display: -webkit-box;
+  -webkit-line-clamp: 1;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  margin-bottom: 2px;
+}
+
+.act-card__comment-toggle {
+  border: none;
+  background: transparent;
+  padding: 0;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--accent, #2ea76e);
+  cursor: pointer;
+}
+
+.act-card__poll {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 6px 0 8px;
+}
+
+.act-card__poll-option {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  width: 100%;
+  padding: 8px 12px;
+  border-radius: 10px;
+  border: 1px solid var(--border-subtle);
+  background: var(--fill-subtle);
+  color: var(--text);
+  text-align: left;
+  font: inherit;
+  cursor: pointer;
+}
+
+.act-card__poll-option--selected {
+  border-color: var(--accent);
+  background: var(--fill-strong);
+  box-shadow: inset 0 0 0 1px var(--border-subtle);
+}
+
+.act-card__poll-label {
+  font-size: 0.82rem;
+  font-weight: 600;
+  line-height: 1.25;
+}
+
+.act-card__poll-votes {
+  flex-shrink: 0;
+  min-width: 22px;
+  text-align: right;
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: var(--text-muted);
+}
+
+.act-card__poll-total {
+  margin: 0;
+  font-size: 0.72rem;
+  color: var(--text-muted);
+}
+
+.act-card--light .act-card__poll-option {
+  border-color: var(--border-subtle);
+}
+
+.act-card--light .act-card__poll-option--selected {
+  border-color: var(--accent);
+}
+
+.act-card__ai {
+  background: var(--ai-bg);
+  border-radius: var(--radius-sm);
+  padding: 6px 8px;
+  margin-bottom: 6px;
+  border: 1px solid color-mix(in srgb, var(--accent) 20%, transparent);
+}
+
+.act-card__ai-label {
+  display: inline-block;
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  color: var(--accent);
+  margin-bottom: 3px;
+}
+
+.act-card__ai-text {
+  font-size: 11px;
+  line-height: 1.35;
+  color: var(--text-muted);
+  margin: 0;
+}
+
+.act-card__react {
+  flex-shrink: 0;
+  position: relative;
+  z-index: 2;
+  width: 100%;
+  min-width: 0;
+  padding: 6px 0 8px;
+  margin: 0;
+  /* Прозрачный фон и без верхней линии — полоса реакций сливается с телом поста
+     (раньше собственный непрозрачный var(--card) + border-top читались отдельной
+     белой панелью, отличной по цвету от самого поста). */
+  background: transparent;
+}
+
+.act-card__react-inner {
+  position: relative;
+  width: 100%;
+  min-width: 0;
+}
+
+.act-card__react-inline {
+  display: flex;
+  flex-wrap: nowrap;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+/* Список реакций «кто отреагировал» — портал в body, position: fixed (координаты
+   и max-height задаются инлайн из JS), внутри скролл. Не обрезается карточкой. */
+.act-card__likers {
+  z-index: 1000;
+  display: flex;
+  flex-direction: column;
+  width: max-content;
+  min-width: 150px;
+  max-width: min(280px, calc(100vw - 16px));
+  padding: 8px;
+  border-radius: 12px;
+  background: var(--popover, #1e1f24);
+  border: 1px solid var(--border-subtle);
+  box-shadow: var(--shadow-pop);
+}
+
+.act-card__likers-head {
+  flex-shrink: 0;
+  padding: 0 2px 6px;
+  margin-bottom: 6px;
+  border-bottom: 1px solid var(--border-subtle);
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text-muted);
+}
+
+.act-card__likers-scroll {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
+}
+
+.act-card__likers-grp + .act-card__likers-grp {
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px solid var(--border-subtle);
+}
+
+.act-card__likers-grp-head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 3px;
+  font-size: 15px;
+}
+
+.act-card__likers-count {
+  color: var(--text-muted);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.act-card__likers-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 3px 4px;
+  font-size: 13px;
+  line-height: 1.3;
+  color: var(--text);
+}
+
+.act-card__likers-ava {
+  flex-shrink: 0;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--fill-strong);
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--text-muted);
+}
+
+.act-card__likers-ava-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.act-card__likers-name {
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Аватар-кнопка: тап открывает мини-карточку автора; вид не отличается от div-аватара. */
+.act-card__avatar--btn {
+  border: none;
+  padding: 0;
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+}
+
+/* Мини-карточка автора (портал в body, fixed-координаты из useLikersPopover). */
+.act-card__profile {
+  z-index: 1000;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  width: max-content;
+  min-width: 200px;
+  max-width: min(300px, calc(100vw - 16px));
+  padding: 12px;
+  border-radius: 14px;
+  background: var(--popover, #1e1f24);
+  border: 1px solid var(--border-subtle);
+  box-shadow: var(--shadow-pop);
+}
+
+.act-card__profile-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
+.act-card__profile-ava {
+  flex-shrink: 0;
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--card-inner);
+  font-size: 22px;
+}
+
+.act-card__profile-ava-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.act-card__profile-meta {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.act-card__profile-name {
+  font-weight: 700;
+  font-size: 14px;
+  color: var(--text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.act-card__profile-nick {
+  font-size: 12px;
+  color: var(--text-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.act-card__profile-streak {
+  flex-shrink: 0;
+  padding-inline: 8px;
+}
+
+.act-card__profile-dm {
+  border: none;
+  border-radius: 10px;
+  padding: 9px 12px;
+  background: var(--accent);
+  color: #fff;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.act-card__profile-hint {
+  margin: -4px 0 0;
+  font-size: 11px;
+  line-height: 1.35;
+  color: var(--text-muted);
+}
+
+.act-card__react-more {
+  position: relative;
+  flex-shrink: 0;
+}
+
+.act-card__react-toggle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 34px;
+  height: 30px;
+  padding: 0 8px;
+  border-radius: 999px;
+  font-size: 18px;
+  line-height: 1;
+  letter-spacing: 1px;
+  background: var(--fill-strong);
+  border: 1px solid var(--border-subtle);
+  color: var(--text-muted);
+  cursor: pointer;
+}
+
+.act-card__react-toggle--open {
+  border-color: color-mix(in srgb, var(--accent) 45%, transparent);
+  color: var(--accent);
+}
+
+.act-card__react-popover {
+  z-index: 1000;
+  width: max-content;
+  min-width: 200px;
+  max-width: min(calc(100vw - 16px), 300px);
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: flex-start;
+  padding: 10px;
+  overflow-y: auto;
+  background: var(--card);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-pop);
+  -webkit-overflow-scrolling: touch;
+}
+
+.act-card__react-inline > .act-card__react-btn {
+  flex-shrink: 0;
+}
+
+.act-card__react-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  font-size: 14px;
+  padding: 4px 6px;
+  border-radius: 999px;
+  /* Единый цвет для всех пилюль реакций (раньше var(--fill-soft) давал белесый
+     фон у чужих реакций, а «своя» была фиолетовой — выглядело разнородно). */
+  background: var(--accent-dim);
+  border: 1px solid transparent;
+  color: inherit;
+  cursor: pointer;
+  /* Это кнопка, а не текст: не выделять эмодзи при наведении/тапе, убрать подсветку тапа на iOS. */
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.act-card__react-btn:disabled {
+  cursor: default;
+  opacity: 0.85;
+}
+
+.act-card__react-btn--mine {
+  /* Фон тот же, что у остальных — «свою» реакцию отличаем только рамкой. */
+  border-color: color-mix(in srgb, var(--accent) 55%, transparent);
+}
+
+.act-card__react-cnt {
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+/* Всплывающий выбор реакции (Telegram-style): ряд эмодзи в «таблетке».
+   Портал в body, position: fixed (координаты из JS). */
+.act-card__react-picker {
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  max-width: min(calc(100vw - 16px), 340px);
+  padding: 5px 8px;
+  border-radius: 999px;
+  background: var(--popover, #1e1f24);
+  border: 1px solid var(--border-subtle);
+  box-shadow: var(--shadow-pop);
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
+}
+
+.act-card__react-pick {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  padding: 0;
+  font-size: 24px;
+  line-height: 1;
+  border: none;
+  border-radius: 50%;
+  background: transparent;
+  cursor: pointer;
+  transition: transform 0.12s ease, background 0.12s ease;
+  -webkit-tap-highlight-color: transparent;
+  -webkit-touch-callout: none;
+  user-select: none;
+}
+
+.act-card__react-pick:hover,
+.act-card__react-pick:active {
+  transform: scale(1.18);
+  background: var(--fill-strong);
+}
+
+.act-card__react-pick--mine {
+  background: color-mix(in srgb, var(--accent) 20%, transparent);
+}
+
+.act-card__thread {
+  /* Один кегль для текста комментария и поля ввода (плейсхолдер в WebKit не всегда наследует font-size). */
+  --act-thread-font-size: 12px;
+  --act-thread-line-height: 1.4;
+  margin-top: 0;
+  padding-top: 0;
+  border-top: none;
+  flex: 0 0 auto;
+  min-width: 0;
+  max-width: 100%;
+  display: flex;
+  flex-direction: column;
+  overflow-x: clip;
+  position: relative;
+  z-index: 1;
+}
+
+.act-card--thread-open .act-card__thread {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.act-card__thread-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  gap: 8px;
+  box-sizing: border-box;
+  min-height: 32px;
+  padding: 6px 8px;
+  margin: 0 0 0;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-sm);
+  background: var(--card-inner);
+  color: var(--text);
+  font: inherit;
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 1.35;
+  flex-shrink: 0;
+  cursor: pointer;
+  text-align: left;
+}
+
+.act-card__thread-toggle:hover {
+  background: var(--fill-subtle);
+}
+
+.act-card__thread-toggle--unread {
+  border-color: color-mix(in srgb, var(--accent) 45%, transparent);
+}
+
+.act-card__thread-unread-dot {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  margin-left: 6px;
+  border-radius: 50%;
+  background: var(--accent, #ff6a2b);
+  vertical-align: middle;
+}
+
+.act-card__thread-chevron {
+  flex-shrink: 0;
+  font-size: 10px;
+  opacity: 0.65;
+}
+
+.act-card__thread-list {
+  list-style: none;
+  margin: 6px 0;
+  padding: 0;
+}
+
+.act-card__thread-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  min-width: 0;
+  max-width: 100%;
+  overflow-x: clip;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior-x: none;
+  overscroll-behavior-y: contain;
+  touch-action: pan-y;
+  padding-bottom: 4px;
+}
+
+.act-card__thread-item {
+  padding: 5px 0;
+  border-bottom: 1px solid var(--border-subtle);
+  font-size: var(--act-thread-font-size);
+}
+
+.act-card__thread-item-inner {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+}
+
+.act-card__thread-item-inner--has-avatar {
+  align-items: flex-start;
+}
+
+.act-card__thread-avatar {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  object-fit: cover;
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+
+.act-card__thread-item-main {
+  flex: 1;
+  min-width: 0;
+}
+
+.act-card__thread-item:last-child {
+  border-bottom: none;
+}
+
+.act-card__thread-item-head {
+  display: flex;
+  align-items: flex-start;
+  min-width: 0;
+}
+
+.act-card__thread-item-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  flex: 1;
+}
+
+.act-card__thread-name-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  min-width: 0;
+}
+
+.act-card__thread-name-text {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 6px;
+  min-width: 0;
+  flex: 1;
+}
+
+.act-card__thread-subrow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  min-width: 0;
+}
+
+.act-card__thread-del {
+  flex-shrink: 0;
+  padding: 2px 8px;
+  font-size: 12px;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.act-card__thread-del:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  text-decoration: none;
+}
+
+.act-card__thread-item-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.act-card__thread-edit {
+  flex-shrink: 0;
+  padding: 2px 8px;
+  font-size: 12px;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.act-card__edited {
+  font-size: inherit;
+  color: var(--text-muted);
+}
+
+.act-card__post-edit {
+  margin-top: 8px;
+}
+
+.act-card__post-edit-input {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 10px 12px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border-subtle);
+  background: var(--surface-elevated);
+  color: var(--text);
+  font: inherit;
+  line-height: 1.4;
+  resize: vertical;
+  min-height: 88px;
+}
+
+.act-card__post-edit-photo {
+  margin-top: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.act-card__post-edit-photo-img {
+  width: 100%;
+  max-height: 220px;
+  object-fit: cover;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border-subtle);
+}
+
+.act-card__post-edit-photo-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.act-card__post-edit-photo-btn,
+.act-card__post-edit-photo-remove {
+  padding: 6px 12px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border-subtle);
+  font: inherit;
+  cursor: pointer;
+  background: var(--surface-elevated);
+  color: var(--text);
+}
+
+.act-card__post-edit-photo-remove {
+  color: var(--danger, #e5484d);
+  border-color: transparent;
+  background: transparent;
+}
+
+.act-card__post-edit-photo-btn--disabled,
+.act-card__post-edit-photo-remove:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.act-card__post-edit-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.act-card__post-edit-cancel,
+.act-card__post-edit-save {
+  padding: 6px 12px;
+  border-radius: var(--radius-sm);
+  border: none;
+  font: inherit;
+  cursor: pointer;
+}
+
+.act-card__post-edit-cancel {
+  background: transparent;
+  color: var(--text-muted);
+}
+
+.act-card__post-edit-save {
+  background: var(--accent);
+  color: #fff;
+}
+
+.act-card__post-edit-cancel:disabled,
+.act-card__post-edit-save:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.act-card__reply-intent--edit {
+  border-left: 3px solid rgba(96, 212, 154, 0.75);
+}
+
+/* Свои комментарии — зелёная подсветка (отличие от оранжевого Лео и нейтральных чужих). */
+.act-card__thread-item--you {
+  background: rgba(46, 167, 110, 0.12);
+  margin: 0 -4px;
+  padding: 10px 8px;
+  border-radius: var(--radius-sm);
+  border-bottom: 1px solid var(--border-subtle);
+  border-left: 3px solid rgba(96, 212, 154, 0.75);
+}
+
+.act-card__thread-item--you:last-child {
+  border-bottom: none;
+}
+
+.act-card__thread-item--you .act-card__thread-author {
+  color: #1f9d63;
+}
+
+.act-card__thread-item--leo .act-card__thread-author {
+  color: #d9613f;
+}
+
+.act-card__thread-item--leo {
+  background: color-mix(in srgb, var(--accent) 6%, transparent);
+  margin: 0 -4px;
+  padding: 10px 8px;
+  border-radius: var(--radius-sm);
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.act-card__thread-item--leo:last-child {
+  border-bottom: none;
+}
+
+.act-card__thread-author {
+  font-weight: 600;
+}
+
+.act-card__thread-time {
+  font-size: 12px;
+}
+
+.act-card__thread-quote {
+  margin: 6px 0 4px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  border-left: 3px solid color-mix(in srgb, var(--accent) 55%, transparent);
+  background: var(--fill-subtle);
+  font-size: 13px;
+}
+
+.act-card__thread-quote-author {
+  display: block;
+  font-weight: 600;
+  margin-bottom: 4px;
+}
+
+.act-card__thread-quote-text {
+  margin: 0;
+  line-height: 1.35;
+  color: var(--text-muted);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+  max-width: 100%;
+}
+
+.act-card__thread-answer {
+  margin-top: 8px;
+  padding: 4px 0;
+  border: none;
+  background: none;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  color: rgba(90, 140, 255, 0.95);
+  cursor: pointer;
+  text-align: left;
+}
+
+.act-card__thread-answer:active {
+  opacity: 0.8;
+}
+
+.act-card__thread-actions {
+  margin-top: 8px;
+  display: flex;
+  gap: 12px;
+  align-items: center;
+}
+
+.act-card__thread-like-wrap {
+  position: relative;
+  display: inline-flex;
+}
+
+.act-card__thread-like {
+  border: none;
+  background: transparent;
+  color: #6b7280;
+  font-size: 13px;
+  padding: 0;
+  cursor: pointer;
+}
+
+.act-card__thread-like--mine {
+  color: #be123c;
+}
+
+.act-card__reply-intent {
+  padding: 10px 12px;
+  border-radius: var(--radius-sm);
+  border: 1px solid rgba(90, 140, 255, 0.35);
+  background: rgba(90, 140, 255, 0.08);
+}
+
+.act-card__reply-intent-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.act-card__reply-intent-label {
+  font-size: 13px;
+}
+
+.act-card__reply-intent-snippet {
+  margin: 6px 0 0;
+  font-size: 12px;
+  line-height: 1.35;
+  max-height: 3.9em;
+  overflow: hidden;
+}
+
+.act-card__reply-intent-cancel {
+  flex-shrink: 0;
+  width: 28px;
+  height: 28px;
+  border: none;
+  border-radius: 8px;
+  background: var(--fill-strong);
+  color: var(--text-muted);
+  cursor: pointer;
+  font-size: 16px;
+  line-height: 1;
+}
+
+.act-card__thread-text {
+  margin: 4px 0 0;
+  font-size: var(--act-thread-font-size);
+  line-height: var(--act-thread-line-height);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+  max-width: 100%;
+}
+
+.act-card__thread-compose {
+  position: relative;
+  z-index: 2;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  flex: 0 0 auto;
+  min-width: 0;
+  max-width: 100%;
+  overflow-x: clip;
+  padding-top: 8px;
+  background: var(--card);
+  border-top: 1px solid var(--border-subtle);
+  scroll-margin-bottom: calc(var(--app-keyboard-bottom, 0px) + 12px);
+}
+
+.act-card__thread-input {
+  width: 100%;
+  box-sizing: border-box;
+  resize: none;
+  min-height: 48px;
+  max-height: 120px;
+  padding: 10px 12px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border-subtle);
+  background: var(--card-inner);
+  color: var(--text);
+  font-weight: 400;
+  /* Явный font как у .act-card__thread-text — иначе WebView рисует плейсхолдер крупнее текста комментария */
+  font: 400 var(--act-thread-font-size) / var(--act-thread-line-height) var(--font);
+  scroll-margin-bottom: calc(var(--app-keyboard-bottom, 0px) + 12px);
+  overflow-anchor: none;
+}
+
+.act-card__thread-input:focus {
+  /* outline по умолчанию обрезается родителем .act-card { overflow:hidden };
+     рисуем «рамку» через border-color + inset box-shadow — они внутри элемента. */
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: inset 0 0 0 1px var(--accent);
+}
+
+.act-card__thread-input::placeholder {
+  font: 400 var(--act-thread-font-size) / var(--act-thread-line-height) var(--font);
+  color: var(--text-muted);
+  opacity: 1;
+}
+
+.act-card__thread-input::-webkit-input-placeholder {
+  font: 400 var(--act-thread-font-size) / var(--act-thread-line-height) var(--font);
+  color: var(--text-muted);
+  opacity: 1;
+}
+
+.act-card__thread-send {
+  align-self: flex-end;
+  padding: 8px 16px;
+  border-radius: 999px;
+  border: none;
+  background: var(--accent);
+  color: #fff;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.act-card__thread-send:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.act-card__thread-compose-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.act-card__thread-attach {
+  flex: 0 0 auto;
+  width: 38px;
+  height: 38px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  border: 1px solid var(--border-subtle);
+  background: var(--card-inner);
+  font-size: 17px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.act-card__thread-attach:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+/* Выбор голоса «Я / Лео / Админ» — только для админов в админских постах */
+.act-card__thread-voice {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-right: auto;
+  padding: 2px;
+  border-radius: 999px;
+  background: var(--card-inner);
+  border: 1px solid var(--border-subtle);
+}
+
+.act-card__thread-voice-btn {
+  border: none;
+  background: transparent;
+  color: var(--text-muted);
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1.2;
+  padding: 4px 9px;
+  border-radius: 999px;
+  cursor: pointer;
+}
+
+.act-card__thread-voice-btn--active {
+  background: color-mix(in srgb, var(--accent) 95%, transparent);
+  color: #fff;
+}
+
+.act-card__thread-voice-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* Аватар-бейдж комментария «от имени админов» */
+.act-card__thread-avatar--admin {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: color-mix(in srgb, var(--accent) 14%, transparent);
+  border: 1px solid color-mix(in srgb, var(--accent) 40%, transparent);
+  font-size: 14px;
+  line-height: 1;
+}
+
+/* Атрибуция «(имя · админ)» — видят только админы */
+.act-card__thread-attrib {
+  font-size: 11px;
+  font-style: italic;
+}
+
+/* Превью прикреплённого к комментарию фото (до отправки) */
+.act-card__thread-photo-preview {
+  position: relative;
+  align-self: flex-start;
+  max-width: 140px;
+}
+
+.act-card__thread-photo-preview-img {
+  display: block;
+  width: 100%;
+  max-height: 140px;
+  object-fit: cover;
+  border-radius: 10px;
+  border: 1px solid var(--border-subtle);
+}
+
+.act-card__thread-photo-remove {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  width: 22px;
+  height: 22px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  border: none;
+  background: rgba(0, 0, 0, 0.6);
+  color: #fff;
+  font-size: 12px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.act-card__thread-photo-recrop {
+  position: absolute;
+  left: 4px;
+  bottom: 4px;
+  padding: 3px 9px;
+  border-radius: 999px;
+  border: none;
+  background: rgba(0, 0, 0, 0.6);
+  color: #fff;
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1.2;
+  cursor: pointer;
+}
+
+.act-card__thread-photo-recrop:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* Фото внутри отправленного комментария */
+.act-card__thread-photo-wrap {
+  display: block;
+  margin: 6px 0 2px;
+  padding: 0;
+  border: none;
+  background: none;
+  cursor: pointer;
+  max-width: 220px;
+}
+
+.act-card__thread-photo {
+  display: block;
+  width: 100%;
+  max-height: 240px;
+  object-fit: cover;
+  border-radius: 10px;
+  border: 1px solid var(--border-subtle);
+}
+
+.act-card__photo-wrap {
+  margin: 6px 0 2px;
+  padding: 0;
+  border: 1px solid var(--border-subtle);
+  border-radius: 10px;
+  overflow: hidden;
+  background: var(--card-inner);
+  display: block;
+  width: 100%;
+  cursor: zoom-in;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.act-card__photo-wrap:active {
+  opacity: 0.92;
+}
+
+.act-card__photo {
+  width: 100%;
+  height: auto;
+  display: block;
+}
+
+/* Заглушка при неудачной загрузке фото — тап повторяет запрос (см. ActivityCard.tsx). */
+.act-card__photo-fallback {
+  margin: 6px 0 2px;
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px;
+  border: 1px dashed var(--border-subtle);
+  border-radius: 10px;
+  background: var(--card-inner);
+  color: var(--text-muted, #999);
+  font: inherit;
+  font-size: 13px;
+  text-align: left;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.act-card__photo-fallback:active {
+  opacity: 0.9;
+}
+
+.act-card__photo-fallback-icon {
+  font-size: 18px;
+  line-height: 1;
+  flex: none;
+}
+
+.act-card__photo-fallback-text {
+  flex: 1 1 auto;
+}
+

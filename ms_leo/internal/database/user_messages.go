@@ -1,0 +1,344 @@
+package database
+
+import (
+	"database/sql"
+	"time"
+
+	"leo-bot/internal/domain"
+	"leo-bot/internal/utils"
+)
+
+// UpdateUserMessageTextByAuthor — правка текста своего поста в ленте (training_done / healthy).
+func (d *Database) UpdateUserMessageTextByAuthor(messageID, chatID, actorUserID int64, newText string) (bool, error) {
+	if messageID == 0 || chatID == 0 || actorUserID == 0 {
+		return false, nil
+	}
+	res, err := d.db.Exec(
+		`UPDATE user_messages
+		 SET message_text = $4,
+		     edited_at = (NOW() AT TIME ZONE 'Europe/Moscow')
+		 WHERE id = $1 AND chat_id = $2 AND user_id = $3
+		   AND COALESCE(is_hidden, FALSE) = FALSE
+		   AND message_type IN ('training_done', 'healthy')`,
+		messageID, chatID, actorUserID, newText,
+	)
+	if err != nil {
+		return false, err
+	}
+	n, _ := res.RowsAffected()
+	return n > 0, nil
+}
+
+// UpdateUserMessagePhotoURLByAuthor — прикрепить/заменить/удалить (пустая строка) фото своего поста
+// ленты (training_done / healthy). Пустой URL пишет '' (фото убрано) — колонка NOT NULL,
+// поэтому именно пустая строка, а не NULL. edited_at не трогаем — это не правка текста.
+func (d *Database) UpdateUserMessagePhotoURLByAuthor(messageID, chatID, actorUserID int64, photoURL string) (bool, error) {
+	if messageID == 0 || chatID == 0 || actorUserID == 0 {
+		return false, nil
+	}
+	res, err := d.db.Exec(
+		`UPDATE user_messages
+		 SET training_photo_url = $4
+		 WHERE id = $1 AND chat_id = $2 AND user_id = $3
+		   AND COALESCE(is_hidden, FALSE) = FALSE
+		   AND message_type IN ('training_done', 'healthy')`,
+		messageID, chatID, actorUserID, photoURL,
+	)
+	if err != nil {
+		return false, err
+	}
+	n, _ := res.RowsAffected()
+	return n > 0, nil
+}
+
+// GetTrainingPhotoURLByMessageID возвращает URL фото тренировки поста ленты (пусто, если фото нет).
+// Нужен, чтобы удалить объект из хранилища при удалении поста.
+func (d *Database) GetTrainingPhotoURLByMessageID(chatID, messageID int64) (string, error) {
+	var url sql.NullString
+	err := d.db.QueryRow(
+		`SELECT training_photo_url FROM user_messages WHERE id = $1 AND chat_id = $2`,
+		messageID, chatID,
+	).Scan(&url)
+	if err == sql.ErrNoRows {
+		return "", nil
+	}
+	if err != nil {
+		return "", err
+	}
+	return url.String, nil
+}
+
+// SaveUserMessage сохраняет сообщение пользователя для RAG контекста
+func (d *Database) SaveUserMessage(msg *domain.UserMessage) error {
+	query := `
+		INSERT INTO user_messages (user_id, chat_id, username, message_text, message_type, created_at, training_photo_url)
+		VALUES ($1, $2, $3, $4, $5, $6, $7)
+	`
+	// Используем московское время
+	moscowTime := utils.FormatMoscowTime(utils.GetMoscowTime())
+	createdAt, err := time.Parse("2006-01-02 15:04:05", moscowTime)
+	if err != nil {
+		createdAt = time.Now()
+	}
+
+	_, err = d.db.Exec(query, msg.UserID, msg.ChatID, msg.Username, msg.MessageText, msg.MessageType, createdAt, msg.TrainingPhotoURL)
+	return err
+}
+
+// SaveUserMessageReturningID — как SaveUserMessage, возвращает id строки (для треда ленты под #training_done).
+func (d *Database) SaveUserMessageReturningID(msg *domain.UserMessage) (int64, error) {
+	query := `
+		INSERT INTO user_messages (user_id, chat_id, username, message_text, message_type, created_at, training_photo_url)
+		VALUES ($1, $2, $3, $4, $5, $6, $7)
+		RETURNING id
+	`
+	moscowTime := utils.FormatMoscowTime(utils.GetMoscowTime())
+	createdAt, parseErr := time.Parse("2006-01-02 15:04:05", moscowTime)
+	if parseErr != nil {
+		createdAt = time.Now()
+	}
+	var id int64
+	err := d.db.QueryRow(query, msg.UserID, msg.ChatID, msg.Username, msg.MessageText, msg.MessageType, createdAt, msg.TrainingPhotoURL).Scan(&id)
+	return id, err
+}
+
+// GetUserMessages получает сообщения пользователя за указанный период
+func (d *Database) GetUserMessages(userID, chatID int64, startTime, endTime time.Time) ([]*domain.UserMessage, error) {
+	query := `
+		SELECT id, user_id, chat_id, username, message_text, message_type, created_at
+		FROM user_messages
+		WHERE user_id = $1 AND chat_id = $2 
+		AND created_at >= $3 AND created_at <= $4
+		ORDER BY created_at ASC
+	`
+
+	rows, err := d.db.Query(query, userID, chatID, startTime, endTime)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var messages []*domain.UserMessage
+	for rows.Next() {
+		var msg domain.UserMessage
+		err := rows.Scan(&msg.ID, &msg.UserID, &msg.ChatID, &msg.Username, &msg.MessageText, &msg.MessageType, &msg.CreatedAt)
+		if err != nil {
+			return nil, err
+		}
+		messages = append(messages, &msg)
+	}
+
+	return messages, nil
+}
+
+// GetLastAIMessage получает последнее сообщение бота (ai_reply) в чате
+func (d *Database) GetLastAIMessage(chatID int64) (*domain.UserMessage, error) {
+	query := `
+		SELECT id, user_id, chat_id, username, message_text, message_type, created_at
+		FROM user_messages
+		WHERE chat_id = $1 AND message_type = 'ai_reply'
+		ORDER BY created_at DESC
+		LIMIT 1
+	`
+
+	var msg domain.UserMessage
+	err := d.db.QueryRow(query, chatID).Scan(
+		&msg.ID, &msg.UserID, &msg.ChatID, &msg.Username, &msg.MessageText, &msg.MessageType, &msg.CreatedAt,
+	)
+	if err != nil {
+		return nil, err
+	}
+
+	return &msg, nil
+}
+
+// GetDailyMessages получает все сообщения за указанный день для всех пользователей в чате
+func (d *Database) GetDailyMessages(chatID int64, date time.Time) ([]*domain.UserMessage, error) {
+	startTime := time.Date(date.Year(), date.Month(), date.Day(), 0, 0, 0, 0, date.Location())
+	endTime := startTime.Add(24 * time.Hour)
+
+	query := `
+		SELECT id, user_id, chat_id, username, message_text, message_type, created_at
+		FROM user_messages
+		WHERE chat_id = $1 
+		AND created_at >= $2 AND created_at < $3
+		ORDER BY created_at ASC
+	`
+
+	rows, err := d.db.Query(query, chatID, startTime, endTime)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var messages []*domain.UserMessage
+	for rows.Next() {
+		var msg domain.UserMessage
+		err := rows.Scan(&msg.ID, &msg.UserID, &msg.ChatID, &msg.Username, &msg.MessageText, &msg.MessageType, &msg.CreatedAt)
+		if err != nil {
+			return nil, err
+		}
+		messages = append(messages, &msg)
+	}
+
+	return messages, nil
+}
+
+// GetMessagesInRange получает все сообщения для чата за произвольный интервал
+func (d *Database) GetMessagesInRange(chatID int64, startTime, endTime time.Time) ([]*domain.UserMessage, error) {
+	query := `
+        SELECT id, user_id, chat_id, username, message_text, message_type, created_at
+        FROM user_messages
+        WHERE chat_id = $1
+        AND created_at >= $2 AND created_at < $3
+        ORDER BY created_at ASC
+    `
+
+	rows, err := d.db.Query(query, chatID, startTime, endTime)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var messages []*domain.UserMessage
+	for rows.Next() {
+		var msg domain.UserMessage
+		if err := rows.Scan(&msg.ID, &msg.UserID, &msg.ChatID, &msg.Username, &msg.MessageText, &msg.MessageType, &msg.CreatedAt); err != nil {
+			return nil, err
+		}
+		messages = append(messages, &msg)
+	}
+
+	return messages, nil
+}
+
+// GetMonthlyMessages получает все сообщения за указанный месяц для всех пользователей в чате
+func (d *Database) GetMonthlyMessages(chatID int64, month time.Time) ([]*domain.UserMessage, error) {
+	startTime := time.Date(month.Year(), month.Month(), 1, 0, 0, 0, 0, month.Location())
+	endTime := startTime.AddDate(0, 1, 0) // Первый день следующего месяца
+
+	query := `
+		SELECT id, user_id, chat_id, username, message_text, message_type, created_at
+		FROM user_messages
+		WHERE chat_id = $1 
+		AND created_at >= $2 AND created_at < $3
+		ORDER BY created_at ASC
+	`
+
+	rows, err := d.db.Query(query, chatID, startTime, endTime)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var messages []*domain.UserMessage
+	for rows.Next() {
+		var msg domain.UserMessage
+		err := rows.Scan(&msg.ID, &msg.UserID, &msg.ChatID, &msg.Username, &msg.MessageText, &msg.MessageType, &msg.CreatedAt)
+		if err != nil {
+			return nil, err
+		}
+		messages = append(messages, &msg)
+	}
+
+	return messages, nil
+}
+
+// GetUserMessagesAcrossTrainingScope — сообщения пользователя за период по каноническому scope стаи (chat_id = scope)
+// и по легаси-личке (chat_id = user_id), чтобы контекст ИИ видел историю до Consolidated training_state.
+func (d *Database) GetUserMessagesAcrossTrainingScope(userID, scopeChatID int64, startTime, endTime time.Time) ([]*domain.UserMessage, error) {
+	query := `
+		SELECT id, user_id, chat_id, username, message_text, message_type, created_at
+		FROM user_messages
+		WHERE user_id = $1
+		  AND (chat_id = $2 OR ($2 <> $1 AND chat_id = $1))
+		  AND created_at >= $3 AND created_at <= $4
+		ORDER BY created_at ASC
+	`
+	rows, err := d.db.Query(query, userID, scopeChatID, startTime, endTime)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var messages []*domain.UserMessage
+	for rows.Next() {
+		var msg domain.UserMessage
+		err := rows.Scan(&msg.ID, &msg.UserID, &msg.ChatID, &msg.Username, &msg.MessageText, &msg.MessageType, &msg.CreatedAt)
+		if err != nil {
+			return nil, err
+		}
+		messages = append(messages, &msg)
+	}
+	return messages, nil
+}
+
+// GetUserTrainingHistory получает историю тренировок пользователя для RAG контекста
+func (d *Database) GetUserTrainingHistory(userID, chatID int64, limit int) ([]*domain.UserMessage, error) {
+	if limit <= 0 {
+		limit = 50 // По умолчанию 50 последних сообщений
+	}
+
+	query := `
+		SELECT id, user_id, chat_id, username, message_text, message_type, created_at
+		FROM user_messages
+		WHERE user_id = $1 AND (chat_id = $2 OR ($2 <> $1 AND chat_id = $1))
+		ORDER BY created_at DESC
+		LIMIT $3
+	`
+
+	rows, err := d.db.Query(query, userID, chatID, limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var messages []*domain.UserMessage
+	for rows.Next() {
+		var msg domain.UserMessage
+		err := rows.Scan(&msg.ID, &msg.UserID, &msg.ChatID, &msg.Username, &msg.MessageText, &msg.MessageType, &msg.CreatedAt)
+		if err != nil {
+			return nil, err
+		}
+		messages = append(messages, &msg)
+	}
+
+	// Разворачиваем список для хронологического порядка
+	for i, j := 0, len(messages)-1; i < j; i, j = i+1, j-1 {
+		messages[i], messages[j] = messages[j], messages[i]
+	}
+
+	return messages, nil
+}
+
+// GetAllChatIDs получает все уникальные chat_id из базы данных
+func (d *Database) GetAllChatIDs() ([]int64, error) {
+	query := `SELECT DISTINCT chat_id FROM training_state WHERE is_deleted = FALSE`
+	rows, err := d.db.Query(query)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var chatIDs []int64
+	for rows.Next() {
+		var chatID int64
+		if err := rows.Scan(&chatID); err != nil {
+			continue
+		}
+		chatIDs = append(chatIDs, chatID)
+	}
+
+	return chatIDs, nil
+}
+
+// HasAnyMessages проверяет, есть ли хотя бы одно сообщение в таблице user_messages
+func (d *Database) HasAnyMessages() (bool, error) {
+	query := `SELECT COUNT(*) FROM user_messages LIMIT 1`
+	var count int
+	err := d.db.QueryRow(query).Scan(&count)
+	if err != nil {
+		return false, err
+	}
+	return count > 0, nil
+}

@@ -1,0 +1,22 @@
+# Node + Vite (НЕ Go, НЕ ms_leo). Сборка: в корне `miniapp` → docker build -f Dockerfile.miniapp .
+# Railway: Service → Root Directory = `miniapp`, иначе подтянется Dockerfile бота из репо.
+FROM node:20-alpine AS build
+WORKDIR /app
+ARG VITE_MINIAPP_API_URL
+ENV VITE_MINIAPP_API_URL=$VITE_MINIAPP_API_URL
+COPY package.json package-lock.json* ./
+RUN npm ci
+COPY . ./
+RUN npm run build
+RUN npm prune --omit=dev
+
+FROM node:20-alpine
+WORKDIR /app
+ENV NODE_ENV=production
+COPY --from=build /app/dist ./dist
+COPY --from=build /app/node_modules ./node_modules
+COPY --from=build /app/scripts ./scripts
+COPY --from=build /app/package.json ./
+EXPOSE 3000
+ENV PORT=3000
+CMD ["node", "scripts/serve.cjs"]

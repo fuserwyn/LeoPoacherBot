@@ -1,0 +1,489 @@
+.chat__configwarn {
+  margin: 0 12px 10px;
+  padding: 10px 12px;
+  font-size: 0.8rem;
+  line-height: 1.4;
+  color: var(--warn-fg);
+  background: var(--warn-bg);
+  border: 1px solid var(--warn-border);
+  border-radius: 10px;
+}
+
+.chat__code {
+  font-size: 0.78em;
+  padding: 0 4px;
+  background: var(--card-inner);
+  border-radius: 4px;
+}
+
+.chat {
+  /* Раскладку привязываем к fixed-опорам (низ = верх таббара, как у поля ввода),
+     а НЕ к 100dvh: Android TG WebView завышает dvh/innerHeight, из-за чего низ
+     ленты уезжал ниже поля ввода и просвечивал в зазоре над таббаром. top/bottom
+     от тех же опор, что у композера и таббара → пиксель-в-пиксель как на iOS. */
+  position: fixed;
+  top: var(--safe-top, 0px);
+  bottom: var(--bottom-nav-stack, var(--bottom-nav-h, 72px));
+  left: 0;
+  right: 0;
+  display: flex;
+  flex-direction: column;
+  padding: 0;
+  max-width: 480px;
+  margin: 0 auto;
+  box-sizing: border-box;
+  overflow: hidden;
+}
+
+.chat__head {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  padding: 10px 16px 8px;
+  border-bottom: 1px solid var(--border-subtle);
+  position: sticky;
+  top: 0;
+  background: var(--bg, #0d0d12);
+  z-index: 1;
+}
+
+.chat__head-avatarwrap {
+  position: relative;
+  flex-shrink: 0;
+  width: 42px;
+  min-width: 42px;
+  height: 42px;
+}
+
+.chat__head-avatar {
+  display: block;
+  width: 42px;
+  min-width: 42px;
+  height: 42px;
+  border-radius: 50%;
+  object-fit: cover;
+  border: 2px solid rgba(236, 72, 137, 0.35);
+  background: var(--card-inner);
+}
+
+.chat__head-typing {
+  position: absolute;
+  right: -2px;
+  bottom: -2px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 22px;
+  min-height: 16px;
+  padding: 2px 4px;
+  background: var(--card-inner);
+  border: 1px solid var(--border-subtle);
+  border-radius: 8px;
+  box-shadow: 0 1px 4px rgba(52, 44, 71, 0.15);
+}
+
+.chat__head-typing-dots {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.chat__head-typing-dots .chat__dot {
+  width: 3px;
+  height: 3px;
+}
+
+.chat__typing-dots {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 0;
+  vertical-align: middle;
+}
+
+.chat__dot {
+  display: block;
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: #8b8b9a;
+  animation: chat-typing 1.15s ease-in-out infinite;
+}
+
+.chat__dot:nth-child(2) {
+  animation-delay: 0.12s;
+}
+
+.chat__dot:nth-child(3) {
+  animation-delay: 0.24s;
+}
+
+.chat__head-typing-dots .chat__dot:nth-child(2) {
+  animation-delay: 0.12s;
+}
+
+.chat__head-typing-dots .chat__dot:nth-child(3) {
+  animation-delay: 0.24s;
+}
+
+@keyframes chat-typing {
+  0%,
+  70%,
+  100% {
+    opacity: 0.32;
+    transform: translateY(0);
+  }
+  35% {
+    opacity: 1;
+    transform: translateY(-3px);
+  }
+}
+
+.chat__bubble--typing {
+  display: flex;
+  align-items: center;
+  min-height: 40px;
+  min-width: 64px;
+}
+
+.chat__head-text {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 1px;
+}
+
+.chat__title {
+  font-size: 0.98rem;
+  font-weight: 600;
+  margin: 0;
+  letter-spacing: -0.02em;
+  line-height: 1.05;
+}
+
+.chat__sub {
+  margin: 0;
+  font-size: 0.7rem;
+  line-height: 1.05;
+  color: var(--muted, #8b8b9a);
+}
+
+.chat__log {
+  flex: 1;
+  min-height: 0;
+  /* Композер in-flow под лентой — без резерва под fixed-форму. */
+  padding: 16px 16px 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  touch-action: pan-y;
+  overscroll-behavior-y: contain;
+  /* iOS: при закрытии клавиатуры не «якорить» низ ленты под композером. */
+  overflow-anchor: none;
+}
+
+.chat__log-end {
+  flex-shrink: 0;
+  width: 100%;
+  height: 1px;
+  scroll-margin-bottom: 8px;
+}
+
+/* Клавиатура: низ чата поднимается над клавиатурой (как и поле ввода). */
+html.app-keyboard-open .chat {
+  bottom: max(var(--safe-bottom, 0px), var(--app-keyboard-bottom, 0px));
+}
+
+.chat__row {
+  display: flex;
+  width: 100%;
+  align-items: flex-end;
+}
+
+.chat__row--user {
+  justify-content: flex-end;
+}
+
+.chat__row--sys {
+  justify-content: flex-start;
+  gap: 8px;
+}
+
+.chat__bubble-avatar {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  object-fit: cover;
+  flex-shrink: 0;
+  border: 1px solid var(--border-subtle);
+  background: var(--card);
+  align-self: flex-end;
+  margin-bottom: 2px;
+}
+
+.chat__bubble-wrap {
+  display: flex;
+  flex-direction: column;
+  max-width: 85%;
+  min-width: 0;
+}
+
+.chat__bubble-wrap--user {
+  align-items: flex-end;
+}
+
+.chat__bubble-wrap--sys {
+  align-items: flex-start;
+}
+
+.chat__bubble {
+  max-width: 100%;
+  padding: 10px 14px;
+  border-radius: 16px;
+  font-size: 0.95rem;
+  line-height: 1.45;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.chat__time {
+  margin-top: 4px;
+  font-size: 0.72rem;
+  color: var(--muted, #8b8b9a);
+  padding: 0 4px;
+}
+
+.chat__time--user {
+  text-align: right;
+}
+
+.chat__time--sys {
+  text-align: left;
+}
+
+.chat__meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.chat__like {
+  border: none;
+  background: transparent;
+  color: var(--muted, #8b8b9a);
+  padding: 0;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.chat__like--mine {
+  color: #be123c;
+}
+
+.chat__bubble--user {
+  background: var(--me-bubble-bg);
+  color: var(--me-bubble-fg);
+  border: 1px solid var(--me-bubble-border);
+  border-bottom-right-radius: 4px;
+}
+
+.chat__bubble--sys {
+  background: var(--card-inner);
+  color: var(--text);
+  border: 1px solid var(--border-subtle);
+  border-bottom-left-radius: 4px;
+}
+
+/* In-flow внизу .chat — не fixed: над таббаром, последнее сообщение рядом. */
+.chat__form {
+  flex-shrink: 0;
+  display: flex;
+  gap: 8px;
+  padding: 6px 12px 4px;
+  background: var(--bg, #0d0d12);
+  box-sizing: border-box;
+}
+
+html.app-keyboard-open .chat__form {
+  padding: 6px 12px 3px;
+}
+
+@media (min-width: 600px) {
+  .chat {
+    max-width: none;
+  }
+  .chat__form {
+    max-width: none;
+  }
+}
+
+.chat__input {
+  flex: 1;
+  min-height: 44px;
+  border-radius: 12px;
+  border: 1px solid var(--border-subtle);
+  background: var(--card);
+  color: var(--text);
+  padding: 0 14px;
+  font-size: 1rem;
+  outline: none;
+}
+
+.chat__input:focus {
+  border-color: var(--accent);
+}
+
+.chat__send {
+  width: 44px;
+  height: 44px;
+  border-radius: 12px;
+  border: none;
+  background: var(--accent);
+  color: #fff;
+  font-size: 1.1rem;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.chat__send:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+/* Прикреплённое фото в личном чате с Лео */
+.chat__bubble-text {
+  display: block;
+}
+
+.chat__photo-wrap {
+  display: block;
+  margin: -2px 0 6px;
+  padding: 0;
+  border: none;
+  background: none;
+  cursor: pointer;
+}
+
+.chat__bubble--user .chat__photo-wrap:only-child,
+.chat__bubble--sys .chat__photo-wrap:only-child {
+  margin-bottom: 0;
+}
+
+.chat__photo {
+  display: block;
+  max-width: 220px;
+  max-height: 280px;
+  width: 100%;
+  border-radius: 12px;
+  object-fit: cover;
+}
+
+.chat__photo-input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.chat__attach {
+  flex-shrink: 0;
+  width: 44px;
+  height: 44px;
+  border-radius: 12px;
+  border: 1px solid var(--border-subtle);
+  background: var(--card);
+  color: var(--text);
+  font-size: 1.15rem;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.chat__attach:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.chat__photo-pending {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 0 12px;
+  padding: 8px 10px;
+  background: var(--card);
+  border: 1px solid var(--border-subtle);
+  border-radius: 12px;
+}
+
+.chat__photo-pending-img {
+  width: 44px;
+  height: 44px;
+  border-radius: 8px;
+  object-fit: cover;
+  flex-shrink: 0;
+}
+
+.chat__photo-pending-name {
+  flex: 1;
+  min-width: 0;
+  font-size: 0.82rem;
+  color: var(--muted, #8b8b9a);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.chat__photo-pending-remove {
+  flex-shrink: 0;
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+  border: none;
+  background: var(--fill-strong);
+  color: var(--text);
+  font-size: 0.85rem;
+  cursor: pointer;
+}
+
+.chat__lightbox {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.92);
+  padding: 16px;
+}
+
+.chat__lightbox-img {
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+  border-radius: 8px;
+}
+
+.chat__lightbox-close {
+  position: absolute;
+  top: calc(var(--safe-top, 0px) + 12px);
+  right: 16px;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  border: none;
+  background: rgba(20, 20, 28, 0.85);
+  color: #fff;
+  font-size: 1.1rem;
+  cursor: pointer;
+}

@@ -1,0 +1,13 @@
+.app {
+  min-height: 100dvh;
+  position: relative;
+  padding-top: 4px;
+  overflow-x: clip;
+  max-width: 100vw;
+}
+
+.app__tabs {
+  position: relative;
+  overflow-x: clip;
+  max-width: 100%;
+}

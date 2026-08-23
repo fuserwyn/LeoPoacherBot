@@ -1,0 +1,9 @@
+# Обязательно: Service → Root Directory = `miniapp` (папка этого файла), иначе в логе будет Golang + COPY ms_leo — это бот, не мини-апп.
+# Явный Dockerfile.miniapp, чтобы не перепутать с ботом (ms_leo / Dockerfile.bot).
+#
+# В сервисе **это** (miniapp) в Variables → Build: VITE_MINIAPP_API_URL = публичный https URL
+# **другого** сервиса, где крутится бот (ms_leo), без / в конце, например https://msleo-xxx.up.railway.app
+# После смены переменной сделай Redeploy, чтобы Vite пересобрал с новым API.
+[build]
+builder = "DOCKERFILE"
+dockerfilePath = "Dockerfile.miniapp"

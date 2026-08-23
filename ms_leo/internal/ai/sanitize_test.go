@@ -1,0 +1,81 @@
+package ai
+
+import (
+	"strings"
+	"testing"
+)
+
+func TestStripAsteriskStageRemarks(t *testing.T) {
+	t.Parallel()
+	s := "Текст ответа.\n\n*Рычит* 🐆"
+	got := SanitizeTextForUser(s)
+	if strings.Contains(got, "*Рычит*") || strings.Contains(got, "Рычит*") {
+		t.Errorf("expected *Рычит* removed, got %q", got)
+	}
+}
+
+func TestStripAsteriskOwnLine(t *testing.T) {
+	t.Parallel()
+	s := "Ок\n\n*Ррр* 🐆\n"
+	got := stripAsteriskStageRemarks(s)
+	if strings.Contains(got, "Ррр") {
+		t.Errorf("expected line removed, got %q", got)
+	}
+}
+
+func TestSanitizeStripsUserRequestPreamble(t *testing.T) {
+	t.Parallel()
+	in := "Ответ на запрос пользователя:\n\nПривет, леопард!"
+	got := SanitizeTextForUser(in)
+	if strings.Contains(strings.ToLower(got), "ответ на запрос пользователя") {
+		t.Errorf("expected preamble stripped, got %q", got)
+	}
+	if !strings.Contains(got, "Привет") {
+		t.Errorf("expected body kept, got %q", got)
+	}
+}
+
+func TestSanitizeStripsMarkdownHeadingAndAnswerOnMessageLine(t *testing.T) {
+	t.Parallel()
+	in := "### Ответ на сообщение \"привет\"\n\nПривет. Как настроение?\n"
+	got := SanitizeTextForUser(in)
+	if strings.Contains(got, "###") || strings.Contains(strings.ToLower(got), "ответ на сообщение") {
+		t.Errorf("expected heading stripped, got %q", got)
+	}
+	if !strings.Contains(got, "Привет") {
+		t.Errorf("expected body kept, got %q", got)
+	}
+}
+
+func TestSanitizeStripsRykInline(t *testing.T) {
+	t.Parallel()
+	s := "Ты на связи. *Рык* 🐆 Продолжай."
+	got := SanitizeTextForUser(s)
+	if strings.Contains(got, "Рык") || strings.Contains(got, "*") {
+		t.Errorf("expected *Рык* stripped, got %q", got)
+	}
+}
+
+func TestSanitizeStripsTrailingTimerMetaParen(t *testing.T) {
+	t.Parallel()
+	in := "Чувствую, ты замешкался — момент взять и размяться.\n\n(Выбрал нейтральный тон для stage=day_5 — мягкое напоминание. Уложился в 102 символа.)"
+	got := SanitizeTextForUser(in)
+	if strings.Contains(got, "stage=") || strings.Contains(got, "Уложился") {
+		t.Errorf("expected meta paren stripped, got %q", got)
+	}
+	if !strings.Contains(got, "замешкался") {
+		t.Errorf("expected body kept, got %q", got)
+	}
+}
+
+func TestSanitizeStripsLeadingParenStageBlock(t *testing.T) {
+	t.Parallel()
+	in := "(Резко разворачиваюсь, сверкая глазами)\n\nКороткий ответ без ремарок."
+	got := SanitizeTextForUser(in)
+	if strings.Contains(got, "разворачиваюсь") || strings.Contains(got, "сверка") {
+		t.Errorf("expected parenthetical stage line removed, got %q", got)
+	}
+	if !strings.Contains(got, "Короткий ответ") {
+		t.Errorf("expected body kept, got %q", got)
+	}
+}

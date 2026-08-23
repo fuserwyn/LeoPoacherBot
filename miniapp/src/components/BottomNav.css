@@ -1,0 +1,276 @@
+.bottom-nav {
+  position: fixed;
+  left: 0;
+  right: 0;
+  /* Всегда низ layout-viewport; при клавиатуре скрывается через html.app-keyboard-open */
+  bottom: 0;
+  z-index: 100;
+  /* Две строки: сверху компоуз-поле, снизу — вкладки. */
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 8px 10px calc(6px + var(--safe-bottom, env(safe-area-inset-bottom, 0px)));
+  background: var(--nav-bg);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border-top: 1px solid var(--border-subtle);
+  max-width: 100vw;
+}
+
+/* Строка вкладок под компоуз-полем. */
+.bottom-nav__tabs {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-around;
+}
+
+/* Отдельная строка компоуз-поля над таббаром. */
+.bottom-nav__compose-row {
+  display: flex;
+  width: 100%;
+}
+
+
+.bottom-nav__item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  min-width: 0;
+  /* Боковые вкладки — по содержимому; центр отдаём компоуз-полю. */
+  flex: 0 0 auto;
+  width: 48px;
+  color: var(--text-muted);
+  font-size: 10px;
+  font-weight: 500;
+  padding: 4px 0 0;
+  transition: color 0.15s ease;
+}
+
+/* Компоуз: поле ввода + «+»/отправка — единый блок публикации в ленту. */
+.bottom-nav__compose {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0;
+  padding: 3px 3px 3px 5px;
+  border-radius: 24px;
+  background: color-mix(in srgb, var(--text-muted) 14%, transparent);
+  border: 1px solid var(--border-subtle);
+}
+
+/* Скрытый нативный file-input (клик проксируем с кнопки-скрепки). */
+.bottom-nav__compose-file {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  border: 0;
+}
+
+/* Скрепка — прикрепить фото к сообщению в ленту. */
+.bottom-nav__compose-attach {
+  flex: 0 0 auto;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  border: none;
+  background: transparent;
+  color: var(--text-muted);
+  font-size: 18px;
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  transition: transform 0.15s ease, opacity 0.15s ease;
+}
+
+.bottom-nav__compose-attach:active {
+  transform: scale(0.92);
+}
+
+.bottom-nav__compose-attach--on {
+  color: var(--accent);
+}
+
+.bottom-nav__compose-attach:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+/* Мини-превью прикреплённого фото с крестиком-снять. */
+.bottom-nav__compose-thumb {
+  position: relative;
+  flex: 0 0 auto;
+  width: 34px;
+  height: 34px;
+}
+
+.bottom-nav__compose-thumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  border-radius: 8px;
+  display: block;
+}
+
+.bottom-nav__compose-thumb-x {
+  position: absolute;
+  top: -6px;
+  right: -6px;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  border: 1px solid var(--nav-bg, #0f0f0f);
+  background: #e23b12;
+  color: #fff;
+  font-size: 9px;
+  line-height: 1;
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+  padding: 0;
+}
+
+.bottom-nav__compose-input {
+  flex: 1 1 auto;
+  min-width: 0;
+  background: transparent;
+  border: none;
+  outline: none;
+  color: var(--text, #fff);
+  font-size: 15px;
+  line-height: 1.2;
+  padding: 8px 0;
+}
+
+.bottom-nav__compose-input::placeholder {
+  color: var(--text-muted);
+}
+
+.bottom-nav__compose-send {
+  flex: 0 0 auto;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  border: 1px solid color-mix(in srgb, var(--accent) 65%, #ffffff 35%);
+  background: linear-gradient(180deg, color-mix(in srgb, var(--accent) 82%, #ffffff 18%) 0%, var(--accent) 100%);
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.35) inset;
+  color: #ffffff;
+  display: grid;
+  place-items: center;
+  font-size: 15px;
+  transition: transform 0.15s ease, filter 0.15s ease, opacity 0.15s ease;
+}
+
+.bottom-nav__compose-send:active {
+  transform: scale(0.96);
+}
+
+/* Нет текста — кнопка отправки приглушена (акцент остаётся у «+»). */
+.bottom-nav__compose-send:disabled {
+  opacity: 0.4;
+  filter: grayscale(0.4);
+}
+
+/* «+» внутри компоуза компактнее standalone-версии. */
+.bottom-nav__compose .bottom-nav__add {
+  width: 40px;
+  height: 40px;
+  margin-bottom: 0;
+}
+
+.bottom-nav__compose .bottom-nav__add-plus {
+  font-size: 25px;
+  margin-top: -1px;
+}
+
+/* Эмодзи-иконки таббара: явный размер (иначе наследуют 10px подписи и мелкие). */
+.bottom-nav__icon {
+  font-size: 23px;
+  line-height: 1;
+}
+
+.bottom-nav__add {
+  width: 54px;
+  height: 54px;
+  margin-bottom: 8px;
+  border-radius: 50%;
+  border: 1px solid color-mix(in srgb, var(--accent) 65%, #ffffff 35%);
+  background: linear-gradient(180deg, color-mix(in srgb, var(--accent) 82%, #ffffff 18%) 0%, var(--accent) 100%);
+  box-shadow:
+    0 8px 18px color-mix(in srgb, var(--accent) 30%, transparent),
+    0 0 0 1px rgba(255, 255, 255, 0.35) inset;
+  color: #ffffff;
+  display: grid;
+  place-items: center;
+  flex: 0 0 auto;
+  transition: transform 0.15s ease, filter 0.15s ease;
+}
+
+/* Одиночная «+» (без компоуз-поля, напр. на экране тренировки) — по центру бара. */
+.bottom-nav__add--solo {
+  margin-left: auto;
+  margin-right: auto;
+}
+
+.bottom-nav__add:hover {
+  filter: brightness(1.03);
+}
+
+.bottom-nav__add:active {
+  transform: translateY(1px) scale(0.98);
+}
+
+.bottom-nav__add-plus {
+  font-size: 30px;
+  font-weight: 500;
+  line-height: 1;
+  margin-top: -2px;
+}
+
+.bottom-nav__item.is-active {
+  color: var(--accent);
+}
+
+.bottom-nav__icon-wrap {
+  position: relative;
+  display: inline-block;
+  line-height: 1;
+}
+
+.bottom-nav__badge {
+  position: absolute;
+  top: -5px;
+  right: -9px;
+  min-width: 16px;
+  height: 16px;
+  padding: 0 4px;
+  border-radius: 8px;
+  background: #e23b12;
+  color: #fff;
+  font-size: 9px;
+  font-weight: 800;
+  line-height: 16px;
+  text-align: center;
+  box-shadow: 0 0 0 1.5px var(--nav-bg, #0f0f0f);
+  pointer-events: none;
+}
+
+.bottom-nav__badge--feed {
+  background: #2a5cff;
+}
+
+.bottom-nav__item.is-active .bottom-nav__icon {
+  filter: none;
+}
+
+.bottom-nav__label {
+  letter-spacing: 0.02em;
+}
+

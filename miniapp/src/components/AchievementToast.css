@@ -1,0 +1,227 @@
+/* Затемняющая подложка на весь экран — поп-ап празднования по центру. */
+.achievement-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 2500;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: env(safe-area-inset-top, 0) 20px env(safe-area-inset-bottom, 0);
+  background: rgba(0, 0, 0, 0.5);
+  backdrop-filter: blur(2px);
+  -webkit-backdrop-filter: blur(2px);
+  cursor: pointer;
+  animation: achievement-overlay-in 220ms ease-out;
+}
+
+.achievement-overlay.is-leaving {
+  animation: achievement-overlay-out 300ms ease forwards;
+}
+
+.achievement-toast {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 6px;
+  width: min(320px, calc(100vw - 48px));
+  padding: 26px 24px 24px;
+  border-radius: 24px;
+  border: 1px solid color-mix(in srgb, var(--accent) 55%, transparent);
+  background: linear-gradient(180deg, var(--card) 0%, var(--card-inner) 100%);
+  box-shadow:
+    0 20px 60px rgba(0, 0, 0, 0.5),
+    0 0 0 1px rgba(255, 255, 255, 0.05) inset,
+    0 0 40px color-mix(in srgb, var(--accent) 30%, transparent);
+  color: var(--text);
+  animation: achievement-toast-in 440ms cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.achievement-toast.is-leaving {
+  animation: achievement-toast-out 300ms ease forwards;
+}
+
+/* Бейдж: аватарка Лео в круге + лапка-медаль в углу */
+.achievement-toast__badge {
+  position: relative;
+  width: 88px;
+  height: 88px;
+  margin-bottom: 4px;
+  animation: achievement-badge-pop 560ms cubic-bezier(0.34, 1.56, 0.64, 1) 120ms both;
+}
+
+.achievement-toast__leo {
+  width: 88px;
+  height: 88px;
+  border-radius: 50%;
+  object-fit: cover;
+  border: 3px solid color-mix(in srgb, var(--accent) 70%, transparent);
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.35);
+  background: var(--card-inner);
+}
+
+.achievement-toast__paw {
+  position: absolute;
+  right: -6px;
+  bottom: -4px;
+  width: 40px;
+  height: 40px;
+  display: grid;
+  place-items: center;
+  font-size: 22px;
+  line-height: 1;
+  border-radius: 50%;
+  background: var(--accent);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+  animation: achievement-paw-wiggle 900ms ease-in-out 700ms 2;
+  transform-origin: 60% 60%;
+}
+
+.achievement-toast__title {
+  margin-top: 4px;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--accent);
+}
+
+.achievement-toast__label {
+  font-size: 20px;
+  font-weight: 800;
+  line-height: 1.2;
+  color: var(--text);
+}
+
+.achievement-toast__cheer {
+  margin-top: 2px;
+  font-size: 13px;
+  line-height: 1.35;
+  color: var(--text-muted);
+}
+
+/* Искорки — разлетаются из центра при появлении */
+.achievement-toast__sparks {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  overflow: visible;
+}
+
+.achievement-toast__spark {
+  position: absolute;
+  top: 26px;
+  left: 50%;
+  font-size: 18px;
+  opacity: 0;
+  animation: achievement-spark 1200ms ease-out both;
+}
+
+.achievement-toast__spark--1 {
+  animation-delay: 180ms;
+  --spx: -70px;
+  --spy: -30px;
+}
+.achievement-toast__spark--2 {
+  animation-delay: 260ms;
+  --spx: 74px;
+  --spy: -22px;
+}
+.achievement-toast__spark--3 {
+  animation-delay: 340ms;
+  --spx: -54px;
+  --spy: 34px;
+}
+.achievement-toast__spark--4 {
+  animation-delay: 420ms;
+  --spx: 60px;
+  --spy: 40px;
+}
+
+@keyframes achievement-spark {
+  0% {
+    opacity: 0;
+    transform: translate(-50%, 0) scale(0.4);
+  }
+  40% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+    transform: translate(calc(-50% + var(--spx)), var(--spy)) scale(1.1);
+  }
+}
+
+@keyframes achievement-overlay-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes achievement-overlay-out {
+  to {
+    opacity: 0;
+  }
+}
+
+@keyframes achievement-toast-in {
+  from {
+    opacity: 0;
+    transform: scale(0.7) translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
+
+@keyframes achievement-toast-out {
+  to {
+    opacity: 0;
+    transform: scale(0.9) translateY(10px);
+  }
+}
+
+@keyframes achievement-badge-pop {
+  0% {
+    transform: scale(0.3);
+  }
+  60% {
+    transform: scale(1.14);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+
+@keyframes achievement-paw-wiggle {
+  0%,
+  100% {
+    transform: rotate(0deg);
+  }
+  30% {
+    transform: rotate(-16deg);
+  }
+  60% {
+    transform: rotate(12deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .achievement-overlay,
+  .achievement-overlay.is-leaving,
+  .achievement-toast,
+  .achievement-toast.is-leaving,
+  .achievement-toast__badge,
+  .achievement-toast__paw,
+  .achievement-toast__spark {
+    animation: none;
+  }
+  .achievement-toast__spark {
+    opacity: 0;
+  }
+}

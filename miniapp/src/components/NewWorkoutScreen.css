@@ -1,0 +1,671 @@
+/* Модальная шторка ввода тренировки (снизу, поверх затемнения). Чипы/кнопки как лента: .feed__filter-chip; заголовки секций — .section-title; кнопка — .feed__btn */
+.nwo {
+  /* Размеры подобраны так, чтобы вся форма (заметка + типы + минуты +
+     интенсивность + кнопка) помещалась без прокрутки даже на Android, где
+     метрики шрифта шире и чипы переносятся в больше рядов. Если всё же не
+     помещается — прокручивается вся форма целиком (.nwo__body), без отдельного
+     вложенного скролла у списка типов. */
+  --nwo-chip-fs: 0.84rem;
+  --nwo-chip-lh: 1.2;
+  --nwo-chip-pad-y: 5px;
+  --nwo-chip-pad-x: 9px;
+  --nwo-chip-bg: var(--card);
+  --nwo-chip-on-border: color-mix(in srgb, var(--accent) 60%, transparent);
+  --nwo-chip-on-bg: var(--accent-dim);
+  --nwo-chip-on-color: var(--accent, #ff7a45);
+  --nwo-emoji-fs: 1rem;
+  --nwo-mi-font: 600 var(--nwo-chip-fs) / var(--nwo-chip-lh) var(--font);
+  --nwo-sec-fs: 12px;
+  --nwo-sec-lh: 1.2;
+  --nwo-display-num-fs: 1.2rem;
+  --nwo-display-sub-fs: 0.9rem;
+  --nwo-title-fs: 1rem;
+  --nwo-pill-fs: 0.84rem;
+  --nwo-action-fs: 1.02rem;
+  --nwo-note-h: 54px;
+  /* Модальная шторка, а не полноэкранная страница: карточка снизу с зазором
+     сверху, где сквозь затемнение видно приложение. Так сразу понятно, что это
+     оверлей поверх мини-аппа, а закрытие (✕ / грабер / тап по затемнению) не
+     путается с кнопкой «закрыть мини-апп» в шапке Telegram. Снизу шторка теперь
+     перекрывает и таббар (bottom: 0) — освободившиеся ~72px компенсируют зазор
+     сверху, поэтому форма по-прежнему помещается без прокрутки. */
+  position: fixed;
+  left: 0;
+  right: 0;
+  top: calc(var(--safe-top, 0px) + 44px);
+  bottom: 0;
+  height: auto;
+  z-index: 200;
+  display: flex;
+  flex-direction: column;
+  background: var(--bg);
+  width: 100%;
+  overflow: hidden;
+  border-radius: 20px 20px 0 0;
+  box-shadow: 0 -10px 34px rgba(0, 0, 0, 0.4);
+  box-sizing: border-box;
+  font-family: var(--font);
+  animation: nwoSheetUp 0.2s ease-out;
+}
+
+/* Пока открыта клавиатура — низ шторки поджимается к верху клавиатуры
+   (inline-стиль bottom: keyboardBottom из компонента). Верхний зазор и
+   скругления сохраняем: шторка остаётся модалкой, а не разворачивается в
+   полноэкранную страницу. */
+.nwo.nwo--keyboard {
+  animation: none;
+}
+
+/* Затемнение под шторкой: даёт «модальность» и область тапа для закрытия. */
+.nwo-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 199;
+  background: rgba(0, 0, 0, 0.5);
+  animation: nwoFade 0.2s ease-out;
+}
+
+/* Грабер сверху шторки — привычный жест-намёк «потяни/закрой». */
+.nwo__grabber {
+  flex: 0 0 auto;
+  width: 40px;
+  height: 4px;
+  margin: 7px auto 1px;
+  border-radius: 2px;
+  background: var(--border-subtle, #2a2a36);
+}
+
+
+@keyframes nwoSheetUp {
+  from {
+    transform: translateY(24px);
+    opacity: 0.4;
+  }
+  to {
+    transform: none;
+    opacity: 1;
+  }
+}
+
+@keyframes nwoFade {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .nwo,
+  .nwo-backdrop {
+    animation: none;
+  }
+}
+
+
+.nwo .chip {
+  font-size: var(--nwo-chip-fs);
+}
+
+.nwo button {
+  font-family: var(--font);
+}
+
+.nwo__head {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  flex-shrink: 0;
+  padding: 2px 6px;
+  max-width: 100%;
+  width: 100%;
+  margin: 0 auto;
+  box-sizing: border-box;
+}
+
+/* Крестик — в правом верхнем углу шторки (заголовок остаётся по центру). */
+.nwo__close {
+  position: absolute;
+  right: 10px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--muted, #8b8b9a);
+  font: 600 var(--nwo-title-fs) / 1 var(--font);
+  background: var(--nwo-chip-bg);
+  border: 1px solid var(--border-subtle, #2a2a36);
+  cursor: pointer;
+}
+
+.nwo__title {
+  font: 600 var(--nwo-title-fs) / var(--nwo-chip-lh) var(--font);
+  color: var(--text, #e8e8f0);
+  text-align: left;
+  padding: 0;
+  margin: 0;
+  white-space: nowrap;
+}
+
+.nwo__body {
+  flex: 1 1 0;
+  min-height: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 4px 8px 6px;
+  max-width: 100%;
+  width: 100%;
+  margin: 0 auto;
+  box-sizing: border-box;
+}
+
+.nwo__upper {
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  justify-content: space-evenly;
+  min-height: 0;
+}
+
+.nwo__sec {
+  font-size: var(--nwo-sec-fs);
+  font-weight: 700;
+  line-height: var(--nwo-sec-lh);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--text-label);
+  margin: 0 0 5px;
+}
+
+.nwo__sec--inline {
+  margin: 0;
+  flex-shrink: 0;
+}
+
+.nwo__types-scroll {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  align-content: flex-start;
+  flex-shrink: 0;
+  padding-bottom: 2px;
+  /* Все типы видны сразу и просто переносятся на новые ряды. Отдельного
+     внутреннего «барабана» нет — при нехватке места прокручивается вся форма
+     (.nwo__body), а не спрятанный мини-скролл, который непонятно как крутить. */
+}
+
+.nwo .nwo__type-chip {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  /* Компактнее по вертикали: типы занимают меньше рядов, вся форма помещается
+     без прокрутки на большинстве экранов. */
+  padding: 4px 9px;
+  font: var(--nwo-mi-font);
+  border-radius: 999px;
+  border: 1px solid var(--border-subtle, #2a2a36);
+  background: var(--nwo-chip-bg);
+  color: var(--text, #e8e8f0);
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.nwo .nwo__type-chip[aria-pressed="true"] {
+  border-color: var(--nwo-chip-on-border);
+  background: var(--nwo-chip-on-bg);
+  color: var(--nwo-chip-on-color);
+}
+
+.nwo__type-emoji {
+  font-size: var(--nwo-emoji-fs);
+  line-height: 1;
+}
+
+.nwo__type-lbl {
+  max-width: 7.5rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.nwo__mid {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  min-height: 0;
+  gap: 10px;
+  justify-content: space-evenly;
+  align-items: stretch;
+}
+
+.nwo__dur {
+  min-width: 0;
+  flex-shrink: 0;
+}
+
+.nwo__dur-top {
+  display: flex;
+  align-items: center;
+  flex-wrap: nowrap;
+  gap: 6px;
+  min-height: 1.3rem;
+  margin-bottom: 4px;
+}
+
+.nwo__big-min {
+  font: 800 var(--nwo-display-num-fs) / 1.2 var(--font);
+  color: var(--text, #e8e8f0);
+  font-variant-numeric: tabular-nums;
+}
+
+.nwo__big-suf {
+  font: 600 var(--nwo-display-sub-fs) / 1.2 var(--font);
+  color: var(--muted, #8b8b9a);
+}
+
+.nwo__presets-row {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 2px;
+}
+
+.nwo__presets {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px 6px;
+  justify-content: flex-start;
+}
+
+.nwo__min-custom {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.nwo__min-custom-lbl {
+  font: 600 var(--nwo-pill-fs) / var(--nwo-chip-lh) var(--font);
+  color: var(--muted, #8b8b9a);
+  flex-shrink: 0;
+}
+
+.nwo__min-custom-input {
+  width: 5.25rem;
+  min-width: 0;
+  box-sizing: border-box;
+  padding: 6px 8px;
+  border-radius: 8px;
+  border: 1px solid var(--border-subtle, #2a2a36);
+  background: var(--nwo-chip-bg);
+  color: var(--text, #e8e8f0);
+  text-align: center;
+  font: 600 var(--nwo-chip-fs) / var(--nwo-chip-lh) var(--font);
+}
+
+.nwo__min-custom-input:focus {
+  outline: none;
+  border-color: var(--nwo-chip-on-border);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent) 35%, transparent);
+}
+
+.nwo__min-custom-input::placeholder {
+  font: 600 var(--nwo-chip-fs) / var(--nwo-chip-lh) var(--font);
+  color: var(--muted, #8b8b9a);
+  opacity: 0.85;
+}
+
+.nwo__circle,
+.nwo__int-btn {
+  font: var(--nwo-mi-font);
+  padding: var(--nwo-chip-pad-y) var(--nwo-chip-pad-x);
+  min-height: 0;
+  height: auto;
+  border-radius: 999px;
+  border: 1px solid var(--border-subtle, #2a2a36);
+  background: var(--nwo-chip-bg);
+  color: var(--text, #e8e8f0);
+  transition: border-color 0.12s, color 0.12s, background 0.12s;
+  cursor: pointer;
+}
+
+.nwo__circle {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.nwo__circle.is-on,
+.nwo__int-btn.is-on {
+  border-color: var(--nwo-chip-on-border);
+  color: var(--nwo-chip-on-color);
+  background: var(--nwo-chip-on-bg);
+}
+
+.nwo__int-wrap {
+  min-width: 0;
+  flex-shrink: 0;
+}
+
+.nwo__intensity-row {
+  display: flex;
+  gap: 8px;
+  align-items: stretch;
+}
+
+.nwo__int-btn {
+  flex: 1 1 0;
+  min-width: 0;
+}
+
+.nwo__photo-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+  flex-shrink: 0;
+  min-height: 0;
+  margin-top: 6px;
+  padding: 0;
+}
+
+/* Нативный input прячем, но оставляем кликабельным внутри label (sr-only). */
+.nwo__file-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.nwo__photo-add {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font: var(--nwo-mi-font);
+  padding: 5px 12px;
+  border-radius: 8px;
+  border: 1px solid var(--border-subtle, #2a2a36);
+  background: var(--nwo-chip-bg);
+  color: var(--text, #e8e8f0);
+  cursor: pointer;
+  flex: 0 0 auto;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.nwo__photo-add:active {
+  opacity: 0.85;
+}
+
+.nwo__photo-add-ico {
+  font-size: var(--nwo-emoji-fs);
+  line-height: 1;
+}
+
+.nwo__photo-name {
+  font: var(--nwo-mi-font);
+  color: var(--muted, #8b8b9a);
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.nwo__photo-edit {
+  flex: 0 0 auto;
+  font: var(--nwo-mi-font);
+  font-weight: 600;
+  padding: 4px 10px;
+  border-radius: 8px;
+  border: 1px solid var(--border-subtle);
+  background: var(--card-inner);
+  color: var(--text);
+  cursor: pointer;
+}
+
+.nwo__photo-edit:active {
+  opacity: 0.85;
+}
+
+.nwo__photo-edit--ghost {
+  padding: 4px 8px;
+  color: var(--text-muted);
+}
+
+.nwo__note-block {
+  flex: 0 0 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  margin-top: 2px;
+  padding-top: 0;
+  position: relative;
+  z-index: 1;
+  scroll-margin-top: 2px;
+}
+
+.nwo__note {
+  flex: 0 0 auto;
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
+  overflow-x: hidden;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  padding: 8px 10px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border-subtle, #2a2a36);
+  background: var(--nwo-chip-bg);
+  color: var(--text, #e8e8f0);
+  font: 600 var(--nwo-chip-fs) / 1.35 var(--font);
+  resize: none;
+  height: var(--nwo-note-h);
+  min-height: var(--nwo-note-h);
+  max-height: var(--nwo-note-h);
+  overflow-wrap: break-word;
+  word-wrap: break-word;
+}
+
+.nwo__note::placeholder {
+  font: 600 var(--nwo-chip-fs) / 1.35 var(--font);
+  color: var(--muted, #8b8b9a);
+}
+
+.nwo__note::-webkit-input-placeholder {
+  font: 600 var(--nwo-chip-fs) / 1.35 var(--font);
+  color: var(--muted, #8b8b9a);
+}
+
+.nwo__note:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: inset 0 0 0 1px var(--accent);
+}
+
+.nwo__note-wrap {
+  position: relative;
+  display: flex;
+  flex: 0 0 auto;
+}
+
+/* Счётчик символов — внутри поля, в правом нижнем углу (не отдельной строкой снизу). */
+.nwo__note-cnt {
+  position: absolute;
+  right: 10px;
+  bottom: 5px;
+  font: 600 var(--nwo-chip-fs) / 1 var(--font);
+  color: var(--muted, #8b8b9a);
+  font-variant-numeric: tabular-nums;
+  background: color-mix(in srgb, var(--nwo-chip-bg) 82%, transparent);
+  padding: 1px 5px;
+  border-radius: 6px;
+  pointer-events: none;
+}
+
+.nwo__foot {
+  flex: 0 0 auto;
+  flex-shrink: 0;
+  margin-top: auto;
+  /* Нижний отступ учитывает home indicator (safe-bottom), иначе кнопка
+     «Отправить отчёт» упирается в край экрана и её края обрезаются. */
+  padding: 8px 10px calc(8px + var(--safe-bottom, 0px));
+  max-width: 100%;
+  width: 100%;
+  margin-left: auto;
+  margin-right: auto;
+  box-sizing: border-box;
+  border-top: 1px solid var(--border-subtle);
+  background: var(--bg);
+}
+
+.nwo__save {
+  width: 100%;
+  padding: 12px 16px;
+  border-radius: 10px;
+  border: 1px solid color-mix(in srgb, var(--accent) 45%, transparent);
+  background: linear-gradient(180deg, #e878ab, #d44f8a);
+  color: #fff;
+  font: 600 var(--nwo-action-fs) / var(--nwo-chip-lh) var(--font);
+  box-shadow: 0 3px 12px color-mix(in srgb, var(--accent) 22%, transparent);
+  cursor: pointer;
+}
+
+.nwo__save:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.nwo__save:active {
+  transform: scale(0.99);
+  opacity: 0.95;
+}
+
+/* Клавиатура: панель в потоке flex у низа visual viewport — без чёрного зазора над кнопкой.
+   100% минус грабер+шапка (~52px) и клавиатурная панель (~54px). */
+.nwo--keyboard .nwo__body {
+  flex: 0 1 auto;
+  min-height: 0;
+  max-height: calc(100% - 52px - 54px);
+  padding-bottom: 2px;
+}
+
+.nwo__keyboard-bar {
+  flex: 0 0 auto;
+  margin-top: auto;
+  display: flex;
+  align-items: stretch;
+  width: 100%;
+  padding: 8px 12px 6px;
+  box-sizing: border-box;
+  background: var(--bg);
+  border-top: 1px solid var(--border-subtle);
+}
+
+.nwo__keyboard-send {
+  width: 100%;
+  padding: 10px 16px;
+  border-radius: 10px;
+  border: 1px solid color-mix(in srgb, var(--accent) 45%, transparent);
+  background: linear-gradient(180deg, #e878ab, #d44f8a);
+  color: #fff;
+  font: 700 var(--nwo-action-fs) / 1.2 var(--font);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  box-shadow: 0 3px 12px color-mix(in srgb, var(--accent) 22%, transparent);
+  cursor: pointer;
+}
+
+.nwo__keyboard-send:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.nwo__keyboard-send:active {
+  transform: scale(0.99);
+  opacity: 0.95;
+}
+
+.nwo__other-field {
+  margin-top: 0;
+  flex-shrink: 0;
+}
+
+/* Кнопка-запрос фичи «вносить не только спорт» — ненавязчивая, сразу после всех видов тренировок. */
+.nwo__non-sport {
+  align-self: flex-start;
+  margin: 0;
+  flex: 0 1 auto;
+  min-width: 0;
+  padding: 4px 10px;
+  border-radius: 999px;
+  border: 1px solid var(--border-subtle, #2a2a36);
+  background: transparent;
+  color: var(--text-label, #a0a0b0);
+  font: 600 0.72rem / var(--nwo-chip-lh) var(--font);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  cursor: pointer;
+}
+
+.nwo__non-sport:active {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.nwo__other-label {
+  display: block;
+  font-size: var(--nwo-sec-fs);
+  font-weight: 700;
+  line-height: var(--nwo-sec-lh);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-label);
+  margin-bottom: 4px;
+}
+
+.nwo__other-input {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 8px 10px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border-subtle, #2a2a36);
+  background: var(--nwo-chip-bg);
+  color: var(--text, #e8e8f0);
+  font: 600 var(--nwo-chip-fs) / var(--nwo-chip-lh) var(--font);
+}
+
+.nwo__other-input:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 1px var(--accent);
+}
+
+.nwo__other-input::placeholder {
+  font: 600 var(--nwo-chip-fs) / var(--nwo-chip-lh) var(--font);
+  color: var(--muted, #8b8b9a);
+}
+
+.nwo__other-input::-webkit-input-placeholder {
+  font: 600 var(--nwo-chip-fs) / var(--nwo-chip-lh) var(--font);
+  color: var(--muted, #8b8b9a);
+}

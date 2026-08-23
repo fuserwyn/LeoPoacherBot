@@ -1,0 +1,27 @@
+# То же, что **./Dockerfile** в корне: Railway авто-находит только `Dockerfile`, не этот файл.
+# Сборка ТОЛЬКО при контексте = КОРЕНЬ репозитория (docker build -f Dockerfile.bot .).
+# В Railway: либо Source Root = «корень репо» и в настройках Docker вручную путь = Dockerfile.bot,
+# либо (рекомендуется) Source Root = `ms_leo` и тогда `ms_leo/Dockerfile` — пути `COPY go.mod`, БЕЗ префикса `ms_leo/`.
+# Не смешивай: root = `ms_leo` + этот файл → ошибка "ms_leo: not found" (в контексте нет подкаталога `ms_leo/`).
+#
+#   docker build -f Dockerfile.bot -t leo-bot .
+#
+FROM golang:1.25
+
+WORKDIR /app
+
+COPY ms_leo/go.mod ./
+COPY ms_leo/go.sum* ./
+
+RUN go mod download
+
+COPY ms_leo/ .
+
+RUN go mod tidy
+
+RUN CGO_ENABLED=0 GOOS=linux go build -o main ./cmd/bot
+RUN CGO_ENABLED=0 GOOS=linux go build -o migrate ./cmd/migrate
+
+EXPOSE 8080
+
+CMD ["./main"]

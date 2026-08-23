@@ -1,0 +1,1145 @@
+.profile {
+  padding: 8px 16px 10px;
+  max-width: 520px;
+  margin: 0 auto;
+}
+
+/* Шире мобилки — профиль на всю ширину окна. */
+@media (min-width: 600px) {
+  .profile {
+    max-width: none;
+    padding-left: 24px;
+    padding-right: 24px;
+  }
+}
+
+.profile__hero {
+  text-align: center;
+  margin-bottom: 20px;
+}
+
+.profile__avatar {
+  position: relative;
+  width: 88px;
+  height: 88px;
+  margin: 12px auto 12px;
+  border-radius: 50%;
+  background: var(--card);
+  border: 1px solid var(--border-subtle);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 44px;
+  line-height: 1;
+  /* overflow видим: чтобы бейджи (медицинский, дни без тренировок) могли выезжать наружу.
+     Кружочность аватарки даёт border-radius на самой картинке ниже. */
+}
+
+.profile__avatar--inactive-yellow {
+  border-color: rgba(230, 178, 40, 0.95);
+  box-shadow:
+    0 0 0 2px rgba(255, 210, 70, 0.35),
+    0 0 0 5px rgba(200, 150, 20, 0.18),
+    0 6px 18px rgba(120, 90, 10, 0.35);
+}
+
+.profile__avatar--inactive-red {
+  border-color: rgba(220, 50, 50, 0.95);
+  box-shadow:
+    0 0 0 2px rgba(255, 90, 70, 0.42),
+    0 0 0 5px rgba(180, 20, 30, 0.22),
+    0 6px 18px rgba(120, 10, 20, 0.45);
+}
+
+.profile__avatar--inactive-bordeaux {
+  border-color: rgba(110, 12, 28, 0.98);
+  box-shadow:
+    0 0 0 2px rgba(160, 24, 44, 0.5),
+    0 0 0 5px rgba(70, 8, 18, 0.35),
+    0 6px 22px rgba(40, 4, 12, 0.55);
+}
+
+.profile__avatar-med {
+  position: absolute;
+  right: -4px;
+  bottom: -2px;
+  font-size: 20px;
+  filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.4));
+}
+
+.profile__avatar-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+  border-radius: 50%;
+}
+
+.profile__name {
+  font-size: 22px;
+  font-weight: 700;
+  margin-bottom: 4px;
+}
+
+.profile__kick {
+  font-size: 11px;
+  margin-top: 4px;
+  line-height: 1.35;
+  color: rgba(255, 255, 255, 0.62);
+}
+
+.profile__kick--inactive-yellow {
+  color: #e8c04a;
+  font-weight: 700;
+}
+
+.profile__kick--inactive-red {
+  color: #ff6b5a;
+  font-weight: 800;
+  text-shadow: 0 0 10px rgba(255, 80, 60, 0.2);
+}
+
+.profile__kick--inactive-bordeaux {
+  color: #c43a52;
+  font-weight: 900;
+  text-shadow: 0 0 12px rgba(120, 16, 32, 0.35);
+}
+
+.profile--inactive-yellow .profile__danger {
+  display: none;
+}
+
+.profile--inactive-red .profile__danger {
+  display: none;
+}
+
+.profile__danger {
+  margin: 6px 0 0;
+  color: #8f1023;
+  font-size: 12px;
+  font-weight: 900;
+  line-height: 1.35;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  text-shadow:
+    0 0 12px rgba(143, 16, 35, 0.2),
+    0 1px 0 rgba(0, 0, 0, 0.24);
+}
+
+.profile--inactive-bordeaux .profile__danger {
+  color: #6b0f1a;
+  text-shadow:
+    0 0 14px rgba(90, 10, 24, 0.45),
+    0 1px 0 rgba(0, 0, 0, 0.3);
+}
+
+.profile__level {
+  font-size: 14px;
+  margin-bottom: 16px;
+}
+
+.profile__quick-healthy {
+  margin-top: 2px;
+  padding: 10px 14px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--text);
+  font-size: 13px;
+  font-weight: 700;
+  font-family: inherit;
+  cursor: pointer;
+}
+
+.profile__quick-healthy:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.profile__xp-caption {
+  flex: 0 0 auto;
+  font-size: 18px;
+  line-height: 1;
+}
+
+.profile__sick-timer {
+  font-size: 12px;
+  line-height: 1.35;
+  margin: 0 auto 8px;
+  max-width: 320px;
+  text-align: center;
+}
+
+.profile__xp {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 6px;
+  text-align: left;
+  max-width: 320px;
+  margin: 0 auto;
+}
+
+.profile__xp-meter {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.profile__xp-bar {
+  flex: 1 1 auto;
+  height: 6px;
+  border-radius: 999px;
+  background: #2a2a32;
+  overflow: hidden;
+}
+
+.profile__xp-fill {
+  height: 100%;
+  border-radius: 999px;
+  background: linear-gradient(90deg, var(--accent), var(--accent-2));
+  transition: width 0.25s ease;
+}
+
+.profile__xp-txt {
+  font-size: 12px;
+  color: var(--text-muted);
+  text-align: right;
+}
+
+.profile__grid3 {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 8px;
+  margin-bottom: 16px;
+  align-items: start;
+}
+
+.profile__stat-slot {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  min-width: 0;
+  width: 100%;
+}
+
+.profile__stat-slot .stat-card {
+  width: 100%;
+}
+
+.stat-card {
+  background: var(--card);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  padding: 10px 8px;
+  text-align: center;
+  min-height: 58px;
+  box-sizing: border-box;
+}
+
+.stat-card__label {
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  color: var(--text-label);
+  margin-bottom: 6px;
+  /* Резервируем под подпись две строки: «Всего тренировок» переносится, а
+     «Дней подряд» / «Рекорд стрика» — нет. Без фикс. высоты карточки
+     получаются разной высоты и ряд выглядит неровным. Центрируем, чтобы
+     однострочные подписи стояли по центру зарезервированной области, а
+     значения снизу легли на одну линию во всех трёх карточках. */
+  line-height: 1.2;
+  min-height: 2.4em;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.stat-card__val {
+  font-size: 18px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* Подпись «сгорит» — на всю ширину под рядом статов, в одну строку (не привязана
+   к узкой карточке «Дней подряд», чтобы «1 день 4 ч» помещалось целиком). */
+.profile__burn {
+  margin: -10px 0 12px;
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1.2;
+  letter-spacing: 0.01em;
+  color: #ff7a45;
+  text-align: center;
+  white-space: nowrap;
+}
+
+.stat-card--inactive-yellow {
+  border-color: rgba(230, 178, 40, 0.55);
+  background: color-mix(in srgb, rgba(230, 178, 40, 0.14) 100%, var(--card));
+  box-shadow: inset 0 0 0 1px rgba(255, 210, 70, 0.08);
+}
+
+.stat-card--inactive-yellow .stat-card__val {
+  color: #e8c04a;
+}
+
+.stat-card--inactive-red {
+  border-color: rgba(220, 55, 55, 0.6);
+  background: color-mix(in srgb, rgba(220, 55, 55, 0.12) 100%, var(--card));
+  box-shadow: inset 0 0 0 1px rgba(255, 90, 70, 0.1);
+}
+
+.stat-card--inactive-red .stat-card__val {
+  color: #ff6b5a;
+}
+
+.stat-card--inactive-bordeaux {
+  border-color: rgba(110, 12, 28, 0.75);
+  background: color-mix(in srgb, rgba(90, 10, 24, 0.22) 100%, var(--card));
+  box-shadow:
+    inset 0 0 0 1px rgba(140, 20, 40, 0.15),
+    0 4px 14px rgba(40, 4, 12, 0.25);
+}
+
+.stat-card--inactive-bordeaux .stat-card__val {
+  color: #c43a52;
+}
+
+.stat-card--inactive-bordeaux .stat-card__label {
+  color: rgba(196, 58, 82, 0.85);
+}
+
+.profile__achievements {
+  margin-bottom: 20px;
+}
+
+.profile__achievements-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 8px;
+}
+
+.profile__achievements-title {
+  margin-bottom: 0;
+}
+
+.profile__achievements-count {
+  color: var(--text-muted);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.profile__achievements-group {
+  color: var(--text-muted);
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  margin: 12px 0 7px;
+}
+
+.profile__achievements-strip {
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+  padding-bottom: 4px;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+  /* Разрешаем жест в обеих плоскостях: pan-x — горизонтальная прокрутка
+     самой ленты ачивок, pan-y — вертикальная прокрутка страницы, когда
+     свайп начинается поверх ленты. Браузер сам выбирает направление по
+     преобладающей оси движения пальца. */
+  touch-action: pan-x pan-y;
+  overscroll-behavior-x: contain;
+}
+
+.profile__achievements-strip::-webkit-scrollbar {
+  display: none;
+}
+
+.profile__achievement {
+  --achievement-outline: #d36652;
+  --achievement-shell: #fff7ed;
+  --achievement-bean: #f3bbb6;
+  --achievement-claw: #d58e79;
+  --achievement-badge: rgba(255, 255, 255, 0.03);
+  --achievement-day-color: #7f4f46;
+  flex: 0 0 62px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 5px;
+}
+
+.profile__achievement-badge {
+  position: relative;
+  width: 50px;
+  height: 50px;
+  border-radius: 50%;
+  background: var(--achievement-badge);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: visible;
+  transition: transform 0.18s ease, filter 0.18s ease, opacity 0.18s ease, box-shadow 0.18s ease;
+}
+
+.profile__achievement-paw {
+  width: 50px;
+  height: 50px;
+  overflow: visible;
+}
+
+.profile__achievement-bg {
+  fill: color-mix(in srgb, var(--achievement-shell) 12%, transparent);
+}
+
+.profile__achievement-claw {
+  fill: var(--achievement-claw);
+  opacity: 0.92;
+}
+
+.profile__achievement-toe-shell,
+.profile__achievement-pad-shell {
+  fill: var(--achievement-shell);
+  stroke: var(--achievement-outline);
+  stroke-width: 1.7;
+  stroke-linejoin: round;
+}
+
+.profile__achievement-toe-bean,
+.profile__achievement-pad-bean {
+  fill: var(--achievement-bean);
+}
+
+.profile__achievement-days {
+  position: absolute;
+  left: 50%;
+  top: 78%;
+  transform: translate(-50%, -50%);
+  font-size: 11px;
+  font-weight: 900;
+  line-height: 1;
+  color: var(--achievement-day-color);
+  letter-spacing: -0.03em;
+  text-shadow: 0 1px 0 rgba(255, 255, 255, 0.35);
+}
+
+.profile__achievement-days--double {
+  font-size: 10px;
+}
+
+.profile__achievement-days--triple {
+  font-size: 8px;
+}
+
+.profile__achievement-days--heart {
+  inset: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  transform: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding-top: 7%;
+  padding-left: 1%;
+  font-size: 10px;
+  color: #fff;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.35);
+}
+
+.profile__achievement-days--heart.profile__achievement-days--double {
+  font-size: 9px;
+  padding-top: 8%;
+  letter-spacing: -0.04em;
+}
+
+.profile__achievement-label {
+  color: var(--text-label);
+  font-size: 9px;
+  font-weight: 700;
+  line-height: 1.2;
+  text-align: center;
+}
+
+/* ===== Ачивки за тренировки: звезда с кубком внутри ===== */
+.profile__achievement-star-svg {
+  width: 50px;
+  height: 50px;
+  overflow: visible;
+}
+
+/* Звезда — насыщенный цветной корпус с плотным контуром. */
+.profile__achievement-star {
+  fill: var(--achievement-bean);
+  stroke: var(--achievement-outline);
+  stroke-width: 2.2;
+  stroke-linejoin: round;
+}
+
+/* Контур маленькой лапки/сердца не должен утончаться при scale(~0.5). */
+.profile__achievement-minipaw .profile__achievement-toe-shell,
+.profile__achievement-minipaw .profile__achievement-pad-shell,
+.profile__achievement-leo .profile__achievement-pad-shell,
+.profile__achievement-leo .profile__achievement-toe-bean,
+.profile__achievement-miniheart .profile__achievement-heart-shell {
+  vector-effect: non-scaling-stroke;
+  stroke-width: 1.4;
+}
+
+/* Закрытые глаза и улыбка медитирующего Лео — тонкие линии контуром. */
+.profile__achievement-leo-line {
+  fill: none;
+  stroke: var(--achievement-outline);
+  stroke-width: 2;
+  stroke-linecap: round;
+  vector-effect: non-scaling-stroke;
+}
+
+/* Число — на подушечке маленькой лапки. */
+.profile__achievement-num {
+  position: absolute;
+  left: 50%;
+  top: 60%;
+  transform: translate(-50%, -50%);
+  font-size: 10px;
+  font-weight: 900;
+  line-height: 1;
+  color: var(--achievement-day-color);
+  letter-spacing: -0.03em;
+  text-shadow: 0 1px 0 rgba(255, 255, 255, 0.35);
+}
+
+/* В сердце число по центру и белое (как у стрика на 42). */
+.profile__achievement-num--heart {
+  top: 50%;
+  color: #fff;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.35);
+}
+
+.profile__achievement-num--double {
+  font-size: 9px;
+}
+
+.profile__achievement-num--triple {
+  font-size: 7.5px;
+}
+
+.profile__achievement-num--quad {
+  font-size: 6px;
+  letter-spacing: -0.06em;
+}
+
+.profile__achievement:not(.is-earned) {
+  --achievement-outline: #666874;
+  --achievement-shell: #f1f1f4;
+  --achievement-bean: #c5c6ce;
+  --achievement-claw: #b8bcc6;
+  --achievement-badge: rgba(255, 255, 255, 0.02);
+  --achievement-day-color: #8b8d98;
+}
+
+.profile__achievement:not(.is-earned) .profile__achievement-badge {
+  filter: grayscale(1) saturate(0.2) brightness(0.92);
+  opacity: 0.62;
+}
+
+.profile__achievement.is-earned .profile__achievement-badge {
+  transform: translateY(-1px);
+  filter: saturate(1.18) brightness(1.04);
+  box-shadow: 0 6px 14px rgba(0, 0, 0, 0.18);
+}
+
+.profile__achievement:not(.is-earned) .profile__achievement-label {
+  opacity: 0.62;
+}
+
+.profile__achievement.is-earned .profile__achievement-label {
+  color: var(--text);
+}
+
+.profile__achievement--7 {
+  --achievement-outline: #7a5850;
+  --achievement-shell: #fff1e9;
+  --achievement-bean: #f0a99b;
+  --achievement-claw: #cacfd9;
+  --achievement-day-color: #84534b;
+}
+
+.profile__achievement--14 {
+  --achievement-outline: #e6d2af;
+  --achievement-shell: #fff8ea;
+  --achievement-bean: #f1b0a2;
+  --achievement-claw: #d7dbe3;
+  --achievement-day-color: #a76e5f;
+}
+
+.profile__achievement--30 {
+  --achievement-outline: #e8b84c;
+  --achievement-shell: #fff0c5;
+  --achievement-bean: #d9783f;
+  --achievement-claw: #d2d8e1;
+  --achievement-day-color: #b35b30;
+}
+
+.profile__achievement--42 {
+  --achievement-outline: #c41e3a;
+  --achievement-shell: #ff5a7a;
+  --achievement-bean: #e2334f;
+  --achievement-claw: #ffd1da;
+  --achievement-day-color: #fff;
+}
+
+.profile__achievement-heart-shell {
+  fill: var(--achievement-shell);
+  stroke: var(--achievement-outline);
+  stroke-width: 2;
+  stroke-linejoin: round;
+}
+
+.profile__achievement-heart-bean {
+  fill: var(--achievement-bean);
+}
+
+.profile__achievement--60 {
+  --achievement-outline: #555a63;
+  --achievement-shell: #fff7f0;
+  --achievement-bean: #ff8c7b;
+  --achievement-claw: #d3d8e0;
+  --achievement-day-color: #8d5550;
+}
+
+.profile__achievement--90 {
+  --achievement-outline: #5a473d;
+  --achievement-shell: #f2e8ee;
+  --achievement-bean: #bbb0bc;
+  --achievement-claw: #d5dae2;
+  --achievement-day-color: #6e5e67;
+}
+
+.profile__achievement--180 {
+  --achievement-outline: #3b5998;
+  --achievement-shell: #e6f0ff;
+  --achievement-bean: #94b4e6;
+  --achievement-claw: #cdd9ec;
+  --achievement-day-color: #324e85;
+}
+
+.profile__achievement--365 {
+  --achievement-outline: #8a6d1c;
+  --achievement-shell: #fff4c2;
+  --achievement-bean: #f4c83a;
+  --achievement-claw: #e0d2a0;
+  --achievement-day-color: #7a5c10;
+}
+
+.profile__achievement--420 {
+  --achievement-outline: #9a7209;
+  --achievement-shell: #ffe566;
+  --achievement-bean: #f0b429;
+  --achievement-claw: #d4a017;
+  --achievement-crown: #ffd84d;
+  --achievement-crown-band: #e8b923;
+  --achievement-crown-gem: #fff8dc;
+  --achievement-day-color: #6b4f05;
+}
+
+.profile__achievement-crown {
+  fill: var(--achievement-crown, #ffd84d);
+  stroke: var(--achievement-outline);
+  stroke-width: 1.4;
+  stroke-linejoin: round;
+}
+
+.profile__achievement-crown-band {
+  fill: var(--achievement-crown-band, #e8b923);
+  stroke: var(--achievement-outline);
+  stroke-width: 1.1;
+}
+
+.profile__achievement-crown-gem {
+  fill: var(--achievement-crown-gem, #fff8dc);
+  stroke: var(--achievement-outline);
+  stroke-width: 0.8;
+}
+
+.profile__achievement-crown-gem--main {
+  fill: #fff;
+}
+
+.profile__achievement-paw--crown .profile__achievement-pad-shell {
+  stroke-width: 1.9;
+}
+
+.profile__achievement--420.is-earned .profile__achievement-badge {
+  box-shadow:
+    0 6px 14px rgba(154, 114, 9, 0.28),
+    0 0 0 1px rgba(255, 229, 102, 0.35);
+}
+
+/* ===== Тиры ачивок за тренировки: бронза → серебро → золото → платина → бриллиант ===== */
+/* Все тиры цветные (без серого), кульминация — золото на 1000.
+   Звезда = --achievement-bean (насыщенный), лапка/сердце сверху светлые. */
+.profile__wach--t1 {
+  /* 10 — изумруд */
+  --achievement-outline: #1f7a4d;
+  --achievement-shell: #d7f5e3;
+  --achievement-bean: #2fbf71;
+  --achievement-day-color: #135c38;
+}
+
+.profile__wach--t2 {
+  /* 20 — бирюза */
+  --achievement-outline: #167a86;
+  --achievement-shell: #d3f3f7;
+  --achievement-bean: #1fc0cf;
+  --achievement-day-color: #0d5a63;
+}
+
+.profile__wach--t3 {
+  /* 42 — алое сердце */
+  --achievement-outline: #b81e3e;
+  --achievement-shell: #ffd9e0;
+  --achievement-bean: #f43e5f;
+  --achievement-day-color: #8a1027;
+}
+
+.profile__wach--t4 {
+  /* 50 — небесно-синий */
+  --achievement-outline: #1d5fb8;
+  --achievement-shell: #d6e6ff;
+  --achievement-bean: #3b82f6;
+  --achievement-day-color: #163f7a;
+}
+
+.profile__wach--t5 {
+  /* 100 — фиолет */
+  --achievement-outline: #6b28b0;
+  --achievement-shell: #ece0ff;
+  --achievement-bean: #9a4dff;
+  --achievement-day-color: #491c7a;
+}
+
+.profile__wach--t6 {
+  /* 200 — маджента */
+  --achievement-outline: #b01e7a;
+  --achievement-shell: #ffdcf0;
+  --achievement-bean: #ec3fa0;
+  --achievement-day-color: #7a1052;
+}
+
+.profile__wach--t7 {
+  /* 420 — оранж */
+  --achievement-outline: #c2611a;
+  --achievement-shell: #ffe6cc;
+  --achievement-bean: #ff8a2b;
+  --achievement-day-color: #8a4410;
+}
+
+.profile__wach--t8 {
+  /* 500 — индиго */
+  --achievement-outline: #3b2f9a;
+  --achievement-shell: #e2ddff;
+  --achievement-bean: #6a5cff;
+  --achievement-day-color: #2a2070;
+}
+
+.profile__wach--t9 {
+  /* 1000 — самое крутое золото */
+  --achievement-outline: #9a7209;
+  --achievement-shell: #fff3c2;
+  --achievement-bean: #ffc62b;
+  --achievement-day-color: #6b4f05;
+}
+
+.profile__wach--t9.is-earned .profile__achievement-badge {
+  box-shadow:
+    0 6px 16px rgba(255, 198, 43, 0.4),
+    0 0 0 1px rgba(255, 224, 130, 0.55);
+}
+
+.profile__hint {
+  font-size: 13px;
+  line-height: 1.4;
+  margin: -4px 0 12px;
+}
+
+.profile__form-hint {
+  font-size: 13px;
+  line-height: 1.4;
+  margin: 0 0 12px;
+}
+
+.profile__form {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  margin-bottom: 24px;
+}
+
+.profile__field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-label, var(--text-muted));
+}
+
+.profile__input {
+  padding: 12px 14px;
+  border-radius: var(--radius-sm);
+  border: 1.5px solid var(--border-subtle);
+  background: rgba(255, 255, 255, 0.05);
+  color: var(--text);
+  font-size: 15px;
+  font-family: inherit;
+}
+
+.profile__input:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 1px var(--accent);
+}
+
+.profile__save {
+  margin-top: 4px;
+  padding: 14px 20px;
+  border-radius: 999px;
+  background: linear-gradient(180deg, color-mix(in srgb, var(--accent) 88%, #ffffff 12%), var(--accent));
+  color: #fff;
+  font-size: 15px;
+  font-weight: 700;
+  border: none;
+  cursor: pointer;
+}
+
+.profile__save:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.profile__streak-save {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 8px;
+}
+
+.profile__streak-save-btn {
+  flex: 1;
+  margin-top: 0;
+  padding: 10px 14px;
+  font-size: 14px;
+  line-height: 1.2;
+}
+
+.profile__streak-save-counter {
+  flex-shrink: 0;
+  color: var(--text-muted);
+  font-size: 13px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.profile__streak-save-hint {
+  margin: 0 0 18px;
+}
+
+.profile__health {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-bottom: 8px;
+}
+
+.profile__health-textarea {
+  resize: vertical;
+  min-height: 72px;
+  font-size: 14px;
+  line-height: 1.4;
+  box-sizing: border-box;
+}
+
+.profile__health-textarea:focus {
+  box-shadow: inset 0 0 0 1px var(--accent);
+}
+
+.profile__health-btn {
+  width: 100%;
+  margin-top: 0;
+  padding: 10px 14px;
+  font-size: 14px;
+  line-height: 1.2;
+}
+
+.profile__health-btn--secondary {
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--text);
+  border: 1.5px solid var(--border-subtle);
+}
+
+.profile__health-actions-spacer {
+  height: 44px;
+  flex-shrink: 0;
+}
+
+.profile__health-actions {
+  display: flex;
+  gap: 8px;
+  align-items: stretch;
+  margin-top: 4px;
+}
+
+.profile__health-actions--keyboard {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: var(--bottom-nav-h, 72px);
+  z-index: 90;
+  max-width: 520px;
+  margin: 0 auto;
+  margin-top: 0;
+  padding: 6px 16px 4px;
+  background: var(--bg);
+  border-top: 1px solid var(--border-subtle);
+  box-sizing: border-box;
+}
+
+html.app-keyboard-open .profile__health-actions--keyboard {
+  bottom: var(--app-keyboard-bottom, 0px);
+  padding-bottom: 4px;
+}
+
+.profile__health-actions .profile__health-btn {
+  flex: 1;
+}
+
+.profile__health-cancel {
+  padding: 10px 14px;
+  border-radius: 999px;
+  font-size: 14px;
+  line-height: 1.2;
+  background: transparent;
+  color: var(--text-muted);
+  border: 1.5px solid var(--border-subtle);
+  font-size: 14px;
+  font-weight: 600;
+  font-family: inherit;
+  cursor: pointer;
+}
+
+.profile__health-cancel:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.profile__support {
+  margin-top: 18px;
+  margin-bottom: 0;
+}
+
+.profile__support-btn {
+  width: 100%;
+}
+
+/* Напоминания */
+/* Единый раздел «Уведомления» — обособленная карточка с заметным заголовком,
+   чтобы читался как отдельный раздел, а не терялся среди настроек профиля. */
+.profile__notif {
+  margin-bottom: 24px;
+  padding: 14px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border-subtle);
+  background: var(--card-inner);
+}
+
+.profile__notif-title {
+  margin-top: 0;
+  margin-bottom: 12px;
+  font-size: 13px;
+  color: var(--accent);
+}
+
+.profile__notif .profile__reminder {
+  margin-bottom: 0;
+}
+
+.profile__reminder {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-bottom: 24px;
+}
+
+.profile__reminder-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 14px;
+  border-radius: var(--radius-sm);
+  border: 1.5px solid var(--border-subtle);
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.profile__reminder-label {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.profile__reminder-toggle {
+  width: 22px;
+  height: 22px;
+  accent-color: var(--accent, #ff6a35);
+  cursor: pointer;
+}
+
+/* «Слежу за» — выпадающий список внутри секции «Уведомления», под тумблером «Тренировки друзей». */
+.profile__friends-toggle {
+  width: 100%;
+  padding: 12px 18px;
+  border-radius: 999px;
+  border: 1.5px solid var(--border-subtle);
+  background: rgba(255, 255, 255, 0.05);
+  color: var(--muted);
+  font-size: 14px;
+  font-weight: 700;
+  font-family: inherit;
+  text-align: center;
+  cursor: pointer;
+}
+
+.profile__friends-toggle.is-active {
+  background: linear-gradient(180deg, color-mix(in srgb, var(--accent) 88%, #ffffff 12%), var(--accent));
+  border-color: transparent;
+  color: #fff;
+}
+
+.profile__friends-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.profile__friend-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 14px;
+  border-radius: var(--radius-sm);
+  border: 1.5px solid var(--border-subtle);
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.profile__friend-info {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  min-width: 0;
+}
+
+.profile__friend-name {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.profile__friend-streak {
+  font-size: 12px;
+  flex-shrink: 0;
+}
+
+/* «Отписаться» в строке друга: уведомления о тренировках переехали в секцию
+   «Уведомления» (глобальный тумблер «Тренировки друзей»). */
+.profile__friend-unfollow {
+  flex-shrink: 0;
+  padding: 6px 12px;
+  border-radius: 999px;
+  border: 1px solid var(--border-subtle);
+  background: transparent;
+  color: var(--text-muted);
+  font: 600 12px / 1.2 var(--font);
+  cursor: pointer;
+}
+
+.profile__friend-unfollow:active {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.profile__friend-unfollow:disabled {
+  cursor: default;
+  opacity: 0.55;
+}
+
+.profile__friend-btn {
+  flex-shrink: 0;
+  padding: 8px 16px;
+  border-radius: 999px;
+  border: 1.5px solid var(--accent, #ff6a35);
+  background: transparent;
+  color: var(--accent, #ff6a35);
+  font-size: 13px;
+  font-weight: 700;
+  font-family: inherit;
+  cursor: pointer;
+}
+
+.profile__friend-btn--following {
+  background: linear-gradient(180deg, color-mix(in srgb, var(--accent) 88%, #ffffff 12%), var(--accent));
+  border-color: transparent;
+  color: #fff;
+}
+
+.profile__friend-btn:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+/* Переключатель темы (работает в обеих темах — на токенах). */
+.profile__theme {
+  margin-top: 18px;
+}
+
+.profile__theme-seg {
+  display: flex;
+  gap: 6px;
+  padding: 4px;
+  border-radius: 999px;
+  background: var(--card-inner);
+  border: 1px solid var(--border-subtle);
+}
+
+.profile__theme-opt {
+  flex: 1;
+  padding: 8px 12px;
+  border-radius: 999px;
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--text-muted);
+  font-size: 0.9rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s, border-color 0.15s;
+}
+
+.profile__theme-opt.is-active {
+  background: var(--accent-dim);
+  border-color: color-mix(in srgb, var(--accent) 55%, transparent);
+  color: var(--accent);
+}
