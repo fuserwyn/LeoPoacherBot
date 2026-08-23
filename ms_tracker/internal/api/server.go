@@ -102,6 +102,7 @@ func (s *Server) create(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusBadRequest, map[string]any{"ok": false, "error": "непонятное тело"})
 		return
 	}
+	body = unwrapScheduledBody(body)
 	at, label, err := when.Parse(str(body, "when"))
 	if err != nil {
 		writeJSON(w, http.StatusBadRequest, map[string]any{"ok": false, "error": err.Error()})
@@ -255,6 +256,19 @@ func jobView(j store.Job) map[string]any {
 		"steps":          j.Steps,
 		"branch":         j.Branch,
 	}
+}
+
+// unwrapScheduledBody — живой Leo ещё шлёт конверт MyVibeLab
+// {op, session, payload:{when,prompt}}. Новый клиент кладёт поля сразу в корень.
+func unwrapScheduledBody(body map[string]any) map[string]any {
+	if body == nil || str(body, "op") == "" {
+		return body
+	}
+	payload, ok := body["payload"].(map[string]any)
+	if !ok || payload == nil {
+		return body
+	}
+	return payload
 }
 
 func commitLabelRU(phase string) string {

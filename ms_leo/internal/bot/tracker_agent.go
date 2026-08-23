@@ -147,7 +147,12 @@ func trackerAgentPrompt(t database.TrackerTask, phase string) string {
 			text = fmt.Sprintf("Задача #%d.\n\n%s", n, prompt)
 		}
 		if result != "" {
-			text += "\n\nПрошлый результат / замечания ревью:\n" + result
+			if strings.Contains(result, "Логи сборки Railway") ||
+				strings.Contains(strings.ToLower(result), "сборка на стенде не прошла") {
+				text += "\n\nСборка Railway упала. Почини код по логам. Верни полные файлы, без заглушек «остальной код без изменений». Не трогай несвязанное.\n" + result
+			} else {
+				text += "\n\nПрошлый результат / замечания ревью:\n" + result
+			}
 		}
 		return text
 	}
@@ -557,10 +562,14 @@ func (b *Bot) finishTrackerBuild(taskID int64) {
 		base, err := b.shipTrackerToMain(t)
 		if err != nil {
 			t.Error = "не влили в main: " + err.Error()
+			t.Result = strings.TrimSpace(t.Result + "\n\nПуш в main не вышел: " + err.Error())
+			_ = applyTrackerColumn(&t, trackerColDoing)
 			appendTrackerStep(&t, "пуш на стенд не вышел")
+			appendTrackerStep(&t, "вернули в работу: пуш не вышел")
 			if serr := b.db.SaveTrackerTask(t); serr != nil && b.logger != nil {
 				b.logger.Warnf("трекер: не сохранить срыв пуша #%d: %v", trackerDueNum(t), serr)
 			}
+			b.kickTrackerPipeline(t)
 			return
 		}
 		appendTrackerStep(&t, "пуш в "+base)
@@ -571,11 +580,7 @@ func (b *Bot) finishTrackerBuild(taskID int64) {
 		}
 	}
 	if err := b.waitStandBuild(started); err != nil {
-		t.Error = "сборка на стенде: " + err.Error()
-		appendTrackerStep(&t, "сборка на стенде не прошла")
-		if serr := b.db.SaveTrackerTask(t); serr != nil && b.logger != nil {
-			b.logger.Warnf("трекер: не сохранить срыв стенда #%d: %v", trackerDueNum(t), serr)
-		}
+		b.returnTrackerFromFailedStand(&t, err)
 		return
 	}
 	_ = applyTrackerColumn(&t, trackerColDone)
@@ -588,6 +593,41 @@ func (b *Bot) finishTrackerBuild(taskID int64) {
 		return
 	}
 	b.notifyTrackerShippedOnce(t)
+}
+
+func (b *Bot) returnTrackerFromFailedStand(t *database.TrackerTask, waitErr error) {
+	if t == nil {
+		return
+	}
+	reason := "сборка не прошла"
+	if waitErr != nil && strings.TrimSpace(waitErr.Error()) != "" {
+		reason = waitErr.Error()
+	}
+	logs := ""
+	if id := standBuildDeployID(waitErr); id != "" {
+		logs = b.railwayDeployLogs(id)
+	}
+	note := "Сборка на стенде не прошла: " + reason
+	if logs != "" {
+		note += "\n\nЛоги сборки Railway:\n" + logs
+	}
+	t.Error = clipNotifyText("сборка на стенде: " + reason)
+	t.Result = strings.TrimSpace(t.Result + "\n\n" + note)
+	appendTrackerStep(t, "сборка на стенде не прошла")
+	if trackerStandFailCount(*t) >= trackerStandMaxRetries {
+		appendTrackerStep(t, "сборка не чинится после нескольких попыток")
+		if serr := b.db.SaveTrackerTask(*t); serr != nil && b.logger != nil {
+			b.logger.Warnf("трекер: не сохранить срыв стенда #%d: %v", trackerDueNum(*t), serr)
+		}
+		return
+	}
+	_ = applyTrackerColumn(t, trackerColDoing)
+	appendTrackerStep(t, "вернули в работу: сборка не прошла")
+	if serr := b.db.SaveTrackerTask(*t); serr != nil && b.logger != nil {
+		b.logger.Warnf("трекер: не сохранить возврат #%d со стенда: %v", trackerDueNum(*t), serr)
+		return
+	}
+	b.kickTrackerPipeline(*t)
 }
 
 func trackerTaskBranch(t database.TrackerTask) string {

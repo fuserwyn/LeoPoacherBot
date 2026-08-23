@@ -2,6 +2,7 @@ package bot
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"strings"
@@ -14,12 +15,54 @@ import (
 const trackerStandWait = 10 * time.Minute
 const trackerStandPoll = 12 * time.Second
 const trackerStandSkipGrace = 45 * time.Second
+const trackerStandMaxRetries = 5
+const trackerStandLogClip = 2000
 
 var trackerStandInflight sync.Map
 
 type standDeploy struct {
+	ID        string
 	Status    string
+	Service   string
 	CreatedAt time.Time
+}
+
+type standService struct {
+	ID   string
+	Name string
+}
+
+type standWaitOutcome struct {
+	Done      bool
+	Err       error
+	FailedID  string
+	FailedSvc string
+	Status    string
+}
+
+type standBuildError struct {
+	Service  string
+	DeployID string
+	Status   string
+	Msg      string
+}
+
+func (e *standBuildError) Error() string {
+	if e == nil {
+		return "сборка не прошла"
+	}
+	if strings.TrimSpace(e.Msg) != "" {
+		return e.Msg
+	}
+	svc := strings.TrimSpace(e.Service)
+	if svc == "" {
+		svc = "стенд"
+	}
+	st := strings.ToLower(strings.TrimSpace(e.Status))
+	if st == "" {
+		st = "failed"
+	}
+	return fmt.Sprintf("%s: деплой %s", svc, st)
 }
 
 func tryBeginTrackerStand(taskID int64) bool {
@@ -40,9 +83,7 @@ func standDeployInFlight(status string) bool {
 	}
 }
 
-// standWaitDecision — SUCCESS новой сборки, или уже живой стенд, если
-// MiniApp после пуша не пересобирался (SKIPPED / нет правок фронта).
-func standWaitDecision(deploys []standDeploy, since, started, now time.Time) (done bool, fail error) {
+func standWaitDecision(deploys []standDeploy, since, started, now time.Time) standWaitOutcome {
 	latestSuccess := false
 	inFlight := false
 	newSuccess := false
@@ -56,43 +97,122 @@ func standWaitDecision(deploys []standDeploy, since, started, now time.Time) (do
 			}
 		}
 		if fresh && (st == "FAILED" || st == "CRASHED") {
-			return false, fmt.Errorf("деплой %s", strings.ToLower(st))
+			return standWaitOutcome{
+				Err:       fmt.Errorf("деплой %s", strings.ToLower(st)),
+				FailedID:  d.ID,
+				FailedSvc: d.Service,
+				Status:    strings.ToLower(st),
+			}
 		}
 		if fresh && standDeployInFlight(st) {
 			inFlight = true
 		}
 	}
 	if newSuccess {
-		return true, nil
+		return standWaitOutcome{Done: true}
 	}
 	if inFlight {
-		return false, nil
+		return standWaitOutcome{}
 	}
 	if latestSuccess && !started.IsZero() && now.Sub(started) >= trackerStandSkipGrace {
-		return true, nil
+		return standWaitOutcome{Done: true}
 	}
-	return false, nil
+	return standWaitOutcome{}
+}
+
+// standWaitServices — SUCCESS всех сервисов стенда. Свежий FAILED у Leo
+// не прячется за SKIPPED MiniApp: иначе карточка «выполнена», а бот не собрался.
+func standWaitServices(byService map[string][]standDeploy, since, started, now time.Time) standWaitOutcome {
+	if len(byService) == 0 {
+		return standWaitOutcome{}
+	}
+	waiting := false
+	for name, deploys := range byService {
+		out := standWaitDecision(deploys, since, started, now)
+		if out.Err != nil {
+			if out.FailedSvc == "" {
+				out.FailedSvc = name
+			}
+			out.Err = fmt.Errorf("%s: %w", name, out.Err)
+			return out
+		}
+		if !out.Done {
+			waiting = true
+		}
+	}
+	if waiting {
+		return standWaitOutcome{}
+	}
+	return standWaitOutcome{Done: true}
 }
 
 func trackerTaskShippedToStand(t database.TrackerTask) bool {
+	shipped := false
 	for _, s := range t.Steps {
 		low := strings.ToLower(s)
 		if strings.Contains(low, "пуш в ") || strings.Contains(low, "ждём сборку") {
-			return true
+			shipped = true
+		}
+		if strings.Contains(low, "вернули в работу") {
+			shipped = false
 		}
 	}
-	return false
+	return shipped
 }
 
-// waitStandBuild — после пуша в main карточка сидит в «Сборка», пока MiniApp
-// на Railway не станет SUCCESS. Если новой сборки нет — живой стенд тоже ок.
-// Падение Railway API не держит карточку вечно: проверяем, что стенд отвечает.
+func trackerStandFailCount(t database.TrackerTask) int {
+	n := 0
+	for _, s := range t.Steps {
+		low := strings.ToLower(s)
+		if strings.Contains(low, "сборка на стенде не прошла") {
+			n++
+		}
+	}
+	return n
+}
+
+func standBuildDeployID(err error) string {
+	var e *standBuildError
+	if errors.As(err, &e) && e != nil {
+		return e.DeployID
+	}
+	return ""
+}
+
+func clipStandLogs(text string) string {
+	text = strings.TrimSpace(text)
+	if text == "" {
+		return ""
+	}
+	lines := strings.Split(text, "\n")
+	var useful []string
+	for _, line := range lines {
+		low := strings.ToLower(line)
+		if strings.Contains(low, "error") || strings.Contains(low, "undefined") ||
+			strings.Contains(low, "failed") || strings.Contains(low, "fatal") ||
+			strings.Contains(low, "cannot") || strings.Contains(low, "build failed") {
+			useful = append(useful, line)
+		}
+	}
+	if len(useful) > 0 {
+		text = strings.Join(useful, "\n")
+	}
+	r := []rune(text)
+	if len(r) <= trackerStandLogClip {
+		return text
+	}
+	return string(r[len(r)-trackerStandLogClip:])
+}
+
+// waitStandBuild — после пуша в main карточка сидит в «Сборка», пока Leo
+// и MiniApp на Railway не станут SUCCESS. Если сервиса не пересобирали
+// (SKIPPED) — живой стенд тоже ок. Свежий FAILED любого из них — ошибка.
 func (b *Bot) waitStandBuild(started time.Time) error {
 	if b == nil || b.config == nil {
 		return fmt.Errorf("нет конфигурации Railway")
 	}
 	if strings.TrimSpace(b.config.RailwayToken) != "" && strings.TrimSpace(b.config.RailwayProjectID) != "" {
-		if err := b.waitRailwayMiniApp(started); err == nil {
+		if err := b.waitRailwayStand(started); err == nil {
 			return nil
 		} else if strings.Contains(err.Error(), "деплой ") {
 			return err
@@ -101,47 +221,41 @@ func (b *Bot) waitStandBuild(started time.Time) error {
 	return b.waitMiniappHTTP()
 }
 
-func (b *Bot) waitRailwayMiniApp(started time.Time) error {
-	envID, svcID, err := b.lookupMainMiniApp()
+func (b *Bot) waitRailwayStand(started time.Time) error {
+	envID, svcs, err := b.lookupMainStandServices()
 	if err != nil {
 		return err
 	}
 	since := started.Add(-45 * time.Second)
 	deadline := time.Now().Add(trackerStandWait)
 	for time.Now().Before(deadline) {
-		raw, err := b.railwayCall(
-			`query($sid:String!,$eid:String!){ deployments(first:5, input:{serviceId:$sid, environmentId:$eid}){ edges{ node{ id status createdAt } } } }`,
-			map[string]any{"sid": svcID, "eid": envID},
-		)
-		if err != nil {
+		by := make(map[string][]standDeploy, len(svcs))
+		apiFail := 0
+		for _, svc := range svcs {
+			deploys, lerr := b.listStandDeploys(svc.ID, envID)
+			if lerr != nil {
+				apiFail++
+				continue
+			}
+			for i := range deploys {
+				deploys[i].Service = svc.Name
+			}
+			by[svc.Name] = deploys
+		}
+		if len(by) == 0 && apiFail > 0 {
 			time.Sleep(trackerStandPoll)
 			continue
 		}
-		var parsed struct {
-			Deployments struct {
-				Edges []struct {
-					Node struct {
-						ID        string `json:"id"`
-						Status    string `json:"status"`
-						CreatedAt string `json:"createdAt"`
-					} `json:"node"`
-				} `json:"edges"`
-			} `json:"deployments"`
+		out := standWaitServices(by, since, started, time.Now())
+		if out.Err != nil {
+			return &standBuildError{
+				Service:  out.FailedSvc,
+				DeployID: out.FailedID,
+				Status:   out.Status,
+				Msg:      out.Err.Error(),
+			}
 		}
-		if json.Unmarshal(raw, &parsed) != nil {
-			time.Sleep(trackerStandPoll)
-			continue
-		}
-		deploys := make([]standDeploy, 0, len(parsed.Deployments.Edges))
-		for _, edge := range parsed.Deployments.Edges {
-			at, _ := time.Parse(time.RFC3339, edge.Node.CreatedAt)
-			deploys = append(deploys, standDeploy{Status: edge.Node.Status, CreatedAt: at})
-		}
-		done, fail := standWaitDecision(deploys, since, started, time.Now())
-		if fail != nil {
-			return fail
-		}
-		if done {
+		if out.Done {
 			return nil
 		}
 		time.Sleep(trackerStandPoll)
@@ -149,13 +263,108 @@ func (b *Bot) waitRailwayMiniApp(started time.Time) error {
 	return fmt.Errorf("не уложилась в 10 минут")
 }
 
-func (b *Bot) lookupMainMiniApp() (envID, svcID string, err error) {
+func (b *Bot) listStandDeploys(svcID, envID string) ([]standDeploy, error) {
+	raw, err := b.railwayCall(
+		`query($sid:String!,$eid:String!){ deployments(first:5, input:{serviceId:$sid, environmentId:$eid}){ edges{ node{ id status createdAt } } } }`,
+		map[string]any{"sid": svcID, "eid": envID},
+	)
+	if err != nil {
+		return nil, err
+	}
+	var parsed struct {
+		Deployments struct {
+			Edges []struct {
+				Node struct {
+					ID        string `json:"id"`
+					Status    string `json:"status"`
+					CreatedAt string `json:"createdAt"`
+				} `json:"node"`
+			} `json:"edges"`
+		} `json:"deployments"`
+	}
+	if err := json.Unmarshal(raw, &parsed); err != nil {
+		return nil, err
+	}
+	deploys := make([]standDeploy, 0, len(parsed.Deployments.Edges))
+	for _, edge := range parsed.Deployments.Edges {
+		at, _ := time.Parse(time.RFC3339, edge.Node.CreatedAt)
+		deploys = append(deploys, standDeploy{
+			ID:        edge.Node.ID,
+			Status:    edge.Node.Status,
+			CreatedAt: at,
+		})
+	}
+	return deploys, nil
+}
+
+func (b *Bot) railwayDeployLogs(deployID string) string {
+	if b == nil || strings.TrimSpace(deployID) == "" {
+		return ""
+	}
+	if logs := b.railwayBuildLogsQuery(deployID); logs != "" {
+		return logs
+	}
+	return b.railwayRuntimeLogsQuery(deployID)
+}
+
+func (b *Bot) railwayBuildLogsQuery(deployID string) string {
+	raw, err := b.railwayCall(
+		`query($id:String!){ buildLogs(deploymentId:$id) }`,
+		map[string]any{"id": deployID},
+	)
+	if err != nil {
+		return ""
+	}
+	var parsed struct {
+		BuildLogs string `json:"buildLogs"`
+	}
+	if json.Unmarshal(raw, &parsed) != nil {
+		return ""
+	}
+	return clipStandLogs(parsed.BuildLogs)
+}
+
+func (b *Bot) railwayRuntimeLogsQuery(deployID string) string {
+	raw, err := b.railwayCall(
+		`query($id:String!,$n:Int){ deploymentLogs(deploymentId:$id, limit:$n){ message } }`,
+		map[string]any{"id": deployID, "n": 80},
+	)
+	if err != nil {
+		return ""
+	}
+	var parsed struct {
+		DeploymentLogs []struct {
+			Message string `json:"message"`
+		} `json:"deploymentLogs"`
+	}
+	if json.Unmarshal(raw, &parsed) != nil {
+		return ""
+	}
+	var bld strings.Builder
+	for _, line := range parsed.DeploymentLogs {
+		if msg := strings.TrimSpace(line.Message); msg != "" {
+			bld.WriteString(msg)
+			bld.WriteByte('\n')
+		}
+	}
+	return clipStandLogs(bld.String())
+}
+
+func isStandWatchService(name string) bool {
+	n := strings.ToLower(strings.TrimSpace(name))
+	if n == "" || strings.Contains(n, "tracker") || strings.Contains(n, "postgres") {
+		return false
+	}
+	return n == "miniapp" || n == "ms_leo" || n == "leo" || strings.HasPrefix(n, "ms_leo")
+}
+
+func (b *Bot) lookupMainStandServices() (envID string, svcs []standService, err error) {
 	raw, err := b.railwayCall(
 		`query($id:String!){ project(id:$id){ environments{ edges{ node{ id name } } } services{ edges{ node{ id name } } } } }`,
 		map[string]any{"id": strings.TrimSpace(b.config.RailwayProjectID)},
 	)
 	if err != nil {
-		return "", "", err
+		return "", nil, err
 	}
 	var parsed struct {
 		Project struct {
@@ -178,7 +387,7 @@ func (b *Bot) lookupMainMiniApp() (envID, svcID string, err error) {
 		} `json:"project"`
 	}
 	if err := json.Unmarshal(raw, &parsed); err != nil {
-		return "", "", err
+		return "", nil, err
 	}
 	wantEnv := "main"
 	if br := strings.ToLower(strings.TrimSpace(b.config.BoardBranch)); br != "" && br != "main" {
@@ -194,15 +403,14 @@ func (b *Bot) lookupMainMiniApp() (envID, svcID string, err error) {
 		envID = parsed.Project.Environments.Edges[0].Node.ID
 	}
 	for _, s := range parsed.Project.Services.Edges {
-		if strings.EqualFold(s.Node.Name, "MiniApp") {
-			svcID = s.Node.ID
-			break
+		if isStandWatchService(s.Node.Name) {
+			svcs = append(svcs, standService{ID: s.Node.ID, Name: s.Node.Name})
 		}
 	}
-	if envID == "" || svcID == "" {
-		return "", "", fmt.Errorf("MiniApp на стенде не найден")
+	if envID == "" || len(svcs) == 0 {
+		return "", nil, fmt.Errorf("сервисы стенда не найдены")
 	}
-	return envID, svcID, nil
+	return envID, svcs, nil
 }
 
 func (b *Bot) waitMiniappHTTP() error {

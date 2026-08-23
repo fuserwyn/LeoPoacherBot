@@ -275,17 +275,52 @@ func prepareRepo(cfg config.Config, job store.Job, dir string) (repoDir, branch 
 	if branch == "" {
 		branch = taskBranch(job)
 	}
-	if remoteBranchExists(repoDir, branch) {
-		if err = run(repoDir, "git", "fetch", "origin", branch, "--depth", "20"); err != nil {
-			return repoDir, branch, cleanup, fmt.Errorf("fetch: %w", err)
-		}
-		if err = run(repoDir, "git", "checkout", "-B", branch, "origin/"+branch); err != nil {
-			return repoDir, branch, cleanup, err
-		}
-	} else if err = run(repoDir, "git", "checkout", "-B", branch); err != nil {
+	if err = checkoutTaskBranch(repoDir, branch, defaultBranch(cfg)); err != nil {
 		return repoDir, branch, cleanup, err
 	}
 	return repoDir, branch, cleanup, nil
+}
+
+func defaultBranch(cfg config.Config) string {
+	base := strings.TrimSpace(cfg.Branch)
+	if base == "" {
+		return "main"
+	}
+	return base
+}
+
+// checkoutTaskBranch поднимает ветку задачи. После shallow clone
+// `git fetch origin <branch>` кладёт коммит в FETCH_HEAD и часто
+// не создаёт origin/<branch> — от него checkout -B падает 128.
+// Если ветки на remote нет, отталкиваемся от main.
+func checkoutTaskBranch(repoDir, branch, base string) error {
+	if base == "" {
+		base = "main"
+	}
+	if remoteBranchExists(repoDir, branch) {
+		refspec := "+refs/heads/" + branch + ":refs/remotes/origin/" + branch
+		if err := run(repoDir, "git", "fetch", "origin", refspec, "--depth", "20"); err == nil {
+			if err := run(repoDir, "git", "checkout", "-B", branch, "FETCH_HEAD"); err == nil {
+				return nil
+			}
+			if err := run(repoDir, "git", "checkout", "-B", branch, "origin/"+branch); err == nil {
+				return nil
+			}
+		}
+	}
+	return checkoutFromBase(repoDir, branch, base)
+}
+
+func checkoutFromBase(repoDir, branch, base string) error {
+	if err := run(repoDir, "git", "fetch", "origin", base, "--depth", "20"); err == nil {
+		if err := run(repoDir, "git", "checkout", "-B", branch, "FETCH_HEAD"); err == nil {
+			return nil
+		}
+	}
+	if err := run(repoDir, "git", "checkout", "-B", branch, "origin/"+base); err == nil {
+		return nil
+	}
+	return run(repoDir, "git", "checkout", "-B", branch)
 }
 
 func applyPhaseCommit(cfg config.Config, job store.Job, note string, edits []fileEdit) (string, string, bool, error) {

@@ -20,6 +20,13 @@ func TestTrackerAgentPromptPhases(t *testing.T) {
 		!strings.Contains(doing, "замечания ревью") || !strings.Contains(doing, "подпись короче") {
 		t.Fatalf("doing: %q", doing)
 	}
+	stand := trackerAgentPrompt(database.TrackerTask{
+		Num: 16, Prompt: "вариации мудрости",
+		Result: "Сборка на стенде не прошла: ms_leo: деплой failed\n\nЛоги сборки Railway:\nundefined: embeddedDailyWisdomVariation1",
+	}, "doing")
+	if !strings.Contains(stand, "Сборка Railway упала") || !strings.Contains(stand, "embeddedDailyWisdomVariation1") {
+		t.Fatalf("stand logs: %q", stand)
+	}
 	review := trackerAgentPrompt(task, "review")
 	if !strings.Contains(review, "Посредственное") || !strings.Contains(review, "можно на тест") {
 		t.Fatalf("review: %q", review)
