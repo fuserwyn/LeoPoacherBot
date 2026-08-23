@@ -857,11 +857,12 @@
   margin-bottom: 8px;
 }
 
+/* Один размер с «Взять больничный» (.profile__health-btn) — меньший вариант. */
 .profile__streak-save-btn {
   width: 100%;
   margin-top: 0;
-  padding: 14px 20px;
-  font-size: 15px;
+  padding: 10px 14px;
+  font-size: 14px;
   line-height: 1.2;
 }
 
@@ -894,6 +895,10 @@
   padding: 10px 14px;
   font-size: 14px;
   line-height: 1.2;
+}
+
+.profile__health-hint {
+  margin: 0;
 }
 
 .profile__health-btn--secondary {
