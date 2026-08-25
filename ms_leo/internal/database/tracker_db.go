@@ -61,6 +61,13 @@ CREATE TABLE IF NOT EXISTS leo_autonomy (
 	updated_at    TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW()
 );
 
+CREATE TABLE IF NOT EXISTS pack_tracker_settings (
+	key        TEXT PRIMARY KEY,
+	value      TEXT NOT NULL DEFAULT '',
+	updated_by BIGINT,
+	updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
 CREATE TABLE IF NOT EXISTS ms_tracker_jobs (
 	id              BIGSERIAL PRIMARY KEY,
 	source_task_id  BIGINT NOT NULL DEFAULT 0,
@@ -187,6 +194,11 @@ func copyTrackerTables(src, dst *sql.DB) error {
 	); err != nil {
 		return err
 	}
+	if err := copyIfDestEmpty(src, dst, "pack_tracker_settings",
+		"key, value, updated_by, updated_at",
+	); err != nil {
+		return err
+	}
 	if err := copyIfDestEmpty(src, dst, "ms_tracker_jobs",
 		"id, source_task_id, source_num, author_id, prompt, phase, when_at, when_label, status, error, result, steps, model, auto_push, branch, created_at, updated_at",
 	); err != nil {
@@ -297,6 +309,7 @@ func dropTrackerTablesFromLeo(src, dst *sql.DB) error {
 	}
 	_, err := src.Exec(`
 		DROP TABLE IF EXISTS pack_tracker_attachments;
+		DROP TABLE IF EXISTS pack_tracker_settings;
 		DROP TABLE IF EXISTS pack_tracker_tasks;
 		DROP TABLE IF EXISTS leo_autonomy;
 		DROP TABLE IF EXISTS ms_tracker_jobs;

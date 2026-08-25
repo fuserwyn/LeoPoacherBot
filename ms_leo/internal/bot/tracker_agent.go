@@ -579,10 +579,24 @@ func (b *Bot) finishTrackerBuild(taskID int64) {
 			b.logger.Warnf("трекер: не сохранить сборку #%d: %v", trackerDueNum(t), err)
 		}
 	}
-	if err := b.waitStandBuild(started); err != nil {
+	// Сборку заказываем сами, а не ждём вебхук GitHub → Railway: он мог быть
+	// снят вместе с автосборкой сервиса, и тогда ждать было бы нечего.
+	// Заказ помним: сюда же возвращается планировщик каждые 15 секунд, а
+	// пересборка ms_leo перезапускает нас самих — иначе вышел бы вечный круг.
+	order := b.loadTrackerDeployOrder(t.ID)
+	if !order.Ordered {
+		order = b.startTrackerDeploy(&t)
+		b.saveTrackerDeployOrder(t.ID, order)
+		if err := b.db.SaveTrackerTask(t); err != nil && b.logger != nil {
+			b.logger.Warnf("трекер: не сохранить заказ сборки #%d: %v", trackerDueNum(t), err)
+		}
+	}
+	if err := b.waitStandBuild(started, order.Pinned); err != nil {
+		b.clearTrackerDeployOrder(t.ID)
 		b.returnTrackerFromFailedStand(&t, err)
 		return
 	}
+	b.clearTrackerDeployOrder(t.ID)
 	_ = applyTrackerColumn(&t, trackerColDone)
 	appendTrackerStep(&t, "стенд собрался")
 	t.Error = ""

@@ -63,7 +63,7 @@ func TestStandWaitLeoFailBeatsMiniAppSkip(t *testing.T) {
 		"ms_leo": {
 			{ID: "leo-fail", Status: "FAILED", CreatedAt: started.Add(12 * time.Second)},
 		},
-	}, since, started, started.Add(time.Minute))
+	}, nil, since, started, started.Add(time.Minute))
 	if out.Err == nil || out.Done || out.FailedID != "leo-fail" {
 		t.Fatalf("leo fail must win: %+v", out)
 	}
@@ -84,7 +84,7 @@ func TestStandWaitLeoSuccessAndMiniAppSkip(t *testing.T) {
 		"ms_leo": {
 			{Status: "SUCCESS", CreatedAt: started.Add(20 * time.Second)},
 		},
-	}, since, started, started.Add(trackerStandSkipGrace+time.Second))
+	}, nil, since, started, started.Add(trackerStandSkipGrace+time.Second))
 	if out.Err != nil || !out.Done {
 		t.Fatalf("leo success + miniapp live: %+v", out)
 	}

@@ -96,6 +96,8 @@ export type TrackerOp =
   | "promote"
   | "revert"
   | "ship"
+  | "deploy"
+  | "deploy_settings"
   | "move"
   | "sprint_ideas"
   | "sprint_generate"
@@ -196,6 +198,27 @@ export function trackerShip(initData: string, taskId: number) {
     "ship",
     { task_id: taskId, payload: { id: taskId } },
   );
+}
+
+/** Состояние автодеплоя: сам ли трекер просит Railway собраться после выката. */
+export type TrackerDeploy = {
+  enabled: boolean;
+  configured: boolean;
+  services?: string[];
+  hint?: string;
+};
+
+/** Выкатить задачу на Railway прямо сейчас — даже если карточка уже «Выполнено». */
+export function trackerDeployNow(initData: string, taskId: number) {
+  return call<{ deploy?: boolean; busy?: boolean }>(initData, "deploy", {
+    task_id: taskId,
+    payload: { id: taskId },
+  });
+}
+
+/** Прочитать (status) или переключить (on/off) автодеплой доски. */
+export function trackerDeploySettings(initData: string, action: "status" | "on" | "off" = "status") {
+  return call<{ deploy: TrackerDeploy }>(initData, "deploy_settings", { payload: { action } });
 }
 
 export function trackerTask(initData: string, taskId: number) {

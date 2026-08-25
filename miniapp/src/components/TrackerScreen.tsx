@@ -15,6 +15,8 @@ import {
   trackerCancel,
   trackerCreate,
   trackerDelete,
+  trackerDeployNow,
+  trackerDeploySettings,
   trackerList,
   trackerMove,
   trackerQa,
@@ -27,6 +29,7 @@ import {
   trackerAutoTest,
   type LeoAutonomy,
   type SprintFeature,
+  type TrackerDeploy,
   type SprintIdea,
   type TrackerTask,
 } from "../lib/trackerApi";
@@ -208,6 +211,9 @@ export function TrackerScreen({ initData, showAlert }: Props) {
   const [autonomy, setAutonomy] = useState<LeoAutonomy | null>(null);
   const [autonomyDays, setAutonomyDays] = useState(1);
   const [autonomyBusy, setAutonomyBusy] = useState(false);
+  /** Автодеплой: трекер сам просит Railway собраться после пуша в main. */
+  const [deploy, setDeploy] = useState<TrackerDeploy | null>(null);
+  const [deployBusy, setDeployBusy] = useState(false);
   /** Задача от Лео на утверждении: он предлагает — админ решает. */
   const [proposal, setProposal] = useState<{ reply: string; title: string; task: string } | null>(null);
   const [rejected, setRejected] = useState<string[]>([]);
@@ -382,9 +388,40 @@ export function TrackerScreen({ initData, showAlert }: Props) {
     }
   }, [initData]);
 
+  // Состояние автодеплоя читаем там же, где автономию: оно живёт на сервере
+  // и может измениться из другой сессии админа.
+  const loadDeploy = useCallback(async () => {
+    try {
+      setDeploy((await trackerDeploySettings(initData, "status")).deploy);
+    } catch {
+      // Настройка только для настоящих админов — остальным блок не показываем.
+      setDeploy(null);
+    }
+  }, [initData]);
+
   useEffect(() => {
-    if (tab === "task") void loadAutonomy();
-  }, [tab, loadAutonomy]);
+    if (tab === "task") {
+      void loadAutonomy();
+      void loadDeploy();
+    }
+  }, [tab, loadAutonomy, loadDeploy]);
+
+  const switchDeploy = async (on: boolean) => {
+    setDeployBusy(true);
+    try {
+      const next = await trackerDeploySettings(initData, on ? "on" : "off");
+      setDeploy(next.deploy);
+      showAlert(
+        on
+          ? "Готовые задачи будут собираться на Railway сами."
+          : "Автодеплой выключен: код уедет в main, а сборку запускай кнопкой.",
+      );
+    } catch (e) {
+      showAlert(e instanceof Error ? e.message : "Не получилось");
+    } finally {
+      setDeployBusy(false);
+    }
+  };
 
   const switchAutonomy = async (action: "start" | "stop") => {
     setAutonomyBusy(true);
@@ -779,6 +816,37 @@ export function TrackerScreen({ initData, showAlert }: Props) {
                     Остановить
                   </button>
                 ) : null}
+              </div>
+            </div>
+          ) : null}
+
+          {deploy ? (
+            <div className="tracker__leo tracker__auto">
+              <div className="tracker__leo-head">
+                <span aria-hidden>🚀</span>
+                <b>Автодеплой на Railway</b>
+                <span className={`tracker__auto-state${deploy.enabled ? " is-on" : ""}`}>
+                  {deploy.enabled ? "включено" : "выключено"}
+                </span>
+              </div>
+              <p className="tracker__hint">
+                Задача прошла тест — трекер вливает её ветку в main и сам просит Railway собрать
+                прод, не надеясь на вебхук. «Выполнено» карточка получит, только когда сборка
+                действительно прошла.
+              </p>
+              {deploy.services?.length ? (
+                <p className="tracker__auto-facts">Пересобираем: {deploy.services.join(", ")}</p>
+              ) : null}
+              {deploy.hint ? <p className="tracker__auto-facts">{deploy.hint}</p> : null}
+              <div className="tracker__new-row">
+                <button
+                  type="button"
+                  className={deploy.enabled ? "tracker__attach" : "tracker__primary"}
+                  disabled={deployBusy}
+                  onClick={() => void switchDeploy(!deploy.enabled)}
+                >
+                  {deploy.enabled ? "Выключить" : "Включить автодеплой"}
+                </button>
               </div>
             </div>
           ) : null}
@@ -1187,6 +1255,21 @@ export function TrackerScreen({ initData, showAlert }: Props) {
                   }
                 >
                   Тест Composer
+                </button>
+              ) : null}
+              {!isQa && (detail.dev_column === "deploy" || detail.dev_column === "done") ? (
+                <button
+                  type="button"
+                  className="tracker-modal__accent"
+                  disabled={busy}
+                  onClick={() =>
+                    void actOnDetail(async () => {
+                      const res = await trackerDeployNow(initData, detail.id);
+                      if (res.busy) throw new Error("Сборка этой задачи уже идёт.");
+                    }, "Railway собирает прод. Ход сборки — в шагах карточки.")
+                  }
+                >
+                  🚀 Задеплоить
                 </button>
               ) : null}
               {canReturnToWork(detail) ? (

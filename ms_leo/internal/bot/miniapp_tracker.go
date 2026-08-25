@@ -217,6 +217,10 @@ func (b *Bot) trackerRequest(
 		return b.localTrackerPromoteRevert("Откат")
 	case "ship", "push", "deploy_refresh", "deploy_watch":
 		return b.localTrackerShip(taskID, payload)
+	case "deploy":
+		return b.localTrackerDeployNow(taskID, payload)
+	case "deploy_settings":
+		return b.localTrackerDeploySettings(payload, userID)
 	case "sprint_ideas":
 		return b.localTrackerSprintIdeas(payload)
 	case "sprint_generate":
@@ -337,6 +341,12 @@ func trackerErrorBlocksShip(err string) bool {
 	}
 	low := strings.ToLower(e)
 	if strings.Contains(low, "push") || strings.Contains(low, "пуш") || strings.Contains(low, "git") {
+		return false
+	}
+	// Сорванная сборка чинится повтором выката, а не возвратом в работу.
+	// Иначе карточка запиралась: «Задеплоить» отвечало skipped и молчало.
+	if strings.Contains(low, "деплой") || strings.Contains(low, "сборка") ||
+		strings.Contains(low, "стенд") || strings.Contains(low, "railway") {
 		return false
 	}
 	return true

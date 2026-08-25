@@ -74,6 +74,12 @@ func endTrackerStand(taskID int64) {
 	trackerStandInflight.Delete(taskID)
 }
 
+// trackerStandBusy — по этой карточке уже идёт сборка.
+func trackerStandBusy(taskID int64) bool {
+	_, busy := trackerStandInflight.Load(taskID)
+	return busy
+}
+
 func standDeployInFlight(status string) bool {
 	switch strings.ToUpper(strings.TrimSpace(status)) {
 	case "BUILDING", "DEPLOYING", "INITIALIZING", "QUEUED", "WAITING", "PENDING", "NEEDS_APPROVAL":
@@ -120,15 +126,48 @@ func standWaitDecision(deploys []standDeploy, since, started, now time.Time) sta
 	return standWaitOutcome{}
 }
 
+// standWaitPinned — ждём ровно тот деплой, который заказали сами.
+// Чужая старая сборка за успех не считается: карточка закрывается только
+// когда собралось то, что мы отправили.
+func standWaitPinned(deploys []standDeploy, deployID string) standWaitOutcome {
+	deployID = strings.TrimSpace(deployID)
+	for _, d := range deploys {
+		if strings.TrimSpace(d.ID) != deployID {
+			continue
+		}
+		st := strings.ToUpper(strings.TrimSpace(d.Status))
+		switch st {
+		case "SUCCESS":
+			return standWaitOutcome{Done: true}
+		case "FAILED", "CRASHED", "REMOVED":
+			return standWaitOutcome{
+				Err:       fmt.Errorf("деплой %s", strings.ToLower(st)),
+				FailedID:  d.ID,
+				FailedSvc: d.Service,
+				Status:    strings.ToLower(st),
+			}
+		}
+		return standWaitOutcome{} // ещё собирается
+	}
+	return standWaitOutcome{} // заказанный деплой пока не виден в списке
+}
+
 // standWaitServices — SUCCESS всех сервисов стенда. Свежий FAILED у Leo
 // не прячется за SKIPPED MiniApp: иначе карточка «выполнена», а бот не собрался.
-func standWaitServices(byService map[string][]standDeploy, since, started, now time.Time) standWaitOutcome {
+func standWaitServices(
+	byService map[string][]standDeploy, pinned map[string]string, since, started, now time.Time,
+) standWaitOutcome {
 	if len(byService) == 0 {
 		return standWaitOutcome{}
 	}
 	waiting := false
 	for name, deploys := range byService {
-		out := standWaitDecision(deploys, since, started, now)
+		var out standWaitOutcome
+		if id := strings.TrimSpace(pinned[name]); id != "" {
+			out = standWaitPinned(deploys, id)
+		} else {
+			out = standWaitDecision(deploys, since, started, now)
+		}
 		if out.Err != nil {
 			if out.FailedSvc == "" {
 				out.FailedSvc = name
@@ -207,21 +246,26 @@ func clipStandLogs(text string) string {
 // waitStandBuild — после пуша в main карточка сидит в «Сборка», пока Leo
 // и MiniApp на Railway не станут SUCCESS. Если сервиса не пересобирали
 // (SKIPPED) — живой стенд тоже ок. Свежий FAILED любого из них — ошибка.
-func (b *Bot) waitStandBuild(started time.Time) error {
+func (b *Bot) waitStandBuild(started time.Time, pinned map[string]string) error {
 	if b == nil || b.config == nil {
 		return fmt.Errorf("нет конфигурации Railway")
 	}
 	if strings.TrimSpace(b.config.RailwayToken) != "" && strings.TrimSpace(b.config.RailwayProjectID) != "" {
-		if err := b.waitRailwayStand(started); err == nil {
+		err := b.waitRailwayStand(started, pinned)
+		if err == nil {
 			return nil
-		} else if strings.Contains(err.Error(), "деплой ") {
+		}
+		// Сборку заказали сами — её судьба и есть ответ. Подменять его
+		// проверкой «сайт отвечает» нельзя: старый сайт отвечает и после
+		// провалившегося деплоя, и карточка врала бы «выполнено».
+		if len(pinned) > 0 || strings.Contains(err.Error(), "деплой ") {
 			return err
 		}
 	}
 	return b.waitMiniappHTTP()
 }
 
-func (b *Bot) waitRailwayStand(started time.Time) error {
+func (b *Bot) waitRailwayStand(started time.Time, pinned map[string]string) error {
 	envID, svcs, err := b.lookupMainStandServices()
 	if err != nil {
 		return err
@@ -246,7 +290,7 @@ func (b *Bot) waitRailwayStand(started time.Time) error {
 			time.Sleep(trackerStandPoll)
 			continue
 		}
-		out := standWaitServices(by, since, started, time.Now())
+		out := standWaitServices(by, pinned, since, started, time.Now())
 		if out.Err != nil {
 			return &standBuildError{
 				Service:  out.FailedSvc,
