@@ -3,6 +3,7 @@ package bot
 import (
 	"context"
 	"fmt"
+	"runtime/debug"
 	"strconv"
 	"strings"
 	"sync"
@@ -233,7 +234,18 @@ func (b *Bot) handleTimezoneCommand(msg *tgbotapi.Message, text string) {
 	b.api.Send(tgbotapi.NewMessage(msg.Chat.ID, reply))
 }
 
+// recoverPanic не дает панике в одной горутине уронить весь процесс бота.
+// Раньше любая паника при обработке апдейта убивала приложение целиком,
+// и бот переставал отвечать на команды до перезапуска.
+func (b *Bot) recoverPanic(where string) {
+	if r := recover(); r != nil {
+		b.logger.Errorf("Recovered panic in %s: %v\n%s", where, r, debug.Stack())
+	}
+}
+
 func (b *Bot) handleUpdate(update tgbotapi.Update) {
+	defer b.recoverPanic("handleUpdate")
+
 	// Обрабатываем callback queries (нажатия на inline кнопки)
 	if update.CallbackQuery != nil {
 		b.handleCallbackQuery(update.CallbackQuery)
@@ -259,6 +271,14 @@ func (b *Bot) handleUpdate(update tgbotapi.Update) {
 	}
 
 	msg := update.Message
+
+	// Сообщения от имени канала или анонимного админа приходят без From.
+	// Раньше разыменование msg.From.ID здесь паниковало и роняло бота.
+	if msg.From == nil {
+		b.logger.Infof("Skipping message without sender in chat %d", msg.Chat.ID)
+		return
+	}
+
 	b.logger.Infof("Received message from %d: %s", msg.From.ID, msg.Text)
 
 	// Админ-мастер перехватывает сообщения владельца в личке при активной сессии.
@@ -2694,6 +2714,8 @@ func (b *Bot) calculateRemainingTime(messageLog *domain.MessageLog) time.Duratio
 
 // startDailySummaryScheduler запускает планировщик ежемесячных сводок 1-го числа в 16:20
 func (b *Bot) startDailySummaryScheduler(ctx context.Context) {
+	defer b.recoverPanic("startDailySummaryScheduler")
+
 	if b.aiClient == nil {
 		b.logger.Warn("AI client not available, monthly summary scheduler disabled")
 		return
@@ -2733,6 +2755,8 @@ func (b *Bot) startDailySummaryScheduler(ctx context.Context) {
 
 // startDailyWisdomScheduler отправляет «мудрость дня» ежедневно в 04:20 (МСК)
 func (b *Bot) startDailyWisdomScheduler(ctx context.Context) {
+	defer b.recoverPanic("startDailyWisdomScheduler")
+
 	if b.aiClient == nil {
 		b.logger.Warn("AI client not available, daily wisdom scheduler disabled")
 		return
@@ -3812,6 +3836,8 @@ func (b *Bot) handleAIQuestion(msg *tgbotapi.Message, questionText string) {
 
 // scanChatHistory сканирует историю сообщений за указанный период и сохраняет в БД
 func (b *Bot) scanChatHistory(ctx context.Context, daysBack int) {
+	defer b.recoverPanic("scanChatHistory")
+
 	b.logger.Infof("Starting chat history scan for last %d days", daysBack)
 
 	// Вычисляем время, с которого начинать сканирование
