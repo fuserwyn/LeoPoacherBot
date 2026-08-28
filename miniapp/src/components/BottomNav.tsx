@@ -229,9 +229,9 @@ export function BottomNav({
         aria-label="Добавить тренировку"
         title="Добавить тренировку"
       >
-        <span className="bottom-nav__add-plus" aria-hidden>
-          +
-        </span>
+        <svg className="bottom-nav__add-plus" viewBox="0 0 24 24" aria-hidden focusable="false">
+          <path d="M12 5v14M5 12h14" />
+        </svg>
       </button>
 
       <button

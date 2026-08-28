@@ -26,7 +26,9 @@ describe("BottomNav tab row", () => {
     const tabs = [...container.querySelectorAll(".bottom-nav__tabs > *")];
     expect(tabs).toHaveLength(5);
     expect(tabs[2]?.classList.contains("bottom-nav__add")).toBe(true);
-    expect(tabs[2]?.textContent?.trim()).toBe("+");
+    expect(tabs[2]?.getAttribute("aria-label")).toBe("Добавить тренировку");
+    // Крест — SVG, а не глиф: только так он центрируется независимо от шрифта.
+    expect(tabs[2]?.querySelector("svg.bottom-nav__add-plus")).toBeTruthy();
   });
 });
 
