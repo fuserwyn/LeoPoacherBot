@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"runtime/debug"
 	"strconv"
 	"strings"
 	"sync"
@@ -304,7 +305,18 @@ func isPackCommandHashtag(text string) bool {
 		strings.Contains(lower, "#healthy")
 }
 
+// recoverPanic не дает панике в одной горутине уронить весь процесс бота.
+// Апдейты обрабатываются в `go b.handleUpdate(update)`, поэтому любая паника
+// внутри убивала приложение целиком и бот переставал отвечать на команды.
+func (b *Bot) recoverPanic(where string) {
+	if r := recover(); r != nil {
+		b.logger.Errorf("Recovered panic in %s: %v\n%s", where, r, debug.Stack())
+	}
+}
+
 func (b *Bot) handleUpdate(update tgbotapi.Update) {
+	defer b.recoverPanic("handleUpdate")
+
 	metrics.BotUpdatesReceived.Inc()
 
 	// Обрабатываем callback queries (нажатия на inline кнопки)
@@ -347,6 +359,16 @@ func (b *Bot) handleUpdate(update tgbotapi.Update) {
 // personalReplyCh — не nil только из Mini App: одно дублирование персонального ответа (см. #training_done).
 // trainingPhotoURLOverride — непустой при POST /api/miniapp/workout с фото (без sync.Map).
 func (b *Bot) dispatchTextMessageFromUser(msg *tgbotapi.Message, personalReplyCh chan<- string, trainingPhotoURLOverride string) {
+	// Сообщения от имени канала или анонимного админа приходят без From
+	// (у них заполнен sender_chat). Дальше по коду msg.From разыменовывается
+	// безусловно, поэтому такие апдейты отбрасываем здесь.
+	if msg == nil || msg.From == nil {
+		if msg != nil && msg.Chat != nil {
+			b.logger.Infof("Skipping message without sender in chat %d", msg.Chat.ID)
+		}
+		return
+	}
+
 	b.logger.Infof("Received message from %d: %s", msg.From.ID, msg.Text)
 
 	if msg.Chat != nil && msg.Chat.IsPrivate() && msg.From != nil && b.isAdminTelegramUser(msg.From.ID) {
