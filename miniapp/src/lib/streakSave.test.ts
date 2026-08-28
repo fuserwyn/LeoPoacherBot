@@ -41,7 +41,7 @@ describe("streakSaveHint", () => {
     expect(streakSaveHint(1, 1)).toMatch(/ещё жив/i);
     expect(streakSaveHint(0, 1)).toMatch(/ещё жив/i);
     expect(streakSaveHint(3, 1)).toMatch(/больше одного дня/i);
-    expect(streakSaveHint(2, 0)).toMatch(/попыток не осталось/i);
+    expect(streakSaveHint(2, 0)).toMatch(/попыток нет/i);
     expect(streakSaveHint(-1, 1)).toMatch(/не было тренировок/i);
   });
 });

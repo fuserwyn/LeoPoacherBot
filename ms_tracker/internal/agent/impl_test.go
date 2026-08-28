@@ -3,6 +3,7 @@ package agent
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -40,13 +41,13 @@ func TestParseImplReply(t *testing.T) {
 
 func TestApplyFileEdits(t *testing.T) {
 	dir := t.TempDir()
-	n, err := applyFileEdits(dir, []fileEdit{
+	n, rejected, err := applyFileEdits(dir, []fileEdit{
 		{Path: "miniapp/src/Hi.tsx", Content: "export const Hi = 1;\n"},
 		{Path: ".tracker/job-1.md", Content: "nope"},
 		{Path: "../escape", Content: "nope"},
 	})
-	if err != nil || n != 1 {
-		t.Fatalf("n=%d err=%v", n, err)
+	if err != nil || n != 1 || len(rejected) != 0 {
+		t.Fatalf("n=%d rejected=%v err=%v", n, rejected, err)
 	}
 	raw, err := os.ReadFile(filepath.Join(dir, "miniapp", "src", "Hi.tsx"))
 	if err != nil || string(raw) != "export const Hi = 1;\n" {
@@ -78,5 +79,60 @@ func TestCollectContextFiles(t *testing.T) {
 	got := collectContextFiles(dir, "кнопку взять больничный сделай праймари")
 	if len(got) != 1 || got[0].Path != "miniapp/src/components/ProfileScreen.tsx" {
 		t.Fatalf("%+v", got)
+	}
+}
+
+// Огрызок вместо полного файла не должен затирать оригинал: так трекер
+// вырезал ProfileScreen.tsx (#13) и index.css (#20).
+func TestApplyFileEditsRejectsTruncatedRewrite(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "miniapp", "src", "index.css")
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	full := strings.Repeat("a{color:red}\n", 500)
+	if err := os.WriteFile(path, []byte(full), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	n, rejected, err := applyFileEdits(dir, []fileEdit{
+		{Path: "miniapp/src/index.css", Content: "a{color:red}\n"},
+	})
+	if err != nil || n != 0 || len(rejected) != 1 {
+		t.Fatalf("n=%d rejected=%v err=%v", n, rejected, err)
+	}
+	raw, err := os.ReadFile(path)
+	if err != nil || string(raw) != full {
+		t.Fatal("оригинал затёрт")
+	}
+
+	// Правка сопоставимого размера проходит.
+	edited := strings.Repeat("a{color:blue}\n", 500)
+	n, rejected, err = applyFileEdits(dir, []fileEdit{
+		{Path: "miniapp/src/index.css", Content: edited},
+	})
+	if err != nil || n != 1 || len(rejected) != 0 {
+		t.Fatalf("n=%d rejected=%v err=%v", n, rejected, err)
+	}
+}
+
+// Большой файл идёт в промпт целиком либо не идёт: обрезанный контекст
+// и требование «верни полный файл» — и были причиной вырезаний.
+func TestCollectContextFilesNeverTruncates(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "miniapp", "src", "index.css")
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	body := "/* таббар */\n" + strings.Repeat(".bottom-nav{color:red}\n", 2000)
+	if err := os.WriteFile(path, []byte(body), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	got := collectContextFiles(dir, "поправить таббар")
+	if len(got) != 1 {
+		t.Fatalf("файлов: %d", len(got))
+	}
+	if got[0].Content != body {
+		t.Fatalf("контекст обрезан: %d из %d", len(got[0].Content), len(body))
 	}
 }

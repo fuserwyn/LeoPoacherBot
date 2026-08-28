@@ -2,6 +2,7 @@ package agent
 
 import (
 	"encoding/json"
+	"fmt"
 	"os"
 	"path/filepath"
 	"sort"
@@ -25,6 +26,9 @@ type fileSnippet struct {
 }
 
 var implRoots = []string{"miniapp/", "ms_leo/", "ms_tracker/"}
+
+// contextBudget — сколько символов исходников влезает в один промпт агента.
+const contextBudget = 200_000
 
 func filesHaveImpl(names []string) bool {
 	for _, name := range names {
@@ -71,8 +75,15 @@ func parseImplReply(raw string) implReply {
 	return implReply{Note: note}
 }
 
-func applyFileEdits(repoDir string, edits []fileEdit) (int, error) {
+// shrinkFloor — какую долю файла правка обязана сохранить. Модель отдаёт
+// «полный новый текст файла»; если вернулся огрызок, это не правка, а потеря
+// кода: на #13 так вырезало 1456 строк ProfileScreen.tsx, на #20 — 1006 строк
+// index.css, и оба раза ленивое ревью пропустило это в main.
+const shrinkFloor = 0.6
+
+func applyFileEdits(repoDir string, edits []fileEdit) (int, []string, error) {
 	n := 0
+	var rejected []string
 	for _, edit := range edits {
 		path := filepath.ToSlash(strings.TrimSpace(edit.Path))
 		if !isAllowedImplPath(path) || strings.TrimSpace(edit.Content) == "" {
@@ -82,15 +93,34 @@ func applyFileEdits(repoDir string, edits []fileEdit) (int, error) {
 			continue
 		}
 		full := filepath.Join(repoDir, filepath.FromSlash(path))
+		if reason := shrinkReason(full, edit.Content); reason != "" {
+			rejected = append(rejected, path+": "+reason)
+			continue
+		}
 		if err := os.MkdirAll(filepath.Dir(full), 0o755); err != nil {
-			return n, err
+			return n, rejected, err
 		}
 		if err := os.WriteFile(full, []byte(edit.Content), 0o644); err != nil {
-			return n, err
+			return n, rejected, err
 		}
 		n++
 	}
-	return n, nil
+	return n, rejected, nil
+}
+
+// shrinkReason — почему правку нельзя писать поверх существующего файла.
+// Пустая строка = писать можно (новый файл или правка нормального размера).
+func shrinkReason(full, content string) string {
+	prev, err := os.ReadFile(full)
+	if err != nil || len(prev) == 0 {
+		return ""
+	}
+	if len(content) >= int(float64(len(prev))*shrinkFloor) {
+		return ""
+	}
+	was := strings.Count(string(prev), "\n") + 1
+	now := strings.Count(content, "\n") + 1
+	return fmt.Sprintf("агент вернул %d строк вместо %d — похоже на обрезанный файл, правка отклонена", now, was)
 }
 
 func collectContextFiles(repoDir, prompt string) []fileSnippet {
@@ -125,9 +155,6 @@ func collectContextFiles(repoDir, prompt string) []fileSnippet {
 			if score <= 0 {
 				return nil
 			}
-			if len([]rune(content)) > 18_000 {
-				content = string([]rune(content)[:18_000]) + "\n…"
-			}
 			found = append(found, scored{fileSnippet{Path: rel, Content: content}, score})
 			return nil
 		})
@@ -138,11 +165,19 @@ func collectContextFiles(repoDir, prompt string) []fileSnippet {
 		}
 		return found[i].score > found[j].score
 	})
-	if len(found) > 4 {
-		found = found[:4]
-	}
-	out := make([]fileSnippet, 0, len(found))
+	// Файл идёт в промпт целиком или не идёт вовсе. Раньше большие файлы
+	// обрезались на 18k рун, а промпт при этом требовал «полный новый текст
+	// файла» — модель дописывала огрызок, и он затирал оригинал.
+	out := make([]fileSnippet, 0, 4)
+	budget := contextBudget
 	for _, item := range found {
+		if len(out) >= 4 {
+			break
+		}
+		if len(item.Content) > budget {
+			continue
+		}
+		budget -= len(item.Content)
 		out = append(out, item.fileSnippet)
 	}
 	return out

@@ -26,7 +26,7 @@ func Load() Config {
 	}
 	model := strings.TrimSpace(os.Getenv("OPENROUTER_MODEL"))
 	if model == "" {
-		model = "deepseek/deepseek-chat"
+		model = "x-ai/grok-4.6"
 	}
 	repo := strings.TrimSpace(os.Getenv("BOARD_REPO"))
 	if repo == "" {

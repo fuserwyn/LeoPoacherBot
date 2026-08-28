@@ -112,7 +112,7 @@ func Stamp(cfg config.Config, job store.Job, note string) (Result, error) {
 	if strings.TrimSpace(cfg.GithubToken) == "" || strings.TrimSpace(cfg.Repo) == "" {
 		return out, fmt.Errorf("нет GitHub")
 	}
-	branch, sha, _, err := applyPhaseCommit(cfg, job, out.Note, nil)
+	branch, sha, _, _, err := applyPhaseCommit(cfg, job, out.Note, nil)
 	out.Branch = branch
 	out.Commit = sha
 	out.Committed = sha != "" && err == nil
@@ -145,11 +145,14 @@ func applyDoing(cfg config.Config, job store.Job) (Result, error) {
 		_ = branch
 	}
 	out := Result{Note: note}
-	branch, sha, hasImpl, gerr := applyPhaseCommit(cfg, job, note, edits)
+	branch, sha, hasImpl, rejected, gerr := applyPhaseCommit(cfg, job, note, edits)
 	out.Branch = branch
 	out.Commit = sha
 	out.Committed = sha != "" && gerr == nil
 	out.HasImpl = hasImpl && out.Committed
+	if len(rejected) > 0 {
+		out.Note = strings.TrimSpace(out.Note + "\n\nОтклонённые правки:\n- " + strings.Join(rejected, "\n- "))
+	}
 	if gerr != nil {
 		if out.Note != "" {
 			out.Note += "\n\n"
@@ -323,25 +326,29 @@ func checkoutFromBase(repoDir, branch, base string) error {
 	return run(repoDir, "git", "checkout", "-B", branch)
 }
 
-func applyPhaseCommit(cfg config.Config, job store.Job, note string, edits []fileEdit) (string, string, bool, error) {
+func applyPhaseCommit(cfg config.Config, job store.Job, note string, edits []fileEdit) (string, string, bool, []string, error) {
 	dir, err := os.MkdirTemp("", "leo-tracker-*")
 	if err != nil {
-		return "", "", false, err
+		return "", "", false, nil, err
 	}
 	repoDir, branch, cleanup, err := prepareRepo(cfg, job, dir)
 	defer cleanup()
 	if err != nil {
-		return branch, "", false, err
+		return branch, "", false, nil, err
 	}
-	if _, err := applyFileEdits(repoDir, edits); err != nil {
-		return branch, "", false, err
+	_, rejected, err := applyFileEdits(repoDir, edits)
+	if err != nil {
+		return branch, "", false, rejected, err
+	}
+	if len(rejected) > 0 {
+		note = strings.TrimSpace(note + "\n\nОтклонённые правки:\n- " + strings.Join(rejected, "\n- "))
 	}
 	notePath := filepath.Join(repoDir, ".tracker", fmt.Sprintf("job-%d.md", job.SourceTaskID))
 	if job.SourceTaskID <= 0 {
 		notePath = filepath.Join(repoDir, ".tracker", fmt.Sprintf("job-%d.md", job.ID))
 	}
 	if err := os.MkdirAll(filepath.Dir(notePath), 0o755); err != nil {
-		return branch, "", false, err
+		return branch, "", false, rejected, err
 	}
 	label := commitLabel(job.Phase)
 	prev, _ := os.ReadFile(notePath)
@@ -351,29 +358,29 @@ func applyPhaseCommit(cfg config.Config, job store.Job, note string, edits []fil
 	}
 	body += fmt.Sprintf("\n## %s\n\n%s\n", label, strings.TrimSpace(note))
 	if err := os.WriteFile(notePath, []byte(body), 0o644); err != nil {
-		return branch, "", false, err
+		return branch, "", false, rejected, err
 	}
 	_ = run(repoDir, "git", "config", "user.email", "tracker@fat-leopard")
 	_ = run(repoDir, "git", "config", "user.name", "Leo Tracker")
 	if len(edits) > 0 {
 		if err := run(repoDir, "git", "add", "-A"); err != nil {
-			return branch, "", false, err
+			return branch, "", false, rejected, err
 		}
 	} else if err := run(repoDir, "git", "add", ".tracker"); err != nil {
-		return branch, "", false, err
+		return branch, "", false, rejected, err
 	}
 	hasImpl := stagedHasImpl(repoDir)
 	msg := fmt.Sprintf("tracker: #%d %s", job.SourceNum, label)
 	if err := run(repoDir, "git", "commit", "-m", msg); err != nil {
 		if sha := gitHead(repoDir); sha != "" && (label == "ревью" || label == "тест") {
-			return branch, sha, hasImpl, nil
+			return branch, sha, hasImpl, rejected, nil
 		}
-		return branch, "", false, err
+		return branch, "", false, rejected, err
 	}
 	if err := run(repoDir, "git", "push", "-u", "origin", branch); err != nil {
-		return branch, "", false, fmt.Errorf("ветка: %w", err)
+		return branch, "", false, rejected, fmt.Errorf("ветка: %w", err)
 	}
-	return branch, gitHead(repoDir), hasImpl, nil
+	return branch, gitHead(repoDir), hasImpl, rejected, nil
 }
 
 func stagedHasImpl(repoDir string) bool {

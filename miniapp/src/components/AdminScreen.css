@@ -465,7 +465,11 @@ html.app-keyboard-open .admin {
 .admin__tabs {
   flex: none;
   display: grid;
-  grid-template-columns: repeat(5, 1fr);
+  /* minmax(0, 1fr), а не 1fr: у 1fr минимум — min-content, и длинное
+     «Сообщество» раздувало свою колонку, а остальные четыре ужимались.
+     Колонки переставали быть равными, и весь таббар уезжал вправо
+     (на 360px центр средней вкладки был +3.2px, на 320px — +8.2px). */
+  grid-template-columns: repeat(5, minmax(0, 1fr));
   gap: 2px;
   padding: 6px 6px calc(6px + env(safe-area-inset-bottom, 0px));
   background: var(--nav-bg);
@@ -478,6 +482,7 @@ html.app-keyboard-open .admin {
   flex-direction: column;
   align-items: center;
   gap: 2px;
+  min-width: 0;
   padding: 6px 2px;
   border: 0;
   border-radius: 10px;
@@ -498,7 +503,14 @@ html.app-keyboard-open .admin {
 }
 
 .admin__tab-label {
-  font-size: 10.5px;
+  /* Колонки теперь строго равные, поэтому подпись подстраивается сама:
+     на 390px и шире — прежние 10.5px, на узких экранах чуть мельче,
+     чтобы «Сообщество» влезало целиком. Многоточие — крайний случай. */
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: clamp(9px, 2.7vw, 10.5px);
   font-weight: 600;
   letter-spacing: 0.01em;
 }
