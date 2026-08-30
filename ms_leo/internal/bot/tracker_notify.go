@@ -1,5 +1,7 @@
 package bot
 
+import "strings"
+
 func trackerNotifyKind(text string) string {
 	low := strings.ToLower(text)
 	switch {
@@ -20,6 +22,8 @@ func trackerNotifyKind(text string) string {
 		return "error"
 	case strings.Contains(low, "началась") || strings.Contains(low, "взяли в работу"):
 		return "started"
+	case strings.Contains(low, "донат"):
+		return "donate"
 	default:
 		return ""
 	}
