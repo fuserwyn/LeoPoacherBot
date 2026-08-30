@@ -1,6 +1,7 @@
 package bot
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"strings"
@@ -221,7 +222,12 @@ func trackerDeployQueue(svcs []standService) []standService {
 // trackerDeploySelfService — это сервис с этим самым ботом.
 func trackerDeploySelfService(name string) bool {
 	n := strings.ToLower(strings.TrimSpace(name))
-	return n == "leo" || strings.HasPrefix(n, "ms_leo") || strings.HasPrefix(n, "ms-leo")
+	n = strings.ReplaceAll(n, "_", "-")
+	if strings.Contains(n, "miniapp") || strings.Contains(n, "tracker") {
+		return false
+	}
+	return n == "leo" || strings.Contains(n, "ms-leo") || strings.HasPrefix(n, "leo-") ||
+		strings.Contains(n, "fat-leopard")
 }
 
 // triggerRailwayDeploy — попросить Railway собрать сервис заново.
@@ -232,21 +238,61 @@ func (b *Bot) triggerRailwayDeploy(envID, svcID string) (string, error) {
 	if envID == "" || svcID == "" {
 		return "", fmt.Errorf("нет сервиса или окружения")
 	}
-	raw, err := b.railwayCall(
+	vars := map[string]any{"s": svcID, "e": envID}
+	// Как myvibelab: latestCommit тянет HEAD с GitHub. V2 без этого часто
+	// пересобирает старый образ, а вебхук мог быть снят.
+	mutations := []string{
+		`mutation($s:String!,$e:String!){ serviceInstanceDeploy(serviceId:$s, environmentId:$e, latestCommit:true) }`,
 		`mutation($s:String!,$e:String!){ serviceInstanceDeployV2(serviceId:$s, environmentId:$e) }`,
-		map[string]any{"s": svcID, "e": envID},
-	)
-	if err != nil {
-		return "", err
+		`mutation($s:String!,$e:String!){ serviceInstanceRedeploy(serviceId:$s, environmentId:$e) }`,
 	}
+	var last error
+	for _, q := range mutations {
+		raw, err := b.railwayCall(q, vars)
+		if err != nil {
+			last = err
+			continue
+		}
+		return railwayDeployID(raw), nil
+	}
+	if last != nil {
+		return "", last
+	}
+	return "", fmt.Errorf("Railway не принял деплой")
+}
+
+func railwayDeployID(raw []byte) string {
 	var parsed struct {
-		DeployID string `json:"serviceInstanceDeployV2"`
+		Deploy   json.RawMessage `json:"serviceInstanceDeploy"`
+		DeployV2 json.RawMessage `json:"serviceInstanceDeployV2"`
+		Redeploy json.RawMessage `json:"serviceInstanceRedeploy"`
 	}
-	if err := json.Unmarshal(raw, &parsed); err != nil {
-		// Сборку заказали, id разобрать не смогли: подождём по общему правилу.
-		return "", nil
+	if json.Unmarshal(raw, &parsed) != nil {
+		return ""
 	}
-	return strings.TrimSpace(parsed.DeployID), nil
+	for _, field := range []json.RawMessage{parsed.Deploy, parsed.DeployV2, parsed.Redeploy} {
+		if id := railwayDeployIDField(field); id != "" {
+			return id
+		}
+	}
+	return ""
+}
+
+func railwayDeployIDField(raw json.RawMessage) string {
+	if len(bytes.TrimSpace(raw)) == 0 {
+		return ""
+	}
+	var s string
+	if json.Unmarshal(raw, &s) == nil {
+		return strings.TrimSpace(s)
+	}
+	var obj struct {
+		ID string `json:"id"`
+	}
+	if json.Unmarshal(raw, &obj) == nil {
+		return strings.TrimSpace(obj.ID)
+	}
+	return ""
 }
 
 // localTrackerDeployNow — кнопка «Задеплоить» в админке: пересобрать прод

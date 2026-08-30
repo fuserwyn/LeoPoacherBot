@@ -48,15 +48,16 @@ OPENROUTER_VISION_MODEL=openai/gpt-4o-mini
 # Не должна совпадать с DATABASE_URL Лео. На Railway — отдельный Postgres сервиса ms-tracker.
 # TRACKER_DATABASE_URL=postgresql://postgres:password@localhost:5432/leo_tracker?sslmode=disable
 
-# Автодеплой трекера на Railway. Без этих двух переменных задача доедет до main,
-# но сборку никто не закажет: трекер будет ждать вебхук GitHub → Railway, а если
-# он не сработал — карточка зависнет в «Сборка» и уйдёт в «не уложилась».
+# Автодеплой трекера на Railway — как в myvibelab: после пуша в main ms_tracker
+# сам заказывает сборку (serviceInstanceDeploy + latestCommit), не ждёт вебхук.
+# Нужны на ms_tracker и на ms_leo:
 # RAILWAY_API_TOKEN — Account или Project token (Railway → Settings → Tokens).
 # RAILWAY_PROJECT_ID — id проекта из адреса railway.app/project/<id>.
-# Пересобираются сервисы прода MiniApp и ms_leo в окружении main (или BOARD_BRANCH).
-# Сам выключатель — в админке: Трекер → Задача → «Автодеплой на Railway».
+# RAILWAY_ENVIRONMENT_ID — опционально, если окружение не production/main.
+# Пересобираются MiniApp и ms_leo (имена вроде ms-leo-main, fat-leopard-main).
 # RAILWAY_API_TOKEN=
 # RAILWAY_PROJECT_ID=
+# RAILWAY_ENVIRONMENT_ID=
 
 # Сканирование истории при старте (true/false, по умолчанию false)
 # Если true - бот попытается просканировать доступную историю сообщений при первом запуске (если БД пустая)

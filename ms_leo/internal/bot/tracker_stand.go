@@ -396,10 +396,16 @@ func (b *Bot) railwayRuntimeLogsQuery(deployID string) string {
 
 func isStandWatchService(name string) bool {
 	n := strings.ToLower(strings.TrimSpace(name))
-	if n == "" || strings.Contains(n, "tracker") || strings.Contains(n, "postgres") {
+	n = strings.ReplaceAll(n, "_", "-")
+	if n == "" || strings.Contains(n, "tracker") || strings.Contains(n, "postgres") ||
+		strings.Contains(n, "redis") || strings.Contains(n, "qdrant") || strings.Contains(n, "payment") {
 		return false
 	}
-	return n == "miniapp" || n == "ms_leo" || n == "leo" || strings.HasPrefix(n, "ms_leo")
+	return n == "miniapp" || n == "leo" ||
+		strings.Contains(n, "miniapp") ||
+		strings.Contains(n, "ms-leo") ||
+		strings.HasPrefix(n, "leo-") ||
+		strings.Contains(n, "fat-leopard")
 }
 
 func (b *Bot) lookupMainStandServices() (envID string, svcs []standService, err error) {
@@ -433,18 +439,34 @@ func (b *Bot) lookupMainStandServices() (envID string, svcs []standService, err 
 	if err := json.Unmarshal(raw, &parsed); err != nil {
 		return "", nil, err
 	}
-	wantEnv := "main"
-	if br := strings.ToLower(strings.TrimSpace(b.config.BoardBranch)); br != "" && br != "main" {
-		wantEnv = br
-	}
-	for _, e := range parsed.Project.Environments.Edges {
-		if strings.EqualFold(e.Node.Name, wantEnv) {
-			envID = e.Node.ID
-			break
+	if id := strings.TrimSpace(b.config.RailwayEnvironmentID); id != "" {
+		envID = id
+	} else {
+		want := []string{}
+		if br := strings.TrimSpace(b.config.BoardBranch); br != "" {
+			want = append(want, br)
 		}
-	}
-	if envID == "" && len(parsed.Project.Environments.Edges) > 0 {
-		envID = parsed.Project.Environments.Edges[0].Node.ID
+		want = append(want, "production", "prod", "main")
+		seen := map[string]bool{}
+		for _, name := range want {
+			key := strings.ToLower(name)
+			if seen[key] {
+				continue
+			}
+			seen[key] = true
+			for _, e := range parsed.Project.Environments.Edges {
+				if strings.EqualFold(e.Node.Name, name) {
+					envID = e.Node.ID
+					break
+				}
+			}
+			if envID != "" {
+				break
+			}
+		}
+		if envID == "" && len(parsed.Project.Environments.Edges) > 0 {
+			envID = parsed.Project.Environments.Edges[0].Node.ID
+		}
 	}
 	for _, s := range parsed.Project.Services.Edges {
 		if isStandWatchService(s.Node.Name) {

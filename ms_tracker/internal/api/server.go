@@ -10,6 +10,7 @@ import (
 
 	"leo-tracker/internal/agent"
 	"leo-tracker/internal/config"
+	"leo-tracker/internal/railway"
 	"leo-tracker/internal/store"
 	"leo-tracker/internal/when"
 )
@@ -204,12 +205,24 @@ func (s *Server) ship(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	log.Printf("трекер: влили %s в %s (source=%d)", branch, base, sourceID)
-	writeJSON(w, http.StatusOK, map[string]any{
-		"ok":     true,
-		"merged": true,
-		"base":   base,
-		"head":   branch,
-	})
+	pinned, derr := railway.RedeployStand(s.cfg)
+	if derr != nil {
+		log.Printf("трекер: Railway после %s: %v", branch, derr)
+	} else {
+		log.Printf("трекер: заказали сборку Railway после %s: %v", branch, pinned)
+	}
+	out := map[string]any{
+		"ok":       true,
+		"merged":   true,
+		"base":     base,
+		"head":     branch,
+		"deployed": derr == nil && len(pinned) > 0,
+		"pinned":   pinned,
+	}
+	if derr != nil {
+		out["deploy_error"] = derr.Error()
+	}
+	writeJSON(w, http.StatusOK, out)
 }
 
 func (s *Server) inspect(w http.ResponseWriter, r *http.Request) {

@@ -6,20 +6,23 @@ import (
 )
 
 type Config struct {
-	Port            string
-	DatabaseURL     string
-	TrackerSecret   string
-	OpenRouterKey   string
-	OpenRouterModel string
-	CursorAPIKey    string
-	CursorAPI       string
-	CursorModel     string
-	GithubToken     string
-	GithubAPI       string
-	Repo            string
-	Branch          string
-	LeoNotifyURL    string
-	NotifySecret    string
+	Port             string
+	DatabaseURL      string
+	TrackerSecret    string
+	OpenRouterKey    string
+	OpenRouterModel  string
+	CursorAPIKey     string
+	CursorAPI        string
+	CursorModel      string
+	GithubToken      string
+	GithubAPI        string
+	Repo             string
+	Branch           string
+	LeoNotifyURL     string
+	NotifySecret     string
+	RailwayToken     string
+	RailwayProjectID string
+	RailwayEnvID     string
 }
 
 func Load() Config {
@@ -46,12 +49,15 @@ func Load() Config {
 		CursorModel:     firstEnv("CURSOR_MODEL", "BOARD_MODEL"),
 		// Личный PAT fuserwyn из MyVibeLab — Fat-Leopard его репозиторий.
 		// Орговый GITHUB_TOKEN клонирует публичное репо, а push падает.
-		GithubToken: firstEnv("GITHUB_PERSONAL_TOKEN", "GITHUB_TOKEN", "GH_TOKEN"),
-		GithubAPI:   strings.TrimSpace(os.Getenv("GITHUB_API")),
-		Repo:        repo,
-		Branch:      strings.TrimSpace(os.Getenv("BOARD_BRANCH")),
-		LeoNotifyURL:    firstEnv("LEO_NOTIFY_URL", "BOARD_NOTIFY_URL"),
-		NotifySecret:    firstEnv("NOTIFY_SECRET", "BOARD_SSO_SECRET"),
+		GithubToken:      firstEnv("GITHUB_PERSONAL_TOKEN", "GITHUB_TOKEN", "GH_TOKEN"),
+		GithubAPI:        strings.TrimSpace(os.Getenv("GITHUB_API")),
+		Repo:             repo,
+		Branch:           strings.TrimSpace(os.Getenv("BOARD_BRANCH")),
+		LeoNotifyURL:     firstEnv("LEO_NOTIFY_URL", "BOARD_NOTIFY_URL"),
+		NotifySecret:     firstEnv("NOTIFY_SECRET", "BOARD_SSO_SECRET"),
+		RailwayToken:     firstEnv("RAILWAY_API_TOKEN"),
+		RailwayProjectID: firstEnv("RAILWAY_PROJECT_ID"),
+		RailwayEnvID:     firstEnv("RAILWAY_ENVIRONMENT_ID"),
 	}
 }
 

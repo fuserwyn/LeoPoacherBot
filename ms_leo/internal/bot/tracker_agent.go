@@ -558,8 +558,10 @@ func (b *Bot) finishTrackerBuild(taskID int64) {
 	}
 	_ = applyTrackerColumn(&t, trackerColDeploy)
 	started := time.Now()
+	var shippedPinned map[string]string
 	if !trackerTaskShippedToStand(t) {
-		base, err := b.shipTrackerToMain(t)
+		base, pinned, err := b.shipTrackerToMain(t)
+		shippedPinned = pinned
 		if err != nil {
 			t.Error = "не влили в main: " + err.Error()
 			t.Result = strings.TrimSpace(t.Result + "\n\nПуш в main не вышел: " + err.Error())
@@ -585,7 +587,14 @@ func (b *Bot) finishTrackerBuild(taskID int64) {
 	// пересборка ms_leo перезапускает нас самих — иначе вышел бы вечный круг.
 	order := b.loadTrackerDeployOrder(t.ID)
 	if !order.Ordered {
-		order = b.startTrackerDeploy(&t)
+		if len(shippedPinned) > 0 {
+			order = trackerDeployOrder{Ordered: true, Pinned: shippedPinned}
+			for name := range shippedPinned {
+				appendTrackerStep(&t, "Railway: собираем "+name)
+			}
+		} else {
+			order = b.startTrackerDeploy(&t)
+		}
 		b.saveTrackerDeployOrder(t.ID, order)
 		if err := b.db.SaveTrackerTask(t); err != nil && b.logger != nil {
 			b.logger.Warnf("трекер: не сохранить заказ сборки #%d: %v", trackerDueNum(t), err)
@@ -749,14 +758,14 @@ func (b *Bot) inspectTrackerBranch(t database.TrackerTask) (bool, error) {
 	return parsed.Exists && parsed.HasImpl, nil
 }
 
-func (b *Bot) shipTrackerToMain(t database.TrackerTask) (string, error) {
+func (b *Bot) shipTrackerToMain(t database.TrackerTask) (string, map[string]string, error) {
 	if b == nil || b.config == nil {
-		return "", fmt.Errorf("трекер не настроен")
+		return "", nil, fmt.Errorf("трекер не настроен")
 	}
 	secret := strings.TrimSpace(b.config.BoardSecret)
 	baseURL := strings.TrimRight(strings.TrimSpace(b.config.BoardURL), "/")
 	if secret == "" || baseURL == "" {
-		return "", fmt.Errorf("трекер не настроен")
+		return "", nil, fmt.Errorf("трекер не настроен")
 	}
 	payload, err := json.Marshal(map[string]any{
 		"source_task_id": t.ID,
@@ -764,11 +773,11 @@ func (b *Bot) shipTrackerToMain(t database.TrackerTask) (string, error) {
 		"branch":         trackerTaskBranch(t),
 	})
 	if err != nil {
-		return "", err
+		return "", nil, err
 	}
 	req, err := http.NewRequest(http.MethodPost, baseURL+"/api/ship", bytes.NewReader(payload))
 	if err != nil {
-		return "", err
+		return "", nil, err
 	}
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("X-Tracker-Secret", secret)
@@ -776,15 +785,16 @@ func (b *Bot) shipTrackerToMain(t database.TrackerTask) (string, error) {
 	client := &http.Client{Timeout: trackerShipHTTPTimeout}
 	resp, err := client.Do(req)
 	if err != nil {
-		return "", fmt.Errorf("трекер недоступен: %w", err)
+		return "", nil, fmt.Errorf("трекер недоступен: %w", err)
 	}
 	defer resp.Body.Close()
 	raw, _ := io.ReadAll(io.LimitReader(resp.Body, 1<<20))
 	var parsed struct {
-		OK    bool   `json:"ok"`
-		Base  string `json:"base"`
-		Head  string `json:"head"`
-		Error string `json:"error"`
+		OK     bool              `json:"ok"`
+		Base   string            `json:"base"`
+		Head   string            `json:"head"`
+		Error  string            `json:"error"`
+		Pinned map[string]string `json:"pinned"`
 	}
 	_ = json.Unmarshal(raw, &parsed)
 	if resp.StatusCode >= 300 || !parsed.OK {
@@ -792,13 +802,13 @@ func (b *Bot) shipTrackerToMain(t database.TrackerTask) (string, error) {
 		if msg == "" {
 			msg = fmt.Sprintf("HTTP %d", resp.StatusCode)
 		}
-		return "", fmt.Errorf("%s", msg)
+		return "", nil, fmt.Errorf("%s", msg)
 	}
 	base := strings.TrimSpace(parsed.Base)
 	if base == "" {
 		base = "main"
 	}
-	return base, nil
+	return base, parsed.Pinned, nil
 }
 
 func trackerNotifyAuthor(t database.TrackerTask) int64 {

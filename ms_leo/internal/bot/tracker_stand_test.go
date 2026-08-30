@@ -125,10 +125,11 @@ func TestClipStandLogsPrefersErrors(t *testing.T) {
 }
 
 func TestIsStandWatchService(t *testing.T) {
-	if !isStandWatchService("MiniApp") || !isStandWatchService("ms_leo") {
+	if !isStandWatchService("MiniApp") || !isStandWatchService("ms_leo") ||
+		!isStandWatchService("ms-leo-main") || !isStandWatchService("fat-leopard-main") {
 		t.Fatal("watch app")
 	}
-	if isStandWatchService("ms_tracker") || isStandWatchService("Postgres") {
+	if isStandWatchService("ms_tracker") || isStandWatchService("ms-tracker-main") || isStandWatchService("Postgres") {
 		t.Fatal("skip infra")
 	}
 }

@@ -138,15 +138,18 @@ func TestShipTrackerToMain(t *testing.T) {
 		}
 		_ = json.NewDecoder(r.Body).Decode(&got)
 		w.Header().Set("Content-Type", "application/json")
-		_, _ = w.Write([]byte(`{"ok":true,"merged":true,"base":"main","head":"tracker/4-43"}`))
+		_, _ = w.Write([]byte(`{"ok":true,"merged":true,"base":"main","head":"tracker/4-43","deployed":true,"pinned":{"MiniApp":"dep-1"}}`))
 	}))
 	defer srv.Close()
 	b := &Bot{config: &config.Config{BoardURL: srv.URL, BoardSecret: "sec"}}
-	base, err := b.shipTrackerToMain(database.TrackerTask{
+	base, pinned, err := b.shipTrackerToMain(database.TrackerTask{
 		ID: 11, Num: 4, Result: "код в ветке tracker/4-43",
 	})
 	if err != nil || base != "main" {
 		t.Fatalf("ship: %s %v", base, err)
+	}
+	if pinned["MiniApp"] != "dep-1" {
+		t.Fatalf("pinned %#v", pinned)
 	}
 	if int(got["source_task_id"].(float64)) != 11 || got["branch"] != "tracker/4-43" {
 		t.Fatalf("payload %#v", got)

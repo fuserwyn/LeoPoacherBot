@@ -132,7 +132,17 @@ func TestTrackerDeployQueuePutsSelfLast(t *testing.T) {
 	if len(queue) != 2 || queue[0].Name != "MiniApp" || queue[1].Name != "ms_leo" {
 		t.Fatalf("бот должен быть последним: %+v", queue)
 	}
-	if !trackerDeploySelfService("ms_leo") || trackerDeploySelfService("MiniApp") {
+	if !trackerDeploySelfService("ms_leo") || !trackerDeploySelfService("ms-leo-main") ||
+		trackerDeploySelfService("MiniApp") {
 		t.Fatal("не тот сервис считаем своим")
+	}
+}
+
+func TestRailwayDeployID(t *testing.T) {
+	if got := railwayDeployID([]byte(`{"serviceInstanceDeploy":"dep-1"}`)); got != "dep-1" {
+		t.Fatalf("string: %s", got)
+	}
+	if got := railwayDeployID([]byte(`{"serviceInstanceDeployV2":{"id":"dep-2"}}`)); got != "dep-2" {
+		t.Fatalf("obj: %s", got)
 	}
 }

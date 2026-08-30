@@ -122,6 +122,7 @@ type Config struct {
 	LabServices           string
 	LabMiniappURL         string
 	RailwayProjectID      string
+	RailwayEnvironmentID  string
 	UsagePriceRAMGBMonth  float64
 	UsagePriceCPUMonth    float64
 	UsagePriceDiskGBMonth float64
@@ -203,6 +204,7 @@ func Load() (*Config, error) {
 		LabServices:           getEnv("LAB_SERVICE_IDS", ""),
 		LabMiniappURL:         getEnv("LAB_MINIAPP_URL", ""),
 		RailwayProjectID:      getEnv("RAILWAY_PROJECT_ID", ""),
+		RailwayEnvironmentID:  getEnv("RAILWAY_ENVIRONMENT_ID", ""),
 		UsagePriceRAMGBMonth:  parseFloatEnv("USAGE_PRICE_RAM_GB_MONTH", 10),
 		UsagePriceCPUMonth:    parseFloatEnv("USAGE_PRICE_CPU_MONTH", 20),
 		UsagePriceDiskGBMonth: parseFloatEnv("USAGE_PRICE_DISK_GB_MONTH", 0.15),
