@@ -1060,3 +1060,7 @@ func clip(s string, n int) string {
 ## тест
 
 Минимальный тест: ветка tracker/30-117 на месте, дымовая проверка ок. Тест пройден.
+
+## выполнение
+
+Добавил обработку статуса 'donate' в worker.go и bot/tracker_notify.go

@@ -92,37 +92,3 @@ func finish(cfg config.Config, st *store.Store, job store.Job) {
 		log.Printf("трекер: не уведомить #%d: %v", job.ID, err)
 	}
 }
-
-func noCodeVerdict(phase string, hasCode bool) string {
-	if hasCode {
-		return ""
-	}
-	phase = strings.ToLower(strings.TrimSpace(phase))
-	if phase == "review" || phase == "test" {
-		return "Нет кода в репозитории для " + phase
-	}
-	return ""
-}
-
-func notifyText(job store.Job, note, branch, commit string, hasCode bool) string {
-	buf := new(strings.Builder)
-	fmt.Fprintf(buf, "✅ Задача #%d", job.SourceNum)
-	if job.Status == "donate" {
-		fmt.Fprintf(buf, "\n\n💰 Донат 100")
-	} else {
-		fmt.Fprintf(buf, "\n\n%s", note)
-	}
-	if job.Phase != "" {
-		fmt.Fprintf(buf, "\n\n%s", strings.ToUpper(job.Phase))
-	}
-	if commit != "" {
-		fmt.Fprintf(buf, "\nкоммит: %s", commit)
-	}
-	if branch != "" {
-		fmt.Fprintf(buf, "\nветка: %s", branch)
-	}
-	if !hasCode {
-		fmt.Fprint(buf, "\n\nНет кода в репозитории")
-	}
-	return buf.String()
-}
