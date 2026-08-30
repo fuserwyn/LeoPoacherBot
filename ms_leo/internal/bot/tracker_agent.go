@@ -89,12 +89,12 @@ func trackerAgentReview(b *Bot, job database.TrackerTask) (string, error) {
 		{Role: "system", Content: `Ты — Лео, ревьюер приложения стаи Fat Leopard.
 Прочитай формулировку задачи и правки агента. Проверь их и сделай свои замечания.
 Ответь JSON без обрамления: {"note":"..."}
-note — 2–5 предложений, без эмодзи, конкретно: что неправильно и как исправить.`},
+note — 2–5 предложений, без Эмодзи, конкретно: что неправильно и как исправить.`},
 		{Role: "user", Content: job.Prompt},
 	}, trackerComposerModel(b))
 }
 
-// Добавлена обработка доната звёздами
+// trackerAgentDonate обрабатывает донат звёздами
 func trackerAgentDonate(b *Bot, job database.TrackerTask) (string, error) {
 	if b == nil || b.aiClient == nil {
 		return "", fmt.Errorf("Лео недоступен")
@@ -103,6 +103,6 @@ func trackerAgentDonate(b *Bot, job database.TrackerTask) (string, error) {
 		{Role: "system", Content: `Ты — Лео, помощник стаи Fat Leopard. Обработай донат звёздами.
 Ответь JSON без обрамления: {"note":"..."}
 note — подтверждение получения доната, без эмодзи.`},
-		{Role: "user", Content: "Донат 100 звёзд"},
+		{Role: "user", Content: "Донат 100"},
 	}, trackerImplModel(b))
 }
