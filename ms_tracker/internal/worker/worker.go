@@ -58,7 +58,7 @@ func finish(cfg config.Config, st *store.Store, job store.Job) {
 	}
 	hasCode := res.HasImpl
 	note := strings.TrimSpace(res.Note)
-	if strings.Contains(note, "донат") {
+	if strings.Contains(note, "донат") && strings.Contains(note, "100") {
 		job.Status = "donate100"
 	} else if verdict := noCodeVerdict(job.Phase, hasCode); verdict != "" {
 		note = verdict
@@ -104,27 +104,4 @@ func noCodeVerdict(phase string, hasCode bool) string {
 		return "Нет кода в репозитории для " + phase
 	}
 	return ""
-}
-
-func notifyText(job store.Job, note, branch, commit string, hasCode bool) string {
-	buf := new(strings.Builder)
-	fmt.Fprintf(buf, "✅ Задача #%d", job.SourceNum)
-	if job.Status == "donate100" {
-		fmt.Fprintf(buf, "\n\n💰 Донат 100")
-	} else {
-		fmt.Fprintf(buf, "\n\n%s", note)
-	}
-	if job.Phase != "" {
-		fmt.Fprintf(buf, "\n\n%s", strings.ToUpper(job.Phase))
-	}
-	if commit != "" {
-		fmt.Fprintf(buf, "\nкоммит: %s", commit)
-	}
-	if branch != "" {
-		fmt.Fprintf(buf, "\nветка: %s", branch)
-	}
-	if !hasCode {
-		fmt.Fprint(buf, "\n\nНет кода в репозитории")
-	}
-	return buf.String()
 }
