@@ -63,6 +63,17 @@ func TestDonateReadinessRequiresConfig(t *testing.T) {
 	}
 }
 
+func TestDonateStarsTiersAlwaysIncludeOneAndFive(t *testing.T) {
+	t.Setenv("DONATE_STARS_TIERS", "50,150,500")
+	cfg, err := Load()
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	if !cfg.DonateStarsTierAllowed(1) || !cfg.DonateStarsTierAllowed(5) || !cfg.DonateStarsTierAllowed(50) {
+		t.Fatalf("tiers=%v", cfg.DonateStarsTiers)
+	}
+}
+
 func TestPaywallEntryFreeDefaultsToTrue(t *testing.T) {
 	t.Setenv("PAYWALL_ENABLED", "true")
 	cfg, err := Load()

@@ -50,6 +50,16 @@ func TestNotifyTextFailedPushIsNotOnGithub(t *testing.T) {
 	}
 }
 
+func TestNoCodeWhenOnlyTrackerNoteCommitted(t *testing.T) {
+	if got := noCodeVerdict("review", false); !strings.Contains(got, "ревью не принято") {
+		t.Fatalf("note-only must fail review: %q", got)
+	}
+	text := notifyText(store.Job{SourceNum: 26, Phase: "doing"}, "Добавил 1 звезду", "tracker/26-76", "e5e0cf0", false)
+	if !strings.Contains(text, noCodeMark) {
+		t.Fatalf("note-only doing must not look like code: %q", text)
+	}
+}
+
 func TestNotifyTextDoingCommitDoesNotShip(t *testing.T) {
 	text := notifyText(store.Job{SourceNum: 4, Phase: "doing"}, "правка", "tracker/4-1", "def5678", true)
 	if !strings.Contains(text, "def5678") || !strings.Contains(text, "после теста") {

@@ -53,7 +53,7 @@ func finish(cfg config.Config, st *store.Store, job store.Job) {
 		_ = notify.JobDone(cfg, job, fmt.Sprintf("⚠️ Задача #%d: агент не стартовал.\n%s", job.SourceNum, job.Error))
 		return
 	}
-	hasCode := res.HasImpl || res.Committed
+	hasCode := res.HasImpl
 	note := strings.TrimSpace(res.Note)
 	if verdict := noCodeVerdict(job.Phase, hasCode); verdict != "" {
 		note = verdict

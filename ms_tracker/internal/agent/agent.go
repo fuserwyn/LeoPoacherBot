@@ -43,10 +43,16 @@ func runVerdict(cfg config.Config, job store.Job, phase string) (Result, error) 
 	if ierr != nil && !info.Exists && strings.TrimSpace(job.Prompt) == "" {
 		return Result{}, ierr
 	}
-	if !info.Exists {
+	if !info.Exists || !info.HasImpl {
 		note := "ревью не принято: нет коммита выполнения на ветке " + branch + "."
 		if phase == "test" {
 			note = "тест не прошёл: нет коммита выполнения на ветке " + branch + "."
+		}
+		if info.Exists && !info.HasImpl {
+			note = "ревью не принято: на ветке " + branch + " только заметка, правок приложения нет."
+			if phase == "test" {
+				note = "тест не прошёл: на ветке " + branch + " нет правок приложения."
+			}
 		}
 		return Result{Note: note, Branch: branch}, nil
 	}
