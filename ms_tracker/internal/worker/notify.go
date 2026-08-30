@@ -61,9 +61,9 @@ func notifyText(job store.Job, note, branch, commit string, hasCode bool) string
 			)
 		}
 		return fmt.Sprintf(
-				"Задача #%d: агент сдал план, репозиторий не менялся.\n\n%s\n\nКода нет — review, тест и пуш на стенд не запускались.\n%s",
-				n, note, noCodeMark,
-			)
+			"Задача #%d: агент сдал план, репозиторий не менялся.\n\n%s\n\nКода нет — review, тест и пуш на стенд не запускались.\n%s",
+			n, note, noCodeMark,
+		)
 	}
 	text := fmt.Sprintf("Задача #%d: коммит выполнения %s на ветке %s.\n\n%s", n, commit, branch, note)
 	text += "\nСледующий шаг — review. Пуш на стенд только после теста."
