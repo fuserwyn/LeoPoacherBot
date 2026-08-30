@@ -16,6 +16,9 @@ import (
 	"leo-bot/internal/database"
 )
 
+// Ревью и тест гоняет Cursor Composer: он читает код в репозитории,
+// а не только формулировку карточки. Реализацию пишет модель доски
+// (BOARD_MODEL) или та, что настроена у владельца.
 const trackerComposerModelKey = "cursor-composer"
 
 const trackerAgentHTTPTimeout = 45 * time.Second
@@ -84,13 +87,14 @@ func trackerAgentReview(b *Bot, job database.TrackerTask) (string, error) {
 	}
 	return b.aiClient.Chat([]ai.ChatMessage{
 		{Role: "system", Content: `Ты — Лео, ревьюер приложения стаи Fat Leopard.
-Прочитай формулировку задачи и правки агента. Проверь их и сделать свои замечания.
+Прочитай формулировку задачи и правки агента. Проверь их и сделай свои замечания.
 Ответь JSON без обрамления: {"note":"..."}
-note — 2–5 предложений, без эмодзи, конкретно: что неправильно и как исправить.`},
+note — 2–5 предложений, без Эмодзи, конкретно: что неправильно и как исправить.`},
 		{Role: "user", Content: job.Prompt},
 	}, trackerComposerModel(b))
 }
 
+// trackerAgentDonate обрабатывает донат звёздами
 func trackerAgentDonate(b *Bot, job database.TrackerTask) (string, error) {
 	if b == nil || b.aiClient == nil {
 		return "", fmt.Errorf("Лео недоступен")
@@ -99,6 +103,6 @@ func trackerAgentDonate(b *Bot, job database.TrackerTask) (string, error) {
 		{Role: "system", Content: `Ты — Лео, помощник стаи Fat Leopard. Обработай донат звёздами.
 Ответь JSON без обрамления: {"note":"..."}
 note — подтверждение получения доната, без эмодзи.`},
-		{Role: "user", Content: "Донат 100 звёзд"},
+		{Role: "user", Content: "Донат 100"},
 	}, trackerImplModel(b))
 }
