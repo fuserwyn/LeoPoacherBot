@@ -70,8 +70,8 @@ func TestDonateStarsTiersAlwaysIncludeOneAndFive(t *testing.T) {
 		t.Fatalf("Load: %v", err)
 	}
 	if !cfg.DonateStarsTierAllowed(1) || !cfg.DonateStarsTierAllowed(5) ||
-		!cfg.DonateStarsTierAllowed(10) || !cfg.DonateStarsTierAllowed(1000) ||
-		!cfg.DonateStarsTierAllowed(50) {
+		!cfg.DonateStarsTierAllowed(10) || !cfg.DonateStarsTierAllowed(100) ||
+		!cfg.DonateStarsTierAllowed(1000) || !cfg.DonateStarsTierAllowed(50) {
 		t.Fatalf("tiers=%v", cfg.DonateStarsTiers)
 	}
 }

@@ -56,7 +56,7 @@ func runVerdict(cfg config.Config, job store.Job, phase string) (Result, error) 
 		}
 		return Result{Note: note, Branch: branch}, nil
 	}
-	if reason := checkBranchImpl(cfg, branch, job.Prompt); reason != "" {
+	if reason := CheckBranchImpl(cfg, branch, job.Prompt); reason != "" {
 		note := "ревью не принято: " + reason
 		if phase == "test" {
 			note = "тест не прошёл: " + reason
@@ -172,6 +172,9 @@ func applyDoing(cfg config.Config, job store.Job) (Result, error) {
 				}
 			}
 		}
+	}
+	if reason := vitalWorktreeBroken(repoDir); reason != "" {
+		return Result{Branch: branch, Note: note}, fmt.Errorf("%s", reason)
 	}
 	sha, hasImpl, gerr := commitWorkAndPush(cfg, job, repoDir, branch, note)
 	out := Result{Note: note, Branch: branch, Commit: sha, Committed: sha != "" && gerr == nil, HasImpl: hasImpl}

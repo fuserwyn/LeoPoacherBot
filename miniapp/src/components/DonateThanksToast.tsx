@@ -5,10 +5,6 @@ import "./AchievementToast.css";
 type Props = {
   /** Вызывается, когда поп-ап скрылся (по таймеру или тапу). */
   onDone: () => void;
-  /** Сумма доната, если есть. */
-  amount?: number;
-  /** Валюта доната, если есть. */
-  currency?: string;
 };
 
 const VISIBLE_MS = 5000;
@@ -18,7 +14,7 @@ const EXIT_MS = 320;
  * Празднующий поп-ап после успешного доната — та же подача, что у ачивок:
  * Лео по центру, искорки, «Рык! Спасибо за поддержку!». Тап или таймер закрывает.
  */
-export function DonateThanksToast({ onDone, amount, currency }: Props) {
+export function DonateThanksToast({ onDone }: Props) {
   const [leaving, setLeaving] = useState(false);
 
   useEffect(() => {
@@ -31,10 +27,6 @@ export function DonateThanksToast({ onDone, amount, currency }: Props) {
     const done = window.setTimeout(onDone, EXIT_MS);
     return () => window.clearTimeout(done);
   }, [leaving, onDone]);
-
-  const amountText = amount && currency
-    ? ` ${amount} ${currency === "XTR" ? "⭐" : currency === "RUB" ? "₽" : currency}`
-    : "";
 
   return (
     <div
@@ -59,7 +51,7 @@ export function DonateThanksToast({ onDone, amount, currency }: Props) {
         </div>
 
         <div className="achievement-toast__title">Донат получен!</div>
-        <div className="achievement-toast__label">Рык! Спасибо за поддержку{amountText}!</div>
+        <div className="achievement-toast__label">Рык! Спасибо за поддержку!</div>
         <div className="achievement-toast__cheer">Лео ценит стаю — ты делаешь проект сильнее 🐾</div>
       </div>
     </div>

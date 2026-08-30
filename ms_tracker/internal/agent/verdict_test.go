@@ -1,6 +1,9 @@
 package agent
 
-import "testing"
+import (
+	"strings"
+	"testing"
+)
 
 func TestConfigLooksStub(t *testing.T) {
 	if !configLooksStub(`func Load() (*Config, error) {
@@ -33,6 +36,16 @@ func getEnv(key, defaultValue string) string { return "" }
 `
 	if got := implCheckFail("Сделай Донат 1000", stub); got == "" {
 		t.Fatal("заглушка должна падать")
+	}
+}
+
+func TestVitalSourceBroken(t *testing.T) {
+	if got := vitalSourceBroken("miniapp/src/components/ProfileScreen.tsx", "const x=1\n", 800); got == "" {
+		t.Fatal("короткий профиль должен падать")
+	}
+	long := strings.Repeat("x\n", 900)
+	if got := vitalSourceBroken("miniapp/src/components/ProfileScreen.tsx", long, 800); got != "" {
+		t.Fatalf("длинный файл ок: %s", got)
 	}
 }
 

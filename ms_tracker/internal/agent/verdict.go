@@ -5,11 +5,58 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/url"
+	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 
 	"leo-tracker/internal/config"
 )
+
+// Ключевые файлы, которые агент уже вырезал в заглушки (#13, #29, #30).
+// Ниже порога — это не фича, а поломка прода.
+var vitalFiles = []struct {
+	path string
+	min  int
+}{
+	{"miniapp/src/components/ProfileScreen.tsx", 800},
+	{"miniapp/src/components/TrackerScreen.tsx", 400},
+	{"miniapp/src/lib/trackerApi.ts", 80},
+	{"ms_leo/internal/bot/tracker_agent.go", 400},
+	{"ms_leo/internal/bot/tracker_deploy.go", 150},
+	{"ms_leo/internal/config/config.go", 300},
+}
+
+func fileLineCount(src string) int {
+	if src == "" {
+		return 0
+	}
+	return strings.Count(src, "\n") + 1
+}
+
+func vitalSourceBroken(path, src string, min int) string {
+	n := fileLineCount(src)
+	if n < min {
+		return fmt.Sprintf("%s обрезан (%d строк, нужно ≥%d)", path, n, min)
+	}
+	if path == "ms_leo/internal/config/config.go" && configLooksStub(src) {
+		return "config.go стал заглушкой: нет parseAmountTiers/getEnv, бот не соберётся"
+	}
+	return ""
+}
+
+func vitalWorktreeBroken(repoDir string) string {
+	for _, v := range vitalFiles {
+		raw, err := os.ReadFile(filepath.Join(repoDir, filepath.FromSlash(v.path)))
+		if err != nil {
+			return v.path + ": " + err.Error()
+		}
+		if reason := vitalSourceBroken(v.path, string(raw), v.min); reason != "" {
+			return reason
+		}
+	}
+	return ""
+}
 
 // configLooksStub — то, что сдал агент на #29: вызовы parseAmountTiers/getEnv
 // остались, самих функций нет. Такой файл компилироваться не будет.
@@ -109,10 +156,24 @@ func githubFile(cfg config.Config, path, ref string) (string, error) {
 	return string(dec), nil
 }
 
+func CheckBranchImpl(cfg config.Config, branch, prompt string) string {
+	return checkBranchImpl(cfg, branch, prompt)
+}
+
 func checkBranchImpl(cfg config.Config, branch, prompt string) string {
-	src, err := githubFile(cfg, "ms_leo/internal/config/config.go", branch)
-	if err != nil {
-		return "не прочитал config.go с ветки: " + err.Error()
+	for _, v := range vitalFiles {
+		src, err := githubFile(cfg, v.path, branch)
+		if err != nil {
+			return "не прочитал " + v.path + " с ветки: " + err.Error()
+		}
+		if reason := vitalSourceBroken(v.path, src, v.min); reason != "" {
+			return reason
+		}
+		if v.path == "ms_leo/internal/config/config.go" {
+			if reason := implCheckFail(prompt, src); reason != "" {
+				return reason
+			}
+		}
 	}
-	return implCheckFail(prompt, src)
+	return ""
 }

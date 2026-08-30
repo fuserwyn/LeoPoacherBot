@@ -199,6 +199,10 @@ func (s *Server) ship(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusBadRequest, map[string]any{"ok": false, "error": reason})
 		return
 	}
+	if reason := agent.CheckBranchImpl(s.cfg, branch, str(body, "prompt")); reason != "" {
+		writeJSON(w, http.StatusBadRequest, map[string]any{"ok": false, "error": reason})
+		return
+	}
 	base, err := agent.MergeToMain(s.cfg, branch, num)
 	if err != nil {
 		writeJSON(w, http.StatusBadRequest, map[string]any{"ok": false, "error": err.Error()})
