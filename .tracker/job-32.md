@@ -1260,3 +1260,7 @@ func clip(s string, n int) string {
 ## выполнение
 
 Добавлена обработка статуса 'donate100' в файлах ms_tracker/internal/worker/notify.go и ms_tracker/internal/worker/worker.go
+
+## ревью
+
+Посредственное ревью: на ветке tracker/30-117 есть правки приложения. Можно на тест.
