@@ -1064,3 +1064,7 @@ func clip(s string, n int) string {
 ## выполнение
 
 Добавил обработку статуса 'donate' в worker.go и bot/tracker_notify.go
+
+## ревью
+
+Посредственное ревью: на ветке tracker/30-117 есть правки приложения. Можно на тест.
