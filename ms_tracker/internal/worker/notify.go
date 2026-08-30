@@ -18,6 +18,8 @@ func noCodeVerdict(phase string, hasCode bool) string {
 		return "ревью не принято: в репозитории нет коммита этой задачи. Агент сдал только текст."
 	case "test":
 		return "тест не прошёл: нечего прогонять, кода в репозитории нет."
+	case "donate":
+		return "нельзя сделать донейт: в репозитории нет коммита этой задачи."
 	default:
 		return ""
 	}
@@ -33,11 +35,14 @@ func notifyText(job store.Job, note, branch, commit string, hasCode bool) string
 	if phase == "" {
 		phase = "doing"
 	}
-	if phase == "review" || phase == "test" {
+	if phase == "review" || phase == "test" || phase == "donate" {
 		if commit != "" {
 			label := "ревью"
-			if phase == "test" {
+			switch phase {
+			case "test":
 				label = "тест"
+			case "donate":
+				label = "донейт"
 			}
 			return strings.TrimSpace(note + "\n\nкоммит " + commit + " " + label)
 		}
