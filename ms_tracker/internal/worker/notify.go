@@ -19,7 +19,7 @@ func noCodeVerdict(phase string, hasCode bool) string {
 	case "test":
 		return "тест не прошёл: нечего прогонять, кода в репозитории нет."
 	case "donate":
-		return "нельзя сделать донейт: в репозитории нет коммита этой задачи."
+		return "донат не сделан: в репозитории нет коммита этой задачи."
 	default:
 		return ""
 	}
