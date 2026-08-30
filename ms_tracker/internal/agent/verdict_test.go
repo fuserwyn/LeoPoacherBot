@@ -31,6 +31,14 @@ func getEnv(key, defaultValue string) string { return "" }
 	if got := implCheckFail("Сделай Донат 25 звезд", good); got == "" {
 		t.Fatal("25⭐ нет — должен завалить")
 	}
+	if got := implCheckFail("Удали кнопку Донат 150", good); got == "" {
+		t.Fatal("150 не скрыт — должен завалить")
+	}
+	hidden := good + `		parseAmountTiers("150," + getEnv("DONATE_STARS_HIDDEN", "")),
+`
+	if got := implCheckFail("Удали кнопку Донат 150", hidden); got != "" {
+		t.Fatalf("скрыт: %s", got)
+	}
 	stub := `		DonateStarsTiers: parseAmountTiers("1,5,10,1000," + getEnv("DONATE_STARS_TIERS", "50")),
 	// остальные поля конфига...
 `

@@ -81,6 +81,32 @@ func TestApplyDonateBare1000(t *testing.T) {
 	}
 }
 
+func TestApplyDonateRemove150(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "ms_leo", "internal", "config", "config.go")
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	src := `		DonateStarsTiers: excludeAmountTiers(
+			parseAmountTiers("1,5,10,100,1000,"+getEnv("DONATE_STARS_TIERS", "50,150,500")),
+			parseAmountTiers(""+getEnv("DONATE_STARS_HIDDEN", "")),
+		),`
+	if err := os.WriteFile(path, []byte(src), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	note, n, err := applyKnownTask(dir, "Удали кнопку Донат 150")
+	if err != nil || n != 1 || !strings.Contains(note, "150") || !strings.Contains(note, "Скрыл") {
+		t.Fatalf("n=%d note=%q err=%v", n, note, err)
+	}
+	raw, _ := os.ReadFile(path)
+	if !strings.Contains(string(raw), `"150,"`) {
+		t.Fatalf("%s", raw)
+	}
+	if !lineHasAmount(donateLine(string(raw), "DONATE_STARS_HIDDEN"), 150) {
+		t.Fatalf("hidden: %s", raw)
+	}
+}
+
 func TestShouldRunCursorSkipsDonate(t *testing.T) {
 	if shouldRunCursor("Сделай Донат 100", 0) || shouldRunCursor("10 звезд донат", 1) {
 		t.Fatal("донат не должен идти в Cursor")

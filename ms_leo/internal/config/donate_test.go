@@ -74,6 +74,16 @@ func TestDonateStarsTiersAlwaysIncludeOneAndFive(t *testing.T) {
 		!cfg.DonateStarsTierAllowed(1000) || !cfg.DonateStarsTierAllowed(50) {
 		t.Fatalf("tiers=%v", cfg.DonateStarsTiers)
 	}
+	if cfg.DonateStarsTierAllowed(150) {
+		t.Fatalf("150 должен быть скрыт даже из env: %v", cfg.DonateStarsTiers)
+	}
+}
+
+func TestExcludeAmountTiers(t *testing.T) {
+	got := excludeAmountTiers([]int{1, 50, 150, 500}, []int{150})
+	if !reflect.DeepEqual(got, []int{1, 50, 500}) {
+		t.Fatalf("%v", got)
+	}
 }
 
 func TestDonateCardTiersAlwaysInclude1000(t *testing.T) {

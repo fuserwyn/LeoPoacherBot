@@ -18,6 +18,8 @@ var donateRubRe = regexp.MustCompile(`(?i)(\d+)\s*(?:руб(?:л|\b)|₽)`)
 // и отдаёт её Cursor, который пишет заглушку вместо номинала.
 var donateBareRe = regexp.MustCompile(`(?i)донат\s+(\d+)`)
 
+var donateRemoveRe = regexp.MustCompile(`(?i)(удал|убер|спряч|выключ|убери|без\s+кнопк|remove|hide)`)
+
 var donateTiersCallRe = regexp.MustCompile(
 	`parseAmountTiers\("([0-9,]*)" \+ getEnv\("DONATE_STARS_TIERS"`,
 )
@@ -33,6 +35,18 @@ var donateCardCallRe = regexp.MustCompile(
 var donateCardEnvRe = regexp.MustCompile(
 	`parseAmountTiers\(getEnv\("DONATE_CARD_TIERS_RUB", "([^"]*)"\)\)`,
 )
+
+var donateHiddenCallRe = regexp.MustCompile(
+	`parseAmountTiers\("([0-9,]*)"\s*\+\s*getEnv\("DONATE_STARS_HIDDEN"`,
+)
+
+var donateHiddenEnvRe = regexp.MustCompile(
+	`parseAmountTiers\(getEnv\("DONATE_STARS_HIDDEN", "([^"]*)"\)\)`,
+)
+
+func isDonateRemove(prompt string) bool {
+	return donateRemoveRe.MatchString(prompt) && isDonatePrompt(prompt)
+}
 
 func collectAmounts(re *regexp.Regexp, prompt string) []int {
 	seen := map[int]bool{}
@@ -184,11 +198,53 @@ func donateAmountsPresent(src, prompt string) bool {
 	return true
 }
 
+func applyDonateHidden(repoDir string, stars []int) (int, error) {
+	path := filepath.Join(repoDir, "ms_leo", "internal", "config", "config.go")
+	raw, err := os.ReadFile(path)
+	if err != nil {
+		return 0, err
+	}
+	updated, n, err := applyTierPrefix(string(raw), stars, donateHiddenCallRe, donateHiddenEnvRe, "DONATE_STARS_HIDDEN")
+	if err != nil || n == 0 {
+		return n, err
+	}
+	if err := os.WriteFile(path, []byte(updated), 0o644); err != nil {
+		return 0, err
+	}
+	return n, nil
+}
+
 func applyKnownTask(repoDir, prompt string) (string, int, error) {
 	stars := donateStarsFromPrompt(prompt)
 	rub := donateRubFromPrompt(prompt)
 	if len(stars) == 0 && len(rub) == 0 {
 		return "", 0, nil
+	}
+	if isDonateRemove(prompt) {
+		hide := stars
+		if len(hide) == 0 {
+			hide = rub
+		}
+		n, err := applyDonateHidden(repoDir, hide)
+		if err != nil {
+			return "", 0, err
+		}
+		parts := make([]string, 0, len(hide))
+		for _, s := range hide {
+			parts = append(parts, fmt.Sprintf("%d", s))
+		}
+		label := strings.Join(parts, " и ")
+		if n == 0 {
+			raw, rerr := os.ReadFile(filepath.Join(repoDir, "ms_leo", "internal", "config", "config.go"))
+			if rerr != nil {
+				return "", 0, rerr
+			}
+			if lineHasAmount(donateLine(string(raw), "DONATE_STARS_HIDDEN"), hide[0]) {
+				return "Номинал уже скрыт в config.go: " + label + ".", 0, nil
+			}
+			return "", 0, fmt.Errorf("не смог скрыть донат %s в config.go", label)
+		}
+		return "Скрыл донат " + label + ".", n, nil
 	}
 	n := 0
 	if len(stars) > 0 {

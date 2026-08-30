@@ -105,6 +105,23 @@ func implCheckFail(prompt, configSrc string) string {
 	if len(stars) == 0 && len(rub) == 0 {
 		return ""
 	}
+	if isDonateRemove(prompt) {
+		hidden := donateLine(configSrc, "DONATE_STARS_HIDDEN")
+		hide := stars
+		if len(hide) == 0 {
+			hide = rub
+		}
+		var still []string
+		for _, n := range hide {
+			if !lineHasAmount(hidden, n) {
+				still = append(still, fmt.Sprintf("%d", n))
+			}
+		}
+		if len(still) == 0 {
+			return ""
+		}
+		return "в config.go номинал не скрыт: " + strings.Join(still, ", ")
+	}
 	starLine := donateLine(configSrc, "DONATE_STARS_TIERS")
 	cardLine := donateLine(configSrc, "DONATE_CARD_TIERS_RUB")
 	var missing []string

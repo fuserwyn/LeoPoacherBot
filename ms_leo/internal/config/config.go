@@ -244,9 +244,12 @@ func Load() (*Config, error) {
 		YookassaAmountMinor:     ykMinor,
 		YookassaCurrency:        ykCur,
 
-		// 1, 5, 10, 1000 всегда в списке (#25/#26/#28/#29). Env на Railway
-		// может задавать только крупные номиналы — эти не пропадают.
-		DonateStarsTiers:   parseAmountTiers("1,5,10,100,1000," + getEnv("DONATE_STARS_TIERS", "50,150,500")),
+		// 1, 5, 10, 100, 1000 всегда в списке. 150 скрыт (#31): даже если
+		// DONATE_STARS_TIERS на Railway всё ещё «50,150,500», кнопка не вернётся.
+		DonateStarsTiers: excludeAmountTiers(
+			parseAmountTiers("1,5,10,100,1000,"+getEnv("DONATE_STARS_TIERS", "50,150,500")),
+			parseAmountTiers("150,"+getEnv("DONATE_STARS_HIDDEN", "")),
+		),
 		DonateCardTiersRub: parseAmountTiers("100,1000," + getEnv("DONATE_CARD_TIERS_RUB", "100,300,1000")),
 
 		MiniappPublicBaseURL: strings.TrimSpace(getEnv("MINIAPP_PUBLIC_BASE_URL", "")),
@@ -427,6 +430,27 @@ func parseAmountTiers(raw string) []int {
 		out = append(out, n)
 	}
 	sort.Ints(out)
+	return out
+}
+
+// excludeAmountTiers — убрать номиналы из списка (доска: «удали 150 звёзд»).
+func excludeAmountTiers(all, hidden []int) []int {
+	if len(all) == 0 || len(hidden) == 0 {
+		return all
+	}
+	drop := make(map[int]struct{}, len(hidden))
+	for _, n := range hidden {
+		if n > 0 {
+			drop[n] = struct{}{}
+		}
+	}
+	out := make([]int, 0, len(all))
+	for _, n := range all {
+		if _, skip := drop[n]; skip {
+			continue
+		}
+		out = append(out, n)
+	}
 	return out
 }
 
