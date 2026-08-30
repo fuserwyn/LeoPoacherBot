@@ -1,16 +1,11 @@
 package agent
 
 import (
-	"bytes"
-	"encoding/json"
 	"fmt"
-	"io"
-	"net/http"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"strings"
-	"time"
 
 	"leo-tracker/internal/config"
 	"leo-tracker/internal/store"
@@ -36,10 +31,6 @@ func Run(cfg config.Config, job store.Job) (Result, error) {
 	if phase == "review" || phase == "test" {
 		return runVerdict(cfg, job, phase)
 	}
-	if !writesGit(phase) || strings.TrimSpace(cfg.GithubToken) == "" || strings.TrimSpace(cfg.Repo) == "" {
-		note, err := chat(cfg, job)
-		return Result{Note: note}, err
-	}
 	return applyDoing(cfg, job)
 }
 
@@ -60,7 +51,7 @@ func runVerdict(cfg config.Config, job store.Job, phase string) (Result, error) 
 		return Result{Note: note, Branch: branch}, nil
 	}
 	// Пока ревью посредственное, тест дымовой: ветка есть — пропускаем.
-	// Модель не зовём: на #6 она крутила отказы и упиралась в OpenRouter 504.
+	// Реализацию пишет Cursor Cloud Agent, не чат.
 	note := lenientVerdictNote(phase, branch, info)
 	out := Result{Note: note, Branch: branch, Commit: info.Head}
 	if phase != "review" && phase != "test" {
@@ -120,125 +111,81 @@ func Stamp(cfg config.Config, job store.Job, note string) (Result, error) {
 }
 
 func applyDoing(cfg config.Config, job store.Job) (Result, error) {
-	note := ""
-	edits := []fileEdit{}
-	if strings.TrimSpace(cfg.OpenRouterKey) == "" {
-		note = "Агент без OPENROUTER_API_KEY: задачу приняли, код не писали."
-	} else {
-		dir, err := os.MkdirTemp("", "leo-tracker-ctx-*")
-		if err != nil {
-			return Result{}, err
-		}
-		repoDir, branch, cleanup, err := prepareRepo(cfg, job, dir)
-		if err != nil {
-			cleanup()
-			return Result{}, err
-		}
-		snippets := collectContextFiles(repoDir, job.Prompt)
-		cleanup()
-		reply, cerr := implChat(cfg, job, snippets)
-		if cerr != nil {
-			return Result{}, cerr
-		}
-		note = reply.Note
-		edits = reply.Files
-		_ = branch
+	if strings.TrimSpace(cfg.CursorAPIKey) == "" {
+		return Result{}, fmt.Errorf("нет CURSOR_API_KEY")
 	}
-	out := Result{Note: note}
-	branch, sha, hasImpl, rejected, gerr := applyPhaseCommit(cfg, job, note, edits)
-	out.Branch = branch
+	branch := strings.TrimSpace(job.Branch)
+	if branch == "" {
+		branch = taskBranch(job)
+	}
+	if strings.TrimSpace(cfg.GithubToken) != "" && strings.TrimSpace(cfg.Repo) != "" {
+		ready, err := ensureRemoteTaskBranch(cfg, job, branch)
+		if err != nil {
+			return Result{}, err
+		}
+		if ready != "" {
+			branch = ready
+		}
+	}
+	cur, err := runCursorDoing(cfg, job, branch)
+	if err != nil {
+		return Result{}, err
+	}
+	note := strings.TrimSpace(cur.Result)
+	if note == "" {
+		note = "Cursor сдал задачу."
+	}
+	if picked := cursorPickedBranch(cur, branch); picked != "" {
+		branch = picked
+	}
+	out := Result{Note: note, Branch: branch}
+	if strings.TrimSpace(cfg.GithubToken) == "" || strings.TrimSpace(cfg.Repo) == "" {
+		return out, nil
+	}
+	_, sha, hasImpl, rejected, gerr := applyPhaseCommit(cfg, job, note, nil)
 	out.Commit = sha
 	out.Committed = sha != "" && gerr == nil
 	out.HasImpl = hasImpl && out.Committed
+	if info, ierr := InspectBranch(cfg, branch); ierr == nil {
+		if info.HasImpl {
+			out.HasImpl = true
+		}
+		if info.Head != "" && out.Commit == "" {
+			out.Commit = info.Head
+		}
+		if info.Exists {
+			out.Committed = true
+		}
+	}
 	if len(rejected) > 0 {
 		out.Note = strings.TrimSpace(out.Note + "\n\nОтклонённые правки:\n- " + strings.Join(rejected, "\n- "))
 	}
 	if gerr != nil {
-		if out.Note != "" {
-			out.Note += "\n\n"
-		}
-		out.Note += "Git: " + gerr.Error()
+		out.Note = strings.TrimSpace(out.Note + "\n\nGit: " + gerr.Error())
 	}
 	return out, nil
 }
 
-func implChat(cfg config.Config, job store.Job, files []fileSnippet) (implReply, error) {
-	var b strings.Builder
-	b.WriteString(job.Prompt)
-	if len(files) > 0 {
-		b.WriteString("\n\nФайлы из репозитория. Верни полный новый текст каждого файла, который меняешь.\n")
-		for _, f := range files {
-			b.WriteString("\n--- ")
-			b.WriteString(f.Path)
-			b.WriteString(" ---\n")
-			b.WriteString(f.Content)
-			b.WriteByte('\n')
+func ensureRemoteTaskBranch(cfg config.Config, job store.Job, branch string) (string, error) {
+	dir, err := os.MkdirTemp("", "leo-tracker-branch-*")
+	if err != nil {
+		return branch, err
+	}
+	repoDir, got, cleanup, err := prepareRepo(cfg, job, dir)
+	defer cleanup()
+	if err != nil {
+		return got, err
+	}
+	if got != "" {
+		branch = got
+	}
+	if err := run(repoDir, "git", "push", "-u", "origin", branch); err != nil {
+		if remoteBranchExists(repoDir, branch) {
+			return branch, nil
 		}
+		return branch, err
 	}
-	system := "Ты агент трекера Fat Leopard. Меняй код приложения, не пиши только план. " +
-		"Ответ — JSON без обёртки: {\"note\":\"что сделал\",\"files\":[{\"path\":\"miniapp/src/...\",\"content\":\"полный файл\"}]}. " +
-		"path только из miniapp/, ms_leo/, ms_tracker/. Без эмодзи."
-	raw, err := chatRaw(cfg, system, b.String())
-	if err != nil {
-		return implReply{}, err
-	}
-	return parseImplReply(raw), nil
-}
-
-func chat(cfg config.Config, job store.Job) (string, error) {
-	if strings.TrimSpace(cfg.OpenRouterKey) == "" {
-		return "Агент без OPENROUTER_API_KEY: задачу приняли, код не писали.", nil
-	}
-	system := "Ты агент трекера Fat Leopard. Пиши по-русски, коротко и по делу. " +
-		"Сначала что сделаешь, потом конкретный план правок в репозитории. Без эмодзи."
-	phase := strings.ToLower(strings.TrimSpace(job.Phase))
-	if phase == "review" || phase == "test" {
-		system = "Ты ревьюер Fat Leopard. Ревью посредственное, тест минимальный. " +
-			"Если на ветке есть любой коммит — пиши «можно на тест» или «тест пройден». " +
-			"Не придирайся к стилю, полноте и покрытию. Откажи только если ветки нет. Без эмодзи."
-	}
-	return chatRaw(cfg, system, job.Prompt)
-}
-
-func chatRaw(cfg config.Config, system, user string) (string, error) {
-	body, _ := json.Marshal(map[string]any{
-		"model": cfg.OpenRouterModel,
-		"messages": []map[string]string{
-			{"role": "system", "content": system},
-			{"role": "user", "content": user},
-		},
-	})
-	req, err := http.NewRequest(http.MethodPost, "https://openrouter.ai/api/v1/chat/completions", bytes.NewReader(body))
-	if err != nil {
-		return "", err
-	}
-	req.Header.Set("Authorization", "Bearer "+cfg.OpenRouterKey)
-	req.Header.Set("Content-Type", "application/json")
-	client := &http.Client{Timeout: 3 * time.Minute}
-	resp, err := client.Do(req)
-	if err != nil {
-		return "", fmt.Errorf("openrouter: %w", err)
-	}
-	defer resp.Body.Close()
-	raw, _ := io.ReadAll(io.LimitReader(resp.Body, 1<<20))
-	if resp.StatusCode >= 300 {
-		return "", fmt.Errorf("openrouter HTTP %d: %s", resp.StatusCode, clip(string(raw), 240))
-	}
-	var parsed struct {
-		Choices []struct {
-			Message struct {
-				Content string `json:"content"`
-			} `json:"message"`
-		} `json:"choices"`
-	}
-	if err := json.Unmarshal(raw, &parsed); err != nil {
-		return "", err
-	}
-	if len(parsed.Choices) == 0 {
-		return "", fmt.Errorf("openrouter пустой ответ")
-	}
-	note := strings.TrimSpace(parsed.Choices[0].Message.Content)
-	return clip(note, 12000), nil
+	return branch, nil
 }
 
 func writesGit(phase string) bool {

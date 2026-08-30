@@ -11,6 +11,9 @@ type Config struct {
 	TrackerSecret   string
 	OpenRouterKey   string
 	OpenRouterModel string
+	CursorAPIKey    string
+	CursorAPI       string
+	CursorModel     string
 	GithubToken     string
 	GithubAPI       string
 	Repo            string
@@ -38,6 +41,9 @@ func Load() Config {
 		TrackerSecret:   firstEnv("TRACKER_SECRET", "BOARD_SSO_SECRET"),
 		OpenRouterKey:   strings.TrimSpace(os.Getenv("OPENROUTER_API_KEY")),
 		OpenRouterModel: model,
+		CursorAPIKey:    firstEnv("CURSOR_API_KEY"),
+		CursorAPI:       strings.TrimSpace(os.Getenv("CURSOR_API")),
+		CursorModel:     firstEnv("CURSOR_MODEL", "BOARD_MODEL"),
 		// Личный PAT fuserwyn из MyVibeLab — Fat-Leopard его репозиторий.
 		// Орговый GITHUB_TOKEN клонирует публичное репо, а push падает.
 		GithubToken: firstEnv("GITHUB_PERSONAL_TOKEN", "GITHUB_TOKEN", "GH_TOKEN"),
