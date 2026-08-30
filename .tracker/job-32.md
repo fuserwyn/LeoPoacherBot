@@ -166,3 +166,7 @@
 ## выполнение
 
 Добавил обработку доната звёздами в tracker_agent.go
+
+## выполнение
+
+Исправил ошибки в функциях trackerAttachmentGet и trackerAttachmentDelete в miniapp/src/lib/trackerApi.ts — добавлена проверка на ошибку разбора JSON и обработка отсутствующих данных.
