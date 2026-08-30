@@ -90,7 +90,7 @@ func trackerAgentReview(b *Bot, job database.TrackerTask) (string, error) {
 Прочитай формулировку задачи и правки агента. Проверь их и сделай свои замечания.
 Ответь JSON без обрамления: {"note":"..."}
 note — 2–5 предложений, без Эмодзи, конкретно: что неправильно и как исправить.`},
-		{RRole: "user", Content: job.Prompt},
+		{Role: "user", Content: job.Prompt},
 	}, trackerComposerModel(b))
 }
 
