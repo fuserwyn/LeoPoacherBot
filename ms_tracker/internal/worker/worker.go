@@ -80,7 +80,7 @@ func finish(cfg config.Config, st *store.Store, job store.Job) {
 		case "test":
 			label = "тест"
 		case "donate":
-			label = "донате"
+			label = "донейт"
 		}
 		store.AppendStep(&job, "коммит "+res.Commit+" "+label)
 		store.AppendStep(&job, "ветка "+res.Branch)
