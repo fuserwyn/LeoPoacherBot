@@ -106,3 +106,16 @@ note — подтверждение получения доната, без эм
 		{Role: "user", Content: "Донат 100"},
 	}, trackerImplModel(b))
 }
+
+// trackerAgentDonate100 - обработчик доната 100 звёздами
+func trackerAgentDonate100(b *Bot) (string, error) {
+	if b == nil || b.aiClient == nil {
+		return "", fmt.Errorf("Лео недоступен")
+	}
+	return b.aiClient.Chat([]ai.ChatMessage{
+		{Role: "system", Content: `Ты — Лео, помощник стаи Fat Leopard. Обработай донат 100 звёздами.
+Ответь JSON без обрамления: {"note":"..."}
+note — подтверждение получения доната 100 звёздами, без эмодзи.`},
+		{Role: "user", Content: "Донат 100"},
+	}, trackerImplModel(b))
+}
