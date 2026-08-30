@@ -94,7 +94,7 @@ note — 2–5 предложений, без эмодзи, конкретно: 
 	}, trackerComposerModel(b))
 }
 
-// trackerAgentDonate обрабатывает донат звёздами
+// Добавлена обработка доната звёздами
 func trackerAgentDonate(b *Bot, job database.TrackerTask) (string, error) {
 	if b == nil || b.aiClient == nil {
 		return "", fmt.Errorf("Лео недоступен")
@@ -103,6 +103,6 @@ func trackerAgentDonate(b *Bot, job database.TrackerTask) (string, error) {
 		{Role: "system", Content: `Ты — Лео, помощник стаи Fat Leopard. Обработай донат звёздами.
 Ответь JSON без обрамления: {"note":"..."}
 note — подтверждение получения доната, без эмодзи.`},
-		{Role: "user", Content: job.Prompt},
+		{Role: "user", Content: "Донат 100 звёзд"},
 	}, trackerImplModel(b))
 }
