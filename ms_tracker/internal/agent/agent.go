@@ -56,9 +56,14 @@ func runVerdict(cfg config.Config, job store.Job, phase string) (Result, error) 
 		}
 		return Result{Note: note, Branch: branch}, nil
 	}
-	// Пока ревью посредственное, тест дымовой: ветка есть — пропускаем.
-	// Реализацию пишет Cursor SDK локально в клоне, не чат.
-	note := lenientVerdictNote(phase, branch, info)
+	if reason := checkBranchImpl(cfg, branch, job.Prompt); reason != "" {
+		note := "ревью не принято: " + reason
+		if phase == "test" {
+			note = "тест не прошёл: " + reason
+		}
+		return Result{Note: note, Branch: branch, Commit: info.Head}, nil
+	}
+	note := strictVerdictNote(phase, branch, job.Prompt)
 	out := Result{Note: note, Branch: branch, Commit: info.Head}
 	if phase != "review" && phase != "test" {
 		return out, nil
@@ -75,15 +80,17 @@ func runVerdict(cfg config.Config, job store.Job, phase string) (Result, error) 
 	return out, nil
 }
 
-func lenientVerdictNote(phase, branch string, info branchInfo) string {
+func strictVerdictNote(phase, branch, prompt string) string {
+	extra := "config.go целый"
+	if n := donateStarsFromPrompt(prompt); len(n) > 0 {
+		extra = fmt.Sprintf("номинал %d есть в config.go", n[0])
+	} else if n := donateRubFromPrompt(prompt); len(n) > 0 {
+		extra = fmt.Sprintf("номинал %d есть в config.go", n[0])
+	}
 	if phase == "test" {
-		return "Минимальный тест: ветка " + branch + " на месте, дымовая проверка ок. Тест пройден."
+		return "Тест: " + extra + ", ветка " + branch + ". Тест пройден."
 	}
-	extra := "есть коммит выполнения"
-	if info.HasImpl {
-		extra = "есть правки приложения"
-	}
-	return "Посредственное ревью: на ветке " + branch + " " + extra + ". Можно на тест."
+	return "Ревью: на ветке " + branch + " " + extra + ". Можно на тест."
 }
 
 func verdictPassed(phase, text string) bool {

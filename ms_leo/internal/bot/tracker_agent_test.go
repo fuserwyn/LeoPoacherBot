@@ -28,7 +28,7 @@ func TestTrackerAgentPromptPhases(t *testing.T) {
 		t.Fatalf("stand logs: %q", stand)
 	}
 	review := trackerAgentPrompt(task, "review")
-	if !strings.Contains(review, "Посредственное") || !strings.Contains(review, "можно на тест") {
+	if !strings.Contains(review, "можно на тест") || !strings.Contains(review, "ревью не принято") {
 		t.Fatalf("review: %q", review)
 	}
 	test := trackerAgentPrompt(task, "test")

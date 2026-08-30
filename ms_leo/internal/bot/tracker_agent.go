@@ -119,7 +119,7 @@ func trackerAgentPrompt(t database.TrackerTask, phase string) string {
 	result := strings.TrimSpace(t.Result)
 	switch phase {
 	case "review":
-		return fmt.Sprintf(`Посредственное ревью задачи #%d.
+		return fmt.Sprintf(`Ревью задачи #%d: принята ли именно эта фича, а не любая правка.
 
 Формулировка:
 %s
@@ -127,10 +127,10 @@ func trackerAgentPrompt(t database.TrackerTask, phase string) string {
 Что сдал агент:
 %s
 
-Не придирайся к стилю, тестам и полноте. Если есть ветка или коммит — напиши «можно на тест».
-Откажи («ревью не принято») только если коммита и ветки нет совсем.`, n, prompt, result)
+«можно на тест» только если в коде есть то, что просили (для доната — номинал в config.go, файл не заглушка).
+«ревью не принято» если коммита нет, только заметка, config.go обрезан или номинала из задачи нет.`, n, prompt, result)
 	case "test":
-		return fmt.Sprintf(`Минимальный дымовой тест задачи #%d.
+		return fmt.Sprintf(`Тест задачи #%d: фича из формулировки реально в коде.
 
 Формулировка:
 %s
@@ -138,9 +138,8 @@ func trackerAgentPrompt(t database.TrackerTask, phase string) string {
 Результат и ревью:
 %s
 
-Проверь совсем коротко: ветка есть, карточка не пустая. Не гоняй полный набор.
-Если ветка или коммит есть — напиши «тест пройден».
-«тест не прошёл» только если кода нет совсем.`, n, prompt, result)
+«тест пройден» только если в config.go есть нужный номинал и файл собирается (есть parseAmountTiers и getEnv).
+«тест не прошёл» если ветки нет, файла-заглушка или номинала из задачи нет.`, n, prompt, result)
 	default:
 		text := prompt
 		if n > 0 {
@@ -416,9 +415,9 @@ func (b *Bot) finishTrackerComposerLocal(t database.TrackerTask, phase string, s
 	if b.aiClient != nil {
 		raw, err := b.aiClient.Chat([]ai.ChatMessage{
 			{Role: "system", Content: `Ты — ревьюер/тестировщик Fat Leopard.
-Ревью посредственное, тест минимальный.
 Ответь JSON без обрамления: {"pass":true/false,"note":"1–3 предложения без эмодзи"}.
-pass false только если нет ветки и коммита. Иначе pass true.`},
+pass true только если в коде есть фича из формулировки (для доната — номинал в config.go, не заглушка).
+pass false если нет коммита, только заметка, config.go обрезан или номинала нет.`},
 			{Role: "user", Content: trackerAgentPrompt(t, phase)},
 		}, "")
 		if err == nil {
