@@ -99,13 +99,10 @@ func trackerAgentDonate(b *Bot, job database.TrackerTask) (string, error) {
 	if b == nil || b.aiClient == nil {
 		return "", fmt.Errorf("Лео недоступен")
 	}
-	stars, err := strconv.Atoi(strings.TrimSpace(strings.TrimPrefix(job.Prompt, "Донат ")))
-	if err != nil || stars <= 0 {
-		return "", fmt.Errorf("неверная сумма доната")
-	}
 	return b.aiClient.Chat([]ai.ChatMessage{
-		{Role: "system", Content: fmt.Sprintf(`Ты — Лео, помощник стаи Fat Leopard. Получен донат %d звёзд.
+		{Role: "system", Content: `Ты — Лео, помощник стаи Fat Leopard. Обработай донат звёздами.
 Ответь JSON без обрамления: {"note":"..."}
-note — подтверждение получения доната, без эмодзи.`, stars)},
+note — подтверждение получения доната, без эмодзи.`},
+		{Role: "user", Content: "Донат 100 звёзд"},
 	}, trackerImplModel(b))
 }
