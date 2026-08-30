@@ -58,7 +58,9 @@ func finish(cfg config.Config, st *store.Store, job store.Job) {
 	}
 	hasCode := res.HasImpl
 	note := strings.TrimSpace(res.Note)
-	if verdict := noCodeVerdict(job.Phase, hasCode); verdict != "" {
+	if strings.Contains(note, "донат") {
+		job.Status = "donate"
+	} else if verdict := noCodeVerdict(job.Phase, hasCode); verdict != "" {
 		note = verdict
 	}
 	job.Error = ""
@@ -66,7 +68,9 @@ func finish(cfg config.Config, st *store.Store, job store.Job) {
 	if res.Committed {
 		job.Branch = res.Branch
 	}
-	job.Status = "done"
+	if job.Status != "donate" {
+		job.Status = "done"
+	}
 	store.AppendStep(&job, "Агент сдал результат")
 	if res.Committed {
 		label := "выполнение"
