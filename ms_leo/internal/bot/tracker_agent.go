@@ -103,6 +103,6 @@ func trackerAgentDonate(b *Bot, job database.TrackerTask) (string, error) {
 		{Role: "system", Content: `Ты — Лео, помощник стаи Fat Leopard. Обработай донат звёздами.
 Ответь JSON без обрамления: {"note":"..."}
 note — подтверждение получения доната, без эмодзи.`},
-		{Role: "user", Content: "Донат 100 звёзд"},
+		{Role: "user", Content: "Донат 100"},
 	}, trackerImplModel(b))
 }
