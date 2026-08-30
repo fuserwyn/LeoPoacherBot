@@ -51,7 +51,7 @@ func runVerdict(cfg config.Config, job store.Job, phase string) (Result, error) 
 		return Result{Note: note, Branch: branch}, nil
 	}
 	// Пока ревью посредственное, тест дымовой: ветка есть — пропускаем.
-	// Реализацию пишет Cursor Cloud Agent, не чат.
+	// Реализацию пишет Cursor SDK локально в клоне, не чат.
 	note := lenientVerdictNote(phase, branch, info)
 	out := Result{Note: note, Branch: branch, Commit: info.Head}
 	if phase != "review" && phase != "test" {
@@ -114,78 +114,29 @@ func applyDoing(cfg config.Config, job store.Job) (Result, error) {
 	if strings.TrimSpace(cfg.CursorAPIKey) == "" {
 		return Result{}, fmt.Errorf("нет CURSOR_API_KEY")
 	}
-	branch := strings.TrimSpace(job.Branch)
-	if branch == "" {
-		branch = taskBranch(job)
+	if strings.TrimSpace(cfg.GithubToken) == "" || strings.TrimSpace(cfg.Repo) == "" {
+		return Result{}, fmt.Errorf("нет GitHub")
 	}
-	if strings.TrimSpace(cfg.GithubToken) != "" && strings.TrimSpace(cfg.Repo) != "" {
-		ready, err := ensureRemoteTaskBranch(cfg, job, branch)
-		if err != nil {
-			return Result{}, err
-		}
-		if ready != "" {
-			branch = ready
-		}
-	}
-	cur, err := runCursorDoing(cfg, job, branch)
+	dir, err := os.MkdirTemp("", "leo-tracker-doing-*")
 	if err != nil {
 		return Result{}, err
 	}
-	note := strings.TrimSpace(cur.Result)
-	if note == "" {
-		note = "Cursor сдал задачу."
-	}
-	if picked := cursorPickedBranch(cur, branch); picked != "" {
-		branch = picked
-	}
-	out := Result{Note: note, Branch: branch}
-	if strings.TrimSpace(cfg.GithubToken) == "" || strings.TrimSpace(cfg.Repo) == "" {
-		return out, nil
-	}
-	_, sha, hasImpl, rejected, gerr := applyPhaseCommit(cfg, job, note, nil)
-	out.Commit = sha
-	out.Committed = sha != "" && gerr == nil
-	out.HasImpl = hasImpl && out.Committed
-	if info, ierr := InspectBranch(cfg, branch); ierr == nil {
-		if info.HasImpl {
-			out.HasImpl = true
-		}
-		if info.Head != "" && out.Commit == "" {
-			out.Commit = info.Head
-		}
-		if info.Exists {
-			out.Committed = true
-		}
-	}
-	if len(rejected) > 0 {
-		out.Note = strings.TrimSpace(out.Note + "\n\nОтклонённые правки:\n- " + strings.Join(rejected, "\n- "))
-	}
-	if gerr != nil {
-		out.Note = strings.TrimSpace(out.Note + "\n\nGit: " + gerr.Error())
-	}
-	return out, nil
-}
-
-func ensureRemoteTaskBranch(cfg config.Config, job store.Job, branch string) (string, error) {
-	dir, err := os.MkdirTemp("", "leo-tracker-branch-*")
-	if err != nil {
-		return branch, err
-	}
-	repoDir, got, cleanup, err := prepareRepo(cfg, job, dir)
+	repoDir, branch, cleanup, err := prepareRepo(cfg, job, dir)
 	defer cleanup()
 	if err != nil {
-		return got, err
+		return Result{Branch: branch}, err
 	}
-	if got != "" {
-		branch = got
+	note, err := runCursorLocal(cfg, job, repoDir, branch)
+	if err != nil {
+		return Result{Branch: branch}, err
 	}
-	if err := run(repoDir, "git", "push", "-u", "origin", branch); err != nil {
-		if remoteBranchExists(repoDir, branch) {
-			return branch, nil
-		}
-		return branch, err
+	sha, hasImpl, gerr := commitWorkAndPush(cfg, job, repoDir, branch, note)
+	out := Result{Note: note, Branch: branch, Commit: sha, Committed: sha != "" && gerr == nil, HasImpl: hasImpl}
+	if gerr != nil {
+		out.Note = strings.TrimSpace(out.Note + "\n\nGit: " + gerr.Error())
+		return out, gerr
 	}
-	return branch, nil
+	return out, nil
 }
 
 func writesGit(phase string) bool {
@@ -290,12 +241,17 @@ func applyPhaseCommit(cfg config.Config, job store.Job, note string, edits []fil
 	if len(rejected) > 0 {
 		note = strings.TrimSpace(note + "\n\nОтклонённые правки:\n- " + strings.Join(rejected, "\n- "))
 	}
+	sha, hasImpl, err := commitWorkAndPush(cfg, job, repoDir, branch, note)
+	return branch, sha, hasImpl, rejected, err
+}
+
+func writeTrackerNote(repoDir string, job store.Job, note string) error {
 	notePath := filepath.Join(repoDir, ".tracker", fmt.Sprintf("job-%d.md", job.SourceTaskID))
 	if job.SourceTaskID <= 0 {
 		notePath = filepath.Join(repoDir, ".tracker", fmt.Sprintf("job-%d.md", job.ID))
 	}
 	if err := os.MkdirAll(filepath.Dir(notePath), 0o755); err != nil {
-		return branch, "", false, rejected, err
+		return err
 	}
 	label := commitLabel(job.Phase)
 	prev, _ := os.ReadFile(notePath)
@@ -304,30 +260,51 @@ func applyPhaseCommit(cfg config.Config, job store.Job, note string, edits []fil
 		body = fmt.Sprintf("# Задача трекера #%d\n\n%s\n", job.SourceNum, job.Prompt)
 	}
 	body += fmt.Sprintf("\n## %s\n\n%s\n", label, strings.TrimSpace(note))
-	if err := os.WriteFile(notePath, []byte(body), 0o644); err != nil {
-		return branch, "", false, rejected, err
+	return os.WriteFile(notePath, []byte(body), 0o644)
+}
+
+func commitWorkAndPush(cfg config.Config, job store.Job, repoDir, branch, note string) (string, bool, error) {
+	if err := writeTrackerNote(repoDir, job, note); err != nil {
+		return "", false, err
 	}
 	_ = run(repoDir, "git", "config", "user.email", "tracker@fat-leopard")
 	_ = run(repoDir, "git", "config", "user.name", "Leo Tracker")
-	if len(edits) > 0 {
-		if err := run(repoDir, "git", "add", "-A"); err != nil {
-			return branch, "", false, rejected, err
-		}
-	} else if err := run(repoDir, "git", "add", ".tracker"); err != nil {
-		return branch, "", false, rejected, err
+	if err := run(repoDir, "git", "add", "-A"); err != nil {
+		return "", false, err
 	}
-	hasImpl := stagedHasImpl(repoDir)
-	msg := fmt.Sprintf("tracker: #%d %s", job.SourceNum, label)
+	hasImpl := stagedHasImpl(repoDir) || branchHasImpl(repoDir, defaultBranch(cfg))
+	msg := fmt.Sprintf("tracker: #%d %s", job.SourceNum, commitLabel(job.Phase))
 	if err := run(repoDir, "git", "commit", "-m", msg); err != nil {
-		if sha := gitHead(repoDir); sha != "" && (label == "ревью" || label == "тест") {
-			return branch, sha, hasImpl, rejected, nil
+		if sha := gitHead(repoDir); sha != "" {
+			if pushErr := run(repoDir, "git", "push", "-u", "origin", branch); pushErr != nil {
+				return sha, hasImpl, fmt.Errorf("ветка: %w", pushErr)
+			}
+			return sha, hasImpl || branchHasImpl(repoDir, defaultBranch(cfg)), nil
 		}
-		return branch, "", false, rejected, err
+		return "", false, err
 	}
 	if err := run(repoDir, "git", "push", "-u", "origin", branch); err != nil {
-		return branch, "", false, rejected, fmt.Errorf("ветка: %w", err)
+		return "", false, fmt.Errorf("ветка: %w", err)
 	}
-	return branch, gitHead(repoDir), hasImpl, rejected, nil
+	return gitHead(repoDir), hasImpl || branchHasImpl(repoDir, defaultBranch(cfg)), nil
+}
+
+func branchHasImpl(repoDir, base string) bool {
+	if base == "" {
+		base = "main"
+	}
+	cmd := exec.Command("git", "diff", "--name-only", "origin/"+base+"...HEAD")
+	cmd.Dir = repoDir
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		cmd = exec.Command("git", "diff", "--name-only", base+"...HEAD")
+		cmd.Dir = repoDir
+		out, err = cmd.CombinedOutput()
+		if err != nil {
+			return false
+		}
+	}
+	return filesHaveImpl(strings.Split(string(out), "\n"))
 }
 
 func stagedHasImpl(repoDir string) bool {
