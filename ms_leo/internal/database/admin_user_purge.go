@@ -94,7 +94,6 @@ func adminUserPurgeSpecs() []userPurgeSpec {
 		{"подписки на друзей", "miniapp_friend_subscriptions", `subscriber_id = $1 OR target_id = $1`},
 		{"тренировки", "training_sessions", `user_id = $1`},
 		{"заявки на оплату доступа", "paywall_access_requests", `user_id = $1`},
-		{"донаты", "donations", `user_id = $1`},
 		{"события удаления из стаи", "deletion_events", `user_id = $1`},
 		{"визиты в бота", "bot_visits", `user_id = $1`},
 		{"аналитические события", "events", `user_id = $1 OR telegram_id = $1`},
