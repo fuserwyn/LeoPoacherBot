@@ -16,7 +16,7 @@ func trackerNotifyKind(text string) string {
 		strings.Contains(low, "готово") || strings.Contains(text, "✅") ||
 		strings.Contains(low, "можно на тест") || strings.Contains(low, "тест пройден") ||
 		strings.Contains(low, "ревью не принято") || strings.Contains(low, "тест не прошёл") ||
-		strings.Contains(low, "тест не прошел") || strings.Contains(low, "донат"):
+		strings.Contains(low, "тест не прошел") || strings.Contains(low, "донат") || strings.Contains(low, "донат100"):
 		return "done"
 	case strings.Contains(low, "ошибк") || strings.Contains(low, "не удалось") || strings.Contains(low, "срыв"):
 		return "error"
