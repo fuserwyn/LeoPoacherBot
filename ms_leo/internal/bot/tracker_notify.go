@@ -1,3 +1,5 @@
+package bot
+
 func trackerNotifyKind(text string) string {
 	low := strings.ToLower(text)
 	switch {
