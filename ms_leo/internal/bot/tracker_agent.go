@@ -16,9 +16,6 @@ import (
 	"leo-bot/internal/database"
 )
 
-// Ревью и тест гоняет Cursor Composer: он читает код в репозитории,
-// а не только формулировку карточки. Реализацию пишет модель доски
-// (BOARD_MODEL) или та, что настроена у владельца.
 const trackerComposerModelKey = "cursor-composer"
 
 const trackerAgentHTTPTimeout = 45 * time.Second
@@ -87,14 +84,13 @@ func trackerAgentReview(b *Bot, job database.TrackerTask) (string, error) {
 	}
 	return b.aiClient.Chat([]ai.ChatMessage{
 		{Role: "system", Content: `Ты — Лео, ревьюер приложения стаи Fat Leopard.
-Прочитай формулировку задачи и правки агента. Проверь их и сделай свои замечания.
+Прочитай формулировку задачи и правки агента. Проверь их и сделать свои замечания.
 Ответь JSON без обрамления: {"note":"..."}
 note — 2–5 предложений, без эмодзи, конкретно: что неправильно и как исправить.`},
 		{Role: "user", Content: job.Prompt},
 	}, trackerComposerModel(b))
 }
 
-// Добавлена обработка доната звёздами
 func trackerAgentDonate(b *Bot, job database.TrackerTask) (string, error) {
 	if b == nil || b.aiClient == nil {
 		return "", fmt.Errorf("Лео недоступен")
