@@ -81,6 +81,39 @@ func TestApplyDonateBare1000(t *testing.T) {
 	}
 }
 
+func TestShouldRunCursorSkipsDonate(t *testing.T) {
+	if shouldRunCursor("Сделай Донат 100", 0) || shouldRunCursor("10 звезд донат", 1) {
+		t.Fatal("донат не должен идти в Cursor")
+	}
+	if !shouldRunCursor("почини кнопку профиля", 0) {
+		t.Fatal("обычная задача — Cursor")
+	}
+	if shouldRunCursor("почини кнопку профиля", 1) {
+		t.Fatal("уже есть правки")
+	}
+}
+
+func TestApplyKnownTaskAlreadyPresent(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "ms_leo", "internal", "config", "config.go")
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	src := `		DonateStarsTiers:   parseAmountTiers("1,5,10,100," + getEnv("DONATE_STARS_TIERS", "50,150,500")),
+		DonateCardTiersRub: parseAmountTiers("100,1000," + getEnv("DONATE_CARD_TIERS_RUB", "100,300,1000")),`
+	if err := os.WriteFile(path, []byte(src), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	note, n, err := applyKnownTask(dir, "Сделай Донат 100")
+	if err != nil || n != 0 || !strings.Contains(note, "уже есть") {
+		t.Fatalf("n=%d note=%q err=%v", n, note, err)
+	}
+	raw, _ := os.ReadFile(path)
+	if string(raw) != src {
+		t.Fatal("файл не должны трогать")
+	}
+}
+
 func TestMergeStarTiers(t *testing.T) {
 	if got := mergeStarTiers("1,5,", []int{10, 5}); got != "1,5,10" {
 		t.Fatal(got)

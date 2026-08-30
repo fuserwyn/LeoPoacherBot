@@ -564,8 +564,15 @@ func (b *Bot) finishTrackerBuild(taskID int64) {
 		if err != nil {
 			t.Error = "не влили в main: " + err.Error()
 			t.Result = strings.TrimSpace(t.Result + "\n\nПуш в main не вышел: " + err.Error())
-			_ = applyTrackerColumn(&t, trackerColDoing)
 			appendTrackerStep(&t, "пуш на стенд не вышел")
+			if trackerFailLooksLikeStub(err.Error(), "") {
+				appendTrackerStep(&t, "не вернули в работу: ветка обрезала файлы")
+				if serr := b.db.SaveTrackerTask(t); serr != nil && b.logger != nil {
+					b.logger.Warnf("трекер: не сохранить срыв пуша #%d: %v", trackerDueNum(t), serr)
+				}
+				return
+			}
+			_ = applyTrackerColumn(&t, trackerColDoing)
 			appendTrackerStep(&t, "вернули в работу: пуш не вышел")
 			if serr := b.db.SaveTrackerTask(t); serr != nil && b.logger != nil {
 				b.logger.Warnf("трекер: не сохранить срыв пуша #%d: %v", trackerDueNum(t), serr)
@@ -638,6 +645,13 @@ func (b *Bot) returnTrackerFromFailedStand(t *database.TrackerTask, waitErr erro
 	appendTrackerStep(t, "сборка на стенде не прошла")
 	if trackerStandFailCount(*t) >= trackerStandMaxRetries {
 		appendTrackerStep(t, "сборка не чинится после нескольких попыток")
+		if serr := b.db.SaveTrackerTask(*t); serr != nil && b.logger != nil {
+			b.logger.Warnf("трекер: не сохранить срыв стенда #%d: %v", trackerDueNum(*t), serr)
+		}
+		return
+	}
+	if trackerFailLooksLikeStub(reason, logs) {
+		appendTrackerStep(t, "не вернули в работу: сборка упала на заглушке")
 		if serr := b.db.SaveTrackerTask(*t); serr != nil && b.logger != nil {
 			b.logger.Warnf("трекер: не сохранить срыв стенда #%d: %v", trackerDueNum(*t), serr)
 		}

@@ -65,6 +65,16 @@ func (e *standBuildError) Error() string {
 	return fmt.Sprintf("%s: деплой %s", svc, st)
 }
 
+// trackerFailLooksLikeStub — агент снова сдал обрезанный файл. Повторный
+// заход в работу только усугубляет: Cursor ещё раз затирает профиль.
+func trackerFailLooksLikeStub(reason, logs string) bool {
+	text := strings.ToLower(reason + "\n" + logs)
+	if strings.Contains(text, "обрезан") || strings.Contains(text, "заглушк") {
+		return true
+	}
+	return strings.Contains(text, "undefined:") || strings.Contains(text, "imported and not used")
+}
+
 func tryBeginTrackerStand(taskID int64) bool {
 	_, loaded := trackerStandInflight.LoadOrStore(taskID, struct{}{})
 	return !loaded

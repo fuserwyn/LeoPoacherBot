@@ -155,6 +155,35 @@ func applyDonateCardTiers(repoDir string, rub []int) (int, error) {
 	return n, nil
 }
 
+func isDonatePrompt(prompt string) bool {
+	return len(donateStarsFromPrompt(prompt)) > 0 || len(donateRubFromPrompt(prompt)) > 0
+}
+
+func shouldRunCursor(prompt string, knownEdits int) bool {
+	return !isDonatePrompt(prompt) && knownEdits == 0
+}
+
+func donateAmountsPresent(src, prompt string) bool {
+	stars := donateStarsFromPrompt(prompt)
+	rub := donateRubFromPrompt(prompt)
+	if len(stars) == 0 && len(rub) == 0 {
+		return false
+	}
+	starLine := donateLine(src, "DONATE_STARS_TIERS")
+	cardLine := donateLine(src, "DONATE_CARD_TIERS_RUB")
+	for _, n := range stars {
+		if !lineHasAmount(starLine, n) {
+			return false
+		}
+	}
+	for _, n := range rub {
+		if !lineHasAmount(cardLine, n) && !lineHasAmount(starLine, n) {
+			return false
+		}
+	}
+	return true
+}
+
 func applyKnownTask(repoDir, prompt string) (string, int, error) {
 	stars := donateStarsFromPrompt(prompt)
 	rub := donateRubFromPrompt(prompt)
@@ -178,9 +207,6 @@ func applyKnownTask(repoDir, prompt string) (string, int, error) {
 			n += cn
 		}
 	}
-	if n == 0 {
-		return "", 0, nil
-	}
 	var parts []string
 	for _, s := range stars {
 		parts = append(parts, fmt.Sprintf("%d ⭐", s))
@@ -188,5 +214,16 @@ func applyKnownTask(repoDir, prompt string) (string, int, error) {
 	for _, r := range rub {
 		parts = append(parts, fmt.Sprintf("%d ₽", r))
 	}
-	return "Добавил донат " + strings.Join(parts, " и ") + ".", n, nil
+	label := strings.Join(parts, " и ")
+	if n == 0 {
+		raw, err := os.ReadFile(filepath.Join(repoDir, "ms_leo", "internal", "config", "config.go"))
+		if err != nil {
+			return "", 0, err
+		}
+		if donateAmountsPresent(string(raw), prompt) {
+			return "Номинал уже есть в config.go: " + label + ".", 0, nil
+		}
+		return "", 0, fmt.Errorf("не смог вписать донат %s в config.go", label)
+	}
+	return "Добавил донат " + label + ".", n, nil
 }

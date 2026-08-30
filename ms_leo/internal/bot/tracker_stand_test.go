@@ -104,6 +104,18 @@ func TestTrackerTaskShippedToStand(t *testing.T) {
 	}
 }
 
+func TestTrackerFailLooksLikeStub(t *testing.T) {
+	if !trackerFailLooksLikeStub("ProfileScreen.tsx обрезан (25 строк, нужно ≥800)", "") {
+		t.Fatal("обрезан")
+	}
+	if !trackerFailLooksLikeStub("сборка не прошла", "undefined: parseAmountTiers\nimported and not used: os") {
+		t.Fatal("compile stub")
+	}
+	if trackerFailLooksLikeStub("timeout waiting for deploy", "BUILDING") {
+		t.Fatal("обычный сбой стенда")
+	}
+}
+
 func TestTrackerStandFailCount(t *testing.T) {
 	if trackerStandFailCount(database.TrackerTask{}) != 0 {
 		t.Fatal("empty")

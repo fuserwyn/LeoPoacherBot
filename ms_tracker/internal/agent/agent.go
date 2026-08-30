@@ -127,7 +127,7 @@ func applyDoing(cfg config.Config, job store.Job) (Result, error) {
 	if strings.TrimSpace(cfg.GithubToken) == "" || strings.TrimSpace(cfg.Repo) == "" {
 		return Result{}, fmt.Errorf("нет GitHub")
 	}
-	if len(donateStarsFromPrompt(job.Prompt)) == 0 && strings.TrimSpace(cfg.CursorAPIKey) == "" {
+	if shouldRunCursor(job.Prompt, 0) && strings.TrimSpace(cfg.CursorAPIKey) == "" {
 		return Result{}, fmt.Errorf("нет CURSOR_API_KEY")
 	}
 	dir, err := os.MkdirTemp("", "leo-tracker-doing-*")
@@ -143,7 +143,11 @@ func applyDoing(cfg config.Config, job store.Job) (Result, error) {
 	if kerr != nil {
 		return Result{Branch: branch}, kerr
 	}
-	if n == 0 {
+	if !shouldRunCursor(job.Prompt, n) {
+		if note == "" {
+			note = "Номинал уже есть в config.go."
+		}
+	} else if n == 0 {
 		if strings.TrimSpace(cfg.CursorAPIKey) == "" {
 			return Result{Branch: branch}, fmt.Errorf("нет CURSOR_API_KEY")
 		}
