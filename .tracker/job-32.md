@@ -1312,3 +1312,7 @@ func clip(s string, n int) string {
 ## выполнение
 
 Добавил обработку статуса donate100 в worker.go и добавил проверку на donate в tracker_notify.go
+
+## выполнение
+
+Добавлена обработка статуса donate100 в функции finish и добавлен соответствующий case в trackerNotifyKind

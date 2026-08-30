@@ -80,7 +80,7 @@ func finish(cfg config.Config, st *store.Store, job store.Job) {
 		case "test":
 			label = "тест"
 		case "donate":
-			label = "донате"
+			label = "донейт"
 		}
 		store.AppendStep(&job, "коммит "+res.Commit+" "+label)
 		store.AppendStep(&job, "ветка "+res.Branch)
@@ -99,8 +99,8 @@ func noCodeVerdict(phase string, hasCode bool) string {
 	if hasCode {
 		return ""
 	}
-	phase = strings.ToLower(strings.TrimSpace(phase))
-	if phase == "review" || phase == "test" || phase == "donate" || phase == "donate100" {
+	phase = strings.ToLower(strings.TrimSpace(Phase))
+	if phase == "review" || phase == "test" || phase == "donate" {
 		return "Нет кода в репозитории для " + phase
 	}
 	return ""
