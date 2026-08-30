@@ -136,6 +136,19 @@ func applyDoing(cfg config.Config, job store.Job) (Result, error) {
 	if err != nil {
 		return Result{Branch: branch}, err
 	}
+	if !dirtyHasImpl(repoDir) {
+		note, n, rejected, ferr := applyJSONFallback(repoDir, note)
+		if ferr != nil {
+			return Result{Branch: branch, Note: note}, ferr
+		}
+		if n == 0 {
+			msg := "нет правок в репозитории: агент сдал только заметку"
+			if len(rejected) > 0 {
+				msg += " (" + strings.Join(rejected, "; ") + ")"
+			}
+			return Result{Branch: branch, Note: note}, fmt.Errorf("%s", msg)
+		}
+	}
 	sha, hasImpl, gerr := commitWorkAndPush(cfg, job, repoDir, branch, note)
 	out := Result{Note: note, Branch: branch, Commit: sha, Committed: sha != "" && gerr == nil, HasImpl: hasImpl}
 	if gerr != nil {
@@ -143,6 +156,36 @@ func applyDoing(cfg config.Config, job store.Job) (Result, error) {
 		return out, gerr
 	}
 	return out, nil
+}
+
+func dirtyHasImpl(repoDir string) bool {
+	cmd := exec.Command("git", "status", "--porcelain")
+	cmd.Dir = repoDir
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		return false
+	}
+	var names []string
+	for _, line := range strings.Split(string(out), "\n") {
+		if len(line) < 4 {
+			continue
+		}
+		names = append(names, strings.TrimSpace(line[3:]))
+	}
+	return filesHaveImpl(names)
+}
+
+func applyJSONFallback(repoDir, note string) (string, int, []string, error) {
+	parsed := parseImplReply(note)
+	if len(parsed.Files) == 0 {
+		return note, 0, nil, nil
+	}
+	n, rejected, err := applyFileEdits(repoDir, parsed.Files)
+	out := strings.TrimSpace(parsed.Note)
+	if out == "" {
+		out = note
+	}
+	return out, n, rejected, err
 }
 
 func writesGit(phase string) bool {

@@ -39,6 +39,21 @@ func TestParseImplReply(t *testing.T) {
 	}
 }
 
+func TestApplyJSONFallbackWritesAllowedFile(t *testing.T) {
+	dir := t.TempDir()
+	note, n, rejected, err := applyJSONFallback(dir, `{"note":"ок","files":[{"path":"miniapp/src/Hi.tsx","content":"export const Hi=1\n"}]}`)
+	if err != nil || n != 1 || len(rejected) != 0 || note != "ок" {
+		t.Fatalf("n=%d rejected=%v note=%q err=%v", n, rejected, note, err)
+	}
+}
+
+func TestApplyJSONFallbackEmpty(t *testing.T) {
+	note, n, rejected, err := applyJSONFallback(t.TempDir(), "просто план без файлов")
+	if err != nil || n != 0 || len(rejected) != 0 || !strings.Contains(note, "план") {
+		t.Fatalf("n=%d rejected=%v note=%q err=%v", n, rejected, note, err)
+	}
+}
+
 func TestApplyFileEdits(t *testing.T) {
 	dir := t.TempDir()
 	n, rejected, err := applyFileEdits(dir, []fileEdit{

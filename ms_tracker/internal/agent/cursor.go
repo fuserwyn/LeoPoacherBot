@@ -42,7 +42,8 @@ func cursorModelID(cfg config.Config, job store.Job) string {
 func cursorDoingPrompt(job store.Job, branch string) string {
 	var b strings.Builder
 	b.WriteString("Ты агент трекера Fat Leopard. Репозиторий уже на ветке задачи.\n")
-	b.WriteString("Сделай задачу инструментами Cursor: правь файлы точечно, не переписывай файл целиком без нужды.\n")
+	b.WriteString("Сделай задачу инструментами Cursor (Read/StrReplace/Write): правь файлы точечно.\n")
+	b.WriteString("Не возвращай JSON с полным текстом файлов и не пиши правки только в .tracker.\n")
 	b.WriteString("Коммить можно локально. Не открывай PR. Не создавай новую ветку cursor/*.\n")
 	b.WriteString("Пуш на origin сделает трекер сам, в ветку ")
 	b.WriteString(branch)

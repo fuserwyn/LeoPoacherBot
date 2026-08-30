@@ -47,7 +47,10 @@ func finish(cfg config.Config, st *store.Store, job store.Job) {
 	res, err := agent.Run(cfg, job)
 	if err != nil {
 		job.Status = "error"
-		job.Error = "Агент не стартовал: " + err.Error()
+		job.Error = err.Error()
+		if !strings.Contains(job.Error, "нет правок") {
+			job.Error = "Агент не стартовал: " + job.Error
+		}
 		store.AppendStep(&job, "Агент не стартовал")
 		_ = st.Save(job)
 		_ = notify.JobDone(cfg, job, fmt.Sprintf("⚠️ Задача #%d: агент не стартовал.\n%s", job.SourceNum, job.Error))

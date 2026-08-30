@@ -246,7 +246,7 @@ func Load() (*Config, error) {
 
 		// 1 и 5 всегда в списке: задачи #25/#26. Даже если на Railway заданы
 		// только крупные номиналы, мелкие не пропадают.
-		DonateStarsTiers:   parseAmountTiers("1,5," + getEnv("DONATE_STARS_TIERS", "50,150,500")),
+		DonateStarsTiers:   parseAmountTiers("1,5,10," + getEnv("DONATE_STARS_TIERS", "50,150,500")),
 		DonateCardTiersRub: parseAmountTiers(getEnv("DONATE_CARD_TIERS_RUB", "100,300,1000")),
 
 		MiniappPublicBaseURL: strings.TrimSpace(getEnv("MINIAPP_PUBLIC_BASE_URL", "")),
