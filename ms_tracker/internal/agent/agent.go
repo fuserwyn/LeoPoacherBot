@@ -117,11 +117,11 @@ func Stamp(cfg config.Config, job store.Job, note string) (Result, error) {
 }
 
 func applyDoing(cfg config.Config, job store.Job) (Result, error) {
-	if strings.TrimSpace(cfg.CursorAPIKey) == "" {
-		return Result{}, fmt.Errorf("нет CURSOR_API_KEY")
-	}
 	if strings.TrimSpace(cfg.GithubToken) == "" || strings.TrimSpace(cfg.Repo) == "" {
 		return Result{}, fmt.Errorf("нет GitHub")
+	}
+	if len(donateStarsFromPrompt(job.Prompt)) == 0 && strings.TrimSpace(cfg.CursorAPIKey) == "" {
+		return Result{}, fmt.Errorf("нет CURSOR_API_KEY")
 	}
 	dir, err := os.MkdirTemp("", "leo-tracker-doing-*")
 	if err != nil {
@@ -132,21 +132,38 @@ func applyDoing(cfg config.Config, job store.Job) (Result, error) {
 	if err != nil {
 		return Result{Branch: branch}, err
 	}
-	note, err := runCursorLocal(cfg, job, repoDir, branch)
-	if err != nil {
-		return Result{Branch: branch}, err
+	note, n, kerr := applyKnownTask(repoDir, job.Prompt)
+	if kerr != nil {
+		return Result{Branch: branch}, kerr
 	}
-	if !dirtyHasImpl(repoDir) {
-		note, n, rejected, ferr := applyJSONFallback(repoDir, note)
-		if ferr != nil {
-			return Result{Branch: branch, Note: note}, ferr
+	if n == 0 {
+		if strings.TrimSpace(cfg.CursorAPIKey) == "" {
+			return Result{Branch: branch}, fmt.Errorf("нет CURSOR_API_KEY")
 		}
-		if n == 0 {
-			msg := "нет правок в репозитории: агент сдал только заметку"
-			if len(rejected) > 0 {
-				msg += " (" + strings.Join(rejected, "; ") + ")"
+		var err error
+		note, err = runCursorLocal(cfg, job, repoDir, branch)
+		if err != nil {
+			if fallback, fn, ferr := applyKnownTask(repoDir, job.Prompt); ferr == nil && fn > 0 {
+				note = fallback
+			} else {
+				return Result{Branch: branch}, err
 			}
-			return Result{Branch: branch, Note: note}, fmt.Errorf("%s", msg)
+		} else if !dirtyHasImpl(repoDir) {
+			note, n, rejected, jerr := applyJSONFallback(repoDir, note)
+			if jerr != nil {
+				return Result{Branch: branch, Note: note}, jerr
+			}
+			if n == 0 {
+				if fallback, fn, ferr := applyKnownTask(repoDir, job.Prompt); ferr == nil && fn > 0 {
+					note = fallback
+				} else {
+					msg := "нет правок в репозитории: агент сдал только заметку"
+					if len(rejected) > 0 {
+						msg += " (" + strings.Join(rejected, "; ") + ")"
+					}
+					return Result{Branch: branch, Note: note}, fmt.Errorf("%s", msg)
+				}
+			}
 		}
 	}
 	sha, hasImpl, gerr := commitWorkAndPush(cfg, job, repoDir, branch, note)

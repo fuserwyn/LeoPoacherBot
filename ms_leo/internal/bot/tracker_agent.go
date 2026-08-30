@@ -149,7 +149,7 @@ func trackerAgentPrompt(t database.TrackerTask, phase string) string {
 		if result != "" {
 			if strings.Contains(result, "Логи сборки Railway") ||
 				strings.Contains(strings.ToLower(result), "сборка на стенде не прошла") {
-				text += "\n\nСборка Railway упала. Почини код по логам. Верни полные файлы, без заглушек «остальной код без изменений». Не трогай несвязанное.\n" + result
+				text += "\n\nСборка Railway упала. Почини код по логам точечно, инструментами. Не возвращай полный текст файлов JSON-ом.\n" + result
 			} else {
 				text += "\n\nПрошлый результат / замечания ревью:\n" + result
 			}

@@ -9,6 +9,11 @@ import sys
 
 from cursor_sdk import Agent, AgentOptions, CursorAgentError, LocalAgentOptions
 
+try:
+    from cursor_sdk import SendOptions
+except ImportError:  # старые версии SDK
+    SendOptions = None  # type: ignore
+
 
 def _text(result: object) -> str:
     raw = getattr(result, "result", None)
@@ -43,15 +48,27 @@ def main() -> int:
         print(json.dumps({"ok": False, "error": "пустой промпт"}), flush=True)
         return 1
 
+    opts = AgentOptions(
+        api_key=api_key,
+        model=model,
+        local=LocalAgentOptions(cwd=cwd, setting_sources=[]),
+    )
     try:
-        result = Agent.prompt(
-            prompt,
-            AgentOptions(
-                api_key=api_key,
+        if SendOptions is not None:
+            with Agent.create(
                 model=model,
+                api_key=api_key,
                 local=LocalAgentOptions(cwd=cwd, setting_sources=[]),
-            ),
-        )
+            ) as agent:
+                run = agent.send(prompt, SendOptions(mode="agent"))
+                result = run.wait()
+                if not _text(result) and hasattr(run, "text"):
+                    try:
+                        result = type("R", (), {"status": getattr(result, "status", ""), "result": run.text()})()
+                    except Exception:  # noqa: BLE001
+                        pass
+        else:
+            result = Agent.prompt(prompt, opts)
     except CursorAgentError as err:
         print(
             json.dumps(
