@@ -326,7 +326,8 @@ func trackerComposerFailedResult(text string) bool {
 	return strings.Contains(low, "ревью не принято") ||
 		strings.Contains(low, "тест не прошёл") ||
 		strings.Contains(low, "тест не прошел") ||
-		strings.Contains(low, "агент не стартовал")
+		strings.Contains(low, "агент не стартовал") ||
+		trackerVerdictIsFakePass(text)
 }
 
 func trackerShouldAdvanceFromResult(t database.TrackerTask) bool {

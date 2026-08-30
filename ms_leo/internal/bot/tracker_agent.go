@@ -159,21 +159,34 @@ func trackerAgentPrompt(t database.TrackerTask, phase string) string {
 
 // trackerComposerPassed — вердикт Composer по тексту сдачи.
 // Явный провал важнее общего «готово» от доски.
+// trackerVerdictIsFakePass — старый трекер закрывал карточку, если есть ветка.
+// Так #29/#30/#31 стали «готово» без фичи. Такие тексты больше не двигают доску.
+func trackerVerdictIsFakePass(text string) bool {
+	low := strings.ToLower(text)
+	return strings.Contains(low, "посредственн") ||
+		strings.Contains(low, "минимальный тест") ||
+		strings.Contains(low, "дымовая") ||
+		strings.Contains(low, "только заметка")
+}
+
 func trackerComposerPassed(phase, text string) bool {
 	low := strings.ToLower(text)
+	if trackerVerdictIsFakePass(text) {
+		return false
+	}
 	switch phase {
 	case "review":
 		if strings.Contains(low, "ревью не принято") || strings.Contains(low, `"pass":false`) ||
 			strings.Contains(low, "нельзя на тест") {
 			return false
 		}
-		return true
+		return strings.Contains(low, "можно на тест")
 	case "test":
 		if strings.Contains(low, "тест не прошёл") || strings.Contains(low, "тест не прошел") ||
 			strings.Contains(low, `"pass":false`) {
 			return false
 		}
-		return true
+		return strings.Contains(low, "тест пройден")
 	}
 	if strings.Contains(low, "блокер") || strings.Contains(low, "не принято") ||
 		strings.Contains(low, "верн") && strings.Contains(low, "работ") {

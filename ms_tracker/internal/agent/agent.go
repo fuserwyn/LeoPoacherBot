@@ -82,7 +82,13 @@ func runVerdict(cfg config.Config, job store.Job, phase string) (Result, error) 
 
 func strictVerdictNote(phase, branch, prompt string) string {
 	extra := "config.go целый"
-	if n := donateStarsFromPrompt(prompt); len(n) > 0 {
+	if isDonateRemove(prompt) {
+		if n := donateStarsFromPrompt(prompt); len(n) > 0 {
+			extra = fmt.Sprintf("номинал %d скрыт в config.go", n[0])
+		} else if n := donateRubFromPrompt(prompt); len(n) > 0 {
+			extra = fmt.Sprintf("номинал %d скрыт в config.go", n[0])
+		}
+	} else if n := donateStarsFromPrompt(prompt); len(n) > 0 {
 		extra = fmt.Sprintf("номинал %d есть в config.go", n[0])
 	} else if n := donateRubFromPrompt(prompt); len(n) > 0 {
 		extra = fmt.Sprintf("номинал %d есть в config.go", n[0])

@@ -50,17 +50,23 @@ func TestTrackerComposerPassed(t *testing.T) {
 	if trackerComposerPassed("test", "Тест не прошёл: кнопка не жмётся.") {
 		t.Fatal("test fail")
 	}
-	if !trackerComposerPassed("review", "глянул поверхностно, в целом ок") {
-		t.Fatal("lenient review must pass")
+	if trackerComposerPassed("review", "глянул поверхностно, в целом ок") {
+		t.Fatal("без «можно на тест» ревью не двигает карточку")
 	}
 	if !trackerComposerPassed("doing", "⏰ Задача #1 выполнена.\n\nГотово.") {
 		t.Fatal("impl done is pass")
 	}
-	if !trackerComposerPassed("review", "на ветке есть коммит, даже если это заметка трекера. Можно на тест.") {
-		t.Fatal("branch present must go to test")
+	if trackerComposerPassed("review", "Посредственное ревью: на ветке есть правки. Можно на тест.") {
+		t.Fatal("фальшивое ревью не закрывает карточку")
 	}
-	if !trackerComposerPassed("test", "ветка на месте, тест пройден") {
-		t.Fatal("branch present must pass test")
+	if trackerComposerPassed("test", "Минимальный тест: ветка на месте, дымовая проверка ок. Тест пройден.") {
+		t.Fatal("дымовой тест не закрывает карточку")
+	}
+	if !trackerComposerPassed("review", "Ревью: на ветке tracker/31-358 номинал 150 скрыт в config.go. Можно на тест.") {
+		t.Fatal("настоящее ревью должно двигать карточку")
+	}
+	if !trackerComposerPassed("test", "Тест: номинал 150 скрыт в config.go, ветка tracker/31-358. Тест пройден.") {
+		t.Fatal("настоящий тест должен закрывать фазу")
 	}
 }
 
