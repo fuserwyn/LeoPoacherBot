@@ -70,8 +70,20 @@ func TestDonateStarsTiersAlwaysIncludeOneAndFive(t *testing.T) {
 		t.Fatalf("Load: %v", err)
 	}
 	if !cfg.DonateStarsTierAllowed(1) || !cfg.DonateStarsTierAllowed(5) ||
-		!cfg.DonateStarsTierAllowed(10) || !cfg.DonateStarsTierAllowed(50) {
+		!cfg.DonateStarsTierAllowed(10) || !cfg.DonateStarsTierAllowed(1000) ||
+		!cfg.DonateStarsTierAllowed(50) {
 		t.Fatalf("tiers=%v", cfg.DonateStarsTiers)
+	}
+}
+
+func TestDonateCardTiersAlwaysInclude1000(t *testing.T) {
+	t.Setenv("DONATE_CARD_TIERS_RUB", "100,300")
+	cfg, err := Load()
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	if !cfg.DonateCardTierAllowed(1000) || !cfg.DonateCardTierAllowed(100) {
+		t.Fatalf("card tiers=%v", cfg.DonateCardTiersRub)
 	}
 }
 

@@ -63,7 +63,7 @@ type Config struct {
 	YookassaCurrency    string
 
 	// Донаты из профиля мини-аппа: добровольная поддержка проекта, доступ не выдаётся.
-	// Звёзды (DONATE_STARS_TIERS + всегда 1 и 5) идут через createInvoiceLink + WebApp.openInvoice,
+	// Звёзды (DONATE_STARS_TIERS + всегда 1, 5, 10, 1000) идут через createInvoiceLink + WebApp.openInvoice,
 	// карта РФ (DONATE_CARD_TIERS_RUB) — через ту же ЮKassa, что и платный возврат.
 	DonateStarsTiers   []int // номиналы в звёздах, по возрастанию
 	DonateCardTiersRub []int // номиналы в рублях, по возрастанию
@@ -244,10 +244,10 @@ func Load() (*Config, error) {
 		YookassaAmountMinor:     ykMinor,
 		YookassaCurrency:        ykCur,
 
-		// 1 и 5 всегда в списке: задачи #25/#26. Даже если на Railway заданы
-		// только крупные номиналы, мелкие не пропадают.
-		DonateStarsTiers:   parseAmountTiers("1,5,10," + getEnv("DONATE_STARS_TIERS", "50,150,500")),
-		DonateCardTiersRub: parseAmountTiers(getEnv("DONATE_CARD_TIERS_RUB", "100,300,1000")),
+		// 1, 5, 10, 1000 всегда в списке (#25/#26/#28/#29). Env на Railway
+		// может задавать только крупные номиналы — эти не пропадают.
+		DonateStarsTiers:   parseAmountTiers("1,5,10,1000," + getEnv("DONATE_STARS_TIERS", "50,150,500")),
+		DonateCardTiersRub: parseAmountTiers("1000," + getEnv("DONATE_CARD_TIERS_RUB", "100,300,1000")),
 
 		MiniappPublicBaseURL: strings.TrimSpace(getEnv("MINIAPP_PUBLIC_BASE_URL", "")),
 		MiniappWebAppURL:     strings.TrimSpace(getEnv("MINIAPP_WEB_APP_URL", "")),
