@@ -59,7 +59,7 @@ func finish(cfg config.Config, st *store.Store, job store.Job) {
 	hasCode := res.HasImpl
 	note := strings.TrimSpace(res.Note)
 	if strings.Contains(note, "донат") {
-		job.Status = "donate"
+		job.Status = "donate100"
 	} else if verdict := noCodeVerdict(job.Phase, hasCode); verdict != "" {
 		note = verdict
 	}
@@ -68,7 +68,7 @@ func finish(cfg config.Config, st *store.Store, job store.Job) {
 	if res.Committed {
 		job.Branch = res.Branch
 	}
-	if job.Status != "donate" {
+	if job.Status != "donate100" {
 		job.Status = "done"
 	}
 	store.AppendStep(&job, "Агент сдал результат")
@@ -109,7 +109,7 @@ func noCodeVerdict(phase string, hasCode bool) string {
 func notifyText(job store.Job, note, branch, commit string, hasCode bool) string {
 	buf := new(strings.Builder)
 	fmt.Fprintf(buf, "✅ Задача #%d", job.SourceNum)
-	if job.Status == "donate" {
+	if job.Status == "donate100" {
 		fmt.Fprintf(buf, "\n\n💰 Донат 100")
 	} else {
 		fmt.Fprintf(buf, "\n\n%s", note)
