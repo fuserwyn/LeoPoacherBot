@@ -35,6 +35,9 @@ func notifyText(job store.Job, note, branch, commit string, hasCode bool) string
 	if phase == "" {
 		phase = "doing"
 	}
+	if job.Status == "donate100" {
+		return "Донат 100 сделан: спасибо за поддержку!"
+	}
 	if phase == "review" || phase == "test" || phase == "donate" {
 		if commit != "" {
 			label := "ревью"
