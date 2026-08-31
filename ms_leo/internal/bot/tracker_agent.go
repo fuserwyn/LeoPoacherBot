@@ -363,6 +363,9 @@ func (b *Bot) remoteTrackerRequest(op string, taskID int64, payload map[string]a
 	if secret == "" || strings.TrimSpace(b.config.BoardURL) == "" {
 		return nil, ErrTrackerNotConfigured
 	}
+	if err := b.pingTrackerWire(); err != nil {
+		return nil, err
+	}
 	_ = userID
 	_ = name
 	if payload == nil {
@@ -451,14 +454,13 @@ pass false если нет коммита, только заметка, config.g
 				passed = trackerComposerPassed(phase, note)
 			}
 		} else {
-			note = "Локальный вердикт недоступен, пропускаем: " + err.Error()
-			passed = true
+			note = "Локальный вердикт недоступен: " + err.Error()
+			passed = false
 		}
 	}
 	if note == "" {
 		note = "Composer недоступен: " + startErr.Error()
-		// Без модели не стопорим доску: реализацию агент уже сдал.
-		passed = true
+		passed = false
 	}
 	if len([]rune(note)) > 1200 {
 		note = string([]rune(note)[:1200])
@@ -618,6 +620,11 @@ func (b *Bot) finishTrackerBuild(taskID int64) {
 		if err := b.db.SaveTrackerTask(t); err != nil && b.logger != nil {
 			b.logger.Warnf("трекер: не сохранить заказ сборки #%d: %v", trackerDueNum(t), err)
 		}
+	}
+	if len(order.Pinned) == 0 {
+		b.clearTrackerDeployOrder(t.ID)
+		b.returnTrackerFromFailedStand(&t, fmt.Errorf("нет заказанной сборки Railway"))
+		return
 	}
 	if err := b.waitStandBuild(started, order.Pinned); err != nil {
 		b.clearTrackerDeployOrder(t.ID)
@@ -830,6 +837,9 @@ func (b *Bot) shipTrackerToMain(t database.TrackerTask) (string, map[string]stri
 			msg = fmt.Sprintf("HTTP %d", resp.StatusCode)
 		}
 		return "", nil, fmt.Errorf("%s", msg)
+	}
+	if len(parsed.Pinned) == 0 {
+		return "", nil, fmt.Errorf("трекер влил в main, но не заказал сборку Railway")
 	}
 	base := strings.TrimSpace(parsed.Base)
 	if base == "" {

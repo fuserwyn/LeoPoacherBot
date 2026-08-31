@@ -231,6 +231,11 @@ func TestRemoteTrackerCreateUsesOwnTracker(t *testing.T) {
 	var sourceID float64
 	var autoPush bool
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/health" {
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = w.Write([]byte(`{"ok":true,"service":"ms_tracker","wire":{"notify":true,"railway":true,"github":true,"cursor":true}}`))
+			return
+		}
 		gotPath = r.URL.Path
 		gotSecret = r.Header.Get("X-Tracker-Secret")
 		raw, _ := io.ReadAll(r.Body)

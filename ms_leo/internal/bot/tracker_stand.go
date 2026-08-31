@@ -100,17 +100,13 @@ func standDeployInFlight(status string) bool {
 }
 
 func standWaitDecision(deploys []standDeploy, since, started, now time.Time) standWaitOutcome {
-	latestSuccess := false
 	inFlight := false
 	newSuccess := false
 	for _, d := range deploys {
 		st := strings.ToUpper(strings.TrimSpace(d.Status))
 		fresh := d.CreatedAt.IsZero() || !d.CreatedAt.Before(since)
-		if st == "SUCCESS" {
-			latestSuccess = true
-			if fresh {
-				newSuccess = true
-			}
+		if st == "SUCCESS" && fresh {
+			newSuccess = true
 		}
 		if fresh && (st == "FAILED" || st == "CRASHED") {
 			return standWaitOutcome{
@@ -130,9 +126,8 @@ func standWaitDecision(deploys []standDeploy, since, started, now time.Time) sta
 	if inFlight {
 		return standWaitOutcome{}
 	}
-	if latestSuccess && !started.IsZero() && now.Sub(started) >= trackerStandSkipGrace {
-		return standWaitOutcome{Done: true}
-	}
+	_ = now
+	// Старый SUCCESS стенда — не выкладка этой задачи. Без свежей сборки ждём.
 	return standWaitOutcome{}
 }
 
@@ -170,14 +165,35 @@ func standWaitServices(
 	if len(byService) == 0 {
 		return standWaitOutcome{}
 	}
+	// Как myvibelab: ждём только те деплои, которые заказали сами.
+	// Чужой зелёный стенд карточку не закрывает.
+	if len(pinned) > 0 {
+		waiting := false
+		for name, id := range pinned {
+			if strings.TrimSpace(id) == "" {
+				continue
+			}
+			out := standWaitPinned(byService[name], id)
+			if out.Err != nil {
+				if out.FailedSvc == "" {
+					out.FailedSvc = name
+				}
+				out.Err = fmt.Errorf("%s: %w", name, out.Err)
+				return out
+			}
+			if !out.Done {
+				waiting = true
+			}
+		}
+		if waiting {
+			return standWaitOutcome{}
+		}
+		return standWaitOutcome{Done: true}
+	}
 	waiting := false
 	for name, deploys := range byService {
 		var out standWaitOutcome
-		if id := strings.TrimSpace(pinned[name]); id != "" {
-			out = standWaitPinned(deploys, id)
-		} else {
-			out = standWaitDecision(deploys, since, started, now)
-		}
+		out = standWaitDecision(deploys, since, started, now)
 		if out.Err != nil {
 			if out.FailedSvc == "" {
 				out.FailedSvc = name
@@ -260,19 +276,13 @@ func (b *Bot) waitStandBuild(started time.Time, pinned map[string]string) error 
 	if b == nil || b.config == nil {
 		return fmt.Errorf("нет конфигурации Railway")
 	}
-	if strings.TrimSpace(b.config.RailwayToken) != "" && strings.TrimSpace(b.config.RailwayProjectID) != "" {
-		err := b.waitRailwayStand(started, pinned)
-		if err == nil {
-			return nil
-		}
-		// Сборку заказали сами — её судьба и есть ответ. Подменять его
-		// проверкой «сайт отвечает» нельзя: старый сайт отвечает и после
-		// провалившегося деплоя, и карточка врала бы «выполнено».
-		if len(pinned) > 0 || strings.Contains(err.Error(), "деплой ") {
-			return err
-		}
+	if len(pinned) == 0 {
+		return fmt.Errorf("нет заказанной сборки Railway")
 	}
-	return b.waitMiniappHTTP()
+	if strings.TrimSpace(b.config.RailwayToken) == "" || strings.TrimSpace(b.config.RailwayProjectID) == "" {
+		return fmt.Errorf("нет RAILWAY_API_TOKEN или RAILWAY_PROJECT_ID")
+	}
+	return b.waitRailwayStand(started, pinned)
 }
 
 func (b *Bot) waitRailwayStand(started time.Time, pinned map[string]string) error {

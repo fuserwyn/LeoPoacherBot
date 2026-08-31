@@ -29,6 +29,15 @@ func main() {
 	}
 	defer st.Close()
 
+	if cfg.LeoNotifyURL == "" || cfg.NotifySecret == "" {
+		log.Print("внимание: LEO_NOTIFY_URL/NOTIFY_SECRET пусты — доска не узнает о сдаче")
+	} else {
+		log.Printf("доска: сдачи уходят на %s", cfg.LeoNotifyURL)
+	}
+	if cfg.RailwayToken == "" || cfg.RailwayProjectID == "" {
+		log.Print("внимание: Railway не задан — после merge карточку не закроем выкладкой")
+	}
+
 	stop := make(chan struct{})
 	go worker.Loop(cfg, st, stop)
 

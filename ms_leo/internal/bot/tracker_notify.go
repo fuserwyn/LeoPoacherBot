@@ -136,10 +136,10 @@ func trackerShouldKickAfterNotify(kind, from, text string) bool {
 	if kind != "done" {
 		return false
 	}
-	// Финал на Railway — карточка уже в «Выполнено». Ещё один прогон
-	// review/теста шлёт второе «задача выполнена».
+	// Текст «на прод» не закрывает карточку. Запускаем ожидание стенда —
+	// kick смотрит уже новую колонку (сборка), а не ревью.
 	if TrackerNotifyIsFullyShipped(text) {
-		return false
+		return true
 	}
 	// Тест провален — ждём человека или повторный клик. Ревью провалено —
 	// агент снова пишет код во «В работе».
@@ -256,8 +256,10 @@ func clipNotifyText(s string) string {
 }
 
 func trackerNotifyDoneColumn(t database.TrackerTask) string {
+	// Текст «выехала на прод» карточку не закрывает — как myvibelab:
+	// «выполнено» только после SUCCESS заказанной сборки Railway.
 	if TrackerNotifyIsFullyShipped(t.Result) {
-		return trackerColDone
+		return trackerColDeploy
 	}
 	col := strings.ToLower(strings.TrimSpace(t.DevColumn))
 	// Сдача на review/тесте — это вердикт Composer, двигаем дальше.

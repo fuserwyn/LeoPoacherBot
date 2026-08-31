@@ -4,6 +4,7 @@
 # Что поднимается:
 #   - postgres   : та же схема, что в проде (cmd/migrate применяется ботом на старте)
 #   - bot        : Go-сервис ms_leo + HTTP API мини-аппа на :8080 (PORT=8080)
+#   - tracker    : ms_tracker — агент доски, сдачи шлёт боту на /api/miniapp/board/notify
 #   - miniapp    : статика Vite на :3000, VITE_MINIAPP_API_URL → http://localhost:8080
 #
 # ВАЖНО про токен: ms_leo при старте дёргает Telegram getMe, поэтому нужен НАСТОЯЩИЙ
@@ -40,11 +41,38 @@ services:
       - LOG_LEVEL=info
       - PAYWALL_ENABLED=false
       - MINIAPP_PUBLIC_BASE_URL=${MINIAPP_PUBLIC_BASE_URL:-http://localhost:8080}
+      - TRACKER_URL=http://tracker:8080
+      - TRACKER_SECRET=${TRACKER_SECRET:-dev-tracker-secret}
+      - OWNER_ID=${OWNER_ID:-0}
+      - ADMIN_IDS=${ADMIN_IDS:-}
     depends_on:
       postgres:
         condition: service_healthy
     ports:
       - "8080:8080"
+
+  tracker:
+    build:
+      context: ./ms_tracker
+      dockerfile: Dockerfile
+    environment:
+      - PORT=8080
+      - DATABASE_URL=postgresql://postgres:password@postgres:5432/leo_bot_db?sslmode=disable
+      - TRACKER_SECRET=${TRACKER_SECRET:-dev-tracker-secret}
+      - LEO_NOTIFY_URL=http://bot:8080/api/miniapp/board/notify
+      - NOTIFY_SECRET=${TRACKER_SECRET:-dev-tracker-secret}
+      - BOARD_REPO=${BOARD_REPO:-fuserwyn/Fat-Leopard}
+      - BOARD_BRANCH=main
+      - CURSOR_API_KEY=${CURSOR_API_KEY:-}
+      - GITHUB_PERSONAL_TOKEN=${GITHUB_PERSONAL_TOKEN:-}
+      - RAILWAY_API_TOKEN=${RAILWAY_API_TOKEN:-}
+      - RAILWAY_PROJECT_ID=${RAILWAY_PROJECT_ID:-}
+      - RAILWAY_ENVIRONMENT_ID=${RAILWAY_ENVIRONMENT_ID:-}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    ports:
+      - "8081:8080"
 
   miniapp:
     build:

@@ -18,7 +18,7 @@ import (
 func JobDone(cfg config.Config, job store.Job, text string) error {
 	url := strings.TrimSpace(cfg.LeoNotifyURL)
 	if url == "" || strings.TrimSpace(cfg.NotifySecret) == "" {
-		return nil
+		return fmt.Errorf("LEO_NOTIFY_URL или NOTIFY_SECRET не заданы — доска не узнает о сдаче")
 	}
 	taskID := job.SourceTaskID
 	if taskID <= 0 {

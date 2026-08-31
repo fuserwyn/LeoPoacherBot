@@ -46,8 +46,8 @@ func TestStandWaitDecision(t *testing.T) {
 		{Status: "SUCCESS", CreatedAt: old},
 		{Status: "SKIPPED", CreatedAt: started.Add(10 * time.Second)},
 	}, since, started, started.Add(trackerStandSkipGrace+time.Second))
-	if out.Err != nil || !out.Done {
-		t.Fatalf("already live: %+v", out)
+	if out.Err != nil || out.Done {
+		t.Fatalf("old SUCCESS is not this task's deploy: %+v", out)
 	}
 }
 
@@ -63,7 +63,7 @@ func TestStandWaitLeoFailBeatsMiniAppSkip(t *testing.T) {
 		"ms_leo": {
 			{ID: "leo-fail", Status: "FAILED", CreatedAt: started.Add(12 * time.Second)},
 		},
-	}, nil, since, started, started.Add(time.Minute))
+	}, map[string]string{"ms_leo": "leo-fail"}, since, started, started.Add(time.Minute))
 	if out.Err == nil || out.Done || out.FailedID != "leo-fail" {
 		t.Fatalf("leo fail must win: %+v", out)
 	}
@@ -82,11 +82,11 @@ func TestStandWaitLeoSuccessAndMiniAppSkip(t *testing.T) {
 			{Status: "SKIPPED", CreatedAt: started.Add(10 * time.Second)},
 		},
 		"ms_leo": {
-			{Status: "SUCCESS", CreatedAt: started.Add(20 * time.Second)},
+			{ID: "leo-new", Status: "SUCCESS", CreatedAt: started.Add(20 * time.Second)},
 		},
-	}, nil, since, started, started.Add(trackerStandSkipGrace+time.Second))
+	}, map[string]string{"ms_leo": "leo-new"}, since, started, started.Add(trackerStandSkipGrace+time.Second))
 	if out.Err != nil || !out.Done {
-		t.Fatalf("leo success + miniapp live: %+v", out)
+		t.Fatalf("ждём свой leo, MiniApp без заказа не мешает: %+v", out)
 	}
 }
 

@@ -3,6 +3,7 @@ package api
 import (
 	"crypto/subtle"
 	"encoding/json"
+	"fmt"
 	"log"
 	"net/http"
 	"strconv"
@@ -39,7 +40,16 @@ func (s *Server) Handler() http.Handler {
 }
 
 func (s *Server) health(w http.ResponseWriter, _ *http.Request) {
-	writeJSON(w, http.StatusOK, map[string]any{"ok": true, "service": "ms_tracker"})
+	writeJSON(w, http.StatusOK, map[string]any{
+		"ok":      true,
+		"service": "ms_tracker",
+		"wire": map[string]bool{
+			"notify":  strings.TrimSpace(s.cfg.LeoNotifyURL) != "" && strings.TrimSpace(s.cfg.NotifySecret) != "",
+			"railway": strings.TrimSpace(s.cfg.RailwayToken) != "" && strings.TrimSpace(s.cfg.RailwayProjectID) != "",
+			"github":  strings.TrimSpace(s.cfg.GithubToken) != "",
+			"cursor":  strings.TrimSpace(s.cfg.CursorAPIKey) != "",
+		},
+	})
 }
 
 func (s *Server) index(w http.ResponseWriter, _ *http.Request) {
@@ -210,23 +220,31 @@ func (s *Server) ship(w http.ResponseWriter, r *http.Request) {
 	}
 	log.Printf("трекер: влили %s в %s (source=%d)", branch, base, sourceID)
 	pinned, derr := railway.RedeployStand(s.cfg)
-	if derr != nil {
+	if derr != nil || len(pinned) == 0 {
+		if derr == nil {
+			derr = fmt.Errorf("Railway не вернул id сборок")
+		}
 		log.Printf("трекер: Railway после %s: %v", branch, derr)
-	} else {
-		log.Printf("трекер: заказали сборку Railway после %s: %v", branch, pinned)
+		writeJSON(w, http.StatusBadRequest, map[string]any{
+			"ok":           false,
+			"merged":       true,
+			"base":         base,
+			"head":         branch,
+			"deployed":     false,
+			"error":        derr.Error(),
+			"deploy_error": derr.Error(),
+		})
+		return
 	}
-	out := map[string]any{
+	log.Printf("трекер: заказали сборку Railway после %s: %v", branch, pinned)
+	writeJSON(w, http.StatusOK, map[string]any{
 		"ok":       true,
 		"merged":   true,
 		"base":     base,
 		"head":     branch,
-		"deployed": derr == nil && len(pinned) > 0,
+		"deployed": true,
 		"pinned":   pinned,
-	}
-	if derr != nil {
-		out["deploy_error"] = derr.Error()
-	}
-	writeJSON(w, http.StatusOK, out)
+	})
 }
 
 func (s *Server) inspect(w http.ResponseWriter, r *http.Request) {

@@ -48,6 +48,16 @@ OPENROUTER_VISION_MODEL=openai/gpt-4o-mini
 # Не должна совпадать с DATABASE_URL Лео. На Railway — отдельный Postgres сервиса ms-tracker.
 # TRACKER_DATABASE_URL=postgresql://postgres:password@localhost:5432/leo_tracker?sslmode=disable
 
+# Связка доска ↔ воркер (оба сервиса, один секрет). Карточка закрывается
+# только после SUCCESS заказанной сборки, не по тексту «готово».
+# ms_leo:
+#   TRACKER_URL=https://ms-tracker-main.up.railway.app
+#   TRACKER_SECRET=...
+# ms_tracker:
+#   LEO_NOTIFY_URL=https://fat-leopard-main.up.railway.app/api/miniapp/board/notify
+#   NOTIFY_SECRET=...   # тот же, что TRACKER_SECRET
+#   TRACKER_SECRET=...
+#
 # Автодеплой трекера на Railway — как в myvibelab: после пуша в main ms_tracker
 # сам заказывает сборку (serviceInstanceDeploy + latestCommit), не ждёт вебхук.
 # Нужны на ms_tracker и на ms_leo:
