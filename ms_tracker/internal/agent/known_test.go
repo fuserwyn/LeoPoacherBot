@@ -81,6 +81,29 @@ func TestApplyDonateBare1000(t *testing.T) {
 	}
 }
 
+func TestApplyDonateStarsNoSpacePlus(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "ms_leo", "internal", "config", "config.go")
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	src := `		DonateStarsTiers: excludeAmountTiers(
+			parseAmountTiers("1,5,10,100,1000,"+getEnv("DONATE_STARS_TIERS", "50,150,500")),
+			parseAmountTiers("150,"+getEnv("DONATE_STARS_HIDDEN", "")),
+		),`
+	if err := os.WriteFile(path, []byte(src), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	note, n, err := applyKnownTask(dir, "ТЕСТ АДМИНА: Сделай Донат 7 звезд")
+	if err != nil || n != 1 || !strings.Contains(note, "7") {
+		t.Fatalf("n=%d note=%q err=%v", n, note, err)
+	}
+	raw, _ := os.ReadFile(path)
+	if !strings.Contains(string(raw), `"1,5,7,10,100,1000,"`) {
+		t.Fatalf("%s", raw)
+	}
+}
+
 func TestApplyDonateRemove150(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "ms_leo", "internal", "config", "config.go")

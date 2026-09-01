@@ -21,7 +21,7 @@ var donateBareRe = regexp.MustCompile(`(?i)донат\s+(\d+)`)
 var donateRemoveRe = regexp.MustCompile(`(?i)(удал|убер|спряч|выключ|убери|без\s+кнопк|remove|hide)`)
 
 var donateTiersCallRe = regexp.MustCompile(
-	`parseAmountTiers\("([0-9,]*)" \+ getEnv\("DONATE_STARS_TIERS"`,
+	`parseAmountTiers\("([0-9,]*)"\s*\+\s*getEnv\("DONATE_STARS_TIERS"`,
 )
 
 var donateTiersEnvRe = regexp.MustCompile(
@@ -29,7 +29,7 @@ var donateTiersEnvRe = regexp.MustCompile(
 )
 
 var donateCardCallRe = regexp.MustCompile(
-	`parseAmountTiers\("([0-9,]*)" \+ getEnv\("DONATE_CARD_TIERS_RUB"`,
+	`parseAmountTiers\("([0-9,]*)"\s*\+\s*getEnv\("DONATE_CARD_TIERS_RUB"`,
 )
 
 var donateCardEnvRe = regexp.MustCompile(
