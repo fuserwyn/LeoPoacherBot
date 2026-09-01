@@ -250,7 +250,7 @@ func Load() (*Config, error) {
 			parseAmountTiers("1,5,7,10,100,1000,"+getEnv("DONATE_STARS_TIERS", "50,150,500")),
 			parseAmountTiers("150,"+getEnv("DONATE_STARS_HIDDEN", "")),
 		),
-		DonateCardTiersRub: parseAmountTiers("50,100,1000," + getEnv("DONATE_CARD_TIERS_RUB", "100,300,1000")),
+		DonateCardTiersRub: parseAmountTiers("10,50,100,1000," + getEnv("DONATE_CARD_TIERS_RUB", "100,300,1000")),
 
 		MiniappPublicBaseURL: strings.TrimSpace(getEnv("MINIAPP_PUBLIC_BASE_URL", "")),
 		MiniappWebAppURL:     strings.TrimSpace(getEnv("MINIAPP_WEB_APP_URL", "")),
