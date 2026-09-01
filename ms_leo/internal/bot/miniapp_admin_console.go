@@ -99,7 +99,10 @@ type MiniappIncome struct {
 
 // MiniappAdminResources — расходы Railway и доходы с оплат за текущий месяц.
 func (b *Bot) MiniappAdminResources(viewerUserID int64, initD initdata.InitData) (MiniappResources, error) {
-	var out MiniappResources
+	out := MiniappResources{
+		CostParts: []MiniappCostPart{},
+		Income:    []MiniappIncome{},
+	}
 	if _, err := b.requireMiniappAdmin(viewerUserID, initD); err != nil {
 		return out, err
 	}

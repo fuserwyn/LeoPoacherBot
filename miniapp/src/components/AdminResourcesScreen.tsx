@@ -21,7 +21,16 @@ export function AdminResourcesScreen({ initData, showAlert }: Props) {
     setLoading(true);
     try {
       const j = await fetchAdminResources(initData);
-      setData(j.resources);
+      const r = j.resources;
+      setData(
+        r
+          ? {
+              ...r,
+              cost_parts: r.cost_parts ?? [],
+              income: r.income ?? [],
+            }
+          : null,
+      );
     } catch (e) {
       showAlert(e instanceof Error ? e.message : "Не удалось посчитать ресурсы");
     } finally {
