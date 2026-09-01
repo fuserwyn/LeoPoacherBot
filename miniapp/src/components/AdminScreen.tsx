@@ -506,7 +506,7 @@ export function AdminScreen({ initData, inTelegram, showAlert, onClose }: Props)
       const hit = target as HTMLElement | null;
       if (hit?.closest("textarea, input, select, [contenteditable='true']")) return true;
       // Редактор фото и просмотр кадра: палец едет по холсту, это не закрытие шторки.
-      if (hit?.closest(".admin__close, .admin__back, .admin__modal, .tracker-modal, .imged, .tracker-zoom")) return true;
+      if (hit?.closest(".admin__close, .admin__back, .admin__modal, .admin__tabs, .tracker-modal, .imged, .tracker-zoom")) return true;
       let el: HTMLElement | null = hit;
       while (el && el !== sheet) {
         const oy = window.getComputedStyle(el).overflowY;
@@ -1268,7 +1268,11 @@ export function AdminScreen({ initData, inTelegram, showAlert, onClose }: Props)
           ) : null}
         </div>
       )}
-      <nav className="admin__tabs" aria-label="Разделы админки">
+      <nav
+        className="admin__tabs"
+        aria-label="Разделы админки"
+        style={{ gridTemplateColumns: `repeat(${ADMIN_TABS.length}, minmax(0, 1fr))` }}
+      >
         {ADMIN_TABS.map((t) => (
           <button
             key={t.key}
