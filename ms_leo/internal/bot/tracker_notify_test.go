@@ -36,9 +36,12 @@ func TestTrackerNotifyIsFullyShipped(t *testing.T) {
 	if !TrackerNotifyIsFullyShipped("Задача #4 задеплоена на Railway в ветке main.") {
 		t.Fatal("deployed on main must notify")
 	}
-	note := trackerFullyDoneNote(database.TrackerTask{Num: 4})
+	note := trackerFullyDoneNote(database.TrackerTask{Num: 4, Prompt: "кнопка удалить"})
 	if !TrackerNotifyIsFullyShipped(note) || !strings.Contains(note, "main") {
 		t.Fatalf("done note: %q", note)
+	}
+	if !strings.Contains(note, "Задача #4: кнопка удалить") {
+		t.Fatalf("title in done note: %q", note)
 	}
 }
 

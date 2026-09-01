@@ -3,10 +3,16 @@ package bot
 import (
 	"context"
 	"fmt"
+	"regexp"
 	"strings"
 	"time"
 
 	"leo-bot/internal/database"
+)
+
+var (
+	trackerSprintPrefixRe = regexp.MustCompile(`(?i)^\[Спринт\s+\d+\]\s*`)
+	trackerTaskNumLineRe  = regexp.MustCompile(`(?i)^Задача\s*#\s*\d+\.?$`)
 )
 
 // Как часто смотрим, не пора ли снять карточку с «Ожидает».
@@ -41,7 +47,7 @@ func trackerDueStartedNote(t database.TrackerTask) string {
 	if runes := []rune(prompt); len(runes) > 180 {
 		prompt = string(runes[:180]) + "…"
 	}
-	text := fmt.Sprintf("🔧 Задача #%d началась.", n)
+	text := fmt.Sprintf("🔧 %s началась.", trackerNotifyLabel(n, trackerTaskTitle(t.Prompt)))
 	if prompt != "" {
 		text += "\n" + prompt
 	}
@@ -174,6 +180,48 @@ func trackerDueNum(t database.TrackerTask) int {
 		return t.Num
 	}
 	return int(t.ID)
+}
+
+// trackerTaskTitle — короткое название для уведомлений: первая строка prompt.
+func trackerTaskTitle(prompt string) string {
+	prompt = strings.TrimSpace(prompt)
+	if prompt == "" {
+		return ""
+	}
+	if m := trackerSprintPrefixRe.FindString(prompt); m != "" {
+		prompt = strings.TrimSpace(prompt[len(m):])
+	}
+	for _, line := range strings.Split(prompt, "\n") {
+		line = strings.TrimSpace(line)
+		if line == "" {
+			continue
+		}
+		if trackerTaskNumLineRe.MatchString(line) {
+			continue
+		}
+		return clipTrackerNotifyTitle(line)
+	}
+	return clipTrackerNotifyTitle(prompt)
+}
+
+func trackerNotifyLabel(n int, title string) string {
+	title = strings.TrimSpace(title)
+	if title == "" {
+		return fmt.Sprintf("Задача #%d", n)
+	}
+	return fmt.Sprintf("Задача #%d: %s", n, title)
+}
+
+func trackerNotifyHeading(t database.TrackerTask) string {
+	return trackerNotifyLabel(trackerDueNum(t), trackerTaskTitle(t.Prompt))
+}
+
+func clipTrackerNotifyTitle(s string) string {
+	r := []rune(strings.TrimSpace(s))
+	if len(r) <= 80 {
+		return string(r)
+	}
+	return string(r[:80]) + "…"
 }
 
 // kickTrackerDueIfReady — после постановки/переноса: если срок уже сейчас,

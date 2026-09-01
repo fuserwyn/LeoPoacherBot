@@ -118,7 +118,7 @@ func TrackerNotifyIsFullyShipped(text string) bool {
 }
 
 func trackerFullyDoneNote(t database.TrackerTask) string {
-	return fmt.Sprintf("✅ Задача #%d выполнена.\nВыехала на прод (ветка main).", trackerDueNum(t))
+	return fmt.Sprintf("✅ %s выполнена.\nВыехала на прод (ветка main).", trackerNotifyHeading(t))
 }
 
 const trackerShipNotifiedStep = "уведомили о выкате"

@@ -197,11 +197,11 @@ func trackerComposerPassed(phase, text string) bool {
 }
 
 func trackerPipelineNotify(t database.TrackerTask) string {
-	n := trackerDueNum(t)
+	head := trackerNotifyHeading(t)
 	if trackerTaskHasCode(t) {
-		return fmt.Sprintf("Задача #%d: код в репозитории, карточка на публикации.\nЧтобы выкатить на Railway, напиши «запушь».", n)
+		return fmt.Sprintf("%s: код в репозитории, карточка на публикации.\nЧтобы выкатить на Railway, напиши «запушь».", head)
 	}
-	return fmt.Sprintf("Задача #%d не выехала на Railway.\nАгент сдал только план — теста и сборки не было.\nЧтобы выкатить код, сначала нужен коммит, потом «запушь».", n)
+	return fmt.Sprintf("%s не выехала на Railway.\nАгент сдал только план — теста и сборки не было.\nЧтобы выкатить код, сначала нужен коммит, потом «запушь».", head)
 }
 
 func trackerLooksLikeNoteOnly(text string) bool {

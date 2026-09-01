@@ -2,12 +2,70 @@ package worker
 
 import (
 	"fmt"
+	"regexp"
 	"strings"
 
 	"leo-tracker/internal/store"
 )
 
 const noCodeMark = "TRACKER_NO_CODE"
+
+var (
+	trackerSprintPrefixRe = regexp.MustCompile(`(?i)^\[Спринт\s+\d+\]\s*`)
+	trackerTaskNumLineRe  = regexp.MustCompile(`(?i)^Задача\s*#\s*\d+\.?$`)
+)
+
+func jobNotifyLabel(job store.Job) string {
+	n := job.SourceNum
+	if n <= 0 {
+		n = int(job.ID)
+	}
+	return notifyTaskLabel(n, taskTitleFromPrompt(job.Prompt))
+}
+
+func notifyTaskLabel(n int, title string) string {
+	title = strings.TrimSpace(title)
+	if title == "" {
+		return fmt.Sprintf("Задача #%d", n)
+	}
+	return fmt.Sprintf("Задача #%d: %s", n, title)
+}
+
+func taskTitleFromPrompt(prompt string) string {
+	prompt = strings.TrimSpace(prompt)
+	if prompt == "" {
+		return ""
+	}
+	if idx := strings.Index(prompt, "Формулировка:\n"); idx >= 0 {
+		rest := strings.TrimSpace(prompt[idx+len("Формулировка:\n"):])
+		if end := strings.Index(rest, "\n\n"); end >= 0 {
+			return clipTitle(rest[:end])
+		}
+		return clipTitle(rest)
+	}
+	if m := trackerSprintPrefixRe.FindString(prompt); m != "" {
+		prompt = strings.TrimSpace(prompt[len(m):])
+	}
+	for _, line := range strings.Split(prompt, "\n") {
+		line = strings.TrimSpace(line)
+		if line == "" {
+			continue
+		}
+		if trackerTaskNumLineRe.MatchString(line) {
+			continue
+		}
+		return clipTitle(line)
+	}
+	return clipTitle(prompt)
+}
+
+func clipTitle(s string) string {
+	r := []rune(strings.TrimSpace(s))
+	if len(r) <= 80 {
+		return string(r)
+	}
+	return string(r[:80]) + "…"
+}
 
 func noCodeVerdict(phase string, hasCode bool) string {
 	if hasCode {
@@ -24,10 +82,7 @@ func noCodeVerdict(phase string, hasCode bool) string {
 }
 
 func notifyText(job store.Job, note, branch, commit string, hasCode bool) string {
-	n := job.SourceNum
-	if n <= 0 {
-		n = int(job.ID)
-	}
+	head := jobNotifyLabel(job)
 	note = clip(note, 1200)
 	phase := strings.ToLower(strings.TrimSpace(job.Phase))
 	if phase == "" {
@@ -46,16 +101,16 @@ func notifyText(job store.Job, note, branch, commit string, hasCode bool) string
 	if !hasCode {
 		if gitFailed(note) {
 			return fmt.Sprintf(
-				"Задача #%d: коммит выполнения не попал в GitHub.\n\n%s\n\nВетки нет — review, тест и пуш на стенд не запускались.\n%s",
-				n, note, noCodeMark,
+				"%s: коммит выполнения не попал в GitHub.\n\n%s\n\nВетки нет — review, тест и пуш на стенд не запускались.\n%s",
+				head, note, noCodeMark,
 			)
 		}
 		return fmt.Sprintf(
-			"Задача #%d: агент сдал план, репозиторий не менялся.\n\n%s\n\nКода нет — review, тест и пуш на стенд не запускались.\n%s",
-			n, note, noCodeMark,
+			"%s: агент сдал план, репозиторий не менялся.\n\n%s\n\nКода нет — review, тест и пуш на стенд не запускались.\n%s",
+			head, note, noCodeMark,
 		)
 	}
-	text := fmt.Sprintf("Задача #%d: коммит выполнения %s на ветке %s.\n\n%s", n, commit, branch, note)
+	text := fmt.Sprintf("%s: коммит выполнения %s на ветке %s.\n\n%s", head, commit, branch, note)
 	text += "\nСледующий шаг — review. Пуш на стенд только после теста."
 	return text
 }

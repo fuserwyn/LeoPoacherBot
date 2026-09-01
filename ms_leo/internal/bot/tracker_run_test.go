@@ -71,3 +71,31 @@ func TestRunDueTrackerTasksNilSafe(t *testing.T) {
 		t.Fatalf("empty bot: n=%d err=%v", n, err)
 	}
 }
+
+func TestTrackerTaskTitle(t *testing.T) {
+	if got := trackerTaskTitle("Сделай донат 10 звезд"); got != "Сделай донат 10 звезд" {
+		t.Fatalf("plain: %q", got)
+	}
+	if got := trackerTaskTitle("[Спринт 2] кнопка удалить"); got != "кнопка удалить" {
+		t.Fatalf("sprint: %q", got)
+	}
+	if got := trackerTaskTitle("Задача #40.\n\nНазвание в уведомлении"); got != "Название в уведомлении" {
+		t.Fatalf("skip num line: %q", got)
+	}
+}
+
+func TestTrackerNotifyLabel(t *testing.T) {
+	if got := trackerNotifyLabel(40, "Название в уведомлении"); got != "Задача #40: Название в уведомлении" {
+		t.Fatalf("with title: %q", got)
+	}
+	if got := trackerNotifyLabel(40, ""); got != "Задача #40" {
+		t.Fatalf("no title: %q", got)
+	}
+}
+
+func TestTrackerFullyDoneNoteIncludesTitle(t *testing.T) {
+	note := trackerFullyDoneNote(database.TrackerTask{Num: 40, Prompt: "Название в уведомлении"})
+	if !strings.Contains(note, "Задача #40: Название в уведомлении") {
+		t.Fatalf("note: %q", note)
+	}
+}
