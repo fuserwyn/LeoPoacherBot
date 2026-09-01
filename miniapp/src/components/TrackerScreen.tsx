@@ -229,6 +229,8 @@ export function TrackerScreen({ initData, showAlert }: Props) {
   const [zoomed, setZoomed] = useState<string | null>(null);
   const [detail, setDetail] = useState<TrackerTask | null>(null);
   const [moveAt, setMoveAt] = useState("");
+  /** Карточка, которую просят удалить с доски — показываем модалку подтверждения. */
+  const [deleteAsk, setDeleteAsk] = useState<TrackerTask | null>(null);
 
   const [hint, setHint] = useState("");
   const [sprintCount, setSprintCount] = useState(1);
@@ -537,6 +539,21 @@ export function TrackerScreen({ initData, showAlert }: Props) {
     }
   };
 
+  const deleteFromBoard = async (task: TrackerTask) => {
+    setBusy(true);
+    try {
+      await trackerDelete(initData, task.id);
+      showAlert("Задача удалена.");
+      if (detail?.id === task.id) setDetail(null);
+      setDeleteAsk(null);
+      await load();
+    } catch (e) {
+      showAlert(e instanceof Error ? e.message : "Не удалось удалить задачу");
+    } finally {
+      setBusy(false);
+    }
+  };
+
   const loadIdeas = async () => {
     const text = hint.trim();
     if (!text) {
@@ -744,6 +761,7 @@ export function TrackerScreen({ initData, showAlert }: Props) {
                             author={authorLabel(t, authors)}
                             avatar={authorAvatar(t, initData)}
                             onOpen={() => void openTask(t)}
+                            onDelete={t.can_delete ? () => setDeleteAsk(t) : undefined}
                           />
                         ))
                       )}
@@ -1077,6 +1095,33 @@ export function TrackerScreen({ initData, showAlert }: Props) {
         </div>
       )}
 
+      {deleteAsk ? (
+        <div className="tracker-confirm" role="dialog" aria-modal="true" aria-labelledby="tracker-delete-title">
+          <div className="tracker-confirm__box">
+            <h3 id="tracker-delete-title">Удалить задачу?</h3>
+            <p>
+              <strong>#{taskNo(deleteAsk)}</strong>{" "}
+              {parsePrompt(deleteAsk.prompt).text.slice(0, 160) || deleteAsk.prompt}
+              {parsePrompt(deleteAsk.prompt).text.length > 160 ? "…" : ""}
+            </p>
+            <p className="tracker-confirm__hint">Карточка и приложенные фото исчезнут с доски без возможности восстановить.</p>
+            <div className="tracker-confirm__actions">
+              <button type="button" disabled={busy} onClick={() => setDeleteAsk(null)}>
+                Отмена
+              </button>
+              <button
+                type="button"
+                className="tracker-confirm__danger"
+                disabled={busy}
+                onClick={() => void deleteFromBoard(deleteAsk)}
+              >
+                Удалить
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
       {detail ? (
         <div className="tracker-modal" role="dialog" aria-modal="true">
           <div className="tracker-modal__box">
@@ -1408,12 +1453,14 @@ function TaskCard({
   author,
   avatar,
   onOpen,
+  onDelete,
 }: {
   task: TrackerTask;
   isQa: boolean;
   author: string;
   avatar: string;
   onOpen: () => void;
+  onDelete?: () => void;
 }) {
   const parsed = parsePrompt(task.prompt);
   const statusText = isQa
@@ -1430,10 +1477,35 @@ function TaskCard({
   const resultPreview = clipCardText(task.result || "");
   const meta = metaParts(task, isQa);
   return (
-    <div className={cardClasses(task, isQa)} role="button" tabIndex={0} onClick={onOpen}>
+    <div
+      className={cardClasses(task, isQa)}
+      role="button"
+      tabIndex={0}
+      onClick={onOpen}
+      onKeyDown={(e) => {
+        if (e.key === "Enter" || e.key === " ") {
+          e.preventDefault();
+          onOpen();
+        }
+      }}
+    >
       <div className="tracker-card__head">
         <span className="tracker-card__id">#{taskNo(task)}</span>
         <span className="tracker-card__status">{statusText}</span>
+        {onDelete ? (
+          <button
+            type="button"
+            className="tracker-card__delete"
+            aria-label="Удалить задачу"
+            title="Удалить"
+            onClick={(e) => {
+              e.stopPropagation();
+              onDelete();
+            }}
+          >
+            🗑
+          </button>
+        ) : null}
       </div>
       <div className="tracker-card__author">
         {avatar ? <img src={avatar} alt="" loading="lazy" /> : <span className="tracker-card__author-dot">🤖</span>}
