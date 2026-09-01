@@ -176,6 +176,8 @@ export function ProfileScreen({
   const [notifOpen, setNotifOpen] = useState(false);
   // Имя и пол спрятаны за шевроном: меняют редко, на экране занимают заметное место.
   const [personalOpen, setPersonalOpen] = useState(false);
+  // Донат свёрнут по умолчанию: номиналы и кнопки занимают много места, а платят редко.
+  const [donateOpen, setDonateOpen] = useState(false);
   const [friendBusyId, setFriendBusyId] = useState<number | null>(null);
   // Глобальный тумблер «Тренировки друзей» (центр уведомлений): DM о тренировке
   // друга по всем подпискам сразу. Состояние — bool_or по notify_workouts подписок.
@@ -1547,7 +1549,20 @@ export function ProfileScreen({
 
       {(donateOptions.starsAvailable || donateOptions.cardAvailable) && (
         <section className="profile__donate">
-          <h2 className="section-title">Поддержать проект</h2>
+          <button
+            type="button"
+            className={`section-title profile__donate-title profile__notif-toggle${donateOpen ? " is-open" : ""}`}
+            aria-expanded={donateOpen}
+            onClick={() => setDonateOpen((open) => !open)}
+          >
+            Поддержать проект
+            {donateOptions.completedCount > 0 ? ` · ${donateOptions.completedCount} раз` : ""}
+            <span className="profile__notif-chevron" aria-hidden>
+              {donateOpen ? "▲" : "▼"}
+            </span>
+          </button>
+          {donateOpen && (
+          <>
           <p className="profile__hint muted">
             Вход в стаю бесплатный — донат по желанию: он не отменяет вылет за неактивность,
             но помогает Лео и проекту жить
@@ -1613,6 +1628,8 @@ export function ProfileScreen({
             </div>
           )}
 
+          </>
+          )}
         </section>
       )}
 

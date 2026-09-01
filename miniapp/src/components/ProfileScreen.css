@@ -975,14 +975,21 @@ html.app-keyboard-open .profile__health-actions--keyboard {
   background: color-mix(in srgb, var(--accent) 7%, var(--card-inner));
 }
 
-/* Поддержать проект — тот же тон, что «Поддержка»: заголовок, текст, кнопки. */
+/* «Поддержать проект» — карточный блок со сворачиваемым заголовком, как «Уведомления». */
 .profile__donate {
   margin-top: 18px;
-  margin-bottom: 0;
+  margin-bottom: 24px;
+  padding: 14px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border-subtle);
+  background: var(--card-inner);
 }
 
-.profile__donate .section-title {
+.profile__donate-title {
   margin-top: 0;
+  margin-bottom: 12px;
+  font-size: 13px;
+  color: var(--accent);
 }
 
 .profile__donate-method {
