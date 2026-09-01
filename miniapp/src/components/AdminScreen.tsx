@@ -29,6 +29,7 @@ import {
   type AdminUserCard,
   type AdminUserRow,
 } from "../lib/adminApi";
+import { AdminDashboardScreen } from "./AdminDashboardScreen";
 import { AdminDataScreen } from "./AdminDataScreen";
 import { AdminOpsScreen, type AdminOpsSection } from "./AdminOpsScreen";
 import { AdminResourcesScreen } from "./AdminResourcesScreen";
@@ -50,6 +51,7 @@ type Page =
   | "price"
   | "leolab"
   | "prompts"
+  | "dashboards"
   | AdminOpsSection;
 
 /** Вкладки админского таббара: у админа свои разделы, пользовательские тут ни к чему. */
@@ -613,7 +615,9 @@ export function AdminScreen({ initData, inTelegram, showAlert, onClose }: Props)
                   ? userLabel(card?.display_name, card?.username, card?.user_id)
                   : page === "price"
                     ? "Цена доступа"
-                    : page === "analytics"
+                    : page === "dashboards"
+                      ? "Дашборды"
+                      : page === "analytics"
                         ? "Аналитика"
                         : page === "visits"
                           ? "Посещения бота"
@@ -779,15 +783,22 @@ export function AdminScreen({ initData, inTelegram, showAlert, onClose }: Props)
       {page === "home" && tab === "system" && (
         <div className="admin__body">
           <div className="admin__tiles">
+                <button type="button" className="admin__tile" onClick={() => setPage("dashboards")}>
+                  <span className="admin__tile-ico">📊</span>
+                  <span className="admin__tile-text">
+                    <b>Дашборды</b>
+                    <small>KPI, воронки и посещения</small>
+                  </span>
+                </button>
                 <button type="button" className="admin__tile" onClick={() => setPage("analytics")}>
                   <span className="admin__tile-ico">📈</span>
                   <span className="admin__tile-text">
                     <b>Аналитика</b>
-                    <small>воронки, KPI, каналы</small>
+                    <small>таблицы: воронки, каналы, события</small>
                   </span>
                 </button>
                 <button type="button" className="admin__tile" onClick={() => setPage("visits")}>
-                  <span className="admin__tile-ico">📊</span>
+                  <span className="admin__tile-ico">👣</span>
                   <span className="admin__tile-text">
                     <b>Посещения бота</b>
                     <small>кто и как часто заходит</small>
@@ -841,6 +852,12 @@ export function AdminScreen({ initData, inTelegram, showAlert, onClose }: Props)
       {page === "prompts" && (
         <div className="admin__body">
           <LeoPromptsScreen initData={initData} showAlert={showAlert} />
+        </div>
+      )}
+
+      {page === "dashboards" && (
+        <div className="admin__body">
+          <AdminDashboardScreen initData={initData} showAlert={showAlert} />
         </div>
       )}
 
