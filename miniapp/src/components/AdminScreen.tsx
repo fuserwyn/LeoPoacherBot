@@ -34,6 +34,7 @@ import { AdminOpsScreen, type AdminOpsSection } from "./AdminOpsScreen";
 import { AdminResourcesScreen } from "./AdminResourcesScreen";
 import { LeoLabScreen } from "./LeoLabScreen";
 import { LeoPromptsScreen } from "./LeoPromptsScreen";
+import { LEO_AVATAR_URL } from "../lib/leoAvatar";
 import { TrackerScreen } from "./TrackerScreen";
 import "./AdminScreen.css";
 
@@ -52,10 +53,18 @@ type Page =
   | AdminOpsSection;
 
 /** Вкладки админского таббара: у админа свои разделы, пользовательские тут ни к чему. */
-type AdminTab = "community" | "system" | "data" | "resources" | "tracker";
+type AdminTab = "community" | "leo" | "system" | "data" | "resources" | "tracker";
 
-const ADMIN_TABS: { key: AdminTab; icon: string; label: string }[] = [
+type AdminTabDef = {
+  key: AdminTab;
+  label: string;
+  icon?: string;
+  avatar?: string;
+};
+
+const ADMIN_TABS: AdminTabDef[] = [
   { key: "community", icon: "👥", label: "Сообщество" },
+  { key: "leo", avatar: LEO_AVATAR_URL, label: "Лео" },
   { key: "system", icon: "⚙️", label: "Система" },
   { key: "data", icon: "🗄", label: "Данные" },
   { key: "resources", icon: "💵", label: "Ресурсы" },
@@ -742,6 +751,31 @@ export function AdminScreen({ initData, inTelegram, showAlert, onClose }: Props)
         </div>
       )}
 
+      {page === "home" && tab === "leo" && (
+        <div className="admin__body">
+          <div className="admin__tiles">
+            <button type="button" className="admin__tile" onClick={() => setPage("prompts")}>
+              <span className="admin__tile-ico">📜</span>
+              <span className="admin__tile-text">
+                <b>Промпты Леопарда</b>
+                <small>характер и тексты: поле или файл .txt/.md</small>
+              </span>
+            </button>
+            <button type="button" className="admin__tile" onClick={() => setPage("leolab")}>
+              <span className="admin__tile-ico">🧪</span>
+              <span className="admin__tile-text">
+                <b>Тест Лео</b>
+                <small>спросить, попробовать промпт, научить</small>
+              </span>
+            </button>
+          </div>
+          <p className="admin__muted admin__hint">
+            Боевые промпты лежат в <code>ms_leo/internal/prompts/data/*.txt</code>. Замена в «Промптах»
+            применяется сразу, без пересборки; сброс возвращает встроенный файл из репозитория.
+          </p>
+        </div>
+      )}
+
       {page === "home" && tab === "system" && (
         <div className="admin__body">
           <div className="admin__tiles">
@@ -764,20 +798,6 @@ export function AdminScreen({ initData, inTelegram, showAlert, onClose }: Props)
                   <span className="admin__tile-text">
                     <b>Админы</b>
                     <small>выдать и снять права</small>
-                  </span>
-                </button>
-                <button type="button" className="admin__tile" onClick={() => setPage("leolab")}>
-                  <span className="admin__tile-ico">🐆</span>
-                  <span className="admin__tile-text">
-                    <b>Тест Лео</b>
-                    <small>спросить, сменить промпт, научить</small>
-                  </span>
-                </button>
-                <button type="button" className="admin__tile" onClick={() => setPage("prompts")}>
-                  <span className="admin__tile-ico">📜</span>
-                  <span className="admin__tile-text">
-                    <b>Промпты Леопарда</b>
-                    <small>обучать: поля и замена файлом</small>
                   </span>
                 </button>
                 <button type="button" className="admin__tile" onClick={() => setPage("wipe")}>
@@ -1243,9 +1263,13 @@ export function AdminScreen({ initData, inTelegram, showAlert, onClose }: Props)
               setPage("home");
             }}
           >
-            <span className="admin__tab-ico" aria-hidden>
-              {t.icon}
-            </span>
+            {t.avatar ? (
+              <img className="admin__tab-avatar" src={t.avatar} width={20} height={20} alt="" aria-hidden />
+            ) : (
+              <span className="admin__tab-ico" aria-hidden>
+                {t.icon}
+              </span>
+            )}
             <span className="admin__tab-label">{t.label}</span>
           </button>
         ))}

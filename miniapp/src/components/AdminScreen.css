@@ -469,7 +469,7 @@ html.app-keyboard-open .admin {
      «Сообщество» раздувало свою колонку, а остальные четыре ужимались.
      Колонки переставали быть равными, и весь таббар уезжал вправо
      (на 360px центр средней вкладки был +3.2px, на 320px — +8.2px). */
-  grid-template-columns: repeat(5, minmax(0, 1fr));
+  grid-template-columns: repeat(6, minmax(0, 1fr));
   gap: 2px;
   padding: 6px 6px calc(6px + env(safe-area-inset-bottom, 0px));
   background: var(--nav-bg);
@@ -500,6 +500,13 @@ html.app-keyboard-open .admin {
 .admin__tab-ico {
   font-size: 17px;
   line-height: 1;
+}
+
+.admin__tab-avatar {
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  object-fit: cover;
 }
 
 .admin__tab-label {
