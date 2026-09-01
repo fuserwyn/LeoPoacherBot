@@ -7,6 +7,15 @@ import (
 	"leo-tracker/internal/store"
 )
 
+func TestTaskTitleFromPrompt(t *testing.T) {
+	if got := taskTitleFromPrompt("Задача #40.\n\nНазвание в уведомлении"); got != "Название в уведомлении" {
+		t.Fatalf("doing prompt: %q", got)
+	}
+	if got := taskTitleFromPrompt("Ревью задачи #5: ...\n\nФормулировка:\nСделай донат\n\nЧто сдал"); got != "Сделай донат" {
+		t.Fatalf("review prompt: %q", got)
+	}
+}
+
 func TestNotifyTextNoCodeDoesNotLookDone(t *testing.T) {
 	text := notifyText(store.Job{SourceNum: 4, Phase: "doing"}, "Создам папку pink-leopard", "", "", false)
 	if strings.Contains(text, "✅") || strings.Contains(text, "выполнена") {
@@ -30,9 +39,12 @@ func TestNotifyTextReviewFailWithoutCode(t *testing.T) {
 }
 
 func TestNotifyTextWithBranchIsImplementationCommit(t *testing.T) {
-	text := notifyText(store.Job{SourceNum: 4, Phase: "doing"}, "правка", "tracker/4-1", "abc1234", true)
+	text := notifyText(store.Job{SourceNum: 4, Phase: "doing", Prompt: "Задача #4.\n\nправка"}, "правка", "tracker/4-1", "abc1234", true)
 	if !strings.Contains(text, "tracker/4-1") || !strings.Contains(text, "коммит выполнения") {
 		t.Fatalf("branch: %q", text)
+	}
+	if !strings.Contains(text, "Задача #4: правка") {
+		t.Fatalf("title: %q", text)
 	}
 	if strings.Contains(text, "запушь") || strings.Contains(text, "Автопуш") {
 		t.Fatalf("push to stand is after test: %q", text)

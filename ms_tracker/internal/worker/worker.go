@@ -53,7 +53,7 @@ func finish(cfg config.Config, st *store.Store, job store.Job) {
 		}
 		store.AppendStep(&job, "Агент не стартовал")
 		_ = st.Save(job)
-		_ = notify.JobDone(cfg, job, fmt.Sprintf("⚠️ Задача #%d: агент не стартовал.\n%s", job.SourceNum, job.Error))
+		_ = notify.JobDone(cfg, job, fmt.Sprintf("⚠️ %s: агент не стартовал.\n%s", jobNotifyLabel(job), job.Error))
 		return
 	}
 	hasCode := res.HasImpl
