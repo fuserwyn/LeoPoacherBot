@@ -1215,9 +1215,21 @@ html.app-keyboard-open .profile__health-actions--keyboard {
   cursor: not-allowed;
 }
 
-/* Переключатель темы (работает в обеих темах — на токенах). */
+/* «Тема» — карточный блок со сворачиваемым заголовком, как «Уведомления». */
 .profile__theme {
   margin-top: 18px;
+  margin-bottom: 24px;
+  padding: 14px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border-subtle);
+  background: var(--card-inner);
+}
+
+.profile__theme-title {
+  margin-top: 0;
+  margin-bottom: 12px;
+  font-size: 13px;
+  color: var(--accent);
 }
 
 .profile__theme-seg {

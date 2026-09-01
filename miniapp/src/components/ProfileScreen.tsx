@@ -39,6 +39,13 @@ export type ProfileData = {
 
 const EMPTY_PROFILE: ProfileData = { gender: "", displayName: "", timezoneOffset: 0 };
 
+const THEME_LABELS: Record<ThemeMode, string> = {
+  dark: "🌙 Тёмная",
+  light: "☀️ Светлая",
+  leopard: "🐆 Розовый",
+  wild: "🐆 Дикий",
+};
+
 export type FriendMember = {
   user_id: number;
   name: string;
@@ -178,6 +185,8 @@ export function ProfileScreen({
   const [personalOpen, setPersonalOpen] = useState(false);
   // Донат свёрнут по умолчанию: номиналы и кнопки занимают много места, а платят редко.
   const [donateOpen, setDonateOpen] = useState(false);
+  // Тема свёрнута по умолчанию: четыре кнопки и подсказки занимают место, меняют редко.
+  const [themeOpen, setThemeOpen] = useState(false);
   const [friendBusyId, setFriendBusyId] = useState<number | null>(null);
   // Глобальный тумблер «Тренировки друзей» (центр уведомлений): DM о тренировке
   // друга по всем подпискам сразу. Состояние — bool_or по notify_workouts подписок.
@@ -1497,8 +1506,20 @@ export function ProfileScreen({
         )}
       </section>
 
-      <div className="profile__theme">
-        <h2 className="section-title">Тема</h2>
+      <section className="profile__theme">
+        <button
+          type="button"
+          className={`section-title profile__theme-title profile__notif-toggle${themeOpen ? " is-open" : ""}`}
+          aria-expanded={themeOpen}
+          onClick={() => setThemeOpen((open) => !open)}
+        >
+          Тема{!themeOpen ? ` · ${THEME_LABELS[theme]}` : ""}
+          <span className="profile__notif-chevron" aria-hidden>
+            {themeOpen ? "▲" : "▼"}
+          </span>
+        </button>
+        {themeOpen && (
+        <>
         <div className="profile__theme-seg" role="group" aria-label="Тема оформления">
           <button
             type="button"
@@ -1506,7 +1527,7 @@ export function ProfileScreen({
             aria-pressed={theme === "dark"}
             onClick={() => changeTheme("dark")}
           >
-            🌙 Тёмная
+            {THEME_LABELS.dark}
           </button>
           <button
             type="button"
@@ -1514,7 +1535,7 @@ export function ProfileScreen({
             aria-pressed={theme === "light"}
             onClick={() => changeTheme("light")}
           >
-            ☀️ Светлая
+            {THEME_LABELS.light}
           </button>
           <button
             type="button"
@@ -1525,7 +1546,7 @@ export function ProfileScreen({
             title={leopardUnlocked ? "Розовая леопардовая тема" : "С 5 уровня · Лев"}
             onClick={() => changeTheme("leopard")}
           >
-            🐆 Розовый
+            {THEME_LABELS.leopard}
           </button>
           <button
             type="button"
@@ -1536,7 +1557,7 @@ export function ProfileScreen({
             title={wildUnlocked ? "Дикая леопардовая тема" : "Стрик 365 дней или админ"}
             onClick={() => changeTheme("wild")}
           >
-            🐆 Дикий
+            {THEME_LABELS.wild}
           </button>
         </div>
         {!leopardUnlocked ? (
@@ -1545,7 +1566,9 @@ export function ProfileScreen({
         {!wildUnlocked ? (
           <p className="profile__theme-lock muted">Дикая тема — стрик 365 дней или админ</p>
         ) : null}
-      </div>
+        </>
+        )}
+      </section>
 
       {(donateOptions.starsAvailable || donateOptions.cardAvailable) && (
         <section className="profile__donate">
