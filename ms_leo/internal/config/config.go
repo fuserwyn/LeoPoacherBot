@@ -247,7 +247,7 @@ func Load() (*Config, error) {
 		// 1, 5, 10, 100, 1000 всегда в списке. 150 скрыт (#31): даже если
 		// DONATE_STARS_TIERS на Railway всё ещё «50,150,500», кнопка не вернётся.
 		DonateStarsTiers: excludeAmountTiers(
-			parseAmountTiers("1,5,10,100,1000,"+getEnv("DONATE_STARS_TIERS", "50,150,500")),
+			parseAmountTiers("1,5,7,10,100,1000,"+getEnv("DONATE_STARS_TIERS", "50,150,500")),
 			parseAmountTiers("150,"+getEnv("DONATE_STARS_HIDDEN", "")),
 		),
 		DonateCardTiersRub: parseAmountTiers("100,1000," + getEnv("DONATE_CARD_TIERS_RUB", "100,300,1000")),
