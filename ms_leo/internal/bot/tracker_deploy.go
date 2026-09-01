@@ -153,6 +153,9 @@ func (b *Bot) trackerDeployStatus() TrackerDeployState {
 		return out
 	}
 	for _, svc := range svcs {
+		if !isStandWatchService(svc.Name) {
+			continue
+		}
 		out.Services = append(out.Services, svc.Name)
 	}
 	return out
@@ -184,6 +187,9 @@ func (b *Bot) startTrackerDeploy(t *database.TrackerTask) trackerDeployOrder {
 	}
 	order := trackerDeployOrder{Pinned: make(map[string]string, len(svcs))}
 	for _, svc := range trackerDeployQueue(svcs) {
+		if !isStandWatchService(svc.Name) {
+			continue
+		}
 		deployID, derr := b.triggerRailwayDeploy(envID, svc.ID)
 		if derr != nil {
 			appendTrackerStepOnce(t, "Railway не собрал "+svc.Name+": "+derr.Error())

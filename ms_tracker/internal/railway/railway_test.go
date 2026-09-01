@@ -2,7 +2,46 @@ package railway
 
 import (
 	"testing"
+	"time"
 )
+
+func TestPickInFlight(t *testing.T) {
+	since := time.Date(2026, 9, 1, 6, 20, 0, 0, time.UTC)
+	got := PickInFlight([]Deploy{
+		{ID: "old", Status: "BUILDING", CreatedAt: since.Add(-5 * time.Minute)},
+		{ID: "hook", Status: "DEPLOYING", CreatedAt: since.Add(10 * time.Second)},
+		{ID: "done", Status: "SUCCESS", CreatedAt: since.Add(20 * time.Second)},
+	}, since)
+	if got != "hook" {
+		t.Fatalf("reuse webhook: %q", got)
+	}
+	if PickInFlight(nil, since) != "" {
+		t.Fatal("empty")
+	}
+}
+
+func TestPinStartedReusesWebhookNotSecondAPI(t *testing.T) {
+	since := time.Date(2026, 9, 1, 6, 20, 0, 0, time.UTC)
+	svcs := []Service{{Name: "MiniApp"}, {Name: "ms_leo"}}
+	pinned := map[string]string{}
+	deploys := map[string][]Deploy{
+		"ms_leo": {
+			{ID: "hook-leo", Status: "DEPLOYING", CreatedAt: since.Add(time.Second)},
+		},
+		"MiniApp": {
+			{ID: "hook-app", Status: "SKIPPED", CreatedAt: since.Add(2 * time.Second)},
+		},
+	}
+	if !PinStarted(svcs, pinned, deploys, since) {
+		t.Fatalf("оба вебхука уже есть: %+v", pinned)
+	}
+	if pinned["ms_leo"] != "hook-leo" || pinned["MiniApp"] != "hook-app" {
+		t.Fatalf("пин: %+v", pinned)
+	}
+	if PickStarted(nil, since) != "" {
+		t.Fatal("пустой список — API ещё можно заказать")
+	}
+}
 
 func TestIsAppService(t *testing.T) {
 	for _, name := range []string{"MiniApp", "miniapp-main", "ms_leo", "ms-leo-main", "leo", "fat-leopard-main"} {

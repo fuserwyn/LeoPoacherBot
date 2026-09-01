@@ -34,20 +34,21 @@ func TestStandWaitDecision(t *testing.T) {
 		t.Fatalf("in-flight must wait: %+v", out)
 	}
 
+	out = standWaitDecision([]standDeploy{
+		{Status: "SUCCESS", CreatedAt: started.Add(5 * time.Second)},
+		{Status: "DEPLOYING", CreatedAt: started.Add(12 * time.Second)},
+	}, since, started, started.Add(20*time.Second))
+	if out.Err != nil || out.Done {
+		t.Fatalf("первый SUCCESS при живой более новой сборке: %+v", out)
+	}
+
 	old := started.Add(-3 * time.Minute)
 	out = standWaitDecision([]standDeploy{
 		{Status: "SUCCESS", CreatedAt: old},
 		{Status: "SKIPPED", CreatedAt: started.Add(10 * time.Second)},
 	}, since, started, started.Add(10*time.Second))
-	if out.Err != nil || out.Done {
-		t.Fatalf("grace: %+v", out)
-	}
-	out = standWaitDecision([]standDeploy{
-		{Status: "SUCCESS", CreatedAt: old},
-		{Status: "SKIPPED", CreatedAt: started.Add(10 * time.Second)},
-	}, since, started, started.Add(trackerStandSkipGrace+time.Second))
-	if out.Err != nil || out.Done {
-		t.Fatalf("old SUCCESS is not this task's deploy: %+v", out)
+	if out.Err != nil || !out.Done {
+		t.Fatalf("свежий SKIPPED — эту службу не пересобирали: %+v", out)
 	}
 }
 
@@ -143,6 +144,9 @@ func TestIsStandWatchService(t *testing.T) {
 	}
 	if isStandWatchService("ms_tracker") || isStandWatchService("ms-tracker-main") || isStandWatchService("Postgres") {
 		t.Fatal("skip infra")
+	}
+	if isStandWatchService("ms_payments") || !isStandObserveService("ms_payments") {
+		t.Fatal("payments: смотрим, но не заказываем")
 	}
 }
 

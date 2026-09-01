@@ -24,6 +24,12 @@ type Env struct {
 	Name string
 }
 
+type Deploy struct {
+	ID        string
+	Status    string
+	CreatedAt time.Time
+}
+
 func NormalizeName(name string) string {
 	n := strings.ToLower(strings.TrimSpace(name))
 	return strings.ReplaceAll(n, "_", "-")
@@ -92,8 +98,13 @@ func QueueSelfLast(svcs []Service) []Service {
 	return append(out, self...)
 }
 
-// RedeployStand — как myvibelab: после пуша в GitHub сами заказываем сборку
-// свежего коммита (latestCommit), а не ждём вебхук.
+const webhookGrace = 12 * time.Second
+const webhookPoll = 2 * time.Second
+
+// RedeployStand — после пуша в main не заказываем вторую такую же сборку.
+// GitHub уже дергает Railway (на скрине два «via GitHub» у #36 с разницей
+// в секунду — вебхук + serviceInstanceDeploy). Сначала ждём вебхук, API
+// дергаем только если сервис так и не стартовал.
 func RedeployStand(cfg config.Config) (map[string]string, error) {
 	if strings.TrimSpace(cfg.RailwayToken) == "" || strings.TrimSpace(cfg.RailwayProjectID) == "" {
 		return nil, fmt.Errorf("нет RAILWAY_API_TOKEN или RAILWAY_PROJECT_ID")
@@ -103,8 +114,30 @@ func RedeployStand(cfg config.Config) (map[string]string, error) {
 		return nil, err
 	}
 	pinned := make(map[string]string, len(svcs))
+	since := time.Now().Add(-45 * time.Second)
+	deadline := time.Now().Add(webhookGrace)
+	for {
+		all := true
+		for _, svc := range svcs {
+			if strings.TrimSpace(pinned[svc.Name]) != "" {
+				continue
+			}
+			if id := reuseInFlight(cfg, envID, svc.ID, since); id != "" {
+				pinned[svc.Name] = id
+				continue
+			}
+			all = false
+		}
+		if all || !time.Now().Before(deadline) {
+			break
+		}
+		time.Sleep(webhookPoll)
+	}
 	var firstErr error
 	for _, svc := range QueueSelfLast(svcs) {
+		if strings.TrimSpace(pinned[svc.Name]) != "" {
+			continue
+		}
 		id, terr := trigger(cfg, envID, svc.ID)
 		if terr != nil {
 			if firstErr == nil {
@@ -112,7 +145,9 @@ func RedeployStand(cfg config.Config) (map[string]string, error) {
 			}
 			continue
 		}
-		pinned[svc.Name] = id
+		if strings.TrimSpace(id) != "" {
+			pinned[svc.Name] = id
+		}
 	}
 	if len(pinned) == 0 {
 		if firstErr != nil {
@@ -163,6 +198,98 @@ func lookup(cfg config.Config) (string, []Service, error) {
 		return "", nil, fmt.Errorf("сервисы стенда не найдены")
 	}
 	return envID, svcs, nil
+}
+
+func deployInFlight(status string) bool {
+	switch strings.ToUpper(strings.TrimSpace(status)) {
+	case "BUILDING", "DEPLOYING", "INITIALIZING", "QUEUED", "WAITING", "PENDING", "NEEDS_APPROVAL":
+		return true
+	default:
+		return false
+	}
+}
+
+func pickNewest(deploys []Deploy, since time.Time, ok func(Deploy) bool) string {
+	var bestID string
+	var bestAt time.Time
+	for _, d := range deploys {
+		if !ok(d) {
+			continue
+		}
+		if d.CreatedAt.IsZero() || d.CreatedAt.Before(since) {
+			continue
+		}
+		if bestID == "" || d.CreatedAt.After(bestAt) {
+			bestID = strings.TrimSpace(d.ID)
+			bestAt = d.CreatedAt
+		}
+	}
+	return bestID
+}
+
+// PickInFlight — уже крутится сборка после пуша (вебхук GitHub).
+func PickInFlight(deploys []Deploy, since time.Time) string {
+	return pickNewest(deploys, since, func(d Deploy) bool { return deployInFlight(d.Status) })
+}
+
+// PickStarted — вебхук уже стартовал или даже успел закрыться (SKIPPED /
+// быстрый SUCCESS). Вторую сборку через API не заказываем.
+func PickStarted(deploys []Deploy, since time.Time) string {
+	if id := PickInFlight(deploys, since); id != "" {
+		return id
+	}
+	return pickNewest(deploys, since, func(d Deploy) bool {
+		st := strings.ToUpper(strings.TrimSpace(d.Status))
+		return st == "SUCCESS" || st == "SKIPPED"
+	})
+}
+
+func PinStarted(svcs []Service, pinned map[string]string, deploys map[string][]Deploy, since time.Time) bool {
+	if pinned == nil {
+		return false
+	}
+	all := len(svcs) > 0
+	for _, svc := range svcs {
+		if strings.TrimSpace(pinned[svc.Name]) != "" {
+			continue
+		}
+		if id := PickStarted(deploys[svc.Name], since); id != "" {
+			pinned[svc.Name] = id
+			continue
+		}
+		all = false
+	}
+	return all
+}
+
+func reuseInFlight(cfg config.Config, envID, svcID string, since time.Time) string {
+	raw, err := call(cfg,
+		`query($sid:String!,$eid:String!){ deployments(first:8, input:{serviceId:$sid, environmentId:$eid}){ edges{ node{ id status createdAt } } } }`,
+		map[string]any{"sid": svcID, "eid": envID},
+	)
+	if err != nil {
+		return ""
+	}
+	var parsed struct {
+		Deployments struct {
+			Edges []struct {
+				Node struct {
+					ID        string `json:"id"`
+					Status    string `json:"status"`
+					CreatedAt string `json:"createdAt"`
+				} `json:"node"`
+			} `json:"edges"`
+		} `json:"deployments"`
+	}
+	if json.Unmarshal(raw, &parsed) != nil {
+		return ""
+	}
+	var deploys []Deploy
+	for _, edge := range parsed.Deployments.Edges {
+		at, _ := time.Parse(time.RFC3339, edge.Node.CreatedAt)
+		deploys = append(deploys, Deploy{ID: edge.Node.ID, Status: edge.Node.Status, CreatedAt: at})
+	}
+	return PickStarted(deploys, since)
 }
 
 func trigger(cfg config.Config, envID, svcID string) (string, error) {

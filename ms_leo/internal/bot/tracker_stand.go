@@ -99,62 +99,113 @@ func standDeployInFlight(status string) bool {
 	}
 }
 
-func standWaitDecision(deploys []standDeploy, since, started, now time.Time) standWaitOutcome {
-	inFlight := false
-	newSuccess := false
+func standDeployFresh(d standDeploy, since time.Time) bool {
+	return d.CreatedAt.IsZero() || !d.CreatedAt.Before(since)
+}
+
+func standDeployFailed(status string) bool {
+	switch strings.ToUpper(strings.TrimSpace(status)) {
+	case "FAILED", "CRASHED":
+		return true
+	default:
+		return false
+	}
+}
+
+// standNewestRelevant — самая поздняя сборка этой выкладки: заказанная нами
+// плюс всё, что Railway успел стартовать после пуша (вебхук GitHub).
+func standNewestRelevant(deploys []standDeploy, pinnedID string, since time.Time) *standDeploy {
+	pinnedID = strings.TrimSpace(pinnedID)
+	var best *standDeploy
+	for i := range deploys {
+		d := &deploys[i]
+		isPinned := pinnedID != "" && strings.TrimSpace(d.ID) == pinnedID
+		if !isPinned && !standDeployFresh(*d, since) {
+			continue
+		}
+		if best == nil {
+			best = d
+			continue
+		}
+		if d.CreatedAt.After(best.CreatedAt) {
+			best = d
+			continue
+		}
+		if d.CreatedAt.Equal(best.CreatedAt) && standDeployInFlight(d.Status) && !standDeployInFlight(best.Status) {
+			best = d
+		}
+	}
+	return best
+}
+
+func standAnyInFlight(deploys []standDeploy, pinnedID string, since time.Time) bool {
+	pinnedID = strings.TrimSpace(pinnedID)
 	for _, d := range deploys {
-		st := strings.ToUpper(strings.TrimSpace(d.Status))
-		fresh := d.CreatedAt.IsZero() || !d.CreatedAt.Before(since)
-		if st == "SUCCESS" && fresh {
-			newSuccess = true
+		isPinned := pinnedID != "" && strings.TrimSpace(d.ID) == pinnedID
+		if !isPinned && !standDeployFresh(d, since) {
+			continue
 		}
-		if fresh && (st == "FAILED" || st == "CRASHED") {
-			return standWaitOutcome{
-				Err:       fmt.Errorf("деплой %s", strings.ToLower(st)),
-				FailedID:  d.ID,
-				FailedSvc: d.Service,
-				Status:    strings.ToLower(st),
-			}
-		}
-		if fresh && standDeployInFlight(st) {
-			inFlight = true
+		if standDeployInFlight(d.Status) {
+			return true
 		}
 	}
-	if newSuccess {
-		return standWaitOutcome{Done: true}
+	return false
+}
+
+// standWaitLatest — «выполнено» только когда кончилась последняя сборка,
+// не первый SUCCESS. Иначе вебхук GitHub ещё крутится, а карточка уже зелёная.
+func standWaitLatest(deploys []standDeploy, pinnedID string, since time.Time) standWaitOutcome {
+	latest := standNewestRelevant(deploys, pinnedID, since)
+	if latest == nil {
+		if strings.TrimSpace(pinnedID) != "" {
+			return standWaitOutcome{} // заказ ещё не виден
+		}
+		return standWaitOutcome{Done: true} // этот сервис никто не пересобирал
 	}
-	if inFlight {
+	if standAnyInFlight(deploys, pinnedID, since) {
 		return standWaitOutcome{}
 	}
-	_ = now
-	// Старый SUCCESS стенда — не выкладка этой задачи. Без свежей сборки ждём.
+	st := strings.ToUpper(strings.TrimSpace(latest.Status))
+	if standDeployFailed(st) {
+		return standWaitOutcome{
+			Err:       fmt.Errorf("деплой %s", strings.ToLower(st)),
+			FailedID:  latest.ID,
+			FailedSvc: latest.Service,
+			Status:    strings.ToLower(st),
+		}
+	}
+	if st == "SUCCESS" || st == "SKIPPED" {
+		return standWaitOutcome{Done: true}
+	}
+	if st == "REMOVED" {
+		return standWaitOutcome{} // Railway сменил деплой — ждём следующий
+	}
 	return standWaitOutcome{}
 }
 
-// standWaitPinned — ждём ровно тот деплой, который заказали сами.
-// Чужая старая сборка за успех не считается: карточка закрывается только
-// когда собралось то, что мы отправили.
+func standWaitDecision(deploys []standDeploy, since, started, now time.Time) standWaitOutcome {
+	_ = started
+	_ = now
+	return standWaitLatest(deploys, "", since)
+}
+
+// standWaitPinned — заказ плюс всё, что Railway стартовал после него.
 func standWaitPinned(deploys []standDeploy, deployID string) standWaitOutcome {
 	deployID = strings.TrimSpace(deployID)
+	var since time.Time
+	found := false
 	for _, d := range deploys {
 		if strings.TrimSpace(d.ID) != deployID {
 			continue
 		}
-		st := strings.ToUpper(strings.TrimSpace(d.Status))
-		switch st {
-		case "SUCCESS":
-			return standWaitOutcome{Done: true}
-		case "FAILED", "CRASHED", "REMOVED":
-			return standWaitOutcome{
-				Err:       fmt.Errorf("деплой %s", strings.ToLower(st)),
-				FailedID:  d.ID,
-				FailedSvc: d.Service,
-				Status:    strings.ToLower(st),
-			}
-		}
-		return standWaitOutcome{} // ещё собирается
+		found = true
+		since = d.CreatedAt
+		break
 	}
-	return standWaitOutcome{} // заказанный деплой пока не виден в списке
+	if !found {
+		return standWaitOutcome{}
+	}
+	return standWaitLatest(deploys, deployID, since)
 }
 
 // standWaitServices — SUCCESS всех сервисов стенда. Свежий FAILED у Leo
@@ -165,15 +216,31 @@ func standWaitServices(
 	if len(byService) == 0 {
 		return standWaitOutcome{}
 	}
-	// Как myvibelab: ждём только те деплои, которые заказали сами.
-	// Чужой зелёный стенд карточку не закрывает.
+	// Ждём последнюю сборку по каждому сервису: свой заказ и более новый
+	// вебхук GitHub. Первый SUCCESS заказанного id карточку не закрывает.
 	if len(pinned) > 0 {
 		waiting := false
 		for name, id := range pinned {
 			if strings.TrimSpace(id) == "" {
 				continue
 			}
-			out := standWaitPinned(byService[name], id)
+			out := standWaitLatest(byService[name], id, since)
+			if out.Err != nil {
+				if out.FailedSvc == "" {
+					out.FailedSvc = name
+				}
+				out.Err = fmt.Errorf("%s: %w", name, out.Err)
+				return out
+			}
+			if !out.Done {
+				waiting = true
+			}
+		}
+		for name, deploys := range byService {
+			if _, tracked := pinned[name]; tracked {
+				continue
+			}
+			out := standWaitLatest(deploys, "", since)
 			if out.Err != nil {
 				if out.FailedSvc == "" {
 					out.FailedSvc = name
@@ -269,9 +336,10 @@ func clipStandLogs(text string) string {
 	return string(r[len(r)-trackerStandLogClip:])
 }
 
-// waitStandBuild — после пуша в main карточка сидит в «Сборка», пока Leo
-// и MiniApp на Railway не станут SUCCESS. Если сервиса не пересобирали
-// (SKIPPED) — живой стенд тоже ок. Свежий FAILED любого из них — ошибка.
+// waitStandBuild — после пуша в main карточка сидит в «Сборка», пока не
+// кончится последняя свежая сборка MiniApp, Leo и того, что ещё крутит
+// вебхук (например ms_payments). Первый SUCCESS заказанного деплоя — ещё
+// не конец, если рядом уже стартовал более новый.
 func (b *Bot) waitStandBuild(started time.Time, pinned map[string]string) error {
 	if b == nil || b.config == nil {
 		return fmt.Errorf("нет конфигурации Railway")
@@ -329,7 +397,7 @@ func (b *Bot) waitRailwayStand(started time.Time, pinned map[string]string) erro
 
 func (b *Bot) listStandDeploys(svcID, envID string) ([]standDeploy, error) {
 	raw, err := b.railwayCall(
-		`query($sid:String!,$eid:String!){ deployments(first:5, input:{serviceId:$sid, environmentId:$eid}){ edges{ node{ id status createdAt } } } }`,
+		`query($sid:String!,$eid:String!){ deployments(first:10, input:{serviceId:$sid, environmentId:$eid}){ edges{ node{ id status createdAt } } } }`,
 		map[string]any{"sid": svcID, "eid": envID},
 	)
 	if err != nil {
@@ -428,6 +496,17 @@ func isStandWatchService(name string) bool {
 		strings.Contains(n, "fat-leopard")
 }
 
+// isStandObserveService — смотрим и платежный сервис: он на том же GitHub,
+// вебхук крутит третью сборку, хотя мы её не заказываем.
+func isStandObserveService(name string) bool {
+	if isStandWatchService(name) {
+		return true
+	}
+	n := strings.ToLower(strings.TrimSpace(name))
+	n = strings.ReplaceAll(n, "_", "-")
+	return strings.Contains(n, "payment") && !strings.Contains(n, "postgres")
+}
+
 func (b *Bot) lookupMainStandServices() (envID string, svcs []standService, err error) {
 	raw, err := b.railwayCall(
 		`query($id:String!){ project(id:$id){ environments{ edges{ node{ id name } } } services{ edges{ node{ id name } } } } }`,
@@ -489,7 +568,7 @@ func (b *Bot) lookupMainStandServices() (envID string, svcs []standService, err 
 		}
 	}
 	for _, s := range parsed.Project.Services.Edges {
-		if isStandWatchService(s.Node.Name) {
+		if isStandObserveService(s.Node.Name) {
 			svcs = append(svcs, standService{ID: s.Node.ID, Name: s.Node.Name})
 		}
 	}

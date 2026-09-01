@@ -61,8 +61,18 @@ func TestStandWaitPinned(t *testing.T) {
 		t.Fatalf("наш деплой собрался: %+v", out)
 	}
 
+	deploys[1].Status = "SUCCESS"
+	deploys = append(deploys, standDeploy{
+		ID: "hook", Status: "BUILDING", Service: "MiniApp",
+		CreatedAt: time.Date(2026, 9, 1, 6, 21, 0, 0, time.UTC),
+	})
+	deploys[1].CreatedAt = time.Date(2026, 9, 1, 6, 20, 0, 0, time.UTC)
+	if out := standWaitPinned(deploys, "mine"); out.Done || out.Err != nil {
+		t.Fatalf("после нашего SUCCESS ещё идёт вебхук: %+v", out)
+	}
+
 	deploys[1].Status = "FAILED"
-	out := standWaitPinned(deploys, "mine")
+	out := standWaitPinned(deploys[:2], "mine")
 	if out.Err == nil || out.Done || out.FailedID != "mine" || out.FailedSvc != "MiniApp" {
 		t.Fatalf("наш деплой упал: %+v", out)
 	}
@@ -94,6 +104,52 @@ func TestStandWaitServicesPinnedIgnoresOldSuccess(t *testing.T) {
 	by["MiniApp"][1].Status = "SUCCESS"
 	if out := standWaitServices(by, pinned, since, started, now); !out.Done || out.Err != nil {
 		t.Fatalf("свой деплой собрался: %+v", out)
+	}
+}
+
+// Вебхук GitHub стартует ещё одну сборку после нашего заказа — карточка
+// остаётся в «Сборке», пока не кончится именно последняя.
+func TestStandWaitServicesWaitsForNewerWebhook(t *testing.T) {
+	started := time.Date(2026, 9, 1, 6, 20, 0, 0, time.UTC)
+	since := started.Add(-45 * time.Second)
+	now := started.Add(2 * time.Minute)
+	by := map[string][]standDeploy{
+		"MiniApp": {
+			{ID: "mine", Status: "SUCCESS", CreatedAt: started.Add(5 * time.Second), Service: "MiniApp"},
+			{ID: "hook", Status: "BUILDING", CreatedAt: started.Add(20 * time.Second), Service: "MiniApp"},
+		},
+	}
+	pinned := map[string]string{"MiniApp": "mine"}
+	if out := standWaitServices(by, pinned, since, started, now); out.Done || out.Err != nil {
+		t.Fatalf("ждём последнюю: %+v", out)
+	}
+
+	by["MiniApp"][1].Status = "SUCCESS"
+	if out := standWaitServices(by, pinned, since, started, now); !out.Done || out.Err != nil {
+		t.Fatalf("последняя собралась: %+v", out)
+	}
+}
+
+func TestStandWaitServicesWaitsForUnpinnedSibling(t *testing.T) {
+	started := time.Date(2026, 9, 1, 6, 20, 0, 0, time.UTC)
+	since := started.Add(-45 * time.Second)
+	now := started.Add(2 * time.Minute)
+	by := map[string][]standDeploy{
+		"ms_leo": {
+			{ID: "leo", Status: "SUCCESS", CreatedAt: started.Add(8 * time.Second), Service: "ms_leo"},
+		},
+		"ms_payments": {
+			{ID: "pay", Status: "DEPLOYING", CreatedAt: started.Add(10 * time.Second), Service: "ms_payments"},
+		},
+	}
+	pinned := map[string]string{"ms_leo": "leo"}
+	if out := standWaitServices(by, pinned, since, started, now); out.Done || out.Err != nil {
+		t.Fatalf("ждём вебхук payments: %+v", out)
+	}
+
+	by["ms_payments"][0].Status = "SUCCESS"
+	if out := standWaitServices(by, pinned, since, started, now); !out.Done || out.Err != nil {
+		t.Fatalf("последняя из трёх собралась: %+v", out)
 	}
 }
 
