@@ -15,3 +15,7 @@
 2. `ms_leo/internal/bot/tracker_notify.go` — добавлена per-task блокировка `trackerShipNotifyInflight`, чтобы параллельные вызовы `notifyTrackerShippedOnce` не слали второе сообщение.
 
 Локальный коммит не создан: в окружении не настроен git user. Изменения в рабочей копии на ветке `tracker/45-502`.
+
+## ревью
+
+Ревью: на ветке tracker/45-502 config.go целый. Можно на тест.
