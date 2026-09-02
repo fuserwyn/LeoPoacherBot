@@ -123,12 +123,13 @@ export function ProfileScreen({
     const next = themeAllowedForLevel(mode, miniappLevelFromCups(cups), {
       streakDays: streak,
       maxStreakDays: recordStreak,
+      workoutsTotal: workouts,
       isAdmin,
     });
     setTheme(next);
     setThemeState(next);
     if (initData?.trim()) void persistThemeToServer(initData, next);
-  }, [cups, initData, streak, recordStreak, isAdmin]);
+  }, [cups, initData, streak, recordStreak, workouts, isAdmin]);
   const [profile, setProfile] = useState<ProfileData>(EMPTY_PROFILE);
   const [savedProfile, setSavedProfile] = useState<ProfileData>(EMPTY_PROFILE);
   const [profileLoading, setProfileLoading] = useState(true);
@@ -250,9 +251,10 @@ export function ProfileScreen({
   const wildUnlocked = canUseWildTheme({
     streakDays: displayStreak,
     maxStreakDays: recordStreak,
+    workoutsTotal: workouts,
     isAdmin,
   });
-  const themeUnlock = { streakDays: displayStreak, maxStreakDays: recordStreak, isAdmin };
+  const themeUnlock = { streakDays: displayStreak, maxStreakDays: recordStreak, workoutsTotal: workouts, isAdmin };
 
   useEffect(() => {
     const onTheme = (e: Event) => {
@@ -274,7 +276,7 @@ export function ProfileScreen({
       setTheme(next);
       setThemeState(next);
     }
-  }, [level, theme, themeLevelReady, displayStreak, recordStreak, isAdmin]);
+  }, [level, theme, themeLevelReady, displayStreak, recordStreak, workouts, isAdmin]);
 
   const load = useCallback(async () => {
     if (!api || !inTelegram || !initData?.trim()) {
@@ -298,6 +300,7 @@ export function ProfileScreen({
         theme?: string;
         streak_days?: number;
         max_streak_days?: number;
+        workouts_total?: number;
         is_admin?: boolean;
         streak_save_attempts_used?: number;
         streak_save_attempts_max?: number;
@@ -327,6 +330,7 @@ export function ProfileScreen({
         const next = themeAllowedForLevel(j.theme, miniappLevelFromCups(typeof j.xp === "number" ? j.xp : cups), {
           streakDays: typeof j.streak_days === "number" ? j.streak_days : streak,
           maxStreakDays: typeof j.max_streak_days === "number" ? j.max_streak_days : recordStreak,
+          workoutsTotal: typeof j.workouts_total === "number" ? j.workouts_total : workouts,
           isAdmin: typeof j.is_admin === "boolean" ? j.is_admin : isAdmin,
         });
         setTheme(next);
@@ -1554,7 +1558,7 @@ export function ProfileScreen({
             aria-pressed={theme === "wild"}
             aria-disabled={!wildUnlocked}
             disabled={!wildUnlocked}
-            title={wildUnlocked ? "Дикая леопардовая тема" : "Стрик 365 дней или админ"}
+            title={wildUnlocked ? "Дикая леопардовая тема" : "Стрик 365 дней или 1000 тренировок"}
             onClick={() => changeTheme("wild")}
           >
             {THEME_LABELS.wild}
@@ -1564,7 +1568,7 @@ export function ProfileScreen({
           <p className="profile__theme-lock muted">Розовая тема откроется на 5 уровне · Лев</p>
         ) : null}
         {!wildUnlocked ? (
-          <p className="profile__theme-lock muted">Дикая тема — стрик 365 дней или админ</p>
+          <p className="profile__theme-lock muted">Дикая тема — стрик 365 дней или 1000 тренировок</p>
         ) : null}
         </>
         )}
