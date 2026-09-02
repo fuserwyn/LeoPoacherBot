@@ -464,14 +464,61 @@ func (b *Bot) NotifyTrackerAuthor(userID int64, text string) error {
 	return err
 }
 
+// trackerAdminNotifyIDs — все админы стаи: из env и динамические.
+func (b *Bot) trackerAdminNotifyIDs() []int64 {
+	if b == nil || b.config == nil {
+		return nil
+	}
+	seen := make(map[int64]struct{})
+	out := make([]int64, 0, len(b.config.AdminIDs)+2)
+	add := func(id int64) {
+		if id <= 0 {
+			return
+		}
+		if _, ok := seen[id]; ok {
+			return
+		}
+		seen[id] = struct{}{}
+		out = append(out, id)
+	}
+	add(b.config.OwnerID)
+	for _, id := range b.config.AdminIDs {
+		add(id)
+	}
+	b.dynamicAdminsMu.RLock()
+	for id := range b.dynamicAdmins {
+		add(id)
+	}
+	b.dynamicAdminsMu.RUnlock()
+	return out
+}
+
+// trackerResultNotifyTargets — кому писать о судьбе задачи.
+func (b *Bot) trackerResultNotifyTargets(authorID int64) []int64 {
+	if authorID <= 0 {
+		return b.trackerAdminNotifyIDs()
+	}
+	if !b.isAdminTelegramUser(authorID) {
+		return []int64{authorID}
+	}
+	seen := map[int64]struct{}{authorID: {}}
+	out := []int64{authorID}
+	for _, id := range b.trackerAdminNotifyIDs() {
+		if _, ok := seen[id]; ok {
+			continue
+		}
+		seen[id] = struct{}{}
+		out = append(out, id)
+	}
+	return out
+}
+
 // NotifyTrackerResult — сообщить о судьбе задачи: автору, а если его нет
 // (ставили из чата) или автор не человек (задачу придумал Лео — id меньше
-// нуля) — админам стаи.
+// нуля) — админам стаи. Если задачу ставил админ — остальные админы тоже
+// получат уведомление о выкате.
 func (b *Bot) NotifyTrackerResult(authorID int64, text string) error {
-	if authorID > 0 {
-		return b.NotifyTrackerAuthor(authorID, text)
-	}
-	targets := b.config.AdminTelegramUserIDs()
+	targets := b.trackerResultNotifyTargets(authorID)
 	if len(targets) == 0 {
 		return fmt.Errorf("некому писать: админы не заданы")
 	}

@@ -146,3 +146,49 @@ func TestTrackerOpShouldShip(t *testing.T) {
 		t.Fatal("create must not ship")
 	}
 }
+
+func TestTrackerResultNotifyTargets(t *testing.T) {
+	b := &Bot{
+		config: &config.Config{OwnerID: 1, AdminIDs: []int64{2, 3}},
+		dynamicAdmins: map[int64]struct{}{
+			4: {},
+		},
+	}
+	got := b.trackerResultNotifyTargets(0)
+	wantAll := []int64{1, 2, 3, 4}
+	if len(got) != len(wantAll) {
+		t.Fatalf("no author: got %v want %v", got, wantAll)
+	}
+	for _, id := range wantAll {
+		found := false
+		for _, g := range got {
+			if g == id {
+				found = true
+				break
+			}
+		}
+		if !found {
+			t.Fatalf("no author: missing %d in %v", id, got)
+		}
+	}
+	got = b.trackerResultNotifyTargets(2)
+	if len(got) != 4 {
+		t.Fatalf("admin author: got %v want author + 3 peers", got)
+	}
+	if got[0] != 2 {
+		t.Fatalf("admin author first: got %v", got)
+	}
+	seen := map[int64]struct{}{}
+	for _, id := range got {
+		seen[id] = struct{}{}
+	}
+	for _, id := range []int64{1, 2, 3, 4} {
+		if _, ok := seen[id]; !ok {
+			t.Fatalf("admin author: missing %d in %v", id, got)
+		}
+	}
+	got = b.trackerResultNotifyTargets(99)
+	if len(got) != 1 || got[0] != 99 {
+		t.Fatalf("non-admin author: got %v", got)
+	}
+}
