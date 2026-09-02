@@ -373,6 +373,19 @@ export function ProfileScreen({
     onRefreshStats?.();
   }, [load, active, onRefreshStats]);
 
+  // После новой тренировки родитель обновляет workouts — перечитываем workouts_by_day из БД.
+  const prevWorkoutsRef = useRef<number | null>(null);
+  useEffect(() => {
+    if (!active || !inTelegram || !initData?.trim()) return;
+    if (prevWorkoutsRef.current === null) {
+      prevWorkoutsRef.current = workouts;
+      return;
+    }
+    if (prevWorkoutsRef.current === workouts) return;
+    prevWorkoutsRef.current = workouts;
+    void load();
+  }, [workouts, active, inTelegram, initData, load]);
+
   const loadReminder = useCallback(async () => {
     if (!api || !inTelegram || !initData?.trim()) {
       setReminderLoading(false);
