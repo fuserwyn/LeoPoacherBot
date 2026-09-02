@@ -1,0 +1,97 @@
+.profile-day-chart {
+  margin-top: 14px;
+  padding-top: 12px;
+  border-top: 1px solid var(--border-subtle);
+}
+
+.profile-day-chart__head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 6px 10px;
+  margin-bottom: 10px;
+}
+
+.profile-day-chart__title {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-muted);
+}
+
+.profile-day-chart__subtitle {
+  font-size: 11px;
+  color: var(--text-muted);
+  opacity: 0.85;
+}
+
+.profile-day-chart__empty {
+  margin: 0;
+  font-size: 12px;
+}
+
+.profile-day-chart__scroll {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  touch-action: pan-x pan-y;
+  overscroll-behavior-x: contain;
+  padding-bottom: 2px;
+}
+
+.profile-day-chart__plot {
+  display: flex;
+  align-items: flex-end;
+  gap: 3px;
+  min-width: min-content;
+  height: 96px;
+  padding: 0 2px 18px;
+}
+
+.profile-day-chart__col {
+  flex: 0 0 10px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-end;
+  height: 100%;
+  position: relative;
+}
+
+.profile-day-chart__bar-wrap {
+  flex: 1 1 auto;
+  width: 100%;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  min-height: 0;
+}
+
+.profile-day-chart__bar {
+  width: 100%;
+  max-width: 10px;
+  border-radius: 3px 3px 1px 1px;
+  background: linear-gradient(180deg, rgba(255, 160, 120, 0.95), rgba(211, 102, 82, 0.92));
+  transition: height 0.2s ease;
+}
+
+.profile-day-chart--streak .profile-day-chart__bar {
+  background: linear-gradient(180deg, rgba(255, 210, 120, 0.95), rgba(230, 150, 60, 0.92));
+}
+
+.profile-day-chart__label {
+  position: absolute;
+  bottom: 0;
+  left: 50%;
+  transform: translateX(-50%) rotate(-45deg);
+  transform-origin: top center;
+  font-size: 9px;
+  line-height: 1;
+  color: var(--text-muted);
+  white-space: nowrap;
+  pointer-events: none;
+}
+
+.profile-day-chart__label--spacer {
+  visibility: hidden;
+}
