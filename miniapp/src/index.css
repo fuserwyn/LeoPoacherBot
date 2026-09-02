@@ -201,8 +201,8 @@
   --leo-bubble-bg: #161616;
   --leo-bubble-border: rgba(224, 154, 62, 0.22);
   --leo-bubble-fg: #f2f0ec;
-  /* Тёмные обои леопарда — бесшовный тайл (лента и чат с Лео). */
-  --wild-spots: url("./assets/wild-leopard-wallpaper.jpg");
+  /* Те же розовые пятна, что у розовой темы — бесшовный тайл (лента и чат с Лео). */
+  --wild-spots: url("./assets/pink-leopard-wallpaper.jpg");
 }
 
 *,
@@ -256,7 +256,7 @@ html[data-theme="wild"] {
 html[data-theme="wild"] .feed,
 html[data-theme="wild"] .chat:not(.support-chat) .chat__log,
 html[data-theme="wild"] .chat:not(.support-chat) .chat__log-wrap {
-  background-color: #0a0a0a;
+  background-color: #f6d4de;
   background-image: var(--wild-spots);
   background-size: 400px 400px;
   background-repeat: repeat;
@@ -268,7 +268,7 @@ html[data-theme="wild"] .feed {
 }
 
 html[data-theme="wild"] .chat:not(.support-chat) {
-  background-color: #0a0a0a;
+  background-color: #f6d4de;
 }
 
 html[data-theme="wild"] .feed__sticky,

@@ -6,12 +6,14 @@ export type ThemeMode = "light" | "dark" | "leopard" | "wild";
 /** Розовая леопардовая тема — с 5 уровня (Лев). */
 export const LEOPARD_THEME_MIN_LEVEL = 5;
 
-/** Дикая тёмная леопардовая тема — админам и тем, кто достиг стрика 365 дней. */
+/** Дикая тёмная леопардовая тема — стрик 365 дней или 1000 тренировок (админ — всегда). */
 export const WILD_THEME_MIN_STREAK = 365;
+export const WILD_THEME_MIN_WORKOUTS = 1000;
 
 export type ThemeUnlock = {
   streakDays?: number;
   maxStreakDays?: number;
+  workoutsTotal?: number;
   isAdmin?: boolean;
 };
 
@@ -42,7 +44,8 @@ export function canUseLeopardTheme(level: number): boolean {
 export function canUseWildTheme(unlock: ThemeUnlock = {}): boolean {
   if (unlock.isAdmin) return true;
   const streak = Math.max(0, unlock.streakDays ?? 0, unlock.maxStreakDays ?? 0);
-  return streak >= WILD_THEME_MIN_STREAK;
+  const workouts = Math.max(0, unlock.workoutsTotal ?? 0);
+  return streak >= WILD_THEME_MIN_STREAK || workouts >= WILD_THEME_MIN_WORKOUTS;
 }
 
 export function themeAllowedForLevel(mode: ThemeMode, level: number, unlock: ThemeUnlock = {}): ThemeMode {

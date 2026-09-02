@@ -251,6 +251,7 @@ export function App() {
       const themeUnlock = {
         streakDays: typeof j.streak_days === "number" ? j.streak_days : 0,
         maxStreakDays: typeof j.max_streak_days === "number" ? j.max_streak_days : 0,
+        workoutsTotal: typeof j.workouts_total === "number" ? j.workouts_total : 0,
         isAdmin: Boolean(j.is_admin),
       };
       hydrateThemeFromServer(j.theme, levelNow, themeUnlock);

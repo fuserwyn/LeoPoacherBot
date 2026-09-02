@@ -69,14 +69,17 @@ describe("theme", () => {
     expect(hydrateThemeFromServer("leopard", 3)).toBe("dark");
   });
 
-  it("unlocks wild theme for admin or 365-day streak", () => {
+  it("unlocks wild theme for admin, 365-day streak, or 1000 workouts", () => {
     expect(canUseWildTheme({})).toBe(false);
     expect(canUseWildTheme({ streakDays: 364 })).toBe(false);
     expect(canUseWildTheme({ streakDays: 365 })).toBe(true);
     expect(canUseWildTheme({ maxStreakDays: 365 })).toBe(true);
+    expect(canUseWildTheme({ workoutsTotal: 999 })).toBe(false);
+    expect(canUseWildTheme({ workoutsTotal: 1000 })).toBe(true);
     expect(canUseWildTheme({ streakDays: 10, isAdmin: true })).toBe(true);
     expect(themeAllowedForLevel("wild", 1)).toBe("dark");
     expect(themeAllowedForLevel("wild", 1, { streakDays: 365 })).toBe("wild");
+    expect(themeAllowedForLevel("wild", 1, { workoutsTotal: 1000 })).toBe("wild");
     expect(themeAllowedForLevel("wild", 1, { isAdmin: true })).toBe("wild");
     expect(themeAllowedForLevel("leopard", 5, { streakDays: 0 })).toBe("leopard");
     setTheme("wild");
@@ -84,6 +87,8 @@ describe("theme", () => {
     expect(getStoredTheme()).toBe("dark");
     setTheme("wild");
     expect(enforceThemeForLevel(2, { maxStreakDays: 400 })).toBe("wild");
+    setTheme("wild");
+    expect(enforceThemeForLevel(2, { workoutsTotal: 1200 })).toBe("wild");
   });
 
   it("stores wild theme and hydrates it only when unlocked", () => {
