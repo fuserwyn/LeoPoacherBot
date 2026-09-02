@@ -259,6 +259,7 @@ func (d *Database) SaveTrackerTask(t TrackerTask) error {
 
 // ClaimDueTrackerTasks атомарно забирает карточки, срок которых наступил:
 // «Ожидает» + when_at <= NOW(). Ставит «В работе», пишет шаг и last_run_at.
+// Одновременно в конвейере может быть только одна карточка — остальные ждут.
 // Сравниваем с часами базы, не с time.Now() из Go: сессия Postgres — Москва,
 // сервер в UTC, и lib/pq может отдать «наивный» UTC. Тогда карточка висит
 // ещё три часа, как #1 на доске: срок 10:10, а колонка всё ещё «Ожидает».
@@ -285,8 +286,13 @@ func (d *Database) ClaimDueTrackerTasks(now time.Time) ([]TrackerTask, error) {
 			WHERE status IN ('pending', 'scheduled')
 			  AND COALESCE(NULLIF(dev_column, ''), 'todo') = 'todo'
 			  AND when_at <= NOW()
+			  AND NOT EXISTS (
+			    SELECT 1 FROM pack_tracker_tasks busy
+			    WHERE busy.dev_column IN ('doing', 'review', 'test', 'deploy')
+			      AND busy.status NOT IN ('done', 'canceled')
+			  )
 			ORDER BY when_at, id
-			LIMIT 10
+			LIMIT 1
 			FOR UPDATE SKIP LOCKED
 		)
 		RETURNING id, num, prompt, author_id

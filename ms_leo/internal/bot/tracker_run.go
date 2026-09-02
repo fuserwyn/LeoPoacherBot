@@ -158,6 +158,9 @@ func (b *Bot) kickStuckTrackerAgents(force bool) int {
 		if !trackerNeedsAgentKick(t, now, force) {
 			continue
 		}
+		if b.trackerPipelineBusy(t.ID) {
+			continue
+		}
 		t.Error = ""
 		appendTrackerStep(&t, "Снова запускаем агента")
 		if err := b.db.SaveTrackerTask(t); err != nil {
