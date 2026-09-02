@@ -313,7 +313,18 @@
 }
 
 .profile__achievements {
-  margin-bottom: 20px;
+  margin-bottom: 24px;
+  padding: 14px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border-subtle);
+  background: var(--card-inner);
+}
+
+.profile__achievements-title {
+  margin-top: 0;
+  margin-bottom: 12px;
+  font-size: 13px;
+  color: var(--accent);
 }
 
 .profile__achievements-count {
@@ -868,6 +879,25 @@
 
 .profile__streak-save-hint {
   margin: 0 0 18px;
+}
+
+.profile__health-section {
+  margin-bottom: 24px;
+  padding: 14px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border-subtle);
+  background: var(--card-inner);
+}
+
+.profile__health-title {
+  margin-top: 0;
+  margin-bottom: 12px;
+  font-size: 13px;
+  color: var(--accent);
+}
+
+.profile__health-section .profile__health {
+  margin-bottom: 0;
 }
 
 .profile__health {
