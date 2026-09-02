@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { adminStand, fetchAdminResources, type AdminResources, type AdminStand } from "../lib/adminApi";
+import { adminStand, fetchAdminResources, moneyKindLabel, type AdminResources, type AdminStand } from "../lib/adminApi";
 import "./AdminOpsScreen.css";
 
 type Props = {
@@ -151,14 +151,14 @@ export function AdminResourcesScreen({ initData, showAlert }: Props) {
       </section>
 
       <section className="ops-table">
-        <h3 className="ops-table__title">💰 Оплаты за месяц</h3>
+        <h3 className="ops-table__title">💰 Оплаты и донаты за месяц</h3>
         <p className="ops-table__subtitle">{data.payments_note || data.rates_note}</p>
         {data.income.length > 0 ? (
           <div className="ops-table__scroll">
             <table>
               <thead>
                 <tr>
-                  <th>Валюта</th>
+                  <th>Тип</th>
                   <th>Оплат</th>
                   <th>Сумма</th>
                   <th>В долларах</th>
@@ -166,10 +166,12 @@ export function AdminResourcesScreen({ initData, showAlert }: Props) {
               </thead>
               <tbody>
                 {data.income.map((i) => (
-                  <tr key={i.currency}>
-                    <td>{i.currency}</td>
+                  <tr key={`${i.kind}-${i.currency}`}>
+                    <td>{moneyKindLabel(i.kind, i.currency)}</td>
                     <td>{i.count}</td>
-                    <td>{i.amount.toFixed(2)}</td>
+                    <td>
+                      {i.currency.toUpperCase() === "XTR" ? `${i.amount.toFixed(0)} ⭐` : `${i.amount.toFixed(2)} ₽`}
+                    </td>
                     <td>{money(i.usd)}</td>
                   </tr>
                 ))}

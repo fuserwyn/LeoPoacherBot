@@ -275,7 +275,7 @@ export function fetchAdminVisits(initData: string) {
 }
 
 export function fetchAdminPayments(initData: string, offset = 0, limit = 20) {
-  return post<{ payments: { total: number; offset: number; limit: number; table: AdminTable } }>(
+  return post<{ payments: { total: number; offset: number; limit: number; stats: AdminTable; table: AdminTable } }>(
     "/api/miniapp/admin/payments",
     initData,
     { offset, limit },
@@ -332,12 +332,18 @@ export type AdminResources = {
   cost_parts: { key: string; label: string; raw: number; usd: number }[];
   cost_usd: number;
   cost_note: string;
-  income: { currency: string; count: number; amount: number; usd: number }[];
+  income: { kind: string; currency: string; count: number; amount: number; usd: number }[];
   income_usd: number;
   net_usd: number;
   rates_note: string;
   payments_note: string;
 };
+
+export function moneyKindLabel(kind: string, currency: string): string {
+  const k = kind === "donation" ? "Донат" : "Доступ";
+  const c = currency.toUpperCase() === "XTR" ? "⭐" : "₽";
+  return `${k} · ${c}`;
+}
 
 export function fetchAdminDbTables(initData: string) {
   return post<{ tables: AdminDbTable[] }>("/api/miniapp/admin/db/tables", initData);

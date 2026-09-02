@@ -91,7 +91,8 @@ type MiniappResources struct {
 }
 
 type MiniappIncome struct {
-	Currency string  `json:"currency"`
+	Kind     string  `json:"kind"`     // access | donation
+	Currency string  `json:"currency"` // XTR | RUB
 	Count    int64   `json:"count"`
 	Amount   float64 `json:"amount"`
 	USD      float64 `json:"usd"`
@@ -147,16 +148,17 @@ func (b *Bot) MiniappAdminResources(viewerUserID int64, initD initdata.InitData)
 		}
 	}
 
-	// --- доход
+	// --- доход: покупки доступа и донаты, по звёздам и рублям
 	packChatID := b.adminPackChatID()
-	sums, err := b.db.AdminSumCompletedPayments(packChatID, monthStart.UTC())
+	sums, err := b.db.AdminSumCompletedMoney(packChatID, monthStart.UTC(), true)
 	if err != nil {
 		return out, err
 	}
 	for _, s := range sums {
 		amount := float64(s.AmountMinor) / 100
 		usd := 0.0
-		switch strings.ToUpper(s.Currency) {
+		cur := strings.ToUpper(s.Currency)
+		switch cur {
 		case "XTR": // звёзды Telegram приходят штуками, не копейками
 			amount = float64(s.AmountMinor)
 			usd = amount * b.config.UsdPerStar
@@ -174,7 +176,7 @@ func (b *Bot) MiniappAdminResources(viewerUserID int64, initD initdata.InitData)
 		usd = round2(usd)
 		out.IncomeUSD += usd
 		out.Income = append(out.Income, MiniappIncome{
-			Currency: strings.ToUpper(s.Currency), Count: s.Count, Amount: amount, USD: usd,
+			Kind: s.Kind, Currency: cur, Count: s.Count, Amount: amount, USD: usd,
 		})
 	}
 	out.IncomeUSD = round2(out.IncomeUSD)
@@ -182,7 +184,9 @@ func (b *Bot) MiniappAdminResources(viewerUserID int64, initD initdata.InitData)
 	out.RatesNote = fmt.Sprintf("Курс: $1 = %.2f ₽ · звезда = $%.4f (меняется в USD_RUB_RATE и USD_PER_STAR)",
 		b.config.UsdRubRate, b.config.UsdPerStar)
 	if len(out.Income) == 0 {
-		out.PaymentsNote = "В этом месяце оплат ещё не было."
+		out.PaymentsNote = "В этом месяце оплат и донатов ещё не было."
+	} else {
+		out.PaymentsNote = "Доступ — покупка входа/возврата; донат — поддержка из профиля. Завершённые за месяц."
 	}
 	return out, nil
 }

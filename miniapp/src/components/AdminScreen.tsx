@@ -732,7 +732,7 @@ export function AdminScreen({ initData, inTelegram, showAlert, onClose }: Props)
                   <span className="admin__tile-ico">💳</span>
                   <span className="admin__tile-text">
                     <b>Оплаты</b>
-                    <small>заявки и статусы доступа</small>
+                    <small>доступ и донаты · ⭐ и ₽</small>
                   </span>
                 </button>
                 <button type="button" className="admin__tile" onClick={() => void openPrice()}>

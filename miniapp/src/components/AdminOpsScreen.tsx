@@ -111,12 +111,12 @@ export function AdminOpsScreen({ section, initData, showAlert }: Props) {
         setTables(j.tables ?? []);
       } else if (section === "payments") {
         const j = await fetchAdminPayments(initData, paymentsOffset, PAYMENTS_PAGE);
-        setTables([j.payments.table]);
+        setTables([j.payments.stats, j.payments.table].filter(Boolean));
         setPaymentsTotal(j.payments.total);
         setNote(
           j.payments.total > 0
             ? `Строки ${paymentsOffset + 1}–${paymentsOffset + j.payments.table.rows.length} из ${j.payments.total}`
-            : "Заявок пока нет",
+            : "Оплат и донатов пока нет",
         );
       } else if (section === "admins") {
         const j = await fetchAdminAdmins(initData);
