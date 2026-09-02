@@ -674,12 +674,6 @@ html[data-theme="leopard"] .stat-card--inactive-bordeaux {
   box-shadow: none;
 }
 
-html[data-theme="leopard"] .profile__achievements {
-  background: none;
-  box-shadow: none;
-  padding: 0;
-}
-
 html[data-theme="leopard"] .profile__achievements-group {
   text-transform: none;
   letter-spacing: -0.015em;
@@ -742,6 +736,8 @@ html[data-theme="leopard"] .profile__achievement-label {
 }
 
 html[data-theme="leopard"] .profile__personal,
+html[data-theme="leopard"] .profile__achievements,
+html[data-theme="leopard"] .profile__health-section,
 html[data-theme="leopard"] .profile__friend-row,
 html[data-theme="leopard"] .profile__form,
 html[data-theme="leopard"] .tracker-modal__box,

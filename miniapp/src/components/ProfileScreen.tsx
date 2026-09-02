@@ -136,6 +136,9 @@ export function ProfileScreen({
   const [profileSaving, setProfileSaving] = useState(false);
 
   const [onSick, setOnSick] = useState<boolean | null>(null);
+  // Ачивки и здоровье свёрнуты по умолчанию: полоски ачивок и форма больничного занимают много места.
+  const [achievementsOpen, setAchievementsOpen] = useState(false);
+  const [healthOpen, setHealthOpen] = useState(false);
   const [sickFormOpen, setSickFormOpen] = useState(false);
   const [sickReason, setSickReason] = useState("");
   const [healthBusy, setHealthBusy] = useState(false);
@@ -205,6 +208,8 @@ export function ProfileScreen({
 
   // Сколько ачивок за тренировки уже открыто = число порогов, не превышающих total.
   const workoutAchEarned = WORKOUT_ACHIEVEMENTS.filter(({ count }) => workouts >= count).length;
+  const totalAchEarned = achievementCount + workoutAchEarned;
+  const totalAchMax = achievementsMax + WORKOUT_ACHIEVEMENTS.length;
 
   const scrollHealthAboveKeyboard = useCallback(() => {
     const ta = healthTextareaRef.current;
@@ -921,6 +926,19 @@ export function ProfileScreen({
   const streakSaveBlocked = !canUseStreakSave(daysSinceLastTraining, saveStreakAvail);
 
   const healthActionsKeyboard = sickFormOpen && healthInputFocused;
+  const healthCollapsedSummary =
+    onSick === true ? " · на больничном" : onSick === false && sickFormOpen ? " · заявка" : "";
+
+  const toggleHealthOpen = useCallback(() => {
+    setHealthOpen((open) => {
+      if (open) {
+        setSickFormOpen(false);
+        setSickReason("");
+        setHealthInputFocused(false);
+      }
+      return !open;
+    });
+  }, []);
 
   useEffect(() => {
     if (!healthInputFocused || !sickFormOpen) return;
@@ -1031,6 +1049,19 @@ export function ProfileScreen({
       ) : null}
 
       <section className="profile__achievements" aria-label="Ачивки">
+        <button
+          type="button"
+          className={`section-title profile__achievements-title profile__notif-toggle${achievementsOpen ? " is-open" : ""}`}
+          aria-expanded={achievementsOpen}
+          onClick={() => setAchievementsOpen((open) => !open)}
+        >
+          Ачивки{!achievementsOpen ? ` · ${totalAchEarned}/${totalAchMax}` : ""}
+          <span className="profile__notif-chevron" aria-hidden>
+            {achievementsOpen ? "▲" : "▼"}
+          </span>
+        </button>
+        {achievementsOpen && (
+        <>
         <div className="profile__achievements-group">
           <span>Ачивки за стрики</span>
           <span className="profile__achievements-count">
@@ -1214,6 +1245,8 @@ export function ProfileScreen({
           </div>
         ))}
         </div>
+        </>
+        )}
       </section>
 
       <div className="profile__streak-save">
@@ -1233,83 +1266,111 @@ export function ProfileScreen({
       </p>
 
       {onSick === null ? (
-        <p className="profile__hint muted">Загрузка статуса…</p>
-      ) : onSick ? (
-        <div className="profile__health">
-          <p className="profile__hint">🏥 Ты на больничном — таймер остановлен — возвращайся, когда поправишься</p>
+        <section className="profile__health-section">
           <button
             type="button"
-            className="profile__save profile__health-btn"
-            onClick={() => void submitHealthy()}
-            disabled={healthBusy}
+            className={`section-title profile__health-title profile__notif-toggle${healthOpen ? " is-open" : ""}`}
+            aria-expanded={healthOpen}
+            onClick={toggleHealthOpen}
           >
-            {healthBusy ? "Отправляю…" : "Выйти с больничного"}
+            Здоровье
+            <span className="profile__notif-chevron" aria-hidden>
+              {healthOpen ? "▲" : "▼"}
+            </span>
           </button>
-        </div>
-      ) : sickFormOpen ? (
-        <div className="profile__health">
-          <p className="profile__hint muted">Опиши, что случилось — Лео решит, принимать ли больничный</p>
-          <textarea
-            ref={healthTextareaRef}
-            className="profile__input profile__health-textarea"
-            value={sickReason}
-            onChange={(e) => setSickReason(e.target.value.slice(0, 500))}
-            placeholder="Например: температура 38, кашель"
-            rows={3}
-            maxLength={500}
-            disabled={healthBusy}
-            onFocus={() => {
-              setHealthInputFocused(true);
-              window.setTimeout(() => scrollHealthAboveKeyboard(), 80);
-            }}
-            onBlur={() => {
-              window.setTimeout(() => {
-                const el = document.activeElement;
-                if (el instanceof HTMLElement && el.closest(".profile__health-actions")) return;
-                setHealthInputFocused(false);
-              }, 80);
-            }}
-          />
-          {healthActionsKeyboard ? <div className="profile__health-actions-spacer" aria-hidden /> : null}
-          <div
-            className={`profile__health-actions${healthActionsKeyboard ? " profile__health-actions--keyboard" : ""}`}
-          >
-            <button
-              type="button"
-              className="profile__save profile__health-btn"
-              onClick={() => void submitSickLeave()}
-              disabled={healthBusy || sickReason.trim().length < 3}
-            >
-              {healthBusy ? "Отправляю…" : "Отправить заявку"}
-            </button>
-            <button
-              type="button"
-              className="profile__health-cancel"
-              onClick={() => {
-                setSickFormOpen(false);
-                setSickReason("");
-                setHealthInputFocused(false);
-              }}
-              disabled={healthBusy}
-            >
-              Отмена
-            </button>
-          </div>
-        </div>
+          {healthOpen && <p className="profile__hint muted">Загрузка статуса…</p>}
+        </section>
       ) : (
-        <div className="profile__health">
-          <div className="profile__health-actions">
-            <button
-              type="button"
-              className="profile__save profile__health-btn"
-              onClick={() => setSickFormOpen(true)}
-              disabled={healthBusy}
-            >
-              Взять больничный
-            </button>
-          </div>
-          <p className="profile__hint muted profile__health-hint">Болеешь — таймер остановится до выздоровления</p>
-        </div>
+        <section className="profile__health-section">
+          <button
+            type="button"
+            className={`section-title profile__health-title profile__notif-toggle${healthOpen ? " is-open" : ""}`}
+            aria-expanded={healthOpen}
+            onClick={toggleHealthOpen}
+          >
+            Здоровье{!healthOpen ? healthCollapsedSummary : ""}
+            <span className="profile__notif-chevron" aria-hidden>
+              {healthOpen ? "▲" : "▼"}
+            </span>
+          </button>
+          {healthOpen && (onSick ? (
+            <div className="profile__health">
+              <p className="profile__hint">🏥 Ты на больничном — таймер остановлен — возвращайся, когда поправишься</p>
+              <button
+                type="button"
+                className="profile__save profile__health-btn"
+                onClick={() => void submitHealthy()}
+                disabled={healthBusy}
+              >
+                {healthBusy ? "Отправляю…" : "Выйти с больничного"}
+              </button>
+            </div>
+          ) : sickFormOpen ? (
+            <div className="profile__health">
+              <p className="profile__hint muted">Опиши, что случилось — Лео решит, принимать ли больничный</p>
+              <textarea
+                ref={healthTextareaRef}
+                className="profile__input profile__health-textarea"
+                value={sickReason}
+                onChange={(e) => setSickReason(e.target.value.slice(0, 500))}
+                placeholder="Например: температура 38, кашель"
+                rows={3}
+                maxLength={500}
+                disabled={healthBusy}
+                onFocus={() => {
+                  setHealthInputFocused(true);
+                  window.setTimeout(() => scrollHealthAboveKeyboard(), 80);
+                }}
+                onBlur={() => {
+                  window.setTimeout(() => {
+                    const el = document.activeElement;
+                    if (el instanceof HTMLElement && el.closest(".profile__health-actions")) return;
+                    setHealthInputFocused(false);
+                  }, 80);
+                }}
+              />
+              {healthActionsKeyboard ? <div className="profile__health-actions-spacer" aria-hidden /> : null}
+              <div
+                className={`profile__health-actions${healthActionsKeyboard ? " profile__health-actions--keyboard" : ""}`}
+              >
+                <button
+                  type="button"
+                  className="profile__save profile__health-btn"
+                  onClick={() => void submitSickLeave()}
+                  disabled={healthBusy || sickReason.trim().length < 3}
+                >
+                  {healthBusy ? "Отправляю…" : "Отправить заявку"}
+                </button>
+                <button
+                  type="button"
+                  className="profile__health-cancel"
+                  onClick={() => {
+                    setSickFormOpen(false);
+                    setSickReason("");
+                    setHealthInputFocused(false);
+                  }}
+                  disabled={healthBusy}
+                >
+                  Отмена
+                </button>
+              </div>
+            </div>
+          ) : (
+            <div className="profile__health">
+              <div className="profile__health-actions">
+                <button
+                  type="button"
+                  className="profile__save profile__health-btn"
+                  onClick={() => setSickFormOpen(true)}
+                  disabled={healthBusy}
+                >
+                  Взять больничный
+                </button>
+              </div>
+              <p className="profile__hint muted profile__health-hint">Болеешь — таймер остановится до выздоровления</p>
+            </div>
+          ))}
+        </section>
       )}
 
       <section className="profile__notif">
