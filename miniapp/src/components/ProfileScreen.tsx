@@ -1060,6 +1060,22 @@ export function ProfileScreen({
         </div>
       ) : null}
 
+      <div className="profile__streak-save">
+        <button
+          type="button"
+          className="profile__save profile__streak-save-btn"
+          onClick={() => void useSaveStreak()}
+          disabled={saveStreakBusy || streakSaveBlocked}
+        >
+          {saveStreakBusy
+            ? "Отправляю…"
+            : `Спасти стрик осталось ${saveStreakAvail}/${saveStreakMax}`}
+        </button>
+      </div>
+      <p className="profile__hint muted profile__streak-save-hint">
+        Можно восстановить сгоревший стрик, если случайно забыл внести тренировку
+      </p>
+
       <section className="profile__achievements" aria-label="Ачивки">
         <button
           type="button"
@@ -1274,22 +1290,6 @@ export function ProfileScreen({
         </>
         )}
       </section>
-
-      <div className="profile__streak-save">
-        <button
-          type="button"
-          className="profile__save profile__streak-save-btn"
-          onClick={() => void useSaveStreak()}
-          disabled={saveStreakBusy || streakSaveBlocked}
-        >
-          {saveStreakBusy
-            ? "Отправляю…"
-            : `Спасти стрик осталось ${saveStreakAvail}/${saveStreakMax}`}
-        </button>
-      </div>
-      <p className="profile__hint muted profile__streak-save-hint">
-        Можно восстановить сгоревший стрик, если случайно забыл внести тренировку
-      </p>
 
       {onSick === null ? (
         <section className="profile__health-section">
