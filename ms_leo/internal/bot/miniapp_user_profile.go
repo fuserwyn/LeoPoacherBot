@@ -393,6 +393,51 @@ func (b *Bot) GetMiniappProfileStatsForAPI(userID, packChatID int64) MiniappProf
 	return out
 }
 
+const miniappProfileChartDaysDefault = 90
+
+// MiniappWorkoutDayPoint — одна точка графика тренировок (дата → число сессий).
+type MiniappWorkoutDayPoint struct {
+	Date  string `json:"date"`
+	Count int    `json:"count"`
+}
+
+// GetMiniappWorkoutsByDayForAPI — тренировки по дням за последние days календарных дней (UTC, включая сегодня).
+func (b *Bot) GetMiniappWorkoutsByDayForAPI(userID, packChatID int64, days int) []MiniappWorkoutDayPoint {
+	if b == nil || b.db == nil || userID == 0 || packChatID == 0 {
+		return nil
+	}
+	if days <= 0 || days > 365 {
+		days = miniappProfileChartDaysDefault
+	}
+	today := time.Now().UTC()
+	start := today.AddDate(0, 0, -(days - 1))
+	startStr := start.Format("2006-01-02")
+	endStr := today.Format("2006-01-02")
+
+	merged := map[string]int{}
+	merge := func(chatID int64) {
+		rows, err := b.db.GetTrainingCountsByDay(userID, chatID, startStr, endStr)
+		if err != nil {
+			b.logger.Warnf("workouts by day user=%d chat=%d: %v", userID, chatID, err)
+			return
+		}
+		for _, r := range rows {
+			if r.Count > merged[r.Date] {
+				merged[r.Date] = r.Count
+			}
+		}
+	}
+	merge(packChatID)
+	merge(userID)
+
+	out := make([]MiniappWorkoutDayPoint, 0, days)
+	for d := start; !d.After(today); d = d.AddDate(0, 0, 1) {
+		ds := d.Format("2006-01-02")
+		out = append(out, MiniappWorkoutDayPoint{Date: ds, Count: merged[ds]})
+	}
+	return out
+}
+
 // reconcileExpiredStreakInDB обнуляет streak_days в БД, если стрик уже сгорел по календарю.
 func (b *Bot) reconcileExpiredStreakInDB(userID, packChatID int64) {
 	if b == nil || b.db == nil {
