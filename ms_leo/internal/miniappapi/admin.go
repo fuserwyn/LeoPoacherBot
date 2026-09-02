@@ -770,10 +770,9 @@ func (s *Server) handleBoardNotify(w http.ResponseWriter, r *http.Request) {
 	if ship || localID <= 0 {
 		s.bot.ShipTrackerTaskInBackground(shipID, notifyUser)
 	}
-	// В личку — один раз и только финал на Railway main.
-	// Тот же текст ещё шлёт finishTrackerBuild; шаг «уведомили о выкате»
-	// не даёт второе «задача выполнена».
-	s.bot.NotifyTrackerShippedIfNeeded(shipID, text)
+	// В личку о выкате пишет только finishTrackerBuild после SUCCESS Railway.
+	// Раньше здесь же звали NotifyTrackerShippedIfNeeded: вебхук и сборка
+	// гонялись и автор получал два «задача выполнена».
 	s.writeAdminOK(w, map[string]any{})
 }
 

@@ -5,6 +5,7 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+	"sync"
 
 	"leo-bot/internal/database"
 )
@@ -123,6 +124,10 @@ func trackerFullyDoneNote(t database.TrackerTask) string {
 
 const trackerShipNotifiedStep = "уведомили о выкате"
 
+// trackerShipNotifyInflight — один DM на карточку: finishTrackerBuild и
+// resume после рестарта ms_leo могут сойтись на одном task_id.
+var trackerShipNotifyInflight sync.Map
+
 func trackerAlreadyNotifiedShip(t database.TrackerTask) bool {
 	for _, step := range t.Steps {
 		if strings.TrimSpace(step) == trackerShipNotifiedStep {
@@ -175,6 +180,10 @@ func (b *Bot) notifyTrackerShippedOnce(t database.TrackerTask) {
 	if b == nil || t.ID <= 0 {
 		return
 	}
+	if _, loaded := trackerShipNotifyInflight.LoadOrStore(t.ID, struct{}{}); loaded {
+		return
+	}
+	defer trackerShipNotifyInflight.Delete(t.ID)
 	if b.db != nil {
 		if fresh, err := b.db.GetTrackerTask(t.ID); err == nil && fresh.ID > 0 {
 			t = fresh
