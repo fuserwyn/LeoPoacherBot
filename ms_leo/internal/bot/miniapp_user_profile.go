@@ -401,7 +401,8 @@ type MiniappWorkoutDayPoint struct {
 	Count int    `json:"count"`
 }
 
-// GetMiniappWorkoutsByDayForAPI — тренировки по дням за последние days календарных дней (UTC, включая сегодня).
+// GetMiniappWorkoutsByDayForAPI — тренировки по дням за последние days календарных дней
+// (локальный TZ пользователя, включая сегодня). session_date из training_sessions.
 func (b *Bot) GetMiniappWorkoutsByDayForAPI(userID, packChatID int64, days int) []MiniappWorkoutDayPoint {
 	if b == nil || b.db == nil || userID == 0 || packChatID == 0 {
 		return nil
@@ -409,10 +410,15 @@ func (b *Bot) GetMiniappWorkoutsByDayForAPI(userID, packChatID int64, days int) 
 	if days <= 0 || days > 365 {
 		days = miniappProfileChartDaysDefault
 	}
-	today := time.Now().UTC()
-	start := today.AddDate(0, 0, -(days - 1))
+	tzOffset := b.GetTimezoneOffsetForAPI(userID, packChatID)
+	endStr := b.getUserLocalDate(tzOffset)
+	end, err := time.Parse("2006-01-02", endStr)
+	if err != nil {
+		end = time.Now().UTC()
+		endStr = end.Format("2006-01-02")
+	}
+	start := end.AddDate(0, 0, -(days - 1))
 	startStr := start.Format("2006-01-02")
-	endStr := today.Format("2006-01-02")
 
 	merged := map[string]int{}
 	merge := func(chatID int64) {
@@ -431,7 +437,7 @@ func (b *Bot) GetMiniappWorkoutsByDayForAPI(userID, packChatID int64, days int) 
 	merge(userID)
 
 	out := make([]MiniappWorkoutDayPoint, 0, days)
-	for d := start; !d.After(today); d = d.AddDate(0, 0, 1) {
+	for d := start; !d.After(end); d = d.AddDate(0, 0, 1) {
 		ds := d.Format("2006-01-02")
 		out = append(out, MiniappWorkoutDayPoint{Date: ds, Count: merged[ds]})
 	}
