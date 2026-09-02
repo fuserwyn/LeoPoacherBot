@@ -18,6 +18,7 @@ import (
 
 const (
 	trackerColTodo     = "todo"
+	trackerColApprove  = "approve"
 	trackerColDoing    = "doing"
 	trackerColReview   = "review"
 	trackerColTest     = "test"
@@ -26,12 +27,15 @@ const (
 	trackerColCanceled = "canceled"
 )
 
+const trackerApprovalRequired = 2
+
 var trackerNextColumn = map[string]string{
-	trackerColTodo:   trackerColDoing,
-	trackerColDoing:  trackerColReview,
-	trackerColReview: trackerColTest,
-	trackerColTest:   trackerColDeploy,
-	trackerColDeploy: trackerColDone,
+	trackerColTodo:    trackerColDoing,
+	trackerColApprove: trackerColDoing,
+	trackerColDoing:   trackerColReview,
+	trackerColReview:  trackerColTest,
+	trackerColTest:    trackerColDeploy,
+	trackerColDeploy:  trackerColDone,
 }
 
 func applyTrackerColumn(t *database.TrackerTask, col string) error {
@@ -40,6 +44,13 @@ func applyTrackerColumn(t *database.TrackerTask, col string) error {
 	case trackerColTodo:
 		t.Status = "pending"
 		t.DevColumn = trackerColTodo
+		t.HandedToQa = false
+		t.QaColumn = ""
+		t.QaStatus = ""
+		t.Error = ""
+	case trackerColApprove:
+		t.Status = "pending"
+		t.DevColumn = trackerColApprove
 		t.HandedToQa = false
 		t.QaColumn = ""
 		t.QaStatus = ""
@@ -90,6 +101,10 @@ func appendTrackerStep(t *database.TrackerTask, step string) {
 }
 
 func trackerStatusMeta(status, col string) (label, icon, phase string) {
+	col = strings.ToLower(strings.TrimSpace(col))
+	if col == trackerColApprove {
+		return "Аппрув", "👍", "approve"
+	}
 	switch strings.ToLower(strings.TrimSpace(status)) {
 	case "running":
 		return "В работе", "🔧", "doing"
@@ -133,7 +148,7 @@ func trackerTaskView(t database.TrackerTask, withAtts bool) map[string]any {
 	done := t.Status == "done" || t.DevColumn == trackerColDone
 	canceled := t.Status == "canceled" || t.DevColumn == trackerColCanceled
 	active := !done && !canceled
-	canDelete := canceled || done || t.DevColumn == trackerColTodo || t.Status == "pending" || t.Status == "error"
+	canDelete := canceled || done || t.DevColumn == trackerColTodo || t.DevColumn == trackerColApprove || t.Status == "pending" || t.Status == "error"
 	when := strings.TrimSpace(t.WhenLabel)
 	if when == "" {
 		when = formatTrackerWhen(t.WhenAt)
@@ -192,6 +207,9 @@ func trackerTaskView(t database.TrackerTask, withAtts bool) map[string]any {
 		"attachments_count": t.AttachmentsCount,
 		"has_attachments":   t.AttachmentsCount > 0,
 		"auto_push":         t.AutoPush,
+		"needs_approval":    t.NeedsApproval,
+		"approvals_count":   len(t.Approvals),
+		"approvals_needed":  trackerApprovalRequired,
 		"author_id":         author,
 		"steps":             t.Steps,
 		"steps_running": t.Status == "running" || t.Status == "reviewing" ||
@@ -331,6 +349,11 @@ func (b *Bot) localTrackerCreate(payload map[string]any, userID int64) (json.Raw
 		AutoPush:   payloadBoolOr(payload, "auto_push", true),
 		Steps:      []string{"Поставлена на доску стаи"},
 	}
+	if payloadBool(payload, "needs_approval") {
+		t.NeedsApproval = true
+		t.DevColumn = trackerColApprove
+		t.Steps = []string{"Ждёт аппрува других админов"}
+	}
 	if _, ok := payload["auto_review"]; ok {
 		t.AutoReview = payloadBool(payload, "auto_review")
 	}
@@ -344,6 +367,10 @@ func (b *Bot) localTrackerCreate(payload map[string]any, userID int64) (json.Raw
 	created, err := b.db.CreateTrackerTask(t)
 	if err != nil {
 		return nil, err
+	}
+	if created.NeedsApproval {
+		b.notifyTrackerApprovalsNeeded(created)
+		return trackerJSON(map[string]any{"id": created.ID, "when": created.WhenLabel})
 	}
 	// Срок «сейчас» — забираем в этом же запросе, не в горутине: иначе
 	// следующая отрисовка доски ещё покажет карточку в «Ожидает».
@@ -432,6 +459,9 @@ func (b *Bot) localTrackerMove(taskID int64, payload map[string]any) (json.RawMe
 			return nil, fmt.Errorf("дальше этой карточке идти некуда")
 		}
 		col = next
+	}
+	if t.DevColumn == trackerColApprove && col == trackerColDoing && len(t.Approvals) < trackerApprovalRequired {
+		return nil, fmt.Errorf("нужно %d аппрува, сейчас %d", trackerApprovalRequired, len(t.Approvals))
 	}
 	if err := applyTrackerColumn(&t, col); err != nil {
 		return nil, err
@@ -556,8 +586,15 @@ func (b *Bot) localTrackerPrompt(taskID int64, payload map[string]any) (json.Raw
 	}
 	t.Prompt = prompt
 	appendTrackerStep(&t, "Формулировку обновили")
+	if t.DevColumn == trackerColApprove {
+		t.Approvals = nil
+		appendTrackerStep(&t, "Аппрувы сброшены после правки")
+	}
 	if err := b.db.SaveTrackerTask(t); err != nil {
 		return nil, err
+	}
+	if t.DevColumn == trackerColApprove && t.NeedsApproval {
+		b.notifyTrackerApprovalsNeeded(t)
 	}
 	return trackerJSON(map[string]any{"ok": true})
 }

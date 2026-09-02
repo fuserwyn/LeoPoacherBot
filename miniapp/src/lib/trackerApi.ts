@@ -50,6 +50,9 @@ export type TrackerTask = {
   commit?: string;
   /** Агент сам пушит результат. Выкл — карточка «выполнена», сервер без сборки. */
   auto_push?: boolean;
+  needs_approval?: boolean;
+  approvals_count?: number;
+  approvals_needed?: number;
   author_id: number | null;
   steps?: string[];
   steps_running?: boolean;
@@ -101,7 +104,8 @@ export type TrackerOp =
   | "move"
   | "sprint_ideas"
   | "sprint_generate"
-  | "sprint_apply";
+  | "sprint_apply"
+  | "approve";
 
 type Envelope<T> = { ok?: boolean; data?: T | string; error?: string; message?: string };
 
@@ -170,6 +174,7 @@ export function trackerCreate(
     auto_review?: boolean;
     manual_qa?: boolean;
     fast_track?: boolean;
+    needs_approval?: boolean;
     /** Агент пушит сам, иначе «выполнено» не попадёт на сервер. */
     auto_push?: boolean;
     /** Задачу придумал Лео: на доске автором пишем его. */
@@ -227,6 +232,18 @@ export function trackerTask(initData: string, taskId: number) {
 
 export function trackerCancel(initData: string, taskId: number) {
   return call<{ ok: boolean }>(initData, "cancel", { payload: { id: taskId } });
+}
+
+/** Аппрув или отклонение задачи на колонке «Аппрув». */
+export function trackerApprove(
+  initData: string,
+  taskId: number,
+  action: "approve" | "reject",
+  comment?: string,
+) {
+  return call<{ ok: boolean; task?: TrackerTask }>(initData, "approve", {
+    payload: { id: taskId, action, comment },
+  });
 }
 
 export function trackerDelete(initData: string, taskId: number) {

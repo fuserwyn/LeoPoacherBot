@@ -45,6 +45,7 @@ type Props = {
 /** Колонки разработчика и тестировщика. */
 const DEV_COLS = [
   { key: "todo", title: "Ожидает" },
+  { key: "approve", title: "Аппрув" },
   { key: "doing", title: "В работе" },
   { key: "review", title: "Review" },
   { key: "test", title: "Тест" },
@@ -129,6 +130,7 @@ const LEO_AUTHOR_ID = -1;
 
 const NEXT_COL: Record<string, { column: string; label: string }> = {
   todo: { column: "doing", label: "В работу" },
+  approve: { column: "doing", label: "В работу" },
   doing: { column: "review", label: "На review" },
   review: { column: "test", label: "На тест" },
   test: { column: "deploy", label: "К сборке" },
@@ -171,6 +173,7 @@ function cardClasses(t: TrackerTask, isQa: boolean): string {
     if ((t.qa_column || "todo") === "doing") cls.push("is-running");
   } else if (t.status === "running" || t.status === "reviewing") cls.push("is-running");
   else if (t.dev_column === "review") cls.push("is-review");
+  else if (t.dev_column === "approve") cls.push("is-approve");
   else if (t.dev_column === "test") cls.push("is-qa");
   else if (t.dev_column === "deploy") cls.push("is-deploy");
   else if (t.status === "holding") cls.push("is-holding");
@@ -204,6 +207,7 @@ export function TrackerScreen({ initData, showAlert }: Props) {
   const [prompt, setPrompt] = useState("");
   const [when, setWhen] = useState(WHEN_PRESETS[0].value);
   const [whenAt, setWhenAt] = useState("");
+  const [needsApproval, setNeedsApproval] = useState(false);
   const [image, setImage] = useState<TaskImage | null>(null);
   /** Тема для Лео; пусто — придумывает сам. */
   const [leoTopic, setLeoTopic] = useState("");
@@ -337,6 +341,7 @@ export function TrackerScreen({ initData, showAlert }: Props) {
       const res = await trackerCreate(initData, {
         when: when === "custom" ? whenFromPicker(whenAt) : when,
         prompt: text,
+        needs_approval: needsApproval,
         // Задачу сочинил Лео — пусть на доске и стоит он, а не тот, кто одобрил.
         leo: opts?.leo,
       });
@@ -351,7 +356,12 @@ export function TrackerScreen({ initData, showAlert }: Props) {
       }
       setImage(null);
       setPrompt("");
-      showAlert(`Задача поставлена на ${res.when || "ближайший запуск"}.`);
+      setNeedsApproval(false);
+      showAlert(
+        needsApproval
+          ? `Задача поставлена на аппрув. Админам ушло уведомление.`
+          : `Задача поставлена на ${res.when || "ближайший запуск"}.`,
+      );
       await load(false, true);
     } catch (e) {
       showAlert(e instanceof Error ? e.message : "Не удалось поставить задачу");
@@ -955,6 +965,17 @@ export function TrackerScreen({ initData, showAlert }: Props) {
                   </button>
                 </div>
               ) : null}
+              <label className="tracker-feat">
+                <input
+                  type="checkbox"
+                  checked={needsApproval}
+                  onChange={(e) => setNeedsApproval(e.target.checked)}
+                />
+                <span>
+                  <b>Нужен аппрув других админов</b>
+                  <small>Два аппрува в Telegram — и задача уйдёт в работу</small>
+                </span>
+              </label>
               <div className="tracker__new-row">
                 <select value={when} onChange={(e) => setWhen(e.target.value)}>
                   {WHEN_PRESETS.map((p) => (
@@ -1263,7 +1284,7 @@ export function TrackerScreen({ initData, showAlert }: Props) {
               <button type="button" disabled={busy} onClick={() => setEditorFor(detail.id)}>
                 🖼 Картинка
               </button>
-              {!isQa && NEXT_COL[detail.dev_column || "todo"] ? (
+              {!isQa && detail.dev_column !== "approve" && NEXT_COL[detail.dev_column || "todo"] ? (
                 <button
                   type="button"
                   className="tracker-modal__accent"
@@ -1512,9 +1533,14 @@ function TaskCard({
         <span>{author}</span>
       </div>
       <div className="tracker-card__text">{parsed.text || task.prompt}</div>
-      {parsed.sprint || task.kind === "deploy_fix" || task.manual_qa || task.fast_track || task.has_attachments ? (
+      {parsed.sprint || task.kind === "deploy_fix" || task.manual_qa || task.fast_track || task.has_attachments || task.needs_approval ? (
         <div className="tracker-card__badges">
           {parsed.sprint ? <span className="tracker-badge tracker-badge--sprint">Спринт {parsed.sprint}</span> : null}
+          {task.needs_approval ? (
+            <span className="tracker-badge tracker-badge--approve">
+              👍 {task.approvals_count ?? 0}/{task.approvals_needed ?? 2}
+            </span>
+          ) : null}
           {task.kind === "deploy_fix" ? (
             <span className="tracker-badge tracker-badge--deploy">авто-фикс деплоя</span>
           ) : null}

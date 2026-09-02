@@ -227,6 +227,8 @@ func (b *Bot) trackerRequest(
 		return b.localTrackerSprintGenerate(payload)
 	case "sprint_apply":
 		return b.localTrackerSprintApply(payload, userID)
+	case "approve":
+		return b.localTrackerApprove(taskID, payload, userID)
 	default:
 		return nil, ErrAdminActionInvalid
 	}
