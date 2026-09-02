@@ -172,7 +172,10 @@ func (s *Store) Save(j Job) error {
 
 func (s *Store) ClaimDue(now time.Time, limit int) ([]Job, error) {
 	if limit <= 0 {
-		limit = 3
+		limit = 1
+	}
+	if limit > 1 {
+		limit = 1
 	}
 	rows, err := s.db.Query(`
 		UPDATE ms_tracker_jobs
@@ -183,6 +186,9 @@ func (s *Store) ClaimDue(now time.Time, limit int) ([]Job, error) {
 		WHERE id IN (
 			SELECT id FROM ms_tracker_jobs
 			WHERE status = 'pending' AND when_at <= $1
+			  AND NOT EXISTS (
+			    SELECT 1 FROM ms_tracker_jobs r WHERE r.status = 'running'
+			  )
 			ORDER BY when_at, id
 			LIMIT $2
 			FOR UPDATE SKIP LOCKED

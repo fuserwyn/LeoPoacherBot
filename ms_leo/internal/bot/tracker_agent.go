@@ -238,10 +238,47 @@ func trackerTaskCommit(t database.TrackerTask) string {
 	return ""
 }
 
+// trackerTaskInPipeline — карточка уже в конвейере (не в «Ожидает»).
+func trackerTaskInPipeline(t database.TrackerTask) bool {
+	col := strings.ToLower(strings.TrimSpace(t.DevColumn))
+	switch col {
+	case trackerColDoing, trackerColReview, trackerColTest, trackerColDeploy:
+		st := strings.ToLower(strings.TrimSpace(t.Status))
+		return st != "done" && st != "canceled"
+	default:
+		return false
+	}
+}
+
+func (b *Bot) trackerPipelineBusy(exceptID int64) bool {
+	if b == nil || b.db == nil {
+		return false
+	}
+	list, err := b.db.ListTrackerTasks()
+	if err != nil {
+		return false
+	}
+	for _, t := range list {
+		if t.ID == exceptID {
+			continue
+		}
+		if trackerTaskInPipeline(t) {
+			return true
+		}
+	}
+	return false
+}
+
 // dispatchTrackerAgent — поставить агенту работу по фазе карточки.
 // Код пишет внешняя доска (сессия BOARD_SSO_SECRET); ревью и тест — Composer.
 func (b *Bot) dispatchTrackerAgent(t database.TrackerTask, phase string) {
 	if b == nil || t.ID <= 0 || b.config == nil {
+		return
+	}
+	if b.trackerPipelineBusy(t.ID) {
+		if b.logger != nil {
+			b.logger.Infof("трекер: #%d (%s) ждёт очередь", trackerDueNum(t), phase)
+		}
 		return
 	}
 	go func() {

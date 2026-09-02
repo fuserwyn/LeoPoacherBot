@@ -27,7 +27,7 @@ func Loop(cfg config.Config, st *store.Store, stop <-chan struct{}) {
 }
 
 func runOnce(cfg config.Config, st *store.Store) {
-	due, err := st.ClaimDue(time.Now(), 3)
+	due, err := st.ClaimDue(time.Now(), 1)
 	if err != nil {
 		log.Printf("трекер: не забрать задачи: %v", err)
 		return
