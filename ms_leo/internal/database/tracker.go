@@ -38,6 +38,8 @@ type TrackerTask struct {
 	ManualQa         bool
 	FastTrack        bool
 	AutoPush         bool
+	NeedsApproval    bool
+	Approvals        []int64
 	Error            string
 	Result           string
 	Steps            []string
@@ -64,6 +66,7 @@ const trackerTaskSelect = `
 		SELECT t.id, t.num, t.prompt, t.when_at, t.when_label, t.repeat, t.kind,
 		       t.status, t.dev_column, t.qa_column, t.qa_status, t.handed_to_qa,
 		       t.auto_review, t.manual_qa, t.fast_track, t.auto_push,
+		       t.needs_approval, t.approvals,
 		       t.error, t.result, t.steps, t.author_id,
 		       t.created_at, t.last_run_at, t.updated_at,
 		       (SELECT COUNT(*) FROM pack_tracker_attachments a WHERE a.task_id = t.id)
@@ -196,17 +199,17 @@ func (d *Database) CreateTrackerTask(t TrackerTask) (TrackerTask, error) {
 		INSERT INTO pack_tracker_tasks (
 			num, prompt, when_at, when_label, repeat, kind, status, dev_column,
 			qa_column, qa_status, handed_to_qa, auto_review, manual_qa, fast_track,
-			auto_push, error, result, steps, author_id
+			auto_push, needs_approval, approvals, error, result, steps, author_id
 		)
 		VALUES (
 			COALESCE((SELECT MAX(num) FROM pack_tracker_tasks), 0) + 1,
 			$1, $2, $3, $4, $5, $6, $7, NULLIF($8, ''), NULLIF($9, ''),
-			$10, $11, $12, $13, $14, $15, $16, $17, $18
+			$10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20
 		)
 		RETURNING id, num, created_at, updated_at
 	`, t.Prompt, t.WhenAt, t.WhenLabel, t.Repeat, t.Kind, t.Status, t.DevColumn,
 		t.QaColumn, t.QaStatus, t.HandedToQa, t.AutoReview, t.ManualQa, t.FastTrack,
-		t.AutoPush, t.Error, t.Result, steps, author,
+		t.AutoPush, t.NeedsApproval, marshalTrackerApprovals(t.Approvals), t.Error, t.Result, steps, author,
 	).Scan(&t.ID, &t.Num, &t.CreatedAt, &t.UpdatedAt)
 	return t, err
 }
@@ -240,13 +243,15 @@ func (d *Database) SaveTrackerTask(t TrackerTask) error {
 			prompt = $2, when_at = $3, when_label = $4, repeat = $5, kind = $6,
 			status = $7, dev_column = $8, qa_column = NULLIF($9, ''),
 			qa_status = NULLIF($10, ''), handed_to_qa = $11, auto_review = $12,
-			manual_qa = $13, fast_track = $14, auto_push = $15, error = $16,
-			result = $17, steps = $18, author_id = $19, last_run_at = $20,
+			manual_qa = $13, fast_track = $14, auto_push = $15, needs_approval = $16,
+			approvals = $17, error = $18,
+			result = $19, steps = $20, author_id = $21, last_run_at = $22,
 			updated_at = NOW()
 		WHERE id = $1
 	`, t.ID, t.Prompt, t.WhenAt, t.WhenLabel, t.Repeat, t.Kind, t.Status, t.DevColumn,
 		t.QaColumn, t.QaStatus, t.HandedToQa, t.AutoReview, t.ManualQa, t.FastTrack,
-		t.AutoPush, t.Error, t.Result, steps, author, lastRun)
+		t.AutoPush, t.NeedsApproval, marshalTrackerApprovals(t.Approvals), t.Error,
+		t.Result, steps, author, lastRun)
 	if err != nil {
 		return err
 	}
@@ -448,16 +453,19 @@ func scanTrackerTask(row trackerRow) (TrackerTask, error) {
 	var author sql.NullInt64
 	var lastRun sql.NullTime
 	var steps []byte
+	var approvalsRaw []byte
 	err := row.Scan(
 		&t.ID, &t.Num, &t.Prompt, &t.WhenAt, &t.WhenLabel, &t.Repeat, &t.Kind,
 		&t.Status, &t.DevColumn, &qaCol, &qaStatus, &t.HandedToQa,
 		&t.AutoReview, &t.ManualQa, &t.FastTrack, &t.AutoPush,
+		&t.NeedsApproval, &approvalsRaw,
 		&t.Error, &t.Result, &steps, &author,
 		&t.CreatedAt, &lastRun, &t.UpdatedAt, &t.AttachmentsCount,
 	)
 	if err != nil {
 		return t, err
 	}
+	t.Approvals = parseTrackerApprovals(approvalsRaw)
 	t.QaColumn = qaCol.String
 	t.QaStatus = qaStatus.String
 	if author.Valid {
@@ -483,4 +491,26 @@ func clipTrackerText(s string, max int) string {
 		return s
 	}
 	return string([]rune(s)[:max])
+}
+
+func marshalTrackerApprovals(ids []int64) []byte {
+	if len(ids) == 0 {
+		return []byte("[]")
+	}
+	raw, err := json.Marshal(ids)
+	if err != nil {
+		return []byte("[]")
+	}
+	return raw
+}
+
+func parseTrackerApprovals(raw []byte) []int64 {
+	if len(raw) == 0 || string(raw) == "null" {
+		return nil
+	}
+	var ids []int64
+	if err := json.Unmarshal(raw, &ids); err != nil {
+		return nil
+	}
+	return ids
 }

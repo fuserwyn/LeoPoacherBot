@@ -344,6 +344,9 @@ html.app-keyboard-open .tracker {
 .tracker-card.is-review {
   border-left-color: #0a84ff;
 }
+.tracker-card.is-approve {
+  border-left-color: #bf5af2;
+}
 .tracker-card.is-qa {
   border-left-color: #34c759;
 }
@@ -453,6 +456,12 @@ html.app-keyboard-open .tracker {
   color: #4cd06a;
   background: rgba(52, 199, 89, 0.12);
   border: 1px solid rgba(52, 199, 89, 0.26);
+}
+
+.tracker-badge--approve {
+  color: #bf5af2;
+  background: rgba(191, 90, 242, 0.12);
+  border: 1px solid rgba(191, 90, 242, 0.26);
 }
 
 .tracker-badge--photo {

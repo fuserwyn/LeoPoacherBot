@@ -25,6 +25,8 @@ CREATE TABLE IF NOT EXISTS pack_tracker_tasks (
 	manual_qa     BOOLEAN NOT NULL DEFAULT FALSE,
 	fast_track    BOOLEAN NOT NULL DEFAULT FALSE,
 	auto_push     BOOLEAN NOT NULL DEFAULT FALSE,
+	needs_approval BOOLEAN NOT NULL DEFAULT FALSE,
+	approvals     JSONB NOT NULL DEFAULT '[]'::jsonb,
 	error         TEXT NOT NULL DEFAULT '',
 	result        TEXT NOT NULL DEFAULT '',
 	steps         JSONB NOT NULL DEFAULT '[]'::jsonb,
@@ -110,6 +112,32 @@ func (d *Database) EnsureTrackerSchema() error {
 	if _, err := d.trackerDB().Exec(trackerBoardSchema); err != nil {
 		return fmt.Errorf("tracker schema: %w", err)
 	}
+	if err := d.migrateTrackerBoardSchema(); err != nil {
+		return err
+	}
+	return nil
+}
+
+func (d *Database) migrateTrackerBoardSchema() error {
+	if d == nil || d.trackerDB() == nil {
+		return fmt.Errorf("база недоступна")
+	}
+	return migrateTrackerBoardOnDB(d.trackerDB())
+}
+
+func migrateTrackerBoardOnDB(db *sql.DB) error {
+	if db == nil {
+		return fmt.Errorf("база недоступна")
+	}
+	_, err := db.Exec(`
+		ALTER TABLE pack_tracker_tasks
+			ADD COLUMN IF NOT EXISTS needs_approval BOOLEAN NOT NULL DEFAULT FALSE;
+		ALTER TABLE pack_tracker_tasks
+			ADD COLUMN IF NOT EXISTS approvals JSONB NOT NULL DEFAULT '[]'::jsonb;
+	`)
+	if err != nil {
+		return fmt.Errorf("tracker schema migrate: %w", err)
+	}
 	return nil
 }
 
@@ -140,6 +168,10 @@ func (d *Database) AttachTrackerDatabase(databaseURL string) error {
 	if _, err := tdb.Exec(trackerBoardSchema); err != nil {
 		_ = tdb.Close()
 		return fmt.Errorf("tracker schema: %w", err)
+	}
+	if err := migrateTrackerBoardOnDB(tdb); err != nil {
+		_ = tdb.Close()
+		return err
 	}
 	if err := copyTrackerTables(d.db, tdb); err != nil {
 		_ = tdb.Close()
@@ -180,7 +212,7 @@ func postgresHostDB(raw string) (host, name string) {
 
 func copyTrackerTables(src, dst *sql.DB) error {
 	if err := copyIfDestEmpty(src, dst, "pack_tracker_tasks",
-		"id, num, prompt, when_at, when_label, repeat, kind, status, dev_column, qa_column, qa_status, handed_to_qa, auto_review, manual_qa, fast_track, auto_push, error, result, steps, author_id, created_at, last_run_at, updated_at",
+		"id, num, prompt, when_at, when_label, repeat, kind, status, dev_column, qa_column, qa_status, handed_to_qa, auto_review, manual_qa, fast_track, auto_push, needs_approval, approvals, error, result, steps, author_id, created_at, last_run_at, updated_at",
 	); err != nil {
 		return err
 	}

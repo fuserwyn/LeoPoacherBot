@@ -12,9 +12,10 @@ import (
 )
 
 type adminSession struct {
-	Mode         string // feed_text | poll | support | user_mgmt | user_add_cups | user_sub_cups | user_set_cups | user_add_streak | user_sub_streak | admin_add
-	Step         string // await_text | await_post_options | await_schedule_time | await_support_text | await_poll_question | await_poll_options | await_user_id | await_amount | await_cups_set | await_days | await_admin_id
+	Mode         string // feed_text | poll | support | user_mgmt | ... | tracker_approval_edit | tracker_approval_cancel
+	Step         string // await_text | ... | await_prompt | await_comment
 	TargetUserID int64
+	TaskID       int64
 	PollQuestion string
 	FeedText     string // черновик текста админского поста (между шагами выбора автора/времени)
 	PostAuthor   string // adminPostAuthorLeo | adminPostAuthorAdmin — от чьего имени публиковать
@@ -84,6 +85,10 @@ func (b *Bot) handleAdminCallbackQuery(callback *tgbotapi.CallbackQuery) {
 	if !b.isAdminTelegramUser(callback.From.ID) || !callback.Message.Chat.IsPrivate() {
 		callbackConfig := tgbotapi.NewCallback(callback.ID, "Недостаточно прав")
 		b.api.Request(callbackConfig)
+		return
+	}
+
+	if b.handleTrackerApprovalCallback(callback) {
 		return
 	}
 
@@ -281,6 +286,10 @@ func (b *Bot) handleAdminFlowMessage(msg *tgbotapi.Message) bool {
 	}
 
 	if b.handleAdminUserMgmtMessage(msg, session) {
+		return true
+	}
+
+	if b.handleTrackerApprovalFlowMessage(msg, session) {
 		return true
 	}
 
