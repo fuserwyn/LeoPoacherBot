@@ -338,6 +338,7 @@ func TestApplyBoardNotifyFindsOpenTaskWhenForeignID(t *testing.T) {
 			int64(11), 1, "починить статус на доске", now, "20.08 09:19", "разово", "task",
 			"running", "doing", nil, nil, false,
 			false, false, false, true,
+			false, []byte("[]"),
 			"", "", []byte(`["Взяли в работу по расписанию"]`), int64(42),
 			now, now, now, 0,
 		))
