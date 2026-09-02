@@ -40,6 +40,7 @@ func TestAdminRefreshClaimsDueTask(t *testing.T) {
 		"id", "num", "prompt", "when_at", "when_label", "repeat", "kind",
 		"status", "dev_column", "qa_column", "qa_status", "handed_to_qa",
 		"auto_review", "manual_qa", "fast_track", "auto_push",
+		"needs_approval", "approvals",
 		"error", "result", "steps", "author_id",
 		"created_at", "last_run_at", "updated_at", "attachments_count",
 	}
@@ -48,6 +49,7 @@ func TestAdminRefreshClaimsDueTask(t *testing.T) {
 			int64(11), 1, "починить кнопку обновить", now, "20.08 09:19", "разово", "task",
 			"running", "doing", nil, nil, false,
 			false, false, false, true,
+			false, []byte("[]"),
 			"", "", []byte(`["Взяли в работу по расписанию"]`), int64(42),
 			now, now, now, 0,
 		))
@@ -244,6 +246,7 @@ func trackerListColumns() []string {
 		"id", "num", "prompt", "when_at", "when_label", "repeat", "kind",
 		"status", "dev_column", "qa_column", "qa_status", "handed_to_qa",
 		"auto_review", "manual_qa", "fast_track", "auto_push",
+		"needs_approval", "approvals",
 		"error", "result", "steps", "author_id",
 		"created_at", "last_run_at", "updated_at", "attachments_count",
 	}
@@ -262,6 +265,7 @@ func expectTrackerList(mock sqlmock.Sqlmock, row trackerListRow) {
 			row.id, row.num, row.prompt, row.at, "20.08 09:20", "разово", "task",
 			row.status, row.col, qaCol, qaStatus, row.handed,
 			false, false, false, true,
+			false, []byte("[]"),
 			"", "", []byte(`[]`), row.author,
 			row.at, nil, row.at, 0,
 		))
@@ -281,6 +285,7 @@ func expectTrackerGet(mock sqlmock.Sqlmock, row trackerListRow) {
 			row.id, row.num, row.prompt, row.at, "20.08 09:20", "разово", "task",
 			row.status, row.col, qaCol, qaStatus, row.handed,
 			false, false, false, true,
+			false, []byte("[]"),
 			"", "", []byte(`[]`), row.author,
 			row.at, nil, row.at, 0,
 		))

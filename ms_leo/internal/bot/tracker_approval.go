@@ -76,7 +76,6 @@ func (b *Bot) notifyTrackerApprovalsNeeded(t database.TrackerTask) {
 }
 
 func (b *Bot) trackerApprovalNotifyText(t database.TrackerTask) string {
-	n := trackerDueNum(t)
 	prompt := strings.TrimSpace(t.Prompt)
 	if runes := []rune(prompt); len(runes) > 400 {
 		prompt = string(runes[:400]) + "…"
