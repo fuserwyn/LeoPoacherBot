@@ -300,22 +300,87 @@ type AdminPaymentSum struct {
 	AmountMinor int64  `json:"amount_minor"`
 }
 
-// AdminSumCompletedPayments — оплаченные заявки с момента since, по валютам.
+// AdminMoneyKindSum — завершённые оплаты: покупка доступа или донат, по валюте.
+type AdminMoneyKindSum struct {
+	Kind        string // access | donation
+	Currency    string
+	Count       int64
+	AmountMinor int64
+}
+
+func adminNormalizeMoneyCurrency(cur string) string {
+	c := strings.ToUpper(strings.TrimSpace(cur))
+	if c == "XTR" || c == "STARS" {
+		return "XTR"
+	}
+	if c == "" {
+		return "RUB"
+	}
+	return c
+}
+
+// AdminSumCompletedPayments — оплаченные заявки доступа с момента since, по валютам.
 func (d *Database) AdminSumCompletedPayments(packChatID int64, since time.Time) ([]AdminPaymentSum, error) {
-	if d == nil || d.db == nil || packChatID == 0 {
+	rows, err := d.adminSumCompletedPaywall(packChatID, since, true)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]AdminPaymentSum, 0, len(rows))
+	for _, r := range rows {
+		out = append(out, AdminPaymentSum{
+			Currency:    r.Currency,
+			Count:       r.Count,
+			AmountMinor: r.AmountMinor,
+		})
+	}
+	return out, nil
+}
+
+// AdminSumCompletedMoney — завершённые покупки доступа и донаты, по виду и валюте.
+// useSince=false — за всё время; иначе с completed_at/created_at >= since.
+func (d *Database) AdminSumCompletedMoney(packChatID int64, since time.Time, useSince bool) ([]AdminMoneyKindSum, error) {
+	if d == nil || d.db == nil {
 		return nil, nil
 	}
-	rows, err := d.db.Query(`
+	paywall, err := d.adminSumCompletedPaywall(packChatID, since, useSince)
+	if err != nil {
+		return nil, err
+	}
+	donations, err := d.adminSumCompletedDonations(since, useSince)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]AdminMoneyKindSum, 0, len(paywall)+len(donations))
+	for _, r := range paywall {
+		out = append(out, AdminMoneyKindSum{Kind: "access", Currency: r.Currency, Count: r.Count, AmountMinor: r.AmountMinor})
+	}
+	for _, r := range donations {
+		out = append(out, AdminMoneyKindSum{Kind: "donation", Currency: r.Currency, Count: r.Count, AmountMinor: r.AmountMinor})
+	}
+	return out, nil
+}
+
+func (d *Database) adminSumCompletedPaywall(packChatID int64, since time.Time, useSince bool) ([]AdminPaymentSum, error) {
+	if packChatID == 0 {
+		return nil, nil
+	}
+	q := `
 		SELECT COALESCE(NULLIF(BTRIM(currency), ''), 'RUB') AS cur,
 		       COUNT(*),
 		       COALESCE(SUM(total_amount_minor), 0)
 		FROM paywall_access_requests
 		WHERE monetized_chat_id = $1
-		  AND status = 'completed'
-		  AND COALESCE(completed_at, created_at) >= $2
+		  AND status = 'completed'`
+	args := []any{packChatID}
+	if useSince {
+		q += `
+		  AND COALESCE(completed_at, created_at) >= $2`
+		args = append(args, since)
+	}
+	q += `
 		GROUP BY cur
-		ORDER BY cur
-	`, packChatID, since)
+		ORDER BY cur`
+	rows, err := d.db.Query(q, args...)
 	if err != nil {
 		return nil, err
 	}
@@ -326,7 +391,137 @@ func (d *Database) AdminSumCompletedPayments(packChatID int64, since time.Time) 
 		if err := rows.Scan(&s.Currency, &s.Count, &s.AmountMinor); err != nil {
 			return nil, err
 		}
+		s.Currency = adminNormalizeMoneyCurrency(s.Currency)
 		out = append(out, s)
+	}
+	return out, rows.Err()
+}
+
+func (d *Database) adminSumCompletedDonations(since time.Time, useSince bool) ([]AdminPaymentSum, error) {
+	q := `
+		SELECT COALESCE(NULLIF(BTRIM(currency), ''), 'RUB') AS cur,
+		       COUNT(*),
+		       COALESCE(SUM(amount_minor), 0)
+		FROM donations
+		WHERE status = 'completed'`
+	args := []any{}
+	if useSince {
+		q += `
+		  AND COALESCE(completed_at, created_at) >= $1`
+		args = append(args, since)
+	}
+	q += `
+		GROUP BY cur
+		ORDER BY cur`
+	rows, err := d.db.Query(q, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out := make([]AdminPaymentSum, 0, 4)
+	for rows.Next() {
+		var s AdminPaymentSum
+		if err := rows.Scan(&s.Currency, &s.Count, &s.AmountMinor); err != nil {
+			return nil, err
+		}
+		s.Currency = adminNormalizeMoneyCurrency(s.Currency)
+		out = append(out, s)
+	}
+	return out, rows.Err()
+}
+
+// AdminMoneyPaymentRow — строка списка оплат: доступ или донат.
+type AdminMoneyPaymentRow struct {
+	Kind         string
+	ID           int64
+	UserID       int64
+	Username     string
+	DisplayName  string
+	Status       string
+	CreatedAt    time.Time
+	AmountMinor  sql.NullInt64
+	Currency     sql.NullString
+	AccessActive bool
+}
+
+// CountMoneyPaymentsForAdmin — все заявки доступа и донаты.
+func (d *Database) CountMoneyPaymentsForAdmin(packChatID int64) (int, error) {
+	if d == nil || d.db == nil || packChatID == 0 {
+		return 0, nil
+	}
+	var n int
+	err := d.db.QueryRow(`
+		SELECT (SELECT COUNT(*) FROM paywall_access_requests WHERE monetized_chat_id = $1)
+		     + (SELECT COUNT(*) FROM donations)
+	`, packChatID).Scan(&n)
+	return n, err
+}
+
+// ListMoneyPaymentsForAdmin — доступ и донаты одним списком, новые сверху.
+func (d *Database) ListMoneyPaymentsForAdmin(packChatID int64, offset, limit int) ([]AdminMoneyPaymentRow, error) {
+	if d == nil || d.db == nil || packChatID == 0 {
+		return nil, nil
+	}
+	if limit <= 0 {
+		limit = 20
+	}
+	if offset < 0 {
+		offset = 0
+	}
+	const query = `
+		SELECT kind, id, user_id, username, display_name, status, created_at,
+		       amount_minor, currency, access_active
+		FROM (
+			SELECT 'access' AS kind, par.id, par.user_id,
+			       COALESCE(NULLIF(BTRIM(ts.username), ''), '') AS username,
+			       COALESCE(NULLIF(BTRIM(p.display_name), ''), '') AS display_name,
+			       par.status,
+			       COALESCE(par.completed_at, par.created_at) AS created_at,
+			       par.total_amount_minor AS amount_minor,
+			       par.currency,
+			       (par.status = 'completed'
+			        AND par.access_expires_at IS NOT NULL
+			        AND par.access_expires_at > NOW()) AS access_active
+			FROM paywall_access_requests par
+			LEFT JOIN training_state ts
+				ON ts.user_id = par.user_id AND ts.chat_id = par.monetized_chat_id
+			LEFT JOIN miniapp_user_profile p
+				ON p.user_id = par.user_id AND p.pack_chat_id = par.monetized_chat_id
+			WHERE par.monetized_chat_id = $1
+
+			UNION ALL
+
+			SELECT 'donation' AS kind, d.id, d.user_id,
+			       COALESCE(NULLIF(BTRIM(ts.username), ''), '') AS username,
+			       COALESCE(NULLIF(BTRIM(p.display_name), ''), '') AS display_name,
+			       d.status,
+			       COALESCE(d.completed_at, d.created_at) AS created_at,
+			       d.amount_minor,
+			       d.currency,
+			       false AS access_active
+			FROM donations d
+			LEFT JOIN training_state ts
+				ON ts.user_id = d.user_id AND ts.chat_id = $1
+			LEFT JOIN miniapp_user_profile p
+				ON p.user_id = d.user_id AND p.pack_chat_id = $1
+		) u
+		ORDER BY created_at DESC, id DESC
+		OFFSET $2 LIMIT $3`
+	rows, err := d.db.Query(query, packChatID, offset, limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out := make([]AdminMoneyPaymentRow, 0, limit)
+	for rows.Next() {
+		var r AdminMoneyPaymentRow
+		if err := rows.Scan(
+			&r.Kind, &r.ID, &r.UserID, &r.Username, &r.DisplayName, &r.Status, &r.CreatedAt,
+			&r.AmountMinor, &r.Currency, &r.AccessActive,
+		); err != nil {
+			return nil, err
+		}
+		out = append(out, r)
 	}
 	return out, rows.Err()
 }

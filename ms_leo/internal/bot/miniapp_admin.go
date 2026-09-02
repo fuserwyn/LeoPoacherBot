@@ -122,7 +122,7 @@ func (b *Bot) MiniappAdminOverview(viewerUserID int64, initD initdata.InitData) 
 	} else {
 		return out, e
 	}
-	if n, e := b.db.CountPaywallPaymentsForAdmin(packID); e == nil {
+	if n, e := b.db.CountMoneyPaymentsForAdmin(packID); e == nil {
 		out.Payments = n
 	} else {
 		return out, e

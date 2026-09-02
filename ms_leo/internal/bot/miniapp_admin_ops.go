@@ -188,13 +188,14 @@ func (b *Bot) MiniappAdminVisits(viewerUserID int64, initD initdata.InitData) ([
 }
 
 type MiniappAdminPayments struct {
-	Total  int               `json:"total"`
-	Offset int               `json:"offset"`
-	Limit  int               `json:"limit"`
-	Table  MiniappAdminTable `json:"table"`
+	Total  int                 `json:"total"`
+	Offset int                 `json:"offset"`
+	Limit  int                 `json:"limit"`
+	Stats  MiniappAdminTable   `json:"stats"`
+	Table  MiniappAdminTable   `json:"table"`
 }
 
-// MiniappAdminPaymentsPage — «Оплаты» постранично, как admin_payments_<offset>.
+// MiniappAdminPaymentsPage — «Оплаты»: сводка и список доступа + донатов.
 func (b *Bot) MiniappAdminPaymentsPage(
 	viewerUserID int64, initD initdata.InitData, offset, limit int,
 ) (MiniappAdminPayments, error) {
@@ -212,24 +213,35 @@ func (b *Bot) MiniappAdminPaymentsPage(
 	if limit <= 0 || limit > 50 {
 		limit = 20
 	}
-	total, err := b.db.CountPaywallPaymentsForAdmin(packChatID)
+	sums, err := b.db.AdminSumCompletedMoney(packChatID, time.Time{}, false)
 	if err != nil {
 		return out, err
 	}
-	rows, err := b.db.ListPaywallPaymentsForAdmin(packChatID, offset, limit)
+	out.Stats = adminBuildMoneyStatsTable(sums)
+
+	total, err := b.db.CountMoneyPaymentsForAdmin(packChatID)
+	if err != nil {
+		return out, err
+	}
+	rows, err := b.db.ListMoneyPaymentsForAdmin(packChatID, offset, limit)
 	if err != nil {
 		return out, err
 	}
 	out.Total, out.Offset, out.Limit = total, offset, limit
 	out.Table = MiniappAdminTable{
-		Title:   "💳 Оплаты",
-		Columns: []string{"№", "Ник", "Статус", "Сумма", "Дата"},
+		Title:   "💳 Все оплаты",
+		Columns: []string{"№", "Тип", "Ник", "Статус", "Сумма", "Дата"},
 	}
 	for i, p := range rows {
+		cur := ""
+		if p.Currency.Valid {
+			cur = p.Currency.String
+		}
 		out.Table.Rows = append(out.Table.Rows, []string{
 			strconv.Itoa(offset + i + 1),
+			adminMoneyKindCurrencyLabel(p.Kind, cur),
 			adminPaywallPersonLabel(p.Username, p.DisplayName, p.UserID),
-			adminPaymentStatusShort(p.Status, p.AccessActive),
+			adminPaymentStatusForKind(p.Kind, p.Status, p.AccessActive),
 			adminFormatPaymentAmount(p.AmountMinor, p.Currency),
 			p.CreatedAt.In(time.FixedZone("MSK", 3*3600)).Format("02.01 15:04"),
 		})

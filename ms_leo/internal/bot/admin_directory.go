@@ -96,12 +96,19 @@ func (b *Bot) showAdminPaymentsPage(chatID int64, offset int) {
 	if offset < 0 {
 		offset = 0
 	}
-	total, err := b.db.CountPaywallPaymentsForAdmin(packChatID)
+	sums, err := b.db.AdminSumCompletedMoney(packChatID, time.Time{}, false)
+	if err != nil {
+		b.api.Send(tgbotapi.NewMessage(chatID, "❌ Не удалось загрузить сводку оплат."))
+		return
+	}
+	statsTbl := adminBuildMoneyStatsTable(sums)
+
+	total, err := b.db.CountMoneyPaymentsForAdmin(packChatID)
 	if err != nil {
 		b.api.Send(tgbotapi.NewMessage(chatID, "❌ Не удалось загрузить оплаты."))
 		return
 	}
-	payments, err := b.db.ListPaywallPaymentsForAdmin(packChatID, offset, adminPaymentsListPageSize)
+	payments, err := b.db.ListMoneyPaymentsForAdmin(packChatID, offset, adminPaymentsListPageSize)
 	if err != nil {
 		b.api.Send(tgbotapi.NewMessage(chatID, "❌ Ошибка: "+err.Error()))
 		return
@@ -115,21 +122,34 @@ func (b *Bot) showAdminPaymentsPage(chatID int64, offset int) {
 		subtitle = fmt.Sprintf("Строки %d–%d из %d · нажми № под таблицей", from, to, total)
 
 		tbl := newAdminTable(
-			[]string{"№", "Ник", "Статус", "Сумма", "Дата"},
-			[]int{2, 13, 6, 7, 8},
+			[]string{"№", "Тип", "Ник", "Статус", "Сумма", "Дата"},
+			[]int{2, 7, 13, 6, 7, 8},
 		)
 		for i, p := range payments {
-			status := adminPaymentStatusShort(p.Status, p.AccessActive)
+			cur := ""
+			if p.Currency.Valid {
+				cur = p.Currency.String
+			}
 			when := p.CreatedAt.In(time.FixedZone("MSK", 3*3600)).Format("02.01 15:04")
 			tbl.addRow(
 				strconv.Itoa(offset+i+1),
+				adminMoneyKindCurrencyLabel(p.Kind, cur),
 				adminPaywallPersonLabel(p.Username, p.DisplayName, p.UserID),
-				status,
+				adminPaymentStatusForKind(p.Kind, p.Status, p.AccessActive),
 				adminFormatPaymentAmount(p.AmountMinor, p.Currency),
 				when,
 			)
 		}
 		tableText = tbl.render()
+	}
+
+	statsTable := newAdminTable(statsTbl.Columns, []int{12, 5, 7})
+	for _, row := range statsTbl.Rows {
+		statsTable.addRow(row...)
+	}
+	combinedTable := statsTable.render()
+	if tableText != "" {
+		combinedTable += "\n\n" + tableText
 	}
 
 	keyboardRows := make([][]tgbotapi.InlineKeyboardButton, 0, 4)
@@ -160,7 +180,11 @@ func (b *Bot) showAdminPaymentsPage(chatID int64, offset int) {
 	))
 
 	kb := &tgbotapi.InlineKeyboardMarkup{InlineKeyboard: keyboardRows}
-	b.sendAdminHTMLPreTable(chatID, "💳 Оплаты", subtitle, tableText, kb)
+	pageSubtitle := statsTbl.Subtitle
+	if subtitle != "" {
+		pageSubtitle += "\n" + subtitle
+	}
+	b.sendAdminHTMLPreTable(chatID, "💳 Оплаты", pageSubtitle, combinedTable, kb)
 }
 
 func appendAdminPickButtonRows(rows [][]tgbotapi.InlineKeyboardButton, users []database.AdminPackUserListRow, offset int) [][]tgbotapi.InlineKeyboardButton {
@@ -246,6 +270,77 @@ func adminFormatPaymentAmount(amountMinor sql.NullInt64, currency sql.NullString
 		return fmt.Sprintf("%d⭐", amountMinor.Int64)
 	}
 	return fmt.Sprintf("%.0f%s", major, cur)
+}
+
+func adminMoneyKindShort(kind string) string {
+	switch strings.TrimSpace(kind) {
+	case "donation":
+		return "донат"
+	default:
+		return "доступ"
+	}
+}
+
+func adminMoneyCurrencyShort(currency string) string {
+	if strings.EqualFold(strings.TrimSpace(currency), "XTR") || strings.EqualFold(strings.TrimSpace(currency), "STARS") {
+		return "⭐"
+	}
+	return "₽"
+}
+
+func adminMoneyKindCurrencyLabel(kind, currency string) string {
+	return adminMoneyKindShort(kind) + " · " + adminMoneyCurrencyShort(currency)
+}
+
+func adminPaymentStatusForKind(kind, status string, accessActive bool) string {
+	if kind == "donation" {
+		switch status {
+		case "completed":
+			return "ok"
+		case "pending":
+			return "ждёт"
+		default:
+			return status
+		}
+	}
+	return adminPaymentStatusShort(status, accessActive)
+}
+
+func adminBuildMoneyStatsTable(sums []database.AdminMoneyKindSum) MiniappAdminTable {
+	tbl := MiniappAdminTable{
+		Title:    "📊 Сводка",
+		Subtitle: "Завершённые оплаты за всё время · доступ и донаты · звёзды и рубли",
+		Columns:  []string{"Тип", "Оплат", "Сумма"},
+	}
+	// Фиксированный порядок: сначала доступ, потом донаты; внутри — звёзды, потом рубли.
+	order := [][2]string{
+		{"access", "XTR"},
+		{"access", "RUB"},
+		{"donation", "XTR"},
+		{"donation", "RUB"},
+	}
+	byKey := make(map[string]database.AdminMoneyKindSum, len(sums))
+	for _, s := range sums {
+		byKey[s.Kind+"|"+strings.ToUpper(s.Currency)] = s
+	}
+	for _, k := range order {
+		key := k[0] + "|" + k[1]
+		s, ok := byKey[key]
+		if !ok {
+			tbl.Rows = append(tbl.Rows, []string{
+				adminMoneyKindCurrencyLabel(k[0], k[1]), "0", "—",
+			})
+			continue
+		}
+		amt := sql.NullInt64{Int64: s.AmountMinor, Valid: s.AmountMinor > 0}
+		cur := sql.NullString{String: s.Currency, Valid: true}
+		tbl.Rows = append(tbl.Rows, []string{
+			adminMoneyKindCurrencyLabel(s.Kind, s.Currency),
+			strconv.FormatInt(s.Count, 10),
+			adminFormatPaymentAmount(amt, cur),
+		})
+	}
+	return tbl
 }
 
 func (b *Bot) formatAdminUserPaymentsBlock(userID, packChatID int64) string {
