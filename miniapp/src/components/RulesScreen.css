@@ -11,6 +11,7 @@
   line-height: 1.2;
   letter-spacing: -0.02em;
   color: var(--text);
+  text-align: center;
 }
 
 /* Шире мобилки — правила тоже на всю ширину окна. */
