@@ -77,25 +77,18 @@ export function SupportScreen({ initData, inTelegram, showAlert, onClose }: Prop
   const sheetRef = useRef<HTMLDivElement>(null);
   const onCloseRef = useRef(onClose);
   onCloseRef.current = onClose;
-  const closingRef = useRef(false);
 
+  // Перед закрытием снимаем фокус: иначе app-keyboard-open зависает после свайпа вниз.
   const closeSheet = useCallback(() => {
-    if (closingRef.current) return;
-    closingRef.current = true;
     const el = document.activeElement;
     if (el instanceof HTMLElement) el.blur();
-    const sheet = sheetRef.current;
-    if (!sheet) {
-      onCloseRef.current();
-      return;
-    }
-    sheet.style.transition = "transform 0.18s ease-in";
-    sheet.style.transform = "translateY(105%)";
-    window.setTimeout(() => onCloseRef.current(), 170);
+    onCloseRef.current();
   }, []);
 
   const [text, setText] = useState("");
   const [sending, setSending] = useState(false);
+  const sendingRef = useRef(sending);
+  sendingRef.current = sending;
   const [items, setItems] = useState<SupportMsg[]>([]);
   const [loaded, setLoaded] = useState(false);
   const logRef = useRef<HTMLDivElement | null>(null);
@@ -206,83 +199,72 @@ export function SupportScreen({ initData, inTelegram, showAlert, onClose }: Prop
   // Свайп шторки вниз = закрыть (как у формы тренировки).
   useEffect(() => {
     const sheet = sheetRef.current;
+    const log = logRef.current;
     if (!sheet) return;
     let startY = 0;
     let dy = 0;
     let tracking = false;
     let dragging = false;
 
-    const blocked = (target: EventTarget | null) => {
-      const hit = target as HTMLElement | null;
-      if (hit?.closest("textarea, input, select, [contenteditable='true'], .sup__close")) return true;
-      let el: HTMLElement | null = hit;
-      while (el && el !== sheet) {
-        const oy = window.getComputedStyle(el).overflowY;
-        if ((oy === "auto" || oy === "scroll") && el.scrollTop > 1) return true;
-        el = el.parentElement;
-      }
-      return false;
-    };
-
-    const begin = (y: number, target: EventTarget | null) => {
-      if (closingRef.current || blocked(target)) return;
-      startY = y;
+    const onStart = (e: TouchEvent) => {
+      if (sendingRef.current) return;
+      const t = e.touches[0];
+      if (!t) return;
+      const target = e.target as HTMLElement | null;
+      if (target?.closest("textarea, input, select, [contenteditable='true']")) return;
+      if (log?.contains(target) && (log?.scrollTop ?? 0) > 1) return;
+      startY = t.clientY;
       dy = 0;
       dragging = false;
       tracking = true;
     };
 
-    const move = (y: number, ev?: Event) => {
+    const onMove = (e: TouchEvent) => {
       if (!tracking) return;
-      dy = y - startY;
+      const t = e.touches[0];
+      if (!t) return;
+      dy = t.clientY - startY;
       if (!dragging) {
         if (dy > 14) {
           dragging = true;
           sheet.style.transition = "none";
-          sheet.style.userSelect = "none";
         } else {
           if (dy < -8) tracking = false;
           return;
         }
       }
-      ev?.preventDefault();
+      e.preventDefault();
       sheet.style.transform = `translateY(${Math.max(0, dy)}px)`;
     };
 
-    const finish = () => {
+    const onEnd = () => {
       if (!tracking) return;
       tracking = false;
       if (!dragging) return;
       dragging = false;
-      sheet.style.userSelect = "";
       if (dy > 96) {
-        closeSheet();
+        const active = document.activeElement;
+        if (active instanceof HTMLElement) active.blur();
+        sheet.style.transition = "transform 0.18s ease-in";
+        sheet.style.transform = "translateY(105%)";
+        window.setTimeout(() => onCloseRef.current(), 170);
       } else {
         sheet.style.transition = "transform 0.18s ease-out";
         sheet.style.transform = "";
       }
     };
 
-    const onTouchStart = (e: TouchEvent) => {
-      const t = e.touches[0];
-      if (t) begin(t.clientY, e.target);
-    };
-    const onTouchMove = (e: TouchEvent) => {
-      const t = e.touches[0];
-      if (t) move(t.clientY, e);
-    };
-
-    sheet.addEventListener("touchstart", onTouchStart, { passive: true });
-    sheet.addEventListener("touchmove", onTouchMove, { passive: false });
-    sheet.addEventListener("touchend", finish);
-    sheet.addEventListener("touchcancel", finish);
+    sheet.addEventListener("touchstart", onStart, { passive: true });
+    sheet.addEventListener("touchmove", onMove, { passive: false });
+    sheet.addEventListener("touchend", onEnd);
+    sheet.addEventListener("touchcancel", onEnd);
     return () => {
-      sheet.removeEventListener("touchstart", onTouchStart);
-      sheet.removeEventListener("touchmove", onTouchMove);
-      sheet.removeEventListener("touchend", finish);
-      sheet.removeEventListener("touchcancel", finish);
+      sheet.removeEventListener("touchstart", onStart);
+      sheet.removeEventListener("touchmove", onMove);
+      sheet.removeEventListener("touchend", onEnd);
+      sheet.removeEventListener("touchcancel", onEnd);
     };
-  }, [closeSheet]);
+  }, []);
 
   return (
     <>
@@ -295,9 +277,6 @@ export function SupportScreen({ initData, inTelegram, showAlert, onClose }: Prop
       />
       <div ref={sheetRef} className="sup" role="dialog" aria-modal="true" aria-label="Поддержка">
         <div className="sup__grabber" aria-hidden="true" />
-        <button type="button" className="sup__close" onClick={closeSheet} aria-label="Закрыть">
-          ✕
-        </button>
         <div className="chat support-chat">
           <header className="chat__head">
             <div className="support-chat__head-avatar" aria-hidden>
@@ -307,6 +286,9 @@ export function SupportScreen({ initData, inTelegram, showAlert, onClose }: Prop
               <h1 className="chat__title">Поддержка</h1>
               <p className="chat__sub">Здесь отвечает человек, не Лео</p>
             </div>
+            <button type="button" className="sup__close" onClick={closeSheet} aria-label="Закрыть">
+              ✕
+            </button>
           </header>
           <div className="chat__log" role="log" aria-label="Сообщения поддержки" ref={logRef}>
             {loaded && items.length === 0 && (
