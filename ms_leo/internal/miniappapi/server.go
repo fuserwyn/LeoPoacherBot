@@ -2203,7 +2203,7 @@ func (s *Server) handlePostSupportChatSend(w http.ResponseWriter, r *http.Reques
 		s.jsonErr(w, http.StatusInternalServerError, "assert_chat_error")
 		return
 	}
-	if err := s.bot.MiniappSupportSendFromUser(parsed.User.ID, text); err != nil {
+	if err := s.bot.MiniappSupportSendFromUser(parsed.User.ID, text, ""); err != nil {
 		s.logger.Errorf("miniapp support send: %v", err)
 		s.jsonErr(w, http.StatusInternalServerError, "send_error")
 		return
