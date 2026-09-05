@@ -52,6 +52,10 @@
   flex-shrink: 0;
 }
 
+.chat:not(.support-chat) .chat__head {
+  justify-content: center;
+}
+
 .chat__head-avatarwrap {
   position: relative;
   flex-shrink: 0;
@@ -158,6 +162,11 @@
   align-items: flex-start;
   text-align: left;
   gap: 2px;
+}
+
+.chat:not(.support-chat) .chat__head-text {
+  align-items: center;
+  text-align: center;
 }
 
 .chat__title {
