@@ -37,8 +37,9 @@
 
 .sup__close {
   position: absolute;
-  top: 8px;
   right: 10px;
+  top: 50%;
+  transform: translateY(-50%);
   width: 32px;
   height: 32px;
   border-radius: 50%;
@@ -95,9 +96,14 @@
 }
 
 .sup .chat.support-chat .chat__head {
+  position: relative;
   justify-content: flex-start;
   padding-right: 48px;
   touch-action: none;
+}
+
+.sup .chat.support-chat .chat__log {
+  touch-action: auto;
 }
 
 html.app-keyboard-open .sup {
