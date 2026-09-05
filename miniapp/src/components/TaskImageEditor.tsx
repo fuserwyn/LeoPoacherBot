@@ -31,6 +31,9 @@ type Stroke = { color: string; width: number; points: { x: number; y: number }[]
 export function TaskImageEditor({ onDone, onCancel, initialFile }: Props) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const imgRef = useRef<HTMLImageElement | null>(null);
+  const strokesRef = useRef<Stroke[]>([]);
+  const offsetRef = useRef({ x: 0, y: 0 });
+  const zoomRef = useRef(1);
   const [ready, setReady] = useState(false);
   const [mode, setMode] = useState<"move" | "draw">("move");
   const [zoom, setZoom] = useState(1);
@@ -49,8 +52,12 @@ export function TaskImageEditor({ onDone, onCancel, initialFile }: Props) {
         imgRef.current = img;
         // Вписываем по меньшей стороне: кадр заполнен, пустых полей нет.
         const base = Math.max(SIZE / img.width, SIZE / img.height);
+        const nextOffset = { x: (SIZE - img.width * base) / 2, y: (SIZE - img.height * base) / 2 };
+        zoomRef.current = base;
+        offsetRef.current = nextOffset;
+        strokesRef.current = [];
         setZoom(base);
-        setOffset({ x: (SIZE - img.width * base) / 2, y: (SIZE - img.height * base) / 2 });
+        setOffset(nextOffset);
         setStrokes([]);
         setReady(true);
       };
@@ -70,26 +77,44 @@ export function TaskImageEditor({ onDone, onCancel, initialFile }: Props) {
     if (!canvas || !img) return;
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
+    const { x: ox, y: oy } = offsetRef.current;
+    const z = zoomRef.current;
     ctx.fillStyle = "#000";
     ctx.fillRect(0, 0, SIZE, SIZE);
-    ctx.drawImage(img, offset.x, offset.y, img.width * zoom, img.height * zoom);
+    ctx.drawImage(img, ox, oy, img.width * z, img.height * z);
     ctx.lineCap = "round";
     ctx.lineJoin = "round";
-    for (const s of strokes) {
-      if (s.points.length === 0) continue;
+    for (const s of strokesRef.current) {
+      const pts = s.points;
+      if (!pts?.length) continue;
       ctx.strokeStyle = s.color;
       ctx.lineWidth = s.width;
       ctx.beginPath();
-      ctx.moveTo(s.points[0].x, s.points[0].y);
-      for (const p of s.points.slice(1)) ctx.lineTo(p.x, p.y);
-      if (s.points.length === 1) ctx.lineTo(s.points[0].x + 0.1, s.points[0].y + 0.1);
+      ctx.moveTo(pts[0].x, pts[0].y);
+      for (const p of pts.slice(1)) ctx.lineTo(p.x, p.y);
+      if (pts.length === 1) ctx.lineTo(pts[0].x + 0.1, pts[0].y + 0.1);
       ctx.stroke();
     }
-  }, [offset, zoom, strokes]);
+  }, []);
 
   useEffect(() => {
+    offsetRef.current = offset;
     redraw();
-  }, [redraw]);
+  }, [offset, redraw]);
+
+  useEffect(() => {
+    zoomRef.current = zoom;
+    redraw();
+  }, [zoom, redraw]);
+
+  useEffect(() => {
+    strokesRef.current = strokes;
+    redraw();
+  }, [strokes, redraw]);
+
+  useEffect(() => {
+    if (ready) redraw();
+  }, [ready, redraw]);
 
   const toCanvas = (e: React.PointerEvent<HTMLCanvasElement>) => {
     const rect = e.currentTarget.getBoundingClientRect();
@@ -105,9 +130,10 @@ export function TaskImageEditor({ onDone, onCancel, initialFile }: Props) {
     const p = toCanvas(e);
     if (mode === "draw") {
       drawingRef.current = { color, width, points: [p] };
-      setStrokes((prev) => [...prev, drawingRef.current as Stroke]);
+      strokesRef.current = [...strokesRef.current, drawingRef.current];
+      redraw();
     } else {
-      dragRef.current = { x: p.x - offset.x, y: p.y - offset.y };
+      dragRef.current = { x: p.x - offsetRef.current.x, y: p.y - offsetRef.current.y };
     }
   };
 
@@ -116,13 +142,27 @@ export function TaskImageEditor({ onDone, onCancel, initialFile }: Props) {
     const p = toCanvas(e);
     if (mode === "draw" && drawingRef.current) {
       drawingRef.current.points.push(p);
-      setStrokes((prev) => [...prev.slice(0, -1), { ...(drawingRef.current as Stroke) }]);
+      redraw();
       return;
     }
-    if (dragRef.current) setOffset({ x: p.x - dragRef.current.x, y: p.y - dragRef.current.y });
+    if (dragRef.current) {
+      const next = { x: p.x - dragRef.current.x, y: p.y - dragRef.current.y };
+      offsetRef.current = next;
+      redraw();
+      setOffset(next);
+    }
   };
 
   const onPointerUp = () => {
+    if (drawingRef.current) {
+      const committed = strokesRef.current.map((s) => ({
+        color: s.color,
+        width: s.width,
+        points: s.points.map((pt) => ({ x: pt.x, y: pt.y })),
+      }));
+      strokesRef.current = committed;
+      setStrokes(committed);
+    }
     drawingRef.current = null;
     dragRef.current = null;
   };
