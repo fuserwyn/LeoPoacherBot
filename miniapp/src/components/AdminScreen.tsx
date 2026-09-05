@@ -1,5 +1,6 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState, type ChangeEvent } from "react";
 import { formatChatTime, timeAgoFromISO } from "../lib/timeAgo";
+import { resolveTrainingPhotoUrl } from "../lib/packFeed";
 import { tgConfirm } from "../lib/tgConfirm";
 import {
   fetchAdminHidden,
@@ -16,6 +17,7 @@ import {
   saveAdminPaywallPrice,
   sendAdminReportAction,
   sendAdminSupportReply,
+  sendAdminSupportReplyPhoto,
   sendAdminUserAction,
   setAdminUserStat,
   type AdminHiddenItem,
@@ -37,6 +39,8 @@ import { LeoLabScreen } from "./LeoLabScreen";
 import { LeoPromptsScreen } from "./LeoPromptsScreen";
 import { LEO_AVATAR_URL } from "../lib/leoAvatar";
 import { TrackerScreen } from "./TrackerScreen";
+import { CameraButton } from "./CameraButton";
+import { PhotoLightbox } from "./PhotoLightbox";
 import "./AdminScreen.css";
 
 type Page =
@@ -166,6 +170,10 @@ export function AdminScreen({ initData, inTelegram, showAlert, onClose }: Props)
   const [threadUser, setThreadUser] = useState<AdminSupportConv | null>(null);
   const [thread, setThread] = useState<AdminSupportMsg[]>([]);
   const [reply, setReply] = useState("");
+  const [replyPhoto, setReplyPhoto] = useState<File | null>(null);
+  const [replyPhotoPreview, setReplyPhotoPreview] = useState<string | null>(null);
+  const [lightboxUrl, setLightboxUrl] = useState<string | null>(null);
+  const replyPhotoInputRef = useRef<HTMLInputElement | null>(null);
 
   const [reports, setReports] = useState<AdminReport[]>([]);
   const [hidden, setHidden] = useState<AdminHiddenItem[]>([]);
@@ -209,6 +217,8 @@ export function AdminScreen({ initData, inTelegram, showAlert, onClose }: Props)
   const openThread = async (c: AdminSupportConv) => {
     setThreadUser(c);
     setPage("thread");
+    setReply("");
+    clearReplyPhoto();
     try {
       const j = await fetchAdminSupportThread(initData, c.user_id);
       setThread(j.messages ?? []);
@@ -217,14 +227,45 @@ export function AdminScreen({ initData, inTelegram, showAlert, onClose }: Props)
     }
   };
 
+  const clearReplyPhoto = useCallback(() => {
+    setReplyPhoto(null);
+    setReplyPhotoPreview((prev) => {
+      if (prev) URL.revokeObjectURL(prev);
+      return null;
+    });
+    if (replyPhotoInputRef.current) replyPhotoInputRef.current.value = "";
+  }, []);
+
+  const onPickReplyPhoto = useCallback((e: ChangeEvent<HTMLInputElement>) => {
+    const f = e.target.files?.[0];
+    if (!f) return;
+    setReplyPhoto(f);
+    setReplyPhotoPreview((prev) => {
+      if (prev) URL.revokeObjectURL(prev);
+      return URL.createObjectURL(f);
+    });
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      if (replyPhotoPreview) URL.revokeObjectURL(replyPhotoPreview);
+    };
+  }, [replyPhotoPreview]);
+
   const sendReply = async () => {
     if (!threadUser || busy) return;
     const text = reply.trim();
-    if (!text) return;
+    const sentPhoto = replyPhoto;
+    if (!text && !sentPhoto) return;
     setBusy(true);
     try {
-      await sendAdminSupportReply(initData, threadUser.user_id, text);
+      if (sentPhoto) {
+        await sendAdminSupportReplyPhoto(initData, threadUser.user_id, text, sentPhoto);
+      } else {
+        await sendAdminSupportReply(initData, threadUser.user_id, text);
+      }
       setReply("");
+      clearReplyPhoto();
       const j = await fetchAdminSupportThread(initData, threadUser.user_id);
       setThread(j.messages ?? []);
       void loadOverview();
@@ -899,13 +940,34 @@ export function AdminScreen({ initData, inTelegram, showAlert, onClose }: Props)
       {page === "thread" && threadUser && (
         <div className="admin__thread">
           <div className="admin__thread-log">
-            {thread.map((m) => (
-              <div key={m.id} className={`admin__bubble admin__bubble--${m.role}`}>
-                <p>{m.text}</p>
-                <time>{timeAgoFromISO(m.created_at)}</time>
-              </div>
-            ))}
+            {thread.map((m) => {
+              const photoUrl = resolveTrainingPhotoUrl(m.photo_url);
+              return (
+                <div key={m.id} className={`admin__bubble admin__bubble--${m.role}`}>
+                  {photoUrl && (
+                    <button
+                      type="button"
+                      className="admin__bubble-photo-wrap"
+                      aria-label="Открыть фото"
+                      onClick={() => setLightboxUrl(photoUrl)}
+                    >
+                      <img className="admin__bubble-photo" src={photoUrl} alt="" loading="lazy" referrerPolicy="no-referrer" />
+                    </button>
+                  )}
+                  {m.text ? <p>{m.text}</p> : null}
+                  <time>{timeAgoFromISO(m.created_at)}</time>
+                </div>
+              );
+            })}
           </div>
+          {replyPhotoPreview != null && (
+            <div className="admin__reply-photo-pending">
+              <img className="admin__reply-photo-pending-img" src={replyPhotoPreview} alt="" />
+              <button type="button" className="admin__reply-photo-pending-remove" aria-label="Убрать фото" onClick={clearReplyPhoto}>
+                ✕
+              </button>
+            </div>
+          )}
           <form
             className="admin__composer"
             onSubmit={(e) => {
@@ -914,12 +976,22 @@ export function AdminScreen({ initData, inTelegram, showAlert, onClose }: Props)
             }}
           >
             <input
+              ref={replyPhotoInputRef}
+              type="file"
+              accept="image/*"
+              className="admin__reply-photo-input"
+              onChange={onPickReplyPhoto}
+              tabIndex={-1}
+              aria-hidden
+            />
+            <CameraButton className="admin__reply-attach" onChange={onPickReplyPhoto} disabled={busy} />
+            <input
               value={reply}
               onChange={(e) => setReply(e.target.value)}
-              placeholder="Ответ пользователю…"
+              placeholder={replyPhoto ? "Подпись к фото (необязательно)…" : "Ответ пользователю…"}
               maxLength={4000}
             />
-            <button type="submit" disabled={busy || !reply.trim()}>
+            <button type="submit" disabled={busy || (!reply.trim() && !replyPhoto)}>
               ➤
             </button>
           </form>
@@ -1296,6 +1368,7 @@ export function AdminScreen({ initData, inTelegram, showAlert, onClose }: Props)
         ))}
       </nav>
       </div>
+      {lightboxUrl && <PhotoLightbox url={lightboxUrl} onClose={() => setLightboxUrl(null)} />}
     </>
   );
 }

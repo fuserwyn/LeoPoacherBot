@@ -146,6 +146,7 @@ type MiniappSupportChatMessage struct {
 	ID        int64  `json:"id"`
 	Role      string `json:"role"`
 	Text      string `json:"text"`
+	PhotoURL  string `json:"photo_url,omitempty"`
 	CreatedAt string `json:"created_at"`
 }
 

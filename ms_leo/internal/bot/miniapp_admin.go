@@ -185,7 +185,7 @@ func (b *Bot) MiniappAdminSupportThread(viewerUserID int64, initD initdata.InitD
 	return b.AdminSupportChatHistory(targetUserID)
 }
 
-func (b *Bot) MiniappAdminSupportReply(viewerUserID int64, initD initdata.InitData, targetUserID int64, text string) error {
+func (b *Bot) MiniappAdminSupportReply(viewerUserID int64, initD initdata.InitData, targetUserID int64, text, photoURL string) error {
 	if _, err := b.requireMiniappAdmin(viewerUserID, initD); err != nil {
 		return err
 	}
@@ -193,10 +193,11 @@ func (b *Bot) MiniappAdminSupportReply(viewerUserID int64, initD initdata.InitDa
 		return ErrAdminActionInvalid
 	}
 	t := strings.TrimSpace(text)
-	if t == "" {
+	photoURL = strings.TrimSpace(photoURL)
+	if t == "" && photoURL == "" {
 		return ErrAdminActionInvalid
 	}
-	return b.AdminSupportReply(targetUserID, t)
+	return b.AdminSupportReply(targetUserID, t, photoURL)
 }
 
 func (b *Bot) MiniappAdminReports(viewerUserID int64, initD initdata.InitData) ([]*domain.MiniappFeedReport, error) {

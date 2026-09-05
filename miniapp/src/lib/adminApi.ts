@@ -30,6 +30,7 @@ export type AdminSupportMsg = {
   id: number;
   role: "user" | "support";
   text: string;
+  photo_url?: string;
   created_at: string;
 };
 
@@ -158,6 +159,27 @@ export function fetchAdminSupportThread(initData: string, targetUserId: number) 
 
 export function sendAdminSupportReply(initData: string, targetUserId: number, text: string) {
   return post("/api/miniapp/admin/support/reply", initData, { target_user_id: targetUserId, text });
+}
+
+export function sendAdminSupportReplyPhoto(
+  initData: string,
+  targetUserId: number,
+  text: string,
+  photo: File,
+) {
+  if (!api) throw new Error("API не настроен");
+  const fd = new FormData();
+  fd.append("init_data", initData);
+  fd.append("target_user_id", String(targetUserId));
+  fd.append("text", text);
+  fd.append("photo", photo, photo.name || "photo.jpg");
+  return fetch(`${api}/api/miniapp/admin/support/reply/photo`, { method: "POST", body: fd }).then(async (res) => {
+    const j = (await res.json().catch(() => ({}))) as ErrBody & { ok?: boolean };
+    if (!res.ok || j.ok === false) {
+      throw new Error(j.message || adminErrorLabel(j.error) || `Ошибка ${res.status}`);
+    }
+    return j;
+  });
 }
 
 export function fetchAdminReports(initData: string) {

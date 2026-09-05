@@ -17,22 +17,38 @@ func (b *Bot) MiniappSupportChatHistory(userID int64, sinceID int64) ([]*domain.
 	if b.config == nil || b.config.MonetizedChatID == 0 {
 		return []*domain.MiniappSupportChatMessage{}, nil
 	}
-	return b.db.ListMiniappSupportChat(userID, b.config.MonetizedChatID, 200, sinceID)
+	items, err := b.db.ListMiniappSupportChat(userID, b.config.MonetizedChatID, 200, sinceID)
+	if err != nil {
+		return nil, err
+	}
+	for _, m := range items {
+		if m != nil && m.PhotoURL != "" {
+			m.PhotoURL = b.canonicalMiniappTrainingPhotoURL(m.PhotoURL)
+		}
+	}
+	return items, nil
 }
 
 // MiniappSupportSendFromUser — пользователь пишет в поддержку, не в Лео.
-func (b *Bot) MiniappSupportSendFromUser(userID int64, text string) error {
+func (b *Bot) MiniappSupportSendFromUser(userID int64, text, photoURL string) error {
 	if b == nil || b.db == nil || b.config == nil || b.config.MonetizedChatID == 0 || userID == 0 {
 		return nil
 	}
 	t := strings.TrimSpace(text)
-	if t == "" {
+	photoURL = strings.TrimSpace(photoURL)
+	if t == "" && photoURL == "" {
 		return nil
 	}
-	if _, err := b.db.InsertMiniappSupportChatMessage(userID, b.config.MonetizedChatID, "user", t); err != nil {
+	var err error
+	if photoURL != "" {
+		_, err = b.db.InsertMiniappSupportChatMessageWithPhoto(userID, b.config.MonetizedChatID, "user", t, photoURL)
+	} else {
+		_, err = b.db.InsertMiniappSupportChatMessage(userID, b.config.MonetizedChatID, "user", t)
+	}
+	if err != nil {
 		return err
 	}
-	b.notifyAdminsAboutSupportMessage(userID, t)
+	b.notifyAdminsAboutSupportMessage(userID, t, photoURL)
 	return nil
 }
 
@@ -41,30 +57,63 @@ func (b *Bot) AdminSupportChatHistory(userID int64) ([]*domain.MiniappSupportCha
 	if b == nil || b.db == nil || b.config == nil || b.config.MonetizedChatID == 0 || userID == 0 {
 		return []*domain.MiniappSupportChatMessage{}, nil
 	}
-	return b.db.ListMiniappSupportChat(userID, b.config.MonetizedChatID, 30, 0)
+	items, err := b.db.ListMiniappSupportChat(userID, b.config.MonetizedChatID, 30, 0)
+	if err != nil {
+		return nil, err
+	}
+	for _, m := range items {
+		if m != nil && m.PhotoURL != "" {
+			m.PhotoURL = b.canonicalMiniappTrainingPhotoURL(m.PhotoURL)
+		}
+	}
+	return items, nil
 }
 
 // AdminSupportReply — ответ админа пользователю в отдельный support-чат.
-func (b *Bot) AdminSupportReply(userID int64, text string) error {
+func (b *Bot) AdminSupportReply(userID int64, text, photoURL string) error {
 	if b == nil || b.db == nil || b.config == nil || b.config.MonetizedChatID == 0 || userID == 0 {
 		return nil
 	}
 	t := strings.TrimSpace(text)
-	if t == "" {
+	photoURL = strings.TrimSpace(photoURL)
+	if t == "" && photoURL == "" {
 		return nil
 	}
-	if _, err := b.db.InsertMiniappSupportChatMessage(userID, b.config.MonetizedChatID, "support", t); err != nil {
+	var err error
+	if photoURL != "" {
+		_, err = b.db.InsertMiniappSupportChatMessageWithPhoto(userID, b.config.MonetizedChatID, "support", t, photoURL)
+	} else {
+		_, err = b.db.InsertMiniappSupportChatMessage(userID, b.config.MonetizedChatID, "support", t)
+	}
+	if err != nil {
 		return err
 	}
-	if b.api != nil {
-		if _, err := b.api.Send(tgbotapi.NewMessage(userID, t)); err != nil {
-			b.logger.Warnf("admin support dm user=%d: %v", userID, err)
-		}
-	}
+	b.sendSupportUserDM(userID, t, photoURL)
 	return nil
 }
 
-func (b *Bot) notifyAdminsAboutSupportMessage(userID int64, text string) {
+func (b *Bot) sendSupportUserDM(userID int64, text, photoURL string) {
+	if b == nil || b.api == nil {
+		return
+	}
+	photoURL = strings.TrimSpace(photoURL)
+	if photoURL != "" {
+		photoURL = b.canonicalMiniappTrainingPhotoURL(photoURL)
+		msg := tgbotapi.NewPhoto(userID, tgbotapi.FileURL(photoURL))
+		if t := strings.TrimSpace(text); t != "" {
+			msg.Caption = t
+		}
+		if _, err := b.api.Send(msg); err != nil {
+			b.logger.Warnf("admin support dm photo user=%d: %v", userID, err)
+		}
+		return
+	}
+	if _, err := b.api.Send(tgbotapi.NewMessage(userID, text)); err != nil {
+		b.logger.Warnf("admin support dm user=%d: %v", userID, err)
+	}
+}
+
+func (b *Bot) notifyAdminsAboutSupportMessage(userID int64, text, photoURL string) {
 	if b == nil || b.api == nil || b.config == nil {
 		return
 	}
@@ -90,6 +139,11 @@ func (b *Bot) notifyAdminsAboutSupportMessage(userID int64, text string) {
 
 	title := fmt.Sprintf("Новый запрос в поддержку от %s", b.supportDisplayName(userID))
 	body := clipAdminSupportText(text, 500)
+	if body == "" && strings.TrimSpace(photoURL) != "" {
+		body = "📷 Фото"
+	} else if strings.TrimSpace(photoURL) != "" {
+		body = body + "\n📷 Фото"
+	}
 	for _, adminID := range adminIDs {
 		msg := tgbotapi.NewMessage(adminID, title+"\n\n"+body+"\n\nНажми «⚙️ Админ-панель» внизу → Поддержка.")
 		msg.ReplyMarkup = tgbotapi.NewInlineKeyboardMarkup(

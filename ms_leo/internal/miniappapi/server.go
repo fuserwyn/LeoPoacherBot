@@ -63,6 +63,8 @@ func (s *Server) serve(w http.ResponseWriter, r *http.Request) {
 		s.handlePostSupportChatFeed(w, r)
 	case path == "/api/miniapp/support/send" && r.Method == http.MethodPost:
 		s.handlePostSupportChatSend(w, r)
+	case path == "/api/miniapp/support/send/photo" && r.Method == http.MethodPost:
+		s.handlePostSupportChatSendPhoto(w, r)
 	case path == "/api/miniapp/feed" && r.Method == http.MethodPost:
 		s.handlePostFeed(w, r)
 	case path == "/api/miniapp/user-avatar" && r.Method == http.MethodGet:
@@ -231,6 +233,8 @@ func (s *Server) serve(w http.ResponseWriter, r *http.Request) {
 		s.handlePostAdminSupportThread(w, r)
 	case path == "/api/miniapp/admin/support/reply" && r.Method == http.MethodPost:
 		s.handlePostAdminSupportReply(w, r)
+	case path == "/api/miniapp/admin/support/reply/photo" && r.Method == http.MethodPost:
+		s.handlePostAdminSupportReplyPhoto(w, r)
 	case path == "/api/miniapp/admin/reports" && r.Method == http.MethodPost:
 		s.handlePostAdminReports(w, r)
 	case path == "/api/miniapp/admin/reports/action" && r.Method == http.MethodPost:
@@ -2199,7 +2203,7 @@ func (s *Server) handlePostSupportChatSend(w http.ResponseWriter, r *http.Reques
 		s.jsonErr(w, http.StatusInternalServerError, "assert_chat_error")
 		return
 	}
-	if err := s.bot.MiniappSupportSendFromUser(parsed.User.ID, text); err != nil {
+	if err := s.bot.MiniappSupportSendFromUser(parsed.User.ID, text, ""); err != nil {
 		s.logger.Errorf("miniapp support send: %v", err)
 		s.jsonErr(w, http.StatusInternalServerError, "send_error")
 		return

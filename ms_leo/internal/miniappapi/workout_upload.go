@@ -599,3 +599,67 @@ func (s *Server) handleGetMiniappMedia(w http.ResponseWriter, r *http.Request) {
 	}
 	http.ServeFile(w, r, full)
 }
+
+// handlePostSupportChatSendPhoto — пользователь отправляет фото (+ опц. подпись) в поддержку.
+func (s *Server) handlePostSupportChatSendPhoto(w http.ResponseWriter, r *http.Request) {
+	corsWriteHeaders(w, r)
+	if s.bot == nil || s.token == "" {
+		s.jsonErr(w, http.StatusServiceUnavailable, "server_unavailable")
+		return
+	}
+	if err := r.ParseMultipartForm(maxWorkoutPhotoBytes + 65536); err != nil {
+		s.jsonErr(w, http.StatusBadRequest, "invalid_multipart")
+		return
+	}
+	initD := strings.TrimSpace(r.FormValue("init_data"))
+	caption := strings.TrimSpace(r.FormValue("text"))
+	if initD == "" {
+		s.jsonErr(w, http.StatusBadRequest, "missing_init_data")
+		return
+	}
+	if utf8.RuneCountInString(caption) > maxTextRunes {
+		s.jsonErr(w, http.StatusBadRequest, "text_too_long")
+		return
+	}
+	if err := s.validateInit(initD); err != nil {
+		s.logger.Warnf("miniapp support photo init_data invalid: %v", err)
+		s.jsonErr(w, http.StatusUnauthorized, "invalid_init_data")
+		return
+	}
+	parsed, err := s.parseInit(initD)
+	if err != nil || parsed.User.ID == 0 {
+		s.jsonErr(w, http.StatusBadRequest, "parse_init_data")
+		return
+	}
+	if err := s.bot.AssertMiniAppPackChatAligns(parsed); err != nil {
+		if errors.Is(err, bot.ErrMiniAppChatMismatch) {
+			s.jsonErr(w, http.StatusConflict, "chat_mismatch")
+			return
+		}
+		s.jsonErr(w, http.StatusInternalServerError, "assert_chat_error")
+		return
+	}
+	fs := r.MultipartForm.File["photo"]
+	if len(fs) == 0 {
+		s.jsonErr(w, http.StatusBadRequest, "missing_photo")
+		return
+	}
+	file, err := fs[0].Open()
+	if err != nil {
+		s.jsonErr(w, http.StatusBadRequest, "photo_open_error")
+		return
+	}
+	defer file.Close()
+
+	publicURL, ok := s.storeUploadedPhoto(w, r, file)
+	if !ok {
+		return
+	}
+	if err := s.bot.MiniappSupportSendFromUser(parsed.User.ID, caption, publicURL); err != nil {
+		s.logger.Errorf("miniapp support photo send: %v", err)
+		s.jsonErr(w, http.StatusInternalServerError, "send_error")
+		return
+	}
+	w.Header().Set("Content-Type", "application/json; charset=utf-8")
+	_ = json.NewEncoder(w).Encode(map[string]any{"ok": true, "photo_url": publicURL})
+}

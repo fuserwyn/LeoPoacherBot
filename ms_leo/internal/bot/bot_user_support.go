@@ -274,7 +274,7 @@ func (b *Bot) handleUserSupportFlowMessage(msg *tgbotapi.Message) bool {
 		return true
 	}
 
-	if err := b.MiniappSupportSendFromUser(msg.From.ID, text); err != nil {
+	if err := b.MiniappSupportSendFromUser(msg.From.ID, text, ""); err != nil {
 		b.logger.Warnf("bot support send user=%d: %v", msg.From.ID, err)
 		_, _ = b.api.Send(tgbotapi.NewMessage(msg.Chat.ID, "❌ Не удалось отправить. Попробуй ещё раз."))
 		return true

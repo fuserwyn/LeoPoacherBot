@@ -1576,6 +1576,17 @@ var Migrations = []Migration{
 			ALTER TABLE miniapp_user_profile DROP COLUMN IF EXISTS theme;
 		`,
 	},
+	{
+		Version:     80,
+		Description: "miniapp_support_chat.photo_url — фото в чате поддержки",
+		UpSQL: `
+			ALTER TABLE miniapp_support_chat
+			ADD COLUMN IF NOT EXISTS photo_url TEXT NOT NULL DEFAULT '';
+		`,
+		DownSQL: `
+			ALTER TABLE miniapp_support_chat DROP COLUMN IF EXISTS photo_url;
+		`,
+	},
 }
 
 // MigrationRecord представляет запись о выполненной миграции
