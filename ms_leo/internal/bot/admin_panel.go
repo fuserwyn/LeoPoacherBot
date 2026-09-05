@@ -300,7 +300,7 @@ func (b *Bot) handleAdminFlowMessage(msg *tgbotapi.Message) bool {
 			b.api.Send(tgbotapi.NewMessage(msg.Chat.ID, "⚠️ Ответ пустой. Отправь текст или /cancel."))
 			return true
 		}
-		if err := b.AdminSupportReply(session.TargetUserID, reply); err != nil {
+		if err := b.AdminSupportReply(session.TargetUserID, reply, ""); err != nil {
 			b.api.Send(tgbotapi.NewMessage(msg.Chat.ID, "❌ Не удалось отправить ответ: "+err.Error()))
 			return true
 		}

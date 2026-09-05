@@ -1,5 +1,8 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState, type ChangeEvent } from "react";
 import { formatChatTime } from "../lib/timeAgo";
+import { resolveTrainingPhotoUrl } from "../lib/packFeed";
+import { CameraButton } from "./CameraButton";
+import { PhotoLightbox } from "./PhotoLightbox";
 import "./ChatScreen.css";
 import "./SupportScreen.css";
 
@@ -17,10 +20,17 @@ type SupportMsg = {
   serverID?: number;
   role: "user" | "support";
   text: string;
+  photoUrl?: string;
   createdAt: string;
 };
 
-type ServerMsg = { id: number; role: "user" | "support"; text: string; created_at: string };
+type ServerMsg = {
+  id: number;
+  role: "user" | "support";
+  text: string;
+  photo_url?: string;
+  created_at: string;
+};
 
 function nowId() {
   return `support-local-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
@@ -36,13 +46,20 @@ function mergeFromServer(prev: SupportMsg[], incoming: ServerMsg[]): SupportMsg[
   const out = prev.slice();
   for (const sm of fresh) {
     if (sm.role === "user") {
-      const idx = out.findIndex((m) => !m.serverID && m.role === "user" && m.text.trim() === sm.text.trim());
+      const idx = out.findIndex(
+        (m) =>
+          !m.serverID &&
+          m.role === "user" &&
+          m.text.trim() === sm.text.trim() &&
+          Boolean(m.photoUrl) === Boolean(sm.photo_url),
+      );
       if (idx >= 0) {
         out[idx] = {
           uiKey: `support-${sm.id}`,
           serverID: sm.id,
           role: "user",
           text: sm.text,
+          photoUrl: resolveTrainingPhotoUrl(sm.photo_url),
           createdAt: sm.created_at,
         };
         continue;
@@ -53,6 +70,7 @@ function mergeFromServer(prev: SupportMsg[], incoming: ServerMsg[]): SupportMsg[
       serverID: sm.id,
       role: sm.role,
       text: sm.text,
+      photoUrl: resolveTrainingPhotoUrl(sm.photo_url),
       createdAt: sm.created_at,
     });
   }
@@ -78,7 +96,6 @@ export function SupportScreen({ initData, inTelegram, showAlert, onClose }: Prop
   const onCloseRef = useRef(onClose);
   onCloseRef.current = onClose;
 
-  // Перед закрытием снимаем фокус: иначе app-keyboard-open зависает после свайпа вниз.
   const closeSheet = useCallback(() => {
     const el = document.activeElement;
     if (el instanceof HTMLElement) el.blur();
@@ -86,6 +103,11 @@ export function SupportScreen({ initData, inTelegram, showAlert, onClose }: Prop
   }, []);
 
   const [text, setText] = useState("");
+  const [photo, setPhoto] = useState<File | null>(null);
+  const [photoPreview, setPhotoPreview] = useState<string | null>(null);
+  const [lightboxUrl, setLightboxUrl] = useState<string | null>(null);
+  const photoInputRef = useRef<HTMLInputElement | null>(null);
+  const optimisticBlobsRef = useRef<string[]>([]);
   const [sending, setSending] = useState(false);
   const sendingRef = useRef(sending);
   sendingRef.current = sending;
@@ -94,6 +116,36 @@ export function SupportScreen({ initData, inTelegram, showAlert, onClose }: Prop
   const logRef = useRef<HTMLDivElement | null>(null);
   const didInitialScrollRef = useRef(false);
   const forceScrollRef = useRef(false);
+
+  const clearPhoto = useCallback(() => {
+    setPhoto(null);
+    setPhotoPreview((prev) => {
+      if (prev) URL.revokeObjectURL(prev);
+      return null;
+    });
+    if (photoInputRef.current) photoInputRef.current.value = "";
+  }, []);
+
+  const onPickPhoto = useCallback(
+    (e: ChangeEvent<HTMLInputElement>) => {
+      const f = e.target.files?.[0];
+      if (!f) return;
+      setPhoto(f);
+      setPhotoPreview((prev) => {
+        if (prev) URL.revokeObjectURL(prev);
+        return URL.createObjectURL(f);
+      });
+    },
+    [],
+  );
+
+  useEffect(() => {
+    return () => {
+      if (photoPreview) URL.revokeObjectURL(photoPreview);
+      for (const u of optimisticBlobsRef.current) URL.revokeObjectURL(u);
+      optimisticBlobsRef.current = [];
+    };
+  }, [photoPreview]);
 
   useEffect(() => {
     const el = logRef.current;
@@ -166,7 +218,8 @@ export function SupportScreen({ initData, inTelegram, showAlert, onClose }: Prop
 
   const send = useCallback(async () => {
     const t = text.trim();
-    if (!t || sending) return;
+    const sentPhoto = photo;
+    if ((!t && !sentPhoto) || sending) return;
     if (!envApi) {
       showAlert("Не настроен API для поддержки.");
       return;
@@ -175,28 +228,52 @@ export function SupportScreen({ initData, inTelegram, showAlert, onClose }: Prop
       showAlert("Открой мини-апп из Telegram (нужен initData).");
       return;
     }
+
+    const localPhotoUrl = sentPhoto ? URL.createObjectURL(sentPhoto) : undefined;
+    if (localPhotoUrl) optimisticBlobsRef.current.push(localPhotoUrl);
+
     forceScrollRef.current = true;
-    setItems((prev) => [...prev, { uiKey: nowId(), role: "user", text: t, createdAt: new Date().toISOString() }]);
+    setItems((prev) => [
+      ...prev,
+      { uiKey: nowId(), role: "user", text: t, photoUrl: localPhotoUrl, createdAt: new Date().toISOString() },
+    ]);
     setSending(true);
     setText("");
+    clearPhoto();
     try {
-      const res = await fetch(`${envApi}/api/miniapp/support/send`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ init_data: initData, text: t }),
-      });
-      const j = (await res.json().catch(() => ({}))) as { error?: string; ok?: boolean };
+      let res: Response;
+      if (sentPhoto) {
+        const fd = new FormData();
+        fd.append("init_data", initData);
+        fd.append("text", t);
+        fd.append("photo", sentPhoto, sentPhoto.name || "photo.jpg");
+        res = await fetch(`${envApi}/api/miniapp/support/send/photo`, { method: "POST", body: fd });
+      } else {
+        res = await fetch(`${envApi}/api/miniapp/support/send`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ init_data: initData, text: t }),
+        });
+      }
+      const j = (await res.json().catch(() => ({}))) as { error?: string; message?: string; ok?: boolean };
       if (!res.ok || !j.ok) {
-        showAlert(j.error ?? `Ошибка ${res.status}`);
+        const errMap: Record<string, string> = {
+          media_not_configured: "Загрузка фото на сервере не настроена.",
+          unsupported_image: "Не удалось прочитать фото. Попробуй JPG, PNG, WEBP или GIF.",
+          photo_too_large: "Фото слишком большое. Максимум 6 МБ.",
+          invalid_multipart: "Не удалось отправить фото. Выбери снимок заново.",
+          missing_photo: "Фото не приложено.",
+          chat_mismatch: "Открой мини-апп из чата стаи",
+        };
+        showAlert(j.message ?? errMap[j.error ?? ""] ?? j.error ?? `Ошибка ${res.status}`);
       }
     } catch (e) {
       showAlert(e instanceof Error ? e.message : "Сеть");
     } finally {
       setSending(false);
     }
-  }, [text, sending, inTelegram, initData, showAlert]);
+  }, [text, photo, sending, inTelegram, initData, showAlert, clearPhoto]);
 
-  // Свайп шторки вниз = закрыть (как у формы тренировки).
   useEffect(() => {
     const sheet = sheetRef.current;
     const log = logRef.current;
@@ -266,6 +343,22 @@ export function SupportScreen({ initData, inTelegram, showAlert, onClose }: Prop
     };
   }, []);
 
+  const renderBubbleContent = (m: SupportMsg) => (
+    <>
+      {m.photoUrl && (
+        <button
+          type="button"
+          className="chat__photo-wrap"
+          aria-label="Открыть фото"
+          onClick={() => setLightboxUrl(m.photoUrl ?? null)}
+        >
+          <img className="chat__photo" src={m.photoUrl} alt="" loading="lazy" referrerPolicy="no-referrer" />
+        </button>
+      )}
+      {m.text ? <span>{m.text}</span> : null}
+    </>
+  );
+
   return (
     <>
       <div
@@ -305,7 +398,7 @@ export function SupportScreen({ initData, inTelegram, showAlert, onClose }: Prop
               m.role === "user" ? (
                 <div key={m.uiKey} className="chat__row chat__row--user">
                   <div className="chat__bubble-wrap chat__bubble-wrap--user">
-                    <div className="chat__bubble chat__bubble--user">{m.text}</div>
+                    <div className="chat__bubble chat__bubble--user">{renderBubbleContent(m)}</div>
                     <div className="chat__time chat__time--user">{formatChatTime(m.createdAt)}</div>
                   </div>
                 </div>
@@ -315,13 +408,22 @@ export function SupportScreen({ initData, inTelegram, showAlert, onClose }: Prop
                     ?
                   </div>
                   <div className="chat__bubble-wrap chat__bubble-wrap--sys">
-                    <div className="chat__bubble chat__bubble--sys">{m.text}</div>
+                    <div className="chat__bubble chat__bubble--sys">{renderBubbleContent(m)}</div>
                     <div className="chat__time chat__time--sys">{formatChatTime(m.createdAt)}</div>
                   </div>
                 </div>
               ),
             )}
           </div>
+          {photoPreview != null && (
+            <div className="chat__photo-pending">
+              <img className="chat__photo-pending-img" src={photoPreview} alt="" />
+              <span className="chat__photo-pending-name">{photo?.name ?? "Фото"}</span>
+              <button type="button" className="chat__photo-pending-remove" aria-label="Убрать фото" onClick={clearPhoto}>
+                ✕
+              </button>
+            </div>
+          )}
           <form
             className="chat__form"
             onSubmit={(e) => {
@@ -330,20 +432,31 @@ export function SupportScreen({ initData, inTelegram, showAlert, onClose }: Prop
             }}
           >
             <input
+              ref={photoInputRef}
+              type="file"
+              accept="image/*"
+              className="chat__photo-input"
+              onChange={onPickPhoto}
+              tabIndex={-1}
+              aria-hidden
+            />
+            <CameraButton className="chat__attach" onChange={onPickPhoto} disabled={sending} />
+            <input
               className="chat__input"
               value={text}
               onChange={(e) => setText(e.target.value)}
-              placeholder="Сообщение в поддержку…"
+              placeholder={photo ? "Подпись к фото (необязательно)…" : "Сообщение в поддержку…"}
               maxLength={4000}
               autoComplete="off"
               enterKeyHint="send"
             />
-            <button type="submit" className="chat__send" disabled={sending || !text.trim()}>
+            <button type="submit" className="chat__send" disabled={sending || (!text.trim() && !photo)}>
               {sending ? "…" : "➤"}
             </button>
           </form>
         </div>
       </div>
+      {lightboxUrl && <PhotoLightbox url={lightboxUrl} onClose={() => setLightboxUrl(null)} />}
     </>
   );
 }

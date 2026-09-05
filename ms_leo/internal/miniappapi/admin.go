@@ -173,12 +173,66 @@ func (s *Server) handlePostAdminSupportReply(w http.ResponseWriter, r *http.Requ
 	if !ok {
 		return
 	}
-	if err := s.bot.MiniappAdminSupportReply(parsed.User.ID, parsed, body.TargetUserID, text); err != nil {
+	if err := s.bot.MiniappAdminSupportReply(parsed.User.ID, parsed, body.TargetUserID, text, ""); err != nil {
 		s.writeAdminErr(w, err)
 		return
 	}
 	w.Header().Set("Content-Type", "application/json; charset=utf-8")
 	_ = json.NewEncoder(w).Encode(map[string]any{"ok": true})
+}
+
+func (s *Server) handlePostAdminSupportReplyPhoto(w http.ResponseWriter, r *http.Request) {
+	corsWriteHeaders(w, r)
+	if s.bot == nil || s.token == "" {
+		s.jsonErr(w, http.StatusServiceUnavailable, "server_unavailable")
+		return
+	}
+	if err := r.ParseMultipartForm(maxWorkoutPhotoBytes + 65536); err != nil {
+		s.jsonErr(w, http.StatusBadRequest, "invalid_multipart")
+		return
+	}
+	initD := strings.TrimSpace(r.FormValue("init_data"))
+	caption := strings.TrimSpace(r.FormValue("text"))
+	targetRaw := strings.TrimSpace(r.FormValue("target_user_id"))
+	if initD == "" {
+		s.jsonErr(w, http.StatusBadRequest, "missing_init_data")
+		return
+	}
+	targetUserID, err := strconv.ParseInt(targetRaw, 10, 64)
+	if err != nil || targetUserID <= 0 {
+		s.jsonErr(w, http.StatusBadRequest, "invalid_target_user_id")
+		return
+	}
+	if utf8.RuneCountInString(caption) > maxTextRunes {
+		s.jsonErr(w, http.StatusBadRequest, "text_too_long")
+		return
+	}
+	parsed, ok := s.authMiniapp(w, initD)
+	if !ok {
+		return
+	}
+	fs := r.MultipartForm.File["photo"]
+	if len(fs) == 0 {
+		s.jsonErr(w, http.StatusBadRequest, "missing_photo")
+		return
+	}
+	file, err := fs[0].Open()
+	if err != nil {
+		s.jsonErr(w, http.StatusBadRequest, "photo_open_error")
+		return
+	}
+	defer file.Close()
+
+	publicURL, ok := s.storeUploadedPhoto(w, r, file)
+	if !ok {
+		return
+	}
+	if err := s.bot.MiniappAdminSupportReply(parsed.User.ID, parsed, targetUserID, caption, publicURL); err != nil {
+		s.writeAdminErr(w, err)
+		return
+	}
+	w.Header().Set("Content-Type", "application/json; charset=utf-8")
+	_ = json.NewEncoder(w).Encode(map[string]any{"ok": true, "photo_url": publicURL})
 }
 
 func (s *Server) handlePostAdminReports(w http.ResponseWriter, r *http.Request) {

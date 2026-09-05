@@ -22,6 +22,20 @@ func (d *Database) InsertMiniappSupportChatMessage(userID, packChatID int64, rol
 	return id, nil
 }
 
+// InsertMiniappSupportChatMessageWithPhoto — сообщение поддержки с фото (text может быть пустым).
+func (d *Database) InsertMiniappSupportChatMessageWithPhoto(userID, packChatID int64, role, text, photoURL string) (int64, error) {
+	const q = `
+		INSERT INTO miniapp_support_chat (user_id, pack_chat_id, role, message_text, photo_url)
+		VALUES ($1, $2, $3, $4, $5)
+		RETURNING id
+	`
+	var id int64
+	if err := d.db.QueryRow(q, userID, packChatID, role, text, photoURL).Scan(&id); err != nil {
+		return 0, fmt.Errorf("insert miniapp support chat with photo: %w", err)
+	}
+	return id, nil
+}
+
 // ListMiniappSupportChat — последние limit сообщений в хронологическом порядке.
 func (d *Database) ListMiniappSupportChat(userID, packChatID int64, limit int, sinceID int64) ([]*domain.MiniappSupportChatMessage, error) {
 	if limit <= 0 {
@@ -33,7 +47,7 @@ func (d *Database) ListMiniappSupportChat(userID, packChatID int64, limit int, s
 
 	if sinceID > 0 {
 		const q = `
-			SELECT id, role, message_text, created_at
+			SELECT id, role, message_text, COALESCE(photo_url, ''), created_at
 			FROM miniapp_support_chat
 			WHERE user_id = $1 AND pack_chat_id = $2 AND id > $3
 			ORDER BY id ASC
@@ -43,7 +57,7 @@ func (d *Database) ListMiniappSupportChat(userID, packChatID int64, limit int, s
 	}
 
 	const q = `
-		SELECT id, role, message_text, created_at
+		SELECT id, role, message_text, COALESCE(photo_url, ''), created_at
 		FROM miniapp_support_chat
 		WHERE user_id = $1 AND pack_chat_id = $2
 		ORDER BY id DESC
@@ -69,7 +83,7 @@ func (d *Database) queryMiniappSupportChat(query string, args ...interface{}) ([
 	for rows.Next() {
 		var m domain.MiniappSupportChatMessage
 		var t time.Time
-		if err := rows.Scan(&m.ID, &m.Role, &m.Text, &t); err != nil {
+		if err := rows.Scan(&m.ID, &m.Role, &m.Text, &m.PhotoURL, &t); err != nil {
 			return nil, err
 		}
 		m.CreatedAt = t.UTC().Format("2006-01-02T15:04:05Z07:00")
@@ -102,7 +116,11 @@ func (d *Database) ListMiniappSupportConversations(packChatID int64, limit int) 
 				c.user_id,
 				COALESCE(NULLIF(BTRIM(p.display_name), ''), NULLIF(BTRIM(ts.username), ''), 'user' || c.user_id::text) AS display_name,
 				c.role,
-				c.message_text,
+				CASE
+					WHEN NULLIF(BTRIM(c.message_text), '') IS NOT NULL THEN c.message_text
+					WHEN NULLIF(BTRIM(c.photo_url), '') IS NOT NULL THEN '📷 Фото'
+					ELSE ''
+				END AS message_text,
 				c.created_at
 			FROM miniapp_support_chat c
 			LEFT JOIN miniapp_user_profile p
