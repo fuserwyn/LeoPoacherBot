@@ -13,3 +13,7 @@
 - заголовок и подпись с именем — через `align-items: center` и `text-align: center`.
 
 Разметка `ChatScreen.tsx` не менялась; шапка поддержки (`support-chat`) осталась слева.
+
+## ревью
+
+Ревью: на ветке tracker/55-537 config.go целый. Можно на тест.
