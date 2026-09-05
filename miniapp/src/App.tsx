@@ -485,7 +485,12 @@ export function App() {
       </div>
 
       {supportOpen ? (
-        <SupportScreen initData={initData} inTelegram={inTelegram} showAlert={showAlert} />
+        <SupportScreen
+          initData={initData}
+          inTelegram={inTelegram}
+          showAlert={showAlert}
+          onClose={() => setSupportOpen(false)}
+        />
       ) : null}
 
       {adminOpen && isAdmin ? (

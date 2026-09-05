@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { formatChatTime } from "../lib/timeAgo";
 import "./ChatScreen.css";
 import "./SupportScreen.css";
@@ -9,6 +9,7 @@ type Props = {
   initData: string;
   inTelegram: boolean;
   showAlert: (m: string) => void;
+  onClose: () => void;
 };
 
 type SupportMsg = {
@@ -72,7 +73,27 @@ function maxServerID(items: SupportMsg[]): number {
   return max;
 }
 
-export function SupportScreen({ initData, inTelegram, showAlert }: Props) {
+export function SupportScreen({ initData, inTelegram, showAlert, onClose }: Props) {
+  const sheetRef = useRef<HTMLDivElement>(null);
+  const onCloseRef = useRef(onClose);
+  onCloseRef.current = onClose;
+  const closingRef = useRef(false);
+
+  const closeSheet = useCallback(() => {
+    if (closingRef.current) return;
+    closingRef.current = true;
+    const el = document.activeElement;
+    if (el instanceof HTMLElement) el.blur();
+    const sheet = sheetRef.current;
+    if (!sheet) {
+      onCloseRef.current();
+      return;
+    }
+    sheet.style.transition = "transform 0.18s ease-in";
+    sheet.style.transform = "translateY(105%)";
+    window.setTimeout(() => onCloseRef.current(), 170);
+  }, []);
+
   const [text, setText] = useState("");
   const [sending, setSending] = useState(false);
   const [items, setItems] = useState<SupportMsg[]>([]);
@@ -80,13 +101,6 @@ export function SupportScreen({ initData, inTelegram, showAlert }: Props) {
   const logRef = useRef<HTMLDivElement | null>(null);
   const didInitialScrollRef = useRef(false);
   const forceScrollRef = useRef(false);
-
-  useLayoutEffect(() => {
-    document.body.classList.add("body--lock");
-    return () => {
-      document.body.classList.remove("body--lock");
-    };
-  }, []);
 
   useEffect(() => {
     const el = logRef.current;
@@ -189,69 +203,165 @@ export function SupportScreen({ initData, inTelegram, showAlert }: Props) {
     }
   }, [text, sending, inTelegram, initData, showAlert]);
 
+  // Свайп шторки вниз = закрыть (как у формы тренировки).
+  useEffect(() => {
+    const sheet = sheetRef.current;
+    if (!sheet) return;
+    let startY = 0;
+    let dy = 0;
+    let tracking = false;
+    let dragging = false;
+
+    const blocked = (target: EventTarget | null) => {
+      const hit = target as HTMLElement | null;
+      if (hit?.closest("textarea, input, select, [contenteditable='true'], .sup__close")) return true;
+      let el: HTMLElement | null = hit;
+      while (el && el !== sheet) {
+        const oy = window.getComputedStyle(el).overflowY;
+        if ((oy === "auto" || oy === "scroll") && el.scrollTop > 1) return true;
+        el = el.parentElement;
+      }
+      return false;
+    };
+
+    const begin = (y: number, target: EventTarget | null) => {
+      if (closingRef.current || blocked(target)) return;
+      startY = y;
+      dy = 0;
+      dragging = false;
+      tracking = true;
+    };
+
+    const move = (y: number, ev?: Event) => {
+      if (!tracking) return;
+      dy = y - startY;
+      if (!dragging) {
+        if (dy > 14) {
+          dragging = true;
+          sheet.style.transition = "none";
+          sheet.style.userSelect = "none";
+        } else {
+          if (dy < -8) tracking = false;
+          return;
+        }
+      }
+      ev?.preventDefault();
+      sheet.style.transform = `translateY(${Math.max(0, dy)}px)`;
+    };
+
+    const finish = () => {
+      if (!tracking) return;
+      tracking = false;
+      if (!dragging) return;
+      dragging = false;
+      sheet.style.userSelect = "";
+      if (dy > 96) {
+        closeSheet();
+      } else {
+        sheet.style.transition = "transform 0.18s ease-out";
+        sheet.style.transform = "";
+      }
+    };
+
+    const onTouchStart = (e: TouchEvent) => {
+      const t = e.touches[0];
+      if (t) begin(t.clientY, e.target);
+    };
+    const onTouchMove = (e: TouchEvent) => {
+      const t = e.touches[0];
+      if (t) move(t.clientY, e);
+    };
+
+    sheet.addEventListener("touchstart", onTouchStart, { passive: true });
+    sheet.addEventListener("touchmove", onTouchMove, { passive: false });
+    sheet.addEventListener("touchend", finish);
+    sheet.addEventListener("touchcancel", finish);
+    return () => {
+      sheet.removeEventListener("touchstart", onTouchStart);
+      sheet.removeEventListener("touchmove", onTouchMove);
+      sheet.removeEventListener("touchend", finish);
+      sheet.removeEventListener("touchcancel", finish);
+    };
+  }, [closeSheet]);
+
   return (
-    <div className="chat support-chat">
-      <header className="chat__head">
-        <div className="support-chat__head-avatar" aria-hidden>
-          ?
-        </div>
-        <div className="chat__head-text">
-          <h1 className="chat__title">Поддержка</h1>
-          <p className="chat__sub">Здесь отвечает человек, не Лео</p>
-        </div>
-      </header>
-      <div className="chat__log" role="log" aria-label="Сообщения поддержки" ref={logRef}>
-        {loaded && items.length === 0 && (
-          <div className="chat__row chat__row--sys">
-            <div className="support-chat__bubble-avatar" aria-hidden>
+    <>
+      <div
+        className="sup-backdrop"
+        aria-hidden="true"
+        onClick={() => {
+          if (!sending) closeSheet();
+        }}
+      />
+      <div ref={sheetRef} className="sup" role="dialog" aria-modal="true" aria-label="Поддержка">
+        <div className="sup__grabber" aria-hidden="true" />
+        <button type="button" className="sup__close" onClick={closeSheet} aria-label="Закрыть">
+          ✕
+        </button>
+        <div className="chat support-chat">
+          <header className="chat__head">
+            <div className="support-chat__head-avatar" aria-hidden>
               ?
             </div>
-            <div className="chat__bubble chat__bubble--sys">
-              Напиши в поддержку, если что-то сломалось, нужна помощь с оплатой или вопрос не для Лео.
+            <div className="chat__head-text">
+              <h1 className="chat__title">Поддержка</h1>
+              <p className="chat__sub">Здесь отвечает человек, не Лео</p>
             </div>
+          </header>
+          <div className="chat__log" role="log" aria-label="Сообщения поддержки" ref={logRef}>
+            {loaded && items.length === 0 && (
+              <div className="chat__row chat__row--sys">
+                <div className="support-chat__bubble-avatar" aria-hidden>
+                  ?
+                </div>
+                <div className="chat__bubble chat__bubble--sys">
+                  Напиши в поддержку, если что-то сломалось, нужна помощь с оплатой или вопрос не для Лео.
+                </div>
+              </div>
+            )}
+            {items.map((m) =>
+              m.role === "user" ? (
+                <div key={m.uiKey} className="chat__row chat__row--user">
+                  <div className="chat__bubble-wrap chat__bubble-wrap--user">
+                    <div className="chat__bubble chat__bubble--user">{m.text}</div>
+                    <div className="chat__time chat__time--user">{formatChatTime(m.createdAt)}</div>
+                  </div>
+                </div>
+              ) : (
+                <div key={m.uiKey} className="chat__row chat__row--sys">
+                  <div className="support-chat__bubble-avatar" aria-hidden>
+                    ?
+                  </div>
+                  <div className="chat__bubble-wrap chat__bubble-wrap--sys">
+                    <div className="chat__bubble chat__bubble--sys">{m.text}</div>
+                    <div className="chat__time chat__time--sys">{formatChatTime(m.createdAt)}</div>
+                  </div>
+                </div>
+              ),
+            )}
           </div>
-        )}
-        {items.map((m) =>
-          m.role === "user" ? (
-            <div key={m.uiKey} className="chat__row chat__row--user">
-              <div className="chat__bubble-wrap chat__bubble-wrap--user">
-                <div className="chat__bubble chat__bubble--user">{m.text}</div>
-                <div className="chat__time chat__time--user">{formatChatTime(m.createdAt)}</div>
-              </div>
-            </div>
-          ) : (
-            <div key={m.uiKey} className="chat__row chat__row--sys">
-              <div className="support-chat__bubble-avatar" aria-hidden>
-                ?
-              </div>
-              <div className="chat__bubble-wrap chat__bubble-wrap--sys">
-                <div className="chat__bubble chat__bubble--sys">{m.text}</div>
-                <div className="chat__time chat__time--sys">{formatChatTime(m.createdAt)}</div>
-              </div>
-            </div>
-          ),
-        )}
+          <form
+            className="chat__form"
+            onSubmit={(e) => {
+              e.preventDefault();
+              void send();
+            }}
+          >
+            <input
+              className="chat__input"
+              value={text}
+              onChange={(e) => setText(e.target.value)}
+              placeholder="Сообщение в поддержку…"
+              maxLength={4000}
+              autoComplete="off"
+              enterKeyHint="send"
+            />
+            <button type="submit" className="chat__send" disabled={sending || !text.trim()}>
+              {sending ? "…" : "➤"}
+            </button>
+          </form>
+        </div>
       </div>
-      <form
-        className="chat__form"
-        onSubmit={(e) => {
-          e.preventDefault();
-          void send();
-        }}
-      >
-        <input
-          className="chat__input"
-          value={text}
-          onChange={(e) => setText(e.target.value)}
-          placeholder="Сообщение в поддержку…"
-          maxLength={4000}
-          autoComplete="off"
-          enterKeyHint="send"
-        />
-        <button type="submit" className="chat__send" disabled={sending || !text.trim()}>
-          {sending ? "…" : "➤"}
-        </button>
-      </form>
-    </div>
+    </>
   );
 }

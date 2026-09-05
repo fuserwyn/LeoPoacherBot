@@ -1,3 +1,113 @@
+/* Модальная шторка поддержки — по формату формы тренировки (.nwo) и админки (.admin). */
+.sup-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 199;
+  background: rgba(0, 0, 0, 0.5);
+  animation: supFade 0.2s ease-out;
+}
+
+.sup {
+  position: fixed;
+  left: 0;
+  right: 0;
+  top: calc(var(--safe-top, 0px) + 44px);
+  bottom: 0;
+  z-index: 200;
+  display: flex;
+  flex-direction: column;
+  max-width: 520px;
+  margin: 0 auto;
+  background: var(--bg);
+  overflow: hidden;
+  border-radius: 20px 20px 0 0;
+  box-shadow: 0 -10px 34px rgba(0, 0, 0, 0.4);
+  animation: supSheetUp 0.2s ease-out;
+}
+
+.sup__grabber {
+  flex: 0 0 auto;
+  width: 40px;
+  height: 4px;
+  margin: 7px auto 1px;
+  border-radius: 2px;
+  background: var(--border-subtle, #2a2a36);
+  touch-action: none;
+}
+
+.sup__close {
+  position: absolute;
+  top: 8px;
+  right: 10px;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--muted, #8b8b9a);
+  font: 600 1rem / 1 var(--font);
+  background: var(--card-inner, var(--card));
+  border: 1px solid var(--border-subtle, #2a2a36);
+  cursor: pointer;
+  z-index: 2;
+}
+
+@keyframes supSheetUp {
+  from {
+    transform: translateY(24px);
+    opacity: 0.4;
+  }
+  to {
+    transform: none;
+    opacity: 1;
+  }
+}
+
+@keyframes supFade {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sup,
+  .sup-backdrop {
+    animation: none;
+  }
+}
+
+/* Чат внутри шторки — flex-колонка, не fixed на весь экран. */
+.sup .chat.support-chat {
+  position: relative;
+  flex: 1 1 auto;
+  min-height: 0;
+  top: auto;
+  bottom: auto;
+  left: 0;
+  right: 0;
+  width: 100%;
+  max-width: none;
+  margin: 0;
+}
+
+.sup .chat.support-chat .chat__head {
+  justify-content: flex-start;
+  padding-right: 48px;
+  touch-action: none;
+}
+
+html.app-keyboard-open .sup {
+  bottom: var(--app-keyboard-bottom, 0px);
+}
+
+html.app-keyboard-open .sup .chat.support-chat {
+  bottom: auto;
+}
+
 .support-chat__head-avatar,
 .support-chat__bubble-avatar {
   display: flex;
