@@ -81,6 +81,34 @@ export function formatStreakBurnRemaining(ms: number): string {
 }
 
 /**
+ * Согласует days_since_last_training с API и локальный пересчёт по lastTrainingDate.
+ * Если дата «сырая» сильно больше значения с бэкенда — больничный заморозил стрик, доверяем API.
+ */
+function resolveStreakIdleDays(
+  daysSinceLastTraining: number,
+  now: Date,
+  lastTrainingDate?: string | null,
+): { days: number; frozen: boolean } {
+  const ltd = lastTrainingDate?.trim();
+  const daysFromDate = ltd ? daysSinceLastTrainingFromDate(ltd, now) : -1;
+
+  if (daysSinceLastTraining >= 0) {
+    const frozen = daysFromDate >= 0 && daysFromDate > daysSinceLastTraining + 1;
+    if (frozen) {
+      return { days: daysSinceLastTraining, frozen: true };
+    }
+    const days =
+      daysFromDate >= 0 ? Math.max(daysFromDate, daysSinceLastTraining) : daysSinceLastTraining;
+    return { days, frozen: false };
+  }
+
+  if (daysFromDate >= 0) {
+    return { days: daysFromDate, frozen: false };
+  }
+  return { days: daysSinceLastTraining, frozen: false };
+}
+
+/**
  * Актуальный стрик для UI: 0 после полночи дня, следующего за последней тренировкой,
  * если в этот «догон» не было отчёта (см. EffectiveStreakDays на бэкенде).
  */
@@ -91,12 +119,11 @@ export function effectiveStreakDays(
   lastTrainingDate?: string | null,
 ): number {
   if (streak <= 0) return 0;
-  const days = lastTrainingDate?.trim()
-    ? daysSinceLastTrainingFromDate(lastTrainingDate, now)
-    : daysSinceLastTraining;
+  const { days, frozen } = resolveStreakIdleDays(daysSinceLastTraining, now, lastTrainingDate);
   if (days < 0) return streak;
   if (days >= 2) return 0;
-  const ms = streakBurnRemainingMs(streak, daysSinceLastTraining, now, lastTrainingDate);
+  if (frozen) return streak;
+  const ms = streakBurnRemainingMs(streak, days, now, lastTrainingDate);
   if (ms == null) return 0;
   return streak;
 }
@@ -108,7 +135,9 @@ export function streakBurnLabel(
   now: Date = new Date(),
   lastTrainingDate?: string | null,
 ): string | null {
-  const ms = streakBurnRemainingMs(streak, daysSinceLastTraining, now, lastTrainingDate);
+  const { days, frozen } = resolveStreakIdleDays(daysSinceLastTraining, now, lastTrainingDate);
+  if (frozen || days >= 2) return null;
+  const ms = streakBurnRemainingMs(streak, days, now, lastTrainingDate);
   if (ms == null) return null;
   return `сгорит через ${formatStreakBurnRemaining(ms)}`;
 }

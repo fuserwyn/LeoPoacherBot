@@ -142,6 +142,13 @@ describe("effectiveStreakDays", () => {
   it("неизвестная дата — показываем сохранённый", () => {
     expect(effectiveStreakDays(10, -1, now)).toBe(10);
   });
+
+  it("больничный: API days_since меньше сырой даты — стрик заморожен", () => {
+    // Тренировка 01-05, сегодня 06-05, больничный со 02-05: API вернёт days_since=1, last_training_date=2026-05-01.
+    const sickNow = new Date(2026, 4, 6, 12, 0, 0);
+    expect(effectiveStreakDays(20, 1, sickNow, "2026-05-01")).toBe(20);
+    expect(streakBurnLabel(20, 1, sickNow, "2026-05-01")).toBeNull();
+  });
 });
 
 describe("streakBurnLabel", () => {
