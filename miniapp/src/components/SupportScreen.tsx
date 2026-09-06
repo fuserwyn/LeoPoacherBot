@@ -1,4 +1,9 @@
 import { useCallback, useEffect, useRef, useState, type ChangeEvent } from "react";
+import {
+  createChatScrollScheduler,
+  isChatLogNearBottom,
+  scrollChatLogToEnd,
+} from "../lib/chatLogScroll";
 import { formatChatTime } from "../lib/timeAgo";
 import { resolveTrainingPhotoUrl } from "../lib/packFeed";
 import { CameraButton } from "./CameraButton";
@@ -116,6 +121,27 @@ export function SupportScreen({ initData, inTelegram, showAlert, onClose }: Prop
   const logRef = useRef<HTMLDivElement | null>(null);
   const didInitialScrollRef = useRef(false);
   const forceScrollRef = useRef(false);
+  const userScrolledUpRef = useRef(false);
+  const userScrollingRef = useRef(false);
+  const scrollGestureTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const isNearLogBottom = useCallback((threshold = 80) => {
+    const el = logRef.current;
+    if (!el) return true;
+    return isChatLogNearBottom(el, threshold);
+  }, []);
+
+  const scrollLogToEnd = useCallback(() => {
+    const el = logRef.current;
+    if (!el) return;
+    scrollChatLogToEnd(el);
+  }, []);
+
+  const scrollLogToEndIfAllowed = useCallback(() => {
+    if (userScrollingRef.current) return;
+    if (userScrolledUpRef.current && !isNearLogBottom(120)) return;
+    scrollLogToEnd();
+  }, [isNearLogBottom, scrollLogToEnd]);
 
   const clearPhoto = useCallback(() => {
     setPhoto(null);
@@ -149,23 +175,88 @@ export function SupportScreen({ initData, inTelegram, showAlert, onClose }: Prop
 
   useEffect(() => {
     const el = logRef.current;
+    if (!el) return;
+    const onScroll = () => {
+      userScrolledUpRef.current = !isNearLogBottom();
+      userScrollingRef.current = true;
+      if (scrollGestureTimerRef.current) clearTimeout(scrollGestureTimerRef.current);
+      scrollGestureTimerRef.current = setTimeout(() => {
+        userScrollingRef.current = false;
+      }, 180);
+    };
+    el.addEventListener("scroll", onScroll, { passive: true });
+    return () => {
+      el.removeEventListener("scroll", onScroll);
+      if (scrollGestureTimerRef.current) clearTimeout(scrollGestureTimerRef.current);
+    };
+  }, [isNearLogBottom]);
+
+  useEffect(() => {
+    const el = logRef.current;
+    if (!el) return;
+    const scheduleScroll = createChatScrollScheduler(() => {
+      if (userScrollingRef.current) return;
+      if (forceScrollRef.current || !userScrolledUpRef.current) {
+        scrollLogToEnd();
+      }
+    });
+    const ro = new ResizeObserver(scheduleScroll);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [scrollLogToEnd]);
+
+  /** Пока клавиатура анимируется — держим низ ленты у поля ввода. */
+  useEffect(() => {
+    const vv = window.visualViewport;
+    const onViewportChange = () => {
+      const input = document.activeElement;
+      if (!(input instanceof HTMLInputElement) || !input.classList.contains("chat__input")) return;
+      if (userScrolledUpRef.current) return;
+      scrollLogToEnd();
+    };
+    vv?.addEventListener("resize", onViewportChange);
+    vv?.addEventListener("scroll", onViewportChange);
+    return () => {
+      vv?.removeEventListener("resize", onViewportChange);
+      vv?.removeEventListener("scroll", onViewportChange);
+    };
+  }, [scrollLogToEnd]);
+
+  /** После закрытия клавиатуры — не оставлять низ под полем ввода. */
+  useEffect(() => {
+    const root = document.documentElement;
+    let wasOpen = root.classList.contains("app-keyboard-open");
+    const mo = new MutationObserver(() => {
+      const open = root.classList.contains("app-keyboard-open");
+      if (wasOpen && !open) {
+        requestAnimationFrame(scrollLogToEndIfAllowed);
+        window.setTimeout(scrollLogToEndIfAllowed, 120);
+      }
+      wasOpen = open;
+    });
+    mo.observe(root, { attributes: true, attributeFilter: ["class"] });
+    return () => mo.disconnect();
+  }, [scrollLogToEndIfAllowed]);
+
+  useEffect(() => {
+    const el = logRef.current;
     if (!el || !loaded) return;
     if (!didInitialScrollRef.current) {
       if (items.length === 0) return;
       didInitialScrollRef.current = true;
-      requestAnimationFrame(() => {
-        if (logRef.current) logRef.current.scrollTop = logRef.current.scrollHeight;
-      });
+      userScrolledUpRef.current = false;
+      requestAnimationFrame(scrollLogToEnd);
       return;
     }
     if (forceScrollRef.current) {
       forceScrollRef.current = false;
-      el.scrollTop = el.scrollHeight;
+      userScrolledUpRef.current = false;
+      scrollLogToEnd();
       return;
     }
-    const nearBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 120;
-    if (nearBottom) el.scrollTop = el.scrollHeight;
-  }, [items, sending, loaded]);
+    if (userScrollingRef.current) return;
+    if (isNearLogBottom(120)) scrollLogToEnd();
+  }, [items, sending, loaded, isNearLogBottom, scrollLogToEnd]);
 
   useEffect(() => {
     if (!envApi || !inTelegram || !initData?.trim()) return;
