@@ -139,18 +139,32 @@ func (b *Bot) notifyAdminsAboutSupportMessage(userID int64, text, photoURL strin
 
 	title := fmt.Sprintf("Новый запрос в поддержку от %s", b.supportDisplayName(userID))
 	body := clipAdminSupportText(text, 500)
-	if body == "" && strings.TrimSpace(photoURL) != "" {
-		body = "📷 Фото"
-	} else if strings.TrimSpace(photoURL) != "" {
-		body = body + "\n📷 Фото"
+	photoURL = strings.TrimSpace(photoURL)
+	if photoURL != "" {
+		photoURL = b.canonicalMiniappTrainingPhotoURL(photoURL)
 	}
+	replyMarkup := tgbotapi.NewInlineKeyboardMarkup(
+		tgbotapi.NewInlineKeyboardRow(
+			tgbotapi.NewInlineKeyboardButtonData("✍️ Ответить", fmt.Sprintf("admin_support_reply_%d", userID)),
+		),
+	)
 	for _, adminID := range adminIDs {
+		if photoURL != "" {
+			msg := tgbotapi.NewPhoto(adminID, tgbotapi.FileURL(photoURL))
+			caption := title
+			if body != "" {
+				caption += "\n\n" + body
+			}
+			caption += "\n\nНажми «⚙️ Админ-панель» внизу → Поддержка."
+			msg.Caption = clipAdminSupportText(caption, 1024)
+			msg.ReplyMarkup = replyMarkup
+			if _, err := b.api.Send(msg); err != nil {
+				b.logger.Warnf("support notify admin=%d user=%d: %v", adminID, userID, err)
+			}
+			continue
+		}
 		msg := tgbotapi.NewMessage(adminID, title+"\n\n"+body+"\n\nНажми «⚙️ Админ-панель» внизу → Поддержка.")
-		msg.ReplyMarkup = tgbotapi.NewInlineKeyboardMarkup(
-			tgbotapi.NewInlineKeyboardRow(
-				tgbotapi.NewInlineKeyboardButtonData("✍️ Ответить", fmt.Sprintf("admin_support_reply_%d", userID)),
-			),
-		)
+		msg.ReplyMarkup = replyMarkup
 		if _, err := b.api.Send(msg); err != nil {
 			b.logger.Warnf("support notify admin=%d user=%d: %v", adminID, userID, err)
 		}

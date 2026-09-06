@@ -984,6 +984,15 @@ export function AdminScreen({ initData, inTelegram, showAlert, onClose }: Props)
               tabIndex={-1}
               aria-hidden
             />
+            <button
+              type="button"
+              className="admin__reply-attach"
+              aria-label="Прикрепить фото из галереи"
+              disabled={busy}
+              onClick={() => replyPhotoInputRef.current?.click()}
+            >
+              📎
+            </button>
             <CameraButton className="admin__reply-attach" onChange={onPickReplyPhoto} disabled={busy} />
             <input
               value={reply}
@@ -991,7 +1000,7 @@ export function AdminScreen({ initData, inTelegram, showAlert, onClose }: Props)
               placeholder={replyPhoto ? "Подпись к фото (необязательно)…" : "Ответ пользователю…"}
               maxLength={4000}
             />
-            <button type="submit" disabled={busy || (!reply.trim() && !replyPhoto)}>
+            <button type="submit" className="admin__reply-send" disabled={busy || (!reply.trim() && !replyPhoto)}>
               ➤
             </button>
           </form>

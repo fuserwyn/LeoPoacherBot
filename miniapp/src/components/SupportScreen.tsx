@@ -440,6 +440,15 @@ export function SupportScreen({ initData, inTelegram, showAlert, onClose }: Prop
               tabIndex={-1}
               aria-hidden
             />
+            <button
+              type="button"
+              className="chat__attach"
+              aria-label="Прикрепить фото из галереи"
+              disabled={sending}
+              onClick={() => photoInputRef.current?.click()}
+            >
+              📎
+            </button>
             <CameraButton className="chat__attach" onChange={onPickPhoto} disabled={sending} />
             <input
               className="chat__input"
