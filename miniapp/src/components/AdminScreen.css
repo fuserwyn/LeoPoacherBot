@@ -321,7 +321,7 @@ html.app-keyboard-open .admin {
 }
 
 .admin__search button,
-.admin__composer button {
+.admin__composer button.admin__reply-send {
   padding: 0 14px;
   border: 0;
   border-radius: 12px;
@@ -427,6 +427,28 @@ html.app-keyboard-open .admin {
 
 .admin__reply-attach {
   flex-shrink: 0;
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  border: 1px solid var(--border-subtle);
+  border-radius: 12px;
+  background: var(--card-inner);
+  color: var(--text);
+  font-size: 1.15rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.admin__reply-attach:active:not(:disabled) {
+  transform: scale(0.96);
+}
+
+.admin__reply-attach:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
 }
 
 .admin__composer {

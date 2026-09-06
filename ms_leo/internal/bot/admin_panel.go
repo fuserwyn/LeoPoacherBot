@@ -522,7 +522,13 @@ func (b *Bot) showAdminSupportThread(chatID, targetUserID int64) {
 			}
 			text.WriteString(adminSupportRoleLabel(item.Role))
 			text.WriteString(": ")
-			text.WriteString(clipAdminSupportText(item.Text, 240))
+			body := clipAdminSupportText(item.Text, 240)
+			if body == "" && strings.TrimSpace(item.PhotoURL) != "" {
+				body = "📷 Фото"
+			} else if strings.TrimSpace(item.PhotoURL) != "" {
+				body = body + " 📷"
+			}
+			text.WriteString(body)
 			text.WriteString("\n\n")
 		}
 	}
