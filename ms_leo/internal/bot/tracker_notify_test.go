@@ -196,6 +196,18 @@ func TestApplyTrackerNotifyDoesNotPullBackFromTest(t *testing.T) {
 	}
 }
 
+func TestApplyTrackerNotifyErrorDoesNotMirrorResult(t *testing.T) {
+	task := database.TrackerTask{Status: "running", DevColumn: trackerColDoing}
+	text := "⚠️ Задача #66: агент не стартовал.\nнет правок в репозитории: агент сдал только заметку"
+	applyTrackerNotify(&task, "error", text)
+	if task.Status != "error" || task.Error != text {
+		t.Fatalf("error: status=%s err=%q", task.Status, task.Error)
+	}
+	if task.Result == text {
+		t.Fatal("error notify must not copy the same text into result")
+	}
+}
+
 func TestApplyTrackerNotifyUnknownTextKeepsDoing(t *testing.T) {
 	task := database.TrackerTask{Status: "running", DevColumn: trackerColDoing}
 	applyTrackerNotify(&task, "", "агент ещё пишет код")

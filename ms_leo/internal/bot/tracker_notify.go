@@ -380,7 +380,7 @@ func applyTrackerNotify(t *database.TrackerTask, kind, text string) {
 		return
 	}
 	text = clipNotifyText(text)
-	if text != "" {
+	if text != "" && kind != "error" {
 		t.Result = text
 	}
 	if br := trackerBranchRe.FindString(text); br != "" {

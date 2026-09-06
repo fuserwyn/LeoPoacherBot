@@ -219,10 +219,58 @@ func TestTrackerNeedsAgentKick(t *testing.T) {
 	if !trackerNeedsAgentKick(staleClaim, now, false) {
 		t.Fatal("stale claim without remote id must retry")
 	}
-	hasRemote := failed
-	hasRemote.Steps = append(hasRemote.Steps, "агент:#88")
-	if trackerNeedsAgentKick(hasRemote, now, true) {
-		t.Fatal("already on remote board must not retry")
+	liveRemote := database.TrackerTask{
+		Status:     "running",
+		DevColumn:  "doing",
+		Steps:      []string{"Агент: запустили", "агент:#88"},
+		HasLastRun: true,
+		LastRunAt:  now.Add(-time.Minute),
+	}
+	if trackerNeedsAgentKick(liveRemote, now, true) {
+		t.Fatal("live remote job must not retry")
+	}
+	failedRemote := database.TrackerTask{
+		Status:     "error",
+		DevColumn:  "doing",
+		Error:      "⚠️ Задача #66: агент не стартовал.\nнет правок в репозитории: агент сдал только заметку",
+		Steps:      []string{"Два аппрува — в работу", "Агент: запустили", "агент:#580", "Ошибка"},
+		HasLastRun: true,
+		LastRunAt:  now.Add(-2 * time.Minute),
+	}
+	if !trackerNeedsAgentKick(failedRemote, now, true) {
+		t.Fatal("failed start with stale remote id must retry")
+	}
+	if !trackerNeedsAgentKick(failedRemote, now, false) {
+		t.Fatal("stale note-only failure must auto-retry")
+	}
+	approved := database.TrackerTask{
+		Status:     "running",
+		DevColumn:  "doing",
+		Steps:      []string{"Два аппрува — в работу"},
+		HasLastRun: true,
+		LastRunAt:  now.Add(-time.Hour),
+	}
+	if !trackerNeedsAgentKick(approved, now, false) {
+		t.Fatal("approved into work without agent must start")
+	}
+	freshApproved := approved
+	freshApproved.LastRunAt = now.Add(-5 * time.Second)
+	if trackerNeedsAgentKick(freshApproved, now, true) {
+		t.Fatal("fresh approval must not double-dispatch")
+	}
+	waiting := approved
+	waiting.Steps = []string{"Два аппрува — в работу", trackerAgentWaitingStep}
+	if !trackerNeedsAgentKick(waiting, now, false) {
+		t.Fatal("queued after approval must start when pipeline is free")
+	}
+	capped := failedRemote
+	capped.Steps = append(capped.Steps, "Снова запускаем агента", "Снова запускаем агента",
+		"Снова запускаем агента", "Снова запускаем агента", "Снова запускаем агента")
+	if trackerNeedsAgentKick(capped, now, false) {
+		t.Fatal("auto-retry must stop after cap")
+	}
+	if !trackerNeedsAgentKick(capped, now, true) {
+		t.Fatal("manual retry must ignore cap")
 	}
 }
 

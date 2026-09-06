@@ -64,39 +64,78 @@ func trackerAgentName(phase string) string {
 }
 
 const trackerAgentKickCooldown = 90 * time.Second
+const trackerAgentClaimWait = 45 * time.Second
+const trackerAgentKickMax = 5
+const trackerAgentWaitingStep = "ждёт очередь"
 
-// trackerNeedsAgentKick — карточка уже в «В работе», но внешний агент
-// не стартовал: нет remote id и либо явная ошибка, либо только шаг claim.
+func trackerLastStep(t database.TrackerTask) string {
+	if n := len(t.Steps); n > 0 {
+		return strings.TrimSpace(t.Steps[n-1])
+	}
+	return ""
+}
+
+func trackerAgentKickCount(t database.TrackerTask) int {
+	n := 0
+	for _, s := range t.Steps {
+		if strings.Contains(strings.ToLower(s), "снова запускаем агента") {
+			n++
+		}
+	}
+	return n
+}
+
+// trackerAgentStartFailed — агент уже отработал и сорвался. Старый агент:#N
+// после этого мёртв: иначе kick видит remote id и больше не стартует.
+func trackerAgentStartFailed(t database.TrackerTask) bool {
+	err := strings.ToLower(t.Error)
+	last := strings.ToLower(trackerLastStep(t))
+	if strings.Contains(err, "агент не стартовал") || last == "агент не стартовал" {
+		return true
+	}
+	if strings.Contains(err, "только заметка") || strings.Contains(err, "нет правок") {
+		return true
+	}
+	status := strings.ToLower(strings.TrimSpace(t.Status))
+	col := strings.ToLower(strings.TrimSpace(t.DevColumn))
+	return status == "error" && (col == trackerColDoing || col == "")
+}
+
+// trackerNeedsAgentKick — карточка в «В работе», а живого агента нет:
+// срыв старта (в том числе «только заметка» при уже записанном агент:#N),
+// два аппрува без запуска, или очередь так и не дошла.
 func trackerNeedsAgentKick(t database.TrackerTask, now time.Time, force bool) bool {
 	status := strings.ToLower(strings.TrimSpace(t.Status))
 	col := strings.ToLower(strings.TrimSpace(t.DevColumn))
-	if status != "running" && col != trackerColDoing {
+	if col != trackerColDoing && status != "running" {
 		return false
 	}
-	if trackerStepRemoteID(t.Steps) > 0 {
+	if col != "" && col != trackerColDoing {
 		return false
 	}
-	err := strings.ToLower(t.Error)
-	last := ""
-	if n := len(t.Steps); n > 0 {
-		last = strings.ToLower(strings.TrimSpace(t.Steps[n-1]))
+	failed := trackerAgentStartFailed(t)
+	if trackerStepRemoteID(t.Steps) > 0 && !failed {
+		return false
 	}
-	failed := strings.Contains(err, "агент не стартовал") || last == "агент не стартовал"
+	if !force && trackerAgentKickCount(t) >= trackerAgentKickMax {
+		return false
+	}
 	if failed {
 		if force {
 			return true
 		}
 		return !t.HasLastRun || now.Sub(t.LastRunAt) >= trackerAgentKickCooldown
 	}
-	// Claim прошёл, а «Агент: запустили» так и не появилось. Свежий claim
-	// не трогаем: его уже отправили в этом же тике.
-	if !strings.Contains(last, "взяли в работу") {
-		return false
-	}
+	// Remote ещё нет: аппрув, «ждёт очередь» или create ещё летит.
+	// Пустую карточку без last_run не трогаем — так выглядит свежий claim
+	// в том же тике, пока шаги ещё не доехали в list.
 	if !t.HasLastRun {
-		return true
+		last := strings.ToLower(trackerLastStep(t))
+		return strings.Contains(last, "в работу") ||
+			last == strings.ToLower(trackerAgentWaitingStep) ||
+			strings.Contains(last, "агент: запустили")
 	}
-	return now.Sub(t.LastRunAt) >= 45*time.Second
+	return now.Sub(t.LastRunAt) >= trackerAgentClaimWait
 }
 
 func trackerStepRemoteID(steps []string) int64 {
@@ -276,6 +315,11 @@ func (b *Bot) dispatchTrackerAgent(t database.TrackerTask, phase string) {
 		return
 	}
 	if b.trackerPipelineBusy(t.ID) {
+		if (phase == "" || phase == "doing") && b.db != nil &&
+			!strings.EqualFold(trackerLastStep(t), trackerAgentWaitingStep) {
+			appendTrackerStep(&t, trackerAgentWaitingStep)
+			_ = b.db.SaveTrackerTask(t)
+		}
 		if b.logger != nil {
 			b.logger.Infof("трекер: #%d (%s) ждёт очередь", trackerDueNum(t), phase)
 		}
@@ -308,6 +352,9 @@ func (b *Bot) runTrackerAgent(taskID int64, phase string) error {
 	model := trackerImplModel(b)
 	if phase == "review" || phase == "test" {
 		model = trackerComposerModel(b)
+	}
+	if phase == "doing" {
+		_ = applyTrackerColumn(&t, trackerColDoing)
 	}
 	t.Error = ""
 	t.HasLastRun = true

@@ -89,7 +89,8 @@ function canRetryAgent(task: TrackerTask): boolean {
   const status = String(task.status || "").toLowerCase();
   const column = String(task.dev_column || "").toLowerCase();
   const err = String(task.error || "");
-  return (status === "running" || column === "doing") && /агент не стартовал/i.test(err);
+  const failed = /агент не стартовал|только заметка|нет правок/i.test(err);
+  return failed && (status === "running" || status === "error" || column === "doing");
 }
 
 /** Завершённую, отменённую, упавшую или зависшую задачу можно снова поставить. */

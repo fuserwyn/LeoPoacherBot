@@ -420,8 +420,11 @@ func (b *Bot) localTrackerReschedule(taskID int64, payload map[string]any) (json
 	}
 	t.WhenAt = at
 	t.WhenLabel = label
-	if trackerNeedsAgentKick(t, time.Now(), true) {
+	// «Запустить снова» / when=сейчас. Перенос на будущее не должен
+	// перехватывать карточку и снова слать агента.
+	if !at.After(time.Now()) && trackerNeedsAgentKick(t, time.Now(), true) {
 		t.Error = ""
+		_ = applyTrackerColumn(&t, trackerColDoing)
 		appendTrackerStep(&t, "Снова запускаем агента")
 		if err := b.db.SaveTrackerTask(t); err != nil {
 			return nil, err
