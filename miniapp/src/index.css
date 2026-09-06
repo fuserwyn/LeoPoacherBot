@@ -738,6 +738,9 @@ html[data-theme="leopard"] .profile__achievement-label {
 html[data-theme="leopard"] .profile__personal,
 html[data-theme="leopard"] .profile__achievements,
 html[data-theme="leopard"] .profile__health-section,
+html[data-theme="leopard"] .profile__notif,
+html[data-theme="leopard"] .profile__theme,
+html[data-theme="leopard"] .profile__donate,
 html[data-theme="leopard"] .profile__friend-row,
 html[data-theme="leopard"] .profile__form,
 html[data-theme="leopard"] .tracker-modal__box,
@@ -860,7 +863,6 @@ html[data-theme="leopard"] .profile__support-btn::after {
   pointer-events: none;
 }
 
-html[data-theme="leopard"] .profile__donate,
 html[data-theme="leopard"] .profile__support:not(.profile__admin) {
   padding: 0;
   background: none;
