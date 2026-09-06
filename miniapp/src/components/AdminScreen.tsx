@@ -1368,7 +1368,7 @@ export function AdminScreen({ initData, inTelegram, showAlert, onClose }: Props)
         ))}
       </nav>
       </div>
-      {lightboxUrl && <PhotoLightbox url={lightboxUrl} onClose={() => setLightboxUrl(null)} />}
+      {lightboxUrl && <PhotoLightbox src={lightboxUrl} onClose={() => setLightboxUrl(null)} />}
     </>
   );
 }
