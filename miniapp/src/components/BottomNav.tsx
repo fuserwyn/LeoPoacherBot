@@ -241,7 +241,7 @@ export function BottomNav({
         aria-current={active === "rules" ? "page" : undefined}
       >
         <span className="bottom-nav__icon" aria-hidden>
-          📜
+          📔
         </span>
         <span className="bottom-nav__label">Правила</span>
       </button>
