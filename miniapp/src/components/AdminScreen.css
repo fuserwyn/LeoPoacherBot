@@ -320,6 +320,13 @@ html.app-keyboard-open .admin {
   font: inherit;
 }
 
+.admin__body input:not([type="checkbox"]):not([type="file"]):not([type="radio"]),
+.admin__body textarea,
+.admin__search input,
+.admin__textarea {
+  scroll-margin-bottom: calc(var(--app-keyboard-bottom, 0px) + 16px);
+}
+
 .admin__search button,
 .admin__composer button.admin__reply-send {
   padding: 0 14px;

@@ -4,6 +4,17 @@ function isFeedThreadInput(el: Element | null): boolean {
   return el instanceof HTMLTextAreaElement && el.classList.contains("act-card__thread-input");
 }
 
+function isNavComposeInput(el: Element | null): boolean {
+  return el instanceof HTMLInputElement && el.classList.contains("bottom-nav__compose-input");
+}
+
+/** Fixed/in-flow компоузеры сами поднимаются через bottom: var(--app-keyboard-bottom). */
+function shouldSkipScrollReveal(el: HTMLElement): boolean {
+  return Boolean(
+    el.closest(".bottom-nav, .chat__form, .admin__composer, .packroom__form, .sup .chat__form"),
+  );
+}
+
 function isTextEntry(el: Element | null): boolean {
   if (!el || !(el instanceof HTMLElement)) return false;
   const tag = el.tagName;
@@ -35,6 +46,7 @@ export function useAppKeyboardInset() {
       if (textFocused && !isTextEntry(document.activeElement)) {
         textFocused = false;
         root.classList.remove("feed-thread-composer-open");
+        root.classList.remove("app-nav-compose-open");
         syncOpenClass();
       }
       const vv = window.visualViewport;
@@ -52,10 +64,15 @@ export function useAppKeyboardInset() {
       const visualH = Math.floor(vv && vv.height > 0 ? vv.height : tgCurrent || layoutH);
       const offsetTop = Math.floor(vv?.offsetTop ?? 0);
 
-      let kb = Math.max(0, layoutH - visualH - offsetTop);
-      if (tgStable > 0 && tgCurrent > 0 && textFocused) {
-        // В TG Mini App visualViewport часто завышает inset → зазор между полем и клавиатурой.
-        kb = Math.max(0, tgStable - tgCurrent);
+      const kbVV = Math.max(0, layoutH - visualH - offsetTop);
+      const kbTG = tgStable > 0 && tgCurrent > 0 ? Math.max(0, tgStable - tgCurrent) : 0;
+      let kb = kbVV;
+      if (textFocused) {
+        // TG точнее после анимации; до обновления viewportHeight visualViewport
+        // уже видит клавиатуру — иначе inset=0 и поле уходит под клавиатуру.
+        // В стабильном состоянии TG часто завышает vv → зазор; берём tg, если он уже > 0.
+        if (kbTG >= 48) kb = kbTG;
+        else kb = Math.max(kbVV, kbTG);
       }
 
       const px = `${kb}px`;
@@ -77,16 +94,22 @@ export function useAppKeyboardInset() {
       if (isFeedThreadInput(e.target as Element)) {
         root.classList.add("feed-thread-composer-open");
       }
+      if (isNavComposeInput(e.target as Element)) {
+        root.classList.add("app-nav-compose-open");
+      }
       textFocused = true;
       syncOpenClass();
       readKeyboard();
       window.setTimeout(readKeyboard, 0);
       window.setTimeout(readKeyboard, 100);
       window.setTimeout(readKeyboard, 280);
+      window.setTimeout(readKeyboard, 480);
       const target = e.target;
       const reveal = () => {
         if (!(target instanceof HTMLElement) || document.activeElement !== target) return;
-        target.scrollIntoView({ block: "center", inline: "nearest", behavior: "smooth" });
+        if (shouldSkipScrollReveal(target)) return;
+        const block: ScrollLogicalPosition = isFeedThreadInput(target) ? "end" : "nearest";
+        target.scrollIntoView({ block, inline: "nearest", behavior: "smooth" });
       };
       window.setTimeout(reveal, 120);
       window.setTimeout(reveal, 320);
@@ -97,6 +120,7 @@ export function useAppKeyboardInset() {
         const active = document.activeElement;
         if (isTextEntry(active)) return;
         root.classList.remove("feed-thread-composer-open");
+        root.classList.remove("app-nav-compose-open");
         textFocused = false;
         syncOpenClass();
       }, 80);
@@ -127,6 +151,7 @@ export function useAppKeyboardInset() {
       tgOff?.offEvent?.("viewportChanged", scheduleRead);
       root.classList.remove("app-keyboard-open");
       root.classList.remove("feed-thread-composer-open");
+      root.classList.remove("app-nav-compose-open");
       root.style.removeProperty("--app-keyboard-bottom");
       root.style.removeProperty("--feed-keyboard-bottom");
     };

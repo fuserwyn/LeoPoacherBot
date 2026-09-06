@@ -161,6 +161,7 @@ html.app-keyboard-open .tracker {
   color: var(--text);
   font: inherit;
   font-size: 14px;
+  scroll-margin-bottom: calc(var(--app-keyboard-bottom, 0px) + 16px);
 }
 
 .tracker__new-row {
@@ -760,6 +761,7 @@ html.app-keyboard-open .tracker {
   background: var(--card-inner);
   color: var(--text);
   font: inherit;
+  scroll-margin-bottom: calc(var(--app-keyboard-bottom, 0px) + 16px);
 }
 
 /* Перенос запуска внутри карточки задачи. */
@@ -937,6 +939,7 @@ html.app-keyboard-open .tracker {
   background: var(--card-inner);
   color: var(--text);
   font: inherit;
+  scroll-margin-bottom: calc(var(--app-keyboard-bottom, 0px) + 16px);
 }
 
 .tracker__leo-reply {
