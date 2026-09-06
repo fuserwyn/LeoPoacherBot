@@ -278,7 +278,7 @@ func ruCupsWord(n int) string {
 }
 
 // handleLeopardMoneyTrainingDone — отчёт #training_done по модели Leopard Money (кубки по формуле, ачивки, таймер 8 дней).
-// personalReplyCh, если задан, получает тот же текст, что и личка с итогом (для Mini App).
+// personalReplyCh, если задан, получает сводку для Mini App; иначе отбивка уходит в общий чат стаи.
 // trainingUserMessageID — id строки user_messages с этим отчётом; для ленты мини-аппа подтягиваем ответ Лео в тред (только отчёт из чата стаи).
 func (b *Bot) handleLeopardMoneyTrainingDone(msg *tgbotapi.Message, personalReplyCh chan<- string, trainingUserMessageID int64) {
 	username := ""
@@ -478,18 +478,35 @@ func (b *Bot) handleLeopardMoneyTrainingDone(msg *tgbotapi.Message, personalRepl
 	)
 	inactiveBlock := "⏰ Неактивность: 8 дней без отчёта — удаление в 00:00 вашего часового пояса; предупреждения на 5-й, 6-й и 7-й день."
 	messageTextMiniapp := statsBlock
-	messageTextPrivate := statsBlock + "\n\n" + inactiveBlock
+	messageTextSummary := statsBlock + "\n\n" + inactiveBlock
 
 	if personalReplyCh != nil {
-		// Mini-app: без блока про неактивность (он только в личке); коммент Лео в ленте — позже, асинхронно.
+		// Mini-app: сводка в мини-аппе; коммент Лео в ленте — позже, асинхронно.
 		select {
 		case personalReplyCh <- messageTextMiniapp:
 		default:
 		}
 	} else {
-		privateReply := tgbotapi.NewMessage(msg.From.ID, messageTextPrivate)
-		if _, err := b.api.Send(privateReply); err != nil {
-			b.logger.Warnf("send training private summary: %v", err)
+		// Отбивка (#training_done из Telegram) — в общий чат стаи, не в личку.
+		summaryChatID := packChatID
+		if msg.Chat != nil && !msg.Chat.IsPrivate() && msg.Chat.ID != msg.From.ID {
+			summaryChatID = msg.Chat.ID
+		}
+		if summaryChatID == 0 && msg.Chat != nil {
+			summaryChatID = msg.Chat.ID
+		}
+		if summaryChatID != 0 {
+			summaryText := strings.TrimSpace(tagPrefix + messageTextSummary)
+			summary := tgbotapi.NewMessage(summaryChatID, summaryText)
+			if strings.Contains(tagPrefix, "tg://user?id=") {
+				summary.ParseMode = "Markdown"
+			}
+			if msg.Chat != nil && msg.Chat.ID == summaryChatID && msg.MessageID != 0 {
+				summary.ReplyToMessageID = msg.MessageID
+			}
+			if _, err := b.api.Send(summary); err != nil {
+				b.logger.Warnf("send training group summary: %v", err)
+			}
 		}
 	}
 
