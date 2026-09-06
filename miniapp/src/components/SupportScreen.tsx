@@ -456,7 +456,7 @@ export function SupportScreen({ initData, inTelegram, showAlert, onClose }: Prop
           </form>
         </div>
       </div>
-      {lightboxUrl && <PhotoLightbox url={lightboxUrl} onClose={() => setLightboxUrl(null)} />}
+      {lightboxUrl && <PhotoLightbox src={lightboxUrl} onClose={() => setLightboxUrl(null)} />}
     </>
   );
 }
