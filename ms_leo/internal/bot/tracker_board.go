@@ -177,6 +177,10 @@ func trackerTaskView(t database.TrackerTask, withAtts bool) map[string]any {
 	if n := len(t.Steps); n > 0 {
 		live = t.Steps[n-1]
 	}
+	doneSummary := ""
+	if done {
+		doneSummary = trackerDoneBrief(t)
+	}
 	out := map[string]any{
 		"id":                t.ID,
 		"num":               t.Num,
@@ -216,8 +220,9 @@ func trackerTaskView(t database.TrackerTask, withAtts bool) map[string]any {
 			(t.Status == "holding" && (t.DevColumn == trackerColTest && !t.ManualQa || t.DevColumn == trackerColDeploy)),
 		"model_key":  "",
 		"live_step":  live,
-		"result":     t.Result,
-		"created_at": t.CreatedAt.Format(time.RFC3339),
+		"result":       t.Result,
+		"done_summary": doneSummary,
+		"created_at":   t.CreatedAt.Format(time.RFC3339),
 		"commit":     trackerTaskCommit(t),
 		"branch":     trackerTaskBranch(t),
 	}

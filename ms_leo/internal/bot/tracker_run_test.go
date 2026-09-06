@@ -99,3 +99,52 @@ func TestTrackerFullyDoneNoteIncludesTitle(t *testing.T) {
 		t.Fatalf("note: %q", note)
 	}
 }
+
+func TestTrackerDoneBriefIncludesPipeline(t *testing.T) {
+	task := database.TrackerTask{
+		Num:    67,
+		Prompt: "Короткий отчёт в выполненной задаче",
+		Steps: []string{
+			"сделано: поправил уведомление о выкате",
+			"коммит abc1234 выполнение",
+			"коммит def5678 ревью",
+			"ревью: пройдено (коммит def5678)",
+			"коммит fedcba9 тест",
+			"тест: пройден (коммит fedcba9)",
+			"пуш в main",
+			"стенд собрался",
+		},
+	}
+	brief := trackerDoneBrief(task)
+	for _, want := range []string{
+		"1. Выполнение: поправил уведомление о выкате",
+		"2. Ревью: пройдено (коммит def5678)",
+		"3. Тест: пройден (коммит fedcba9)",
+		"4. Сборка: Выехала на прод (ветка main)",
+		"5. Уведомление админам отправлено.",
+	} {
+		if !strings.Contains(brief, want) {
+			t.Fatalf("brief missing %q: %q", want, brief)
+		}
+	}
+	note := trackerFullyDoneNote(task)
+	if !TrackerNotifyIsFullyShipped(note) {
+		t.Fatalf("done note must still look shipped: %q", note)
+	}
+}
+
+func TestTrackerExtractAgentNote(t *testing.T) {
+	text := "Задача #4: правка: коммит выполнения abc1234 на ветке tracker/4-1.\n\nИсправил кнопку.\n\nСледующий шаг — review."
+	if got := trackerExtractAgentNote(text); got != "Исправил кнопку." {
+		t.Fatalf("agent note: %q", got)
+	}
+}
+
+func TestTrackerRecordPhaseSummaryDoing(t *testing.T) {
+	task := database.TrackerTask{DevColumn: trackerColDoing}
+	text := "Задача #67: отчёт: коммит выполнения abc1234 на ветке tracker/67-584.\n\nДобавил краткий отчёт.\n\nСледующий шаг — review."
+	trackerRecordPhaseSummary(&task, trackerColDoing, text)
+	if got := trackerStepPrefixedSummary(task.Steps, "сделано:"); got != "Добавил краткий отчёт." {
+		t.Fatalf("stored doing summary: %q", got)
+	}
+}

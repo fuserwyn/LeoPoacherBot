@@ -119,7 +119,213 @@ func TrackerNotifyIsFullyShipped(text string) bool {
 }
 
 func trackerFullyDoneNote(t database.TrackerTask) string {
-	return fmt.Sprintf("✅ %s выполнена.\nВыехала на прод (ветка main).", trackerNotifyHeading(t))
+	return fmt.Sprintf(
+		"✅ %s выполнена.\n%s\n\n%s",
+		trackerNotifyHeading(t),
+		trackerDeploySummary(t),
+		trackerDoneBrief(t),
+	)
+}
+
+const trackerDoneSummaryMax = 400
+
+func clipDoneSummary(s string) string {
+	s = strings.TrimSpace(s)
+	if s == "" {
+		return ""
+	}
+	for _, part := range strings.Split(s, "\n\n") {
+		part = strings.TrimSpace(part)
+		if part == "" {
+			continue
+		}
+		low := strings.ToLower(part)
+		if strings.HasPrefix(low, "локальный коммит") || strings.HasPrefix(low, "следующий шаг") {
+			continue
+		}
+		s = part
+		break
+	}
+	r := []rune(s)
+	if len(r) <= trackerDoneSummaryMax {
+		return string(r)
+	}
+	return string(r[:trackerDoneSummaryMax]) + "…"
+}
+
+func trackerStepPrefixedSummary(steps []string, prefix string) string {
+	prefix = strings.ToLower(strings.TrimSpace(prefix))
+	for i := len(steps) - 1; i >= 0; i-- {
+		s := strings.TrimSpace(steps[i])
+		if strings.HasPrefix(strings.ToLower(s), prefix) {
+			return strings.TrimSpace(s[len(prefix):])
+		}
+	}
+	return ""
+}
+
+func trackerPhaseCommit(steps []string, label string) string {
+	label = strings.ToLower(strings.TrimSpace(label))
+	for i := len(steps) - 1; i >= 0; i-- {
+		low := strings.ToLower(strings.TrimSpace(steps[i]))
+		if strings.Contains(low, "коммит ") && strings.HasSuffix(low, " "+label) {
+			if m := trackerCommitRe.FindStringSubmatch(steps[i]); len(m) > 1 {
+				return m[1]
+			}
+		}
+	}
+	return ""
+}
+
+func trackerExtractAgentNote(text string) string {
+	text = strings.TrimSpace(text)
+	if text == "" {
+		return ""
+	}
+	var body []string
+	pastHeader := false
+	for _, line := range strings.Split(text, "\n") {
+		line = strings.TrimSpace(line)
+		if line == "" {
+			if pastHeader && len(body) > 0 {
+				body = append(body, "")
+			}
+			continue
+		}
+		low := strings.ToLower(line)
+		if !pastHeader {
+			if strings.HasPrefix(low, "задача #") ||
+				strings.Contains(low, "коммит выполнения") ||
+				strings.Contains(low, "⏰ задача #") {
+				pastHeader = strings.Contains(low, "коммит выполнения") ||
+					strings.Contains(low, "выполнена")
+				continue
+			}
+		}
+		if strings.Contains(low, "следующий шаг") ||
+			strings.Contains(text, "TRACKER_NO_CODE") ||
+			strings.Contains(low, "можно на тест") ||
+			strings.Contains(low, "тест пройден") {
+			break
+		}
+		pastHeader = true
+		body = append(body, line)
+	}
+	return strings.TrimSpace(strings.Join(body, "\n"))
+}
+
+func trackerPhasePassed(t database.TrackerTask, label string) bool {
+	if trackerPhaseCommit(t.Steps, label) != "" {
+		return true
+	}
+	low := strings.ToLower(t.Result)
+	switch label {
+	case "ревью":
+		if strings.Contains(low, "можно на тест") ||
+			strings.Contains(low, "composer: ревью") ||
+			strings.Contains(low, "ревью: пройден") {
+			return true
+		}
+	case "тест":
+		if strings.Contains(low, "тест пройден") ||
+			strings.Contains(low, "composer: тест") ||
+			strings.Contains(low, "тест: пройден") {
+			return true
+		}
+	}
+	for _, step := range t.Steps {
+		lowStep := strings.ToLower(step)
+		switch label {
+		case "ревью":
+			if strings.Contains(lowStep, "composer: ревью принято") ||
+				strings.HasPrefix(lowStep, "ревью:") {
+				return true
+			}
+		case "тест":
+			if strings.Contains(lowStep, "composer: тест принято") ||
+				strings.HasPrefix(lowStep, "тест:") ||
+				strings.Contains(lowStep, "qa принял") {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+func trackerPhaseBriefLine(t database.TrackerTask, label, fallback string) string {
+	prefix := label + ":"
+	if note := trackerStepPrefixedSummary(t.Steps, prefix); note != "" {
+		return note
+	}
+	if sha := trackerPhaseCommit(t.Steps, label); sha != "" {
+		return fallback + " (коммит " + sha + ")"
+	}
+	return fallback
+}
+
+func trackerDeploySummary(t database.TrackerTask) string {
+	for _, step := range t.Steps {
+		low := strings.ToLower(strings.TrimSpace(step))
+		if strings.Contains(low, "стенд собрался") {
+			return "Выехала на прод (ветка main)."
+		}
+		if strings.HasPrefix(low, "пуш в ") {
+			return "Выехала на прод (ветка main)."
+		}
+	}
+	return "Выехала на прод (ветка main)."
+}
+
+func trackerDoneBrief(t database.TrackerTask) string {
+	lines := make([]string, 0, 5)
+
+	done := trackerStepPrefixedSummary(t.Steps, "сделано:")
+	if done == "" {
+		done = trackerExtractAgentNote(t.Result)
+	}
+	if done == "" {
+		done = trackerTaskTitle(t.Prompt)
+	}
+	lines = append(lines, "1. Выполнение: "+clipDoneSummary(done))
+
+	if !t.FastTrack && trackerPhasePassed(t, "ревью") {
+		lines = append(lines, "2. Ревью: "+trackerPhaseBriefLine(t, "ревью", "пройдено"))
+	}
+
+	if trackerPhasePassed(t, "тест") {
+		lines = append(lines, fmt.Sprintf("%d. Тест: %s", len(lines)+1, trackerPhaseBriefLine(t, "тест", "пройден")))
+	} else if t.ManualQa {
+		for _, step := range t.Steps {
+			if strings.EqualFold(strings.TrimSpace(step), "QA принял") {
+				lines = append(lines, fmt.Sprintf("%d. Тест: ручное QA пройдено", len(lines)+1))
+				break
+			}
+		}
+	}
+
+	lines = append(lines, fmt.Sprintf("%d. Сборка: %s", len(lines)+1, strings.TrimSuffix(trackerDeploySummary(t), ".")))
+	lines = append(lines, fmt.Sprintf("%d. Уведомление админам отправлено.", len(lines)+1))
+	return strings.Join(lines, "\n")
+}
+
+func trackerRecordPhaseSummary(t *database.TrackerTask, fromCol, text string) {
+	if t == nil {
+		return
+	}
+	switch fromCol {
+	case trackerColDoing:
+		if summary := trackerExtractAgentNote(text); summary != "" {
+			appendTrackerStep(t, "сделано: "+clipDoneSummary(summary))
+		}
+	case trackerColReview:
+		if trackerComposerPassed(trackerColReview, text) {
+			appendTrackerStep(t, "ревью: "+trackerPhaseBriefLine(*t, "ревью", "пройдено"))
+		}
+	case trackerColTest:
+		if trackerComposerPassed(trackerColTest, text) {
+			appendTrackerStep(t, "тест: "+trackerPhaseBriefLine(*t, "тест", "пройден"))
+		}
+	}
 }
 
 const trackerShipNotifiedStep = "уведомили о выкате"
@@ -405,8 +611,10 @@ func applyTrackerNotify(t *database.TrackerTask, kind, text string) {
 		_ = applyTrackerColumn(t, trackerColCanceled)
 		appendTrackerStep(t, "Отменена по уведомлению")
 	case "done":
+		fromCol := strings.ToLower(strings.TrimSpace(t.DevColumn))
+		trackerRecordPhaseSummary(t, fromCol, text)
 		col := trackerNotifyDoneColumn(*t)
-		if col != strings.ToLower(strings.TrimSpace(t.DevColumn)) {
+		if col != fromCol {
 			_ = applyTrackerColumn(t, col)
 		}
 		t.Error = ""
