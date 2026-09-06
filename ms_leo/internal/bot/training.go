@@ -84,7 +84,15 @@ func EffectiveStreakDays(storedStreak, daysSinceLastTraining int) int {
 // повтор в тот же день — без начислений (EarnRewards=false).
 func (b *Bot) calculateTrainingDayOutcome(messageLog *domain.MessageLog) TrainingOutcome {
 	localNow := b.getUserLocalNow(messageLog.TimezoneOffsetFromMoscow)
-	newStreak, sameDay := ComputeStreakDays(messageLog.LastTrainingDate, messageLog.StreakDays, localNow)
+	today := localNow.Format("2006-01-02")
+	lastDate := messageLog.LastTrainingDate
+	if messageLog.LastTrainingDate != nil {
+		if ss, se, ok := b.sickWindowLocalDates(messageLog, today); ok {
+			adj := sickAdjustedLastTrainingDate(*messageLog.LastTrainingDate, today, ss, se)
+			lastDate = &adj
+		}
+	}
+	newStreak, sameDay := ComputeStreakDays(lastDate, messageLog.StreakDays, localNow)
 	if sameDay {
 		return TrainingOutcome{EarnRewards: false, NewStreakDays: newStreak}
 	}
