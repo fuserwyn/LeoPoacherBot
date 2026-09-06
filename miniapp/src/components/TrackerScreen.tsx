@@ -1230,6 +1230,9 @@ export function TrackerScreen({ initData, showAlert }: Props) {
             {detail.steps && detail.steps.length > 0 ? (
               <pre className="tracker-modal__log">{detail.steps.slice(-40).join("\n")}</pre>
             ) : null}
+            {detail.done_summary ? (
+              <pre className="tracker-modal__log tracker-modal__log--summary">{detail.done_summary}</pre>
+            ) : null}
             {detail.result ? <pre className="tracker-modal__log">{detail.result}</pre> : null}
             {detail.error ? <pre className="tracker-modal__log tracker-modal__log--err">{detail.error}</pre> : null}
             {canShipTask(detail) ? (
@@ -1496,7 +1499,7 @@ function TaskCard({
     task.steps_running ||
     task.dev_column === "test" ||
     task.dev_column === "deploy";
-  const resultPreview = clipCardText(task.result || "");
+  const resultPreview = clipCardText(task.done_summary || task.result || "");
   const meta = metaParts(task, isQa);
   return (
     <div

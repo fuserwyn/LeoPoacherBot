@@ -58,6 +58,8 @@ export type TrackerTask = {
   steps_running?: boolean;
   live_step?: string;
   result?: string;
+  /** Краткий отчёт по завершённой задаче (выполнение, ревью, тест, сборка). */
+  done_summary?: string;
   created_at?: string;
   last_run_at?: string;
   model_key?: string;
