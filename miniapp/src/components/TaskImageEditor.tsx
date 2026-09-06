@@ -15,7 +15,29 @@ type Props = {
   onCancel: () => void;
   /** Картинка, с которой сразу открыться: вставка из буфера на компьютере. */
   initialFile?: File | Blob | null;
+  /** Разрешить выбрать несколько файлов сразу (без редактора — все приложатся как есть). */
+  allowMultiple?: boolean;
+  onDoneMany?: (images: TaskImage[]) => void;
 };
+
+function fileToTaskImage(file: File | Blob): Promise<TaskImage> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      const preview = String(reader.result);
+      const mime = file.type || "image/jpeg";
+      const name = file instanceof File && file.name ? file.name : `task-${Date.now()}.jpg`;
+      resolve({
+        data: preview.split(",", 2)[1] ?? "",
+        filename: name,
+        mime,
+        preview,
+      });
+    };
+    reader.onerror = () => reject(reader.error);
+    reader.readAsDataURL(file);
+  });
+}
 
 const COLORS = ["#ff3b30", "#ffcc00", "#34c759", "#0a84ff", "#ffffff", "#000000"];
 const SIZE = 720; // сторона холста-результата
@@ -28,7 +50,7 @@ type Stroke = { color: string; width: number; points: { x: number; y: number }[]
  * готовое изображение. Кроп и рисование делаются в браузере: на сервер уходит
  * уже готовый кадр, чтобы трекер не хранил лишнего.
  */
-export function TaskImageEditor({ onDone, onCancel, initialFile }: Props) {
+export function TaskImageEditor({ onDone, onCancel, initialFile, allowMultiple, onDoneMany }: Props) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const imgRef = useRef<HTMLImageElement | null>(null);
   const strokesRef = useRef<Stroke[]>([]);
@@ -200,12 +222,25 @@ export function TaskImageEditor({ onDone, onCancel, initialFile }: Props) {
             <input
               type="file"
               accept="image/*"
+              multiple={allowMultiple}
               onChange={(e) => {
-                const f = e.target.files?.[0];
-                if (f) pickFile(f);
+                const files = Array.from(e.target.files ?? []);
+                e.target.value = "";
+                if (!files.length) return;
+                if (allowMultiple && files.length > 1 && onDoneMany) {
+                  void Promise.all(files.map((f) => fileToTaskImage(f)))
+                    .then(onDoneMany)
+                    .catch(() => {});
+                  return;
+                }
+                pickFile(files[0]);
               }}
             />
-            <span>📷 Выбрать фото или скриншот</span>
+            <span>
+              {allowMultiple
+                ? "📷 Выбрать фото или скриншот (можно несколько)"
+                : "📷 Выбрать фото или скриншот"}
+            </span>
           </label>
         ) : null}
 

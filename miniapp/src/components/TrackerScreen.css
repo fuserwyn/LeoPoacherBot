@@ -830,11 +830,17 @@ html.app-keyboard-open .tracker {
   cursor: pointer;
 }
 
+.tracker__previews {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 8px;
+}
+
 .tracker__preview {
   position: relative;
   width: 84px;
   height: 84px;
-  margin-top: 8px;
   border-radius: 10px;
   overflow: hidden;
   border: 1px solid var(--border-subtle);

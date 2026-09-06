@@ -209,7 +209,7 @@ export function TrackerScreen({ initData, showAlert }: Props) {
   const [when, setWhen] = useState(WHEN_PRESETS[0].value);
   const [whenAt, setWhenAt] = useState("");
   const [needsApproval, setNeedsApproval] = useState(false);
-  const [image, setImage] = useState<TaskImage | null>(null);
+  const [images, setImages] = useState<TaskImage[]>([]);
   /** Тема для Лео; пусто — придумывает сам. */
   const [leoTopic, setLeoTopic] = useState("");
   /** Автономный режим: Лео сам придумывает спринты, пока админ не выключит. */
@@ -346,16 +346,18 @@ export function TrackerScreen({ initData, showAlert }: Props) {
         // Задачу сочинил Лео — пусть на доске и стоит он, а не тот, кто одобрил.
         leo: opts?.leo,
       });
-      if (image && res.id) {
+      if (images.length > 0 && res.id) {
         // Картинку трекер принимает только к существующей задаче, поэтому
         // прикладываем сразу после создания.
-        await trackerAttachImage(initData, res.id, {
-          data: image.data,
-          filename: image.filename,
-          mime: image.mime,
-        });
+        for (const img of images) {
+          await trackerAttachImage(initData, res.id, {
+            data: img.data,
+            filename: img.filename,
+            mime: img.mime,
+          });
+        }
       }
-      setImage(null);
+      setImages([]);
       setPrompt("");
       setNeedsApproval(false);
       showAlert(
@@ -958,12 +960,20 @@ export function TrackerScreen({ initData, showAlert }: Props) {
                 onChange={(e) => setPrompt(e.target.value)}
                 placeholder="Что сделать? Например: в админке выгрузка отчёта по тренировкам за неделю"
               />
-              {image ? (
-                <div className="tracker__preview">
-                  <img src={image.preview} alt="" />
-                  <button type="button" onClick={() => setImage(null)} aria-label="Убрать картинку">
-                    ✕
-                  </button>
+              {images.length > 0 ? (
+                <div className="tracker__previews">
+                  {images.map((img, i) => (
+                    <div key={`${img.filename}-${i}`} className="tracker__preview">
+                      <img src={img.preview} alt="" />
+                      <button
+                        type="button"
+                        onClick={() => setImages((prev) => prev.filter((_, j) => j !== i))}
+                        aria-label="Убрать картинку"
+                      >
+                        ✕
+                      </button>
+                    </div>
+                  ))}
                 </div>
               ) : null}
               <label className="tracker-feat">
@@ -994,7 +1004,7 @@ export function TrackerScreen({ initData, showAlert }: Props) {
                   />
                 ) : null}
                 <button type="button" className="tracker__attach" onClick={() => setEditorFor("new")}>
-                  {image ? "🖼 Заменить" : "🖼 Картинка"}
+                  {images.length > 0 ? "🖼 Ещё фото" : "🖼 Картинка"}
                 </button>
                 <button type="button" className="tracker__primary" disabled={busy} onClick={() => void createTask()}>
                   Поставить задачу
@@ -1432,6 +1442,14 @@ export function TrackerScreen({ initData, showAlert }: Props) {
       {editorFor !== null ? (
         <TaskImageEditor
           initialFile={pasted}
+          allowMultiple={editorFor === "new"}
+          onDoneMany={(batch) => {
+            if (editorFor !== "new") return;
+            setEditorFor(null);
+            setPasted(null);
+            setReplacing(null);
+            setImages((prev) => [...prev, ...batch]);
+          }}
           onCancel={() => {
             setEditorFor(null);
             setPasted(null);
@@ -1444,7 +1462,7 @@ export function TrackerScreen({ initData, showAlert }: Props) {
             setPasted(null);
             setReplacing(null);
             if (target === "new") {
-              setImage(img);
+              setImages((prev) => [...prev, img]);
               return;
             }
             if (typeof target === "number") {
