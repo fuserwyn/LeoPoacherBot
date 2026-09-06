@@ -121,6 +121,14 @@ func (b *Bot) sendStreakReward(
 		totalCups = 0
 	}
 
+	chatID := b.packTrainingStateChatID(msg)
+	if msg.Chat != nil && !msg.Chat.IsPrivate() && msg.Chat.ID != 0 {
+		chatID = msg.Chat.ID
+	}
+	if chatID == 0 && msg.Chat != nil {
+		chatID = msg.Chat.ID
+	}
+
 	messageText := fmt.Sprintf(`%s!
 
 %s, стрик: %d %s подряд.
@@ -137,7 +145,7 @@ func (b *Bot) sendStreakReward(
 		totalCups,
 	)
 
-	reply := tgbotapi.NewMessage(msg.Chat.ID, messageText)
+	reply := tgbotapi.NewMessage(chatID, messageText)
 	if _, err := b.api.Send(reply); err != nil {
 		b.logger.Errorf("Failed to send %s reward message: %v", title, err)
 	}

@@ -618,6 +618,7 @@ func (b *Bot) handleMessage(msg *tgbotapi.Message, personalReplyCh chan<- string
 
 		// Обрабатываем хештеги
 		if hasTrainingReport {
+			b.sendChatActionIfTG(msg, tgbotapi.NewChatAction(msg.Chat.ID, tgbotapi.ChatTyping))
 			b.handleTrainingDone(msg, personalReplyCh, trainingDoneFeedMsgID)
 		} else if hasSickLeave {
 			b.handleSickLeave(msg)
@@ -686,6 +687,7 @@ func (b *Bot) handleMessage(msg *tgbotapi.Message, personalReplyCh chan<- string
 
 	// Если обращение к боту обнаружено и есть текст вопроса
 	if shouldHandleAI && text != "" {
+		b.sendChatActionIfTG(msg, tgbotapi.NewChatAction(msg.Chat.ID, tgbotapi.ChatTyping))
 		isPrivateLeo := msg.Chat != nil && msg.From != nil &&
 			(msg.Chat.IsPrivate() || msg.Chat.ID == msg.From.ID)
 		if isPrivateLeo {
@@ -2000,6 +2002,12 @@ func (b *Bot) handleAIQuestion(msg *tgbotapi.Message, questionText string, perso
 		return
 	}
 
+	stopTyping := func() {}
+	if !skipTelegram {
+		stopTyping = b.startTelegramTyping(msg)
+	}
+	defer stopTyping()
+
 	b.logger.Infof("Processing AI question: %s", questionText)
 
 	stateChat := b.packTrainingStateChatID(msg)
@@ -2168,25 +2176,6 @@ func (b *Bot) handleAIQuestion(msg *tgbotapi.Message, questionText string, perso
 				}
 			}
 		}
-	}
-
-	// «Печатает…» только в Telegram, не в режиме «только мини-апп».
-	var typingDone chan struct{}
-	if !skipTelegram {
-		b.api.Send(tgbotapi.NewChatAction(msg.Chat.ID, tgbotapi.ChatTyping))
-		typingDone = make(chan struct{})
-		go func(chatID int64, done <-chan struct{}) {
-			ticker := time.NewTicker(4 * time.Second)
-			defer ticker.Stop()
-			for {
-				select {
-				case <-done:
-					return
-				case <-ticker.C:
-					b.api.Send(tgbotapi.NewChatAction(chatID, tgbotapi.ChatTyping))
-				}
-			}
-		}(msg.Chat.ID, typingDone)
 	}
 
 	// Пытаемся определить пол из сообщения или имени
@@ -2378,9 +2367,6 @@ func (b *Bot) handleAIQuestion(msg *tgbotapi.Message, questionText string, perso
 			if !skipTelegram {
 				b.api.Send(tgbotapi.NewMessage(msg.Chat.ID, help))
 			}
-			if typingDone != nil {
-				close(typingDone)
-			}
 			return
 		}
 
@@ -2393,9 +2379,6 @@ func (b *Bot) handleAIQuestion(msg *tgbotapi.Message, questionText string, perso
 		miniReply(et)
 		if !skipTelegram {
 			b.api.Send(tgbotapi.NewMessage(msg.Chat.ID, et))
-		}
-		if typingDone != nil {
-			close(typingDone)
 		}
 		return
 	}
@@ -2419,9 +2402,6 @@ func (b *Bot) handleAIQuestion(msg *tgbotapi.Message, questionText string, perso
 		} else if msg.From != nil && strings.TrimSpace(answer) != "" {
 			b.savePersonalChatMessage(msg.From.ID, "leo", answer)
 		}
-	}
-	if typingDone != nil {
-		close(typingDone)
 	}
 
 	// Сохраняем ответ ИИ для анти‑повторов (тип ai_reply)

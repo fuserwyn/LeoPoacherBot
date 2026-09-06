@@ -3,6 +3,8 @@ package bot
 import (
 	"regexp"
 	"strings"
+	"sync"
+	"time"
 
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 )
@@ -92,6 +94,37 @@ func (b *Bot) sendChatActionIfTG(msg *tgbotapi.Message, action tgbotapi.Chattabl
 		return
 	}
 	b.api.Send(action)
+}
+
+// startTelegramTyping показывает «печатает…» в чате, пока Лео думает над ответом.
+// В мини-аппе не шлём action в Telegram. Возвращает stop — вызвать после ответа.
+func (b *Bot) startTelegramTyping(msg *tgbotapi.Message) func() {
+	noop := func() {}
+	if b == nil || b.api == nil || msg == nil || msg.Chat == nil {
+		return noop
+	}
+	if msg.From != nil && b.isMiniappOriginActive(msg.From.ID) {
+		return noop
+	}
+	chatID := msg.Chat.ID
+	b.api.Send(tgbotapi.NewChatAction(chatID, tgbotapi.ChatTyping))
+	done := make(chan struct{})
+	var once sync.Once
+	go func() {
+		ticker := time.NewTicker(4 * time.Second)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-done:
+				return
+			case <-ticker.C:
+				b.api.Send(tgbotapi.NewChatAction(chatID, tgbotapi.ChatTyping))
+			}
+		}
+	}()
+	return func() {
+		once.Do(func() { close(done) })
+	}
 }
 
 // notifyUserTextByID — версия notifyUserText без *Message для случаев, когда у вызывающего

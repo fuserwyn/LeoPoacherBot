@@ -249,8 +249,17 @@ func TestTrainingOutcome_MilestoneCups(t *testing.T) {
 		want int
 	}{
 		{"7-day milestone", TrainingOutcome{EarnRewards: true, NewStreakDays: 7}, 42},
+		{"14-day milestone", TrainingOutcome{EarnRewards: true, NewStreakDays: 14}, 42},
+		{"21-day milestone", TrainingOutcome{EarnRewards: true, NewStreakDays: 21}, 42},
 		{"30-day milestone", TrainingOutcome{EarnRewards: true, NewStreakDays: 30}, 420},
+		{"42-day milestone", TrainingOutcome{EarnRewards: true, NewStreakDays: 42}, 42},
+		{"50-day milestone", TrainingOutcome{EarnRewards: true, NewStreakDays: 50}, 42},
+		{"60-day milestone", TrainingOutcome{EarnRewards: true, NewStreakDays: 60}, 420},
+		{"90-day milestone", TrainingOutcome{EarnRewards: true, NewStreakDays: 90}, 420},
 		{"100-day milestone", TrainingOutcome{EarnRewards: true, NewStreakDays: 100}, 4200},
+		{"180-day milestone", TrainingOutcome{EarnRewards: true, NewStreakDays: 180}, 420},
+		{"200-day milestone", TrainingOutcome{EarnRewards: true, NewStreakDays: 200}, 4200},
+		{"240-day milestone", TrainingOutcome{EarnRewards: true, NewStreakDays: 240}, 4200},
 		{"non-milestone day", TrainingOutcome{EarnRewards: true, NewStreakDays: 8}, 0},
 		{"milestone but no rewards (same day)", TrainingOutcome{EarnRewards: false, NewStreakDays: 7}, 0},
 	}

@@ -281,6 +281,9 @@ func ruCupsWord(n int) string {
 // personalReplyCh, если задан, получает сводку для Mini App; иначе отбивка уходит в общий чат стаи.
 // trainingUserMessageID — id строки user_messages с этим отчётом; для ленты мини-аппа подтягиваем ответ Лео в тред (только отчёт из чата стаи).
 func (b *Bot) handleLeopardMoneyTrainingDone(msg *tgbotapi.Message, personalReplyCh chan<- string, trainingUserMessageID int64) {
+	stopTyping := b.startTelegramTyping(msg)
+	defer stopTyping()
+
 	username := ""
 	if msg.From.UserName != "" {
 		username = "@" + msg.From.UserName
@@ -356,9 +359,14 @@ func (b *Bot) handleLeopardMoneyTrainingDone(msg *tgbotapi.Message, personalRepl
 		}
 	}
 
-	newStreak, _ := ComputeStreakDays(messageLog.LastTrainingDate, messageLog.StreakDays, localNow)
-
-	cupsAdd := leopardmoney.TrainingCupsFromReportText(text)
+	outcome := b.calculateTrainingDayOutcome(messageLog)
+	newStreak := outcome.NewStreakDays
+	// Классическая система кубков (фев–мар 2026): +1 за каждый отчёт, плюс бонус за порог стрика.
+	// Формула «минуты × интенсивность» больше не начисляет кубки.
+	cupsAdd := 1
+	if bonus := outcome.MilestoneCups(); bonus > 0 {
+		cupsAdd += bonus
+	}
 	if err := b.db.AddCups(msg.From.ID, packChatID, cupsAdd); err != nil {
 		b.logger.Errorf("add cups: %v", err)
 	}
@@ -457,18 +465,6 @@ func (b *Bot) handleLeopardMoneyTrainingDone(msg *tgbotapi.Message, personalRepl
 			tagPrefix = fmt.Sprintf("[%s](tg://user?id=%d), ", displayName, msg.From.ID)
 		}
 	}
-	// chatAck — короткая «съем/не съем» реплика. В mini-app-флоу её показывать в TG не нужно
-	// (юзер видит подтверждение в мини-аппе через messageText ниже), иначе получится дубль
-	// в TG-личке: «Не дублировать в ТГ из мини-аппа» (см. требование пользователя).
-	if personalReplyCh == nil {
-		chatAckText := tagPrefix + b.generateShortLeopardChatAck(username, text, newStreak, totalCups, ach)
-		chatAck := tgbotapi.NewMessage(msg.Chat.ID, chatAckText)
-		chatAck.ParseMode = "Markdown"
-		if _, err := b.api.Send(chatAck); err != nil {
-			b.logger.Errorf("send training chat ack: %v", err)
-		}
-	}
-
 	statsBlock := fmt.Sprintf(
 		"✅ Отчёт принят! 💪\n\n"+
 			"🦁 Стрик: %d %s\n"+
@@ -487,7 +483,7 @@ func (b *Bot) handleLeopardMoneyTrainingDone(msg *tgbotapi.Message, personalRepl
 		default:
 		}
 	} else {
-		// Отбивка (#training_done из Telegram) — в общий чат стаи, не в личку.
+		// Одно сообщение в общий чат: реплика Лео + отбивка (не два отдельных).
 		summaryChatID := packChatID
 		if msg.Chat != nil && !msg.Chat.IsPrivate() && msg.Chat.ID != msg.From.ID {
 			summaryChatID = msg.Chat.ID
@@ -496,7 +492,11 @@ func (b *Bot) handleLeopardMoneyTrainingDone(msg *tgbotapi.Message, personalRepl
 			summaryChatID = msg.Chat.ID
 		}
 		if summaryChatID != 0 {
+			ack := strings.TrimSpace(b.generateShortLeopardChatAck(username, text, newStreak, totalCups, ach))
 			summaryText := strings.TrimSpace(tagPrefix + messageTextSummary)
+			if ack != "" {
+				summaryText = strings.TrimSpace(tagPrefix + ack + "\n\n" + messageTextSummary)
+			}
 			summary := tgbotapi.NewMessage(summaryChatID, summaryText)
 			if strings.Contains(tagPrefix, "tg://user?id=") {
 				summary.ParseMode = "Markdown"
@@ -506,6 +506,9 @@ func (b *Bot) handleLeopardMoneyTrainingDone(msg *tgbotapi.Message, personalRepl
 			}
 			if _, err := b.api.Send(summary); err != nil {
 				b.logger.Warnf("send training group summary: %v", err)
+			}
+			if outcome.EarnRewards && outcome.MilestoneCups() > 0 {
+				b.sendMilestoneReward(msg, username, newStreak)
 			}
 		}
 	}
